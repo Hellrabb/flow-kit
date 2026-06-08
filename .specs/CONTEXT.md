@@ -131,7 +131,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 > 这些是与新 change 通常无关、改坏会出事的高风险模块。每个 change 的 DESIGN 0.5.1 会复用这清单。
 
 - `package-flow-kit.sh`（打包脚本核心逻辑，改动影响分发流程）
-- `flow-kit-bundle.tar.gz`（已生成的分发包，不应手动修改）
+- `flow-kit-bundle.tar.gz`（已生成的分发包，`.gitignore` 排除，不应手动修改或 git add）
+- `.gitignore`（手动维护；禁 AI "顺手重写"或增删排除规则）
 
 **清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
 
@@ -141,7 +142,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 > 只记 🟡 Scheduled 和 🟡 🔴 未处理项。🔴 Critical 已通过 health-fix CHANGE 处理中，不在此列。
 
-_暂无_（尚未运行 health 巡检）
+_详见 `.specs/LESSONS.md`（2026-06-08 基线：1🔴 + 3🟡 + 1🟢）_
 
 ---
 
@@ -149,12 +150,22 @@ _暂无_（尚未运行 health 巡检）
 
 ```
 /home/hellrabbit/unisoc/flow-kit/
-├── .specs/                          # flow-kit 规格目录（本次扫描创建）
-│   ├── CONTEXT.md                   # 本文件
-│   └── STATE.md                     # 项目状态
-├── flow-kit-bundle.tar.gz           # 分发包（253KB，package-flow-kit.sh 生成）
-├── flow-kit-ecosystem-guide.md      # 生态组件清单文档（8.7KB）
-└── package-flow-kit.sh              # 打包 + 安装脚本（28KB）
+├── .git/                             # Git 仓库（2026-06-08 初始化）
+├── .gitignore                        # 排除规则（bundle / secrets / IDE / temp）
+├── README.md                         # 仓库说明（用途 + 目录 + 规范）
+├── .specs/                           # flow-kit 规格目录
+│   ├── CONTEXT.md                    # 项目共享上下文
+│   ├── STATE.md                      # 项目状态
+│   ├── LESSONS.md                    # 技术债与经验教训（2026-06-08 基线）
+│   └── init-git-repo/                # 当前活跃 change
+│       ├── CHANGE.md
+│       ├── REQUIREMENT.md
+│       ├── DESIGN.md
+│       └── TASK.md
+├── flow-kit-bundle.tar.gz            # 分发包（253KB · .gitignore 排除）
+├── flow-kit-ecosystem-guide.md       # 生态组件清单文档（8.7KB）
+├── flow-kit-bundle/                  # 分发包源码
+└── package-flow-kit.sh               # 打包 + 安装脚本（28KB）
 ```
 
 ---
