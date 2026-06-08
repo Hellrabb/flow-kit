@@ -222,8 +222,11 @@ NO_HOOKS=false
 NO_SKILLS=false
 NO_BROOKS=false
 HOOKS_ONLY=false
+REINSTALL=false
 BROOKS_SRC=""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION_FILE="$HOME/.claude/.flow-kit-version"
+BUNDLE_VERSION_FILE="$SCRIPT_DIR/.flow-kit-version"
 
 usage() {
   cat << EOF
@@ -231,6 +234,8 @@ usage() {
 
 选项:
   --global              全局安装（~/.claude/flow-kit + ~/.claude/skills/flow-* + brooks-lint）
+  --update              智能更新（版本比对 · bundle 版本 > 已装版本才执行）
+  --reinstall           彻底重装（先 rm -rf 既有安装 → 再全新 --global）
   --project <path>      安装到指定项目（hooks + settings.json + .specs 模板）
   --no-hooks            跳过 stop hook 安装
   --no-skills           跳过 skills 安装
@@ -240,9 +245,10 @@ usage() {
 
 示例:
   $0 --global                              # 全局安装全部组件
+  $0 --update                              # 智能更新（仅当 bundle 更新）
+  $0 --reinstall                           # 彻底重装
   $0 --project /path/to/myproject          # 项目级安装
   $0 --global --no-hooks                   # 仅全局 flow-kit + skills + brooks-lint，不装 hooks
-  $0 --global --no-brooks                  # 全局安装但不装 brooks-lint
   $0 --project . --hooks-only              # 仅装 hooks 到当前项目
 EOF
   exit 0
@@ -257,6 +263,8 @@ while [[ $# -gt 0 ]]; do
     --no-skills)   NO_SKILLS=true; shift ;;
     --no-brooks)   NO_BROOKS=true; shift ;;
     --hooks-only)  HOOKS_ONLY=true; shift ;;
+    --update)      MODE="update"; shift ;;
+    --reinstall)   REINSTALL=true; MODE="global"; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
     --brooks-src)  BROOKS_SRC="$2"; shift ;;
     -h|--help)     usage ;;
@@ -267,6 +275,51 @@ done
 if [ -z "$MODE" ]; then
   echo "❌ 必须指定 --global 或 --project <path>"
   usage
+fi
+
+# ── --update: 版本比对 ───────────────────────────────────────────────
+if [ "$MODE" = "update" ]; then
+  BUNDLE_VER=""
+  if [ -f "$BUNDLE_VERSION_FILE" ]; then
+    BUNDLE_VER=$(cat "$BUNDLE_VERSION_FILE" 2>/dev/null)
+  fi
+
+  INSTALLED_VER=""
+  if [ -f "$VERSION_FILE" ]; then
+    INSTALLED_VER=$(cat "$VERSION_FILE" 2>/dev/null)
+  fi
+
+  if [ -n "$INSTALLED_VER" ] && [ -n "$BUNDLE_VER" ]; then
+    if [ "$BUNDLE_VER" = "$INSTALLED_VER" ]; then
+      echo "✅ flow-kit 已是最新版本 (${INSTALLED_VER})，无需更新"
+      exit 0
+    fi
+    if [ "$BUNDLE_VER" \< "$INSTALLED_VER" ] || [ "$BUNDLE_VER" = "$INSTALLED_VER" ]; then
+      echo "⚠️  bundle 版本 (${BUNDLE_VER}) ≤ 已安装版本 (${INSTALLED_VER})，跳过更新"
+      echo "   如需强制安装，请使用 --reinstall"
+      exit 0
+    fi
+    echo "🔧 更新 flow-kit: ${INSTALLED_VER} → ${BUNDLE_VER}"
+  else
+    echo "🔧 首次安装 flow-kit (bundle ${BUNDLE_VER:-未知版本})"
+  fi
+  MODE="global"
+fi
+
+# ── --reinstall: 清空重装 ─────────────────────────────────────────────
+if [ "$REINSTALL" = true ]; then
+  echo "🧹 彻底重装：清理既有安装..."
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/marketplaces/brooks-lint-marketplace"
+  else
+    rm -rf "$HOME/.claude/flow-kit"
+    rm -rf "$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
+    for d in "$HOME/.claude/skills"/flow-*; do
+      [ -d "$d" ] && rm -rf "$d"
+    done 2>/dev/null || true
+    rm -f "$VERSION_FILE"
+    echo "   ✅ 已清理既有安装"
+  fi
 fi
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────
@@ -497,10 +550,25 @@ echo "║  1. 合并 settings.json 中的 hooks 配置                       ║
 echo "║  2. 根据需要调整 stop-hook.json 中的模块开关                 ║"
 echo "║  3. 在项目目录运行 /flow-go 初始化                            ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
+
+# 写入版本标记
+if [ "$MODE" = "global" ] || [ "$REINSTALL" = true ]; then
+  if [ -f "$BUNDLE_VERSION_FILE" ]; then
+    if [ "${DRY_RUN:-false}" = true ]; then
+      echo "   [DRY-RUN] cp .flow-kit-version -> $VERSION_FILE"
+    else
+      cp "$BUNDLE_VERSION_FILE" "$VERSION_FILE"
+      echo "   📌 版本标记: $(cat "$VERSION_FILE")"
+    fi
+  fi
+fi
 INSTEOF
 
 chmod +x "$STAGING/install.sh"
-echo "   ✅ README.md + install.sh 已生成"
+
+# 版本标记文件（供 --update 版本比对 + 离线机上识别 bundle 版本）
+echo "${TIMESTAMP}" > "$STAGING/.flow-kit-version"
+echo "   ✅ README.md + install.sh + .flow-kit-version 已生成 (${TIMESTAMP})"
 
 # ═══════════════════════════════════════════════════════════════════════
 # Part F: brooks-lint 代码审查插件（离线优先：本地缓存 → git archive fallback）
