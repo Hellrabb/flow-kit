@@ -222,6 +222,7 @@ NO_HOOKS=false
 NO_SKILLS=false
 NO_BROOKS=false
 HOOKS_ONLY=false
+BROOKS_SRC=""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 usage() {
@@ -257,6 +258,7 @@ while [[ $# -gt 0 ]]; do
     --no-brooks)   NO_BROOKS=true; shift ;;
     --hooks-only)  HOOKS_ONLY=true; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
+    --brooks-src)  BROOKS_SRC="$2"; shift ;;
     -h|--help)     usage ;;
     *) echo "未知选项: $1"; usage ;;
   esac
@@ -501,15 +503,16 @@ chmod +x "$STAGING/install.sh"
 echo "   ✅ README.md + install.sh 已生成"
 
 # ═══════════════════════════════════════════════════════════════════════
-# Part F: brooks-lint 代码审查插件
+# Part F: brooks-lint 代码审查插件（离线优先：本地缓存 → git archive fallback）
 # ═══════════════════════════════════════════════════════════════════════
 echo ""
 echo "📦 Part F: 打包 brooks-lint 代码审查插件..."
 
 BROOKS_COMMAND_SRC="$HOME/.claude/commands"
+BROOKS_CACHE="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint"
 BROOKS_PLUGIN_SRC="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
 
-# F1: 命令入口文件（6 个 skill 入口 + 版本标记）
+# F1: 命令入口文件（6 个 skill 入口 + 版本标记 · 不变）
 if [ -d "$BROOKS_COMMAND_SRC" ]; then
   cp "$BROOKS_COMMAND_SRC"/brooks-audit.md   "$STAGING/brooks-lint/commands/" 2>/dev/null || true
   cp "$BROOKS_COMMAND_SRC"/brooks-debt.md    "$STAGING/brooks-lint/commands/" 2>/dev/null || true
@@ -524,15 +527,37 @@ else
   echo "   ⚠️  brooks-lint 命令目录不存在，跳过"
 fi
 
-# F2: 插件主体（git archive 排除 .git + assets + docs）
-if [ -d "$BROOKS_PLUGIN_SRC" ]; then
+# F2: 插件主体（优先级：--brooks-src > 本地缓存 > git archive fallback）
+brooks_src=""
+brooks_label=""
+
+if [ -n "${BROOKS_SRC:-}" ] && [ -d "$BROOKS_SRC" ]; then
+  # 用户指定源
+  brooks_src="$BROOKS_SRC"
+  brooks_label="--brooks-src $BROOKS_SRC"
+elif [ -d "$BROOKS_CACHE" ] && [ -n "$(ls -A "$BROOKS_CACHE" 2>/dev/null)" ]; then
+  # 本地缓存存在 → 自动选最新版本
+  BROOKS_VER=$(ls -1 "$BROOKS_CACHE" 2>/dev/null | sort -V | tail -1)
+  if [ -n "$BROOKS_VER" ] && [ -d "$BROOKS_CACHE/$BROOKS_VER" ]; then
+    brooks_src="$BROOKS_CACHE/$BROOKS_VER"
+    brooks_label="本地缓存 v${BROOKS_VER}"
+  fi
+fi
+
+if [ -n "$brooks_src" ]; then
+  # 首选：rsync 离线打包
+  rsync -a --exclude='.git' "$brooks_src/" "$STAGING/brooks-lint/plugin/"
+  echo "   ✅ brooks-lint 插件主体已打包（${brooks_label}）"
+elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
+  # Fallback：git archive（原有逻辑）
+  echo "   ⚠️  本地缓存不可用，回退到 git archive 方式"
   if git -C "$BROOKS_PLUGIN_SRC" rev-parse HEAD >/dev/null 2>&1; then
     git -C "$BROOKS_PLUGIN_SRC" archive \
       --format=tar \
       --prefix="brooks-lint/plugin/" \
       HEAD \
       | tar -xC "$STAGING/"
-    # 补充 git-archive 未包含的非追踪文件（commands + hooks/hooks.json + .claude-plugin）
+    # 补充 git-archive 未包含的非追踪文件
     for extra in commands hooks/hooks.json .claude-plugin .brooks-lint.example.yaml AGENTS.md CLAUDE.md CHANGELOG.md CONTRIBUTING.md README.md; do
       if [ -f "$BROOKS_PLUGIN_SRC/$extra" ]; then
         mkdir -p "$(dirname "$STAGING/brooks-lint/plugin/$extra")"
