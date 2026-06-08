@@ -1,0 +1,28 @@
+# === 生成文件 ===
+flow-kit-bundle.tar.gz
+*.tar.gz
+
+# === 敏感文件 ===
+.env
+.env.*
+*.key
+*.pem
+credentials*
+*secret*
+*_secret*
+*_SECRET*
+
+# === 系统文件 ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === 临时文件 ===
+*.tmp
+*.log
