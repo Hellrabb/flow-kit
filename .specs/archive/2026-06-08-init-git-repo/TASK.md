@@ -20,7 +20,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
 ## 任务清单
 
 ```xml
-<task id="T01" parallel="true" status="pending">
+<task id="T01" parallel="true" status="done">
   <name>初始化 Git 仓库并创建 .gitignore</name>
   <read_files>
     .specs/init-git-repo/DESIGN.md
@@ -46,7 +46,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending">
+<task id="T02" parallel="true" status="done">
   <name>编写 README.md</name>
   <read_files>
     .specs/CONTEXT.md
@@ -75,7 +75,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T03" parallel="true" status="pending">
+<task id="T03" parallel="true" status="done">
   <name>建立技术债基线（brooks-lint 扫描 + 手动补充）</name>
   <read_files>
     package-flow-kit.sh
@@ -111,7 +111,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T04" parallel="true" status="pending">
+<task id="T04" parallel="true" status="done">
   <name>更新 CONTEXT.md 和 STATE.md 反映 Git 状态</name>
   <read_files>
     .specs/CONTEXT.md
@@ -142,7 +142,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T05" parallel="false" status="pending">
+<task id="T05" parallel="false" status="done">
   <name>最终提交：含所有新增文件的完整 commit</name>
   <read_files>
     README.md
@@ -171,7 +171,7 @@ Wave 2:            T05    (depends on T01, T02, T03, T04)
 
 ## 状态字段说明
 
-- `status="pending"` — 未开始
+- `status="done"` — 未开始
 - `status="in_progress"` — 进行中
 - `status="done"` — 已完成（verify 通过）
 - `status="blocked"` — 阻塞（在「阻塞日志」记录）
