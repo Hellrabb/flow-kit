@@ -182,28 +182,38 @@ cat > "$STAGING/README.md" << 'READEOF'
 ## 安装
 
 ```bash
-# 方式1: 全局安装（所有项目复用 flow-kit）
+# 首次安装 / 全新安装
 ./install.sh --global
 
-# 方式2: 安装到指定项目
+# 智能更新（仅当 bundle 版本 > 已装版本时执行）
+./install.sh --update
+
+# 彻底重装（清空既有安装后全新安装）
+./install.sh --reinstall
+
+# 项目级安装（hooks + settings.json + .specs 模板）
 ./install.sh --project /path/to/your-project
 
-# 方式3: 仅安装特定组件
+# 精细控制
 ./install.sh --global --no-hooks        # 不装 stop hook
 ./install.sh --global --no-skills       # 不装 skills
+./install.sh --global --no-brooks       # 不装 brooks-lint
 ./install.sh --project . --hooks-only   # 仅装 stop hook
 ```
 
-## 安装后
+## 更新 / 重装
 
-1. 为目标项目创建 `.specs/STATE.md`（参考 `specs-template/STATE.md`）
-2. 如需入场扫描，在项目目录运行 `/flow-go` 然后选 "扫描代码"
-3. 根据项目需求调整 `stop-hook.json` 中的模块开关
-
-## 更新 flow-kit 核心
+拿到新版 bundle 后：
 
 ```bash
-cd ~/.claude/flow-kit && git pull
+# 推荐：智能更新（自动版本比对）
+./install.sh --update
+
+# 如果出问题：彻底重装
+./install.sh --reinstall
+```
+
+> ⚠️ 不要在 `~/.claude/flow-kit/` 里手动 git pull — bundle 版本管理走 `.flow-kit-version` 版本标记。
 ```
 READEOF
 
