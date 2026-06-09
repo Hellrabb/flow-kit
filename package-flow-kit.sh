@@ -428,11 +428,17 @@ install_brooks_lint() {
   cp "$cmd_src"/.brooks-lint-v* "$cmd_dst/" 2>/dev/null || true
   echo "   ✅ ${cmd_count} 个 brooks-lint 命令已安装到 $cmd_dst"
 
-  # F2: 插件主体
+  # F2: 插件主体 → cache/（CC 运行时加载 + /plugin 列表识别）
+  #     同时写一份到 marketplaces/（marketplace 源目录，备查 / 手工重装 / 未来 CC 可能支持同步）
   if [ -d "$plugin_src" ]; then
     mkdir -p "$plugin_dst"
     rsync -a --exclude='.git' "$plugin_src/" "$plugin_dst/"
     echo "   ✅ brooks-lint 插件已安装到 $plugin_dst"
+
+    local mkt_dst="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
+    mkdir -p "$mkt_dst"
+    rsync -a --exclude='.git' "$plugin_src/" "$mkt_dst/"
+    echo "   ✅ brooks-lint 已同步到 $mkt_dst（marketplace 源副本）"
   fi
 
   # F3: 注册到 installed_plugins.json（幂等合并 · Claude Code v2 格式）
