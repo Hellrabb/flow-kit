@@ -20,17 +20,53 @@ flow-kit-bundle/
 
 ---
 
+## 安装模式选择
+
+| 模式 | 命令 | flow-kit 核心位置 | 适用场景 |
+|---|---|---|---|
+| 用户级（推荐） | `bash install.sh --user <project>` | `~/.claude/flow-kit/`（全局一份，项目 symlink） | 多项目、统一升级、新用户首次安装 |
+| 项目级（默认） | `bash install.sh <project>` | `<project>/flow-kit/`（物理目录） | 单项目、锁定版本、离线环境 |
+
+> **推荐 --user 模式**：升级 `~/.claude/flow-kit/` 一处，所有项目即时生效。
+> 如果项目需要锁定特定版本，在项目根目录放一个物理 `flow-kit/` 目录即可（project-priority fallback，物理目录优先于 symlink）。
+
+### --user 模式原理
+
+```
+~/.claude/
+├── flow-kit/        ← 全局一份核心引擎（rsync from bundle）
+│   └── GO.md, prompts/, reference/, templates/
+└── skills/          ← 17 个 flow-* skill（两种模式相同）
+
+每个项目只需：
+  flow-kit → ~/.claude/flow-kit   ← symlink（install.sh --user 自动创建）
+```
+
+AI 在项目中读取 `flow-kit/prompts/4-dev.md` → symlink 透明解析 → 实际读到 `~/.claude/flow-kit/prompts/4-dev.md`。
+
+---
 ## 安装步骤
 
 ### 1. 部署 flow-kit 核心
 
-将 `flow-kit/` 放到**项目根目录**下：
+**方式 A：用户级（推荐）**
+
+```bash
+# 使用 install.sh --user，自动处理 user-scope 安装 + symlink
+bash flow-kit-bundle/install.sh --user /path/to/your-project
+```
+
+核心引擎安装到 `~/.claude/flow-kit/`（全局一份），项目创建 symlink。
+
+**方式 B：项目级（手动）**
 
 ```bash
 cp -r flow-kit-bundle/flow-kit /path/to/your-project/flow-kit
 ```
 
 > `flow-kit/` 是项目级目录，每个项目都需要一份。AI 在阶段执行时通过 `flow-kit/prompts/`、`flow-kit/reference/` 等路径引用。
+>
+> 💡 **Clone 到新机器后**：`flow-kit → ~/.claude/flow-kit` 的 symlink 会断链。重新运行 `install.sh --user <project>` 即可修复。
 
 ### 2. 部署 Hook 脚本
 
@@ -170,8 +206,11 @@ ls -la /path/to/project/.claude/hooks/session-start/flow-kit-resume.sh
 # 检查 skills 存在
 ls ~/.claude/skills/flow-go/SKILL.md
 
-# 检查 flow-kit 核心
-ls /path/to/project/flow-kit/GO.md
+# 检查 flow-kit 核心（--user 模式：symlink；默认模式：物理目录）
+ls -l /path/to/project/flow-kit/GO.md
+
+# --user 模式额外验证：确认是 symlink
+ls -l /path/to/project/flow-kit | grep '->.*\.claude/flow-kit' && echo "✅ user-scope symlink"
 
 # 检查 hook 接线
 jq '.hooks' /path/to/project/.claude/settings.json
