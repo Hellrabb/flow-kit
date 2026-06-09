@@ -435,23 +435,33 @@ install_brooks_lint() {
     echo "   ✅ brooks-lint 插件已安装到 $plugin_dst"
   fi
 
-  # F3: 注册到 installed_plugins.json（幂等合并）
+  # F3: 注册到 installed_plugins.json（幂等合并 · Claude Code v2 格式）
   local install_json="$HOME/.claude/plugins/installed_plugins.json"
-  local plugin_entry='{
-    "name": "brooks-lint",
-    "version": "1.3.0",
-    "source": "marketplace",
-    "marketplace": "brooks-lint-marketplace",
-    "installed_at": "'"$(date -Iseconds)"'"
-  }'
+  local now_iso
+  now_iso=$(date -Iseconds 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local plugin_key="brooks-lint@brooks-lint-marketplace"
+  local plugin_entry
+  plugin_entry=$(cat <<EOF
+{
+  "scope": "user",
+  "installPath": "${plugin_dst}",
+  "version": "1.3.0",
+  "installedAt": "${now_iso}",
+  "lastUpdated": "${now_iso}"
+}
+EOF
+)
 
   if [ -f "$install_json" ]; then
-    # 用 jq 做幂等 upsert（如果已存在同名插件则跳过）
     if command -v jq &>/dev/null; then
       local existing
-      existing=$(jq -r '.plugins[]? | select(.name == "brooks-lint") | .name' "$install_json" 2>/dev/null) || true
+      existing=$(jq -r --arg key "$plugin_key" '.plugins[$key] // empty' "$install_json" 2>/dev/null) || true
       if [ -z "$existing" ]; then
-        if jq --argjson entry "$plugin_entry" '.plugins += [$entry]' "$install_json" > "${install_json}.tmp" 2>/dev/null; then
+        # 幂等写入 Claude Code v2 格式
+        if jq --arg key "$plugin_key" --argjson entry "$plugin_entry" \
+          'if .version then . else . + {version: 2} end
+           | .plugins[$key] += [$entry]' \
+          "$install_json" > "${install_json}.tmp" 2>/dev/null; then
           mv "${install_json}.tmp" "$install_json"
           echo "   ✅ brooks-lint 已注册到 installed_plugins.json"
         else
@@ -465,7 +475,9 @@ install_brooks_lint() {
     fi
   else
     mkdir -p "$(dirname "$install_json")"
-    echo "{\"plugins\": [$plugin_entry]}" > "$install_json"
+    jq -n --arg key "$plugin_key" --argjson entry "$plugin_entry" \
+      '{version: 2, plugins: {($key): [$entry]}}' \
+      > "$install_json"
     echo "   ✅ 已创建 installed_plugins.json 并注册 brooks-lint"
   fi
 }
