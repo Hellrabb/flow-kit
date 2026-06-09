@@ -403,7 +403,7 @@ install_brooks_lint() {
   local cmd_src="$SCRIPT_DIR/brooks-lint/commands"
   local cmd_dst="$HOME/.claude/commands"
   local plugin_src="$SCRIPT_DIR/brooks-lint/plugin"
-  local plugin_dst="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
+  local plugin_dst="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint/1.3.0"
 
   if [ ! -d "$cmd_src" ]; then
     echo "   ⚠️  brooks-lint 命令源目录不存在，跳过"
