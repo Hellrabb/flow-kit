@@ -191,8 +191,12 @@ cat > "$STAGING/README.md" << 'READEOF'
 # 彻底重装（清空既有安装后全新安装）
 ./install.sh --reinstall
 
-# 项目级安装（hooks + settings.json + .specs 模板）
+# 项目级安装（hooks 仅对当前项目生效）
 ./install.sh --project /path/to/your-project
+
+# 用户级 hooks（所有项目共用）
+./install.sh --project ~ --hooks-only      # 等同 --user
+./install.sh --global --user               # 全局 + 用户级 hooks
 
 # 精细控制
 ./install.sh --global --no-hooks        # 不装 stop hook
@@ -232,6 +236,7 @@ NO_HOOKS=false
 NO_SKILLS=false
 NO_BROOKS=false
 HOOKS_ONLY=false
+HOOK_SCOPE="project"
 REINSTALL=false
 BROOKS_SRC=""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -247,6 +252,7 @@ usage() {
   --update              智能更新（版本比对 · bundle 版本 > 已装版本才执行）
   --reinstall           彻底重装（先 rm -rf 既有安装 → 再全新 --global）
   --project <path>      安装到指定项目（hooks + settings.json + .specs 模板）
+  --user                安装 hooks 到用户目录 ~/.claude/（全局生效，所有项目共用）
   --no-hooks            跳过 stop hook 安装
   --no-skills           跳过 skills 安装
   --no-brooks           跳过 brooks-lint 安装
@@ -260,6 +266,7 @@ usage() {
   $0 --project /path/to/myproject          # 项目级安装
   $0 --global --no-hooks                   # 仅全局 flow-kit + skills + brooks-lint，不装 hooks
   $0 --project . --hooks-only              # 仅装 hooks 到当前项目
+  $0 --global --user                       # 全局安装 + hooks 用户目录（所有项目生效）
 EOF
   exit 0
 }
@@ -275,6 +282,7 @@ while [[ $# -gt 0 ]]; do
     --hooks-only)  HOOKS_ONLY=true; shift ;;
     --update)      MODE="update"; shift ;;
     --reinstall)   REINSTALL=true; MODE="global"; shift ;;
+    --user)        HOOK_SCOPE="user"; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
     --brooks-src)  BROOKS_SRC="$2"; shift ;;
     -h|--help)     usage ;;
@@ -460,19 +468,30 @@ install_brooks_lint() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# Step 4: Stop Hook + SessionStart → <project>/.claude/hooks/
+# Step 4: Stop Hook + SessionStart → user (~/.claude/) or project
 # ═══════════════════════════════════════════════════════════════════════
 install_hooks() {
   local project="$1"
+  local scope="${2:-project}"   # "user" or "project"
   echo ""
-  echo "═══ 安装 Hook 系统到 $project ═══"
+  echo "═══ 安装 Hook 系统（scope: ${scope}）═══"
 
-  if [ ! -d "$project" ]; then
-    echo "   ❌ 项目目录不存在: $project"
-    return 1
+  local hook_dst
+  local settings_hook_path   # path used in settings.json command
+
+  if [ "$scope" = "user" ]; then
+    hook_dst="$HOME/.claude/hooks"
+    settings_hook_path="\${HOME}/.claude/hooks"
+  else
+    if [ ! -d "$project" ]; then
+      echo "   ❌ 项目目录不存在: $project"
+      return 1
+    fi
+    hook_dst="$project/.claude/hooks"
+    settings_hook_path="\${CLAUDE_PROJECT_DIR}/.claude/hooks"
   fi
 
-  local hook_dst="$project/.claude/hooks"
+  echo "   安装到: $hook_dst"
 
   # Stop hook 模块
   for script in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
@@ -495,10 +514,47 @@ install_hooks() {
   # 配置文件
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
 
+  # ═══ 生成 settings.json 合并片段（根据 scope 使用不同路径） ═══
   echo ""
-  echo "   ⚠️  注意: settings.json 需要手动合并！"
-  echo "   参考模板: $SCRIPT_DIR/hooks/config/settings.json"
-  echo "   将 hooks 段合并到 $project/.claude/settings.json"
+  echo "   📋 settings.json 合并片段（粘贴到 ~/.claude/settings.json 的 \"hooks\" 段）:"
+  echo ""
+  cat << SETEOF
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash \"${settings_hook_path}/stop/00-gate.sh\""
+        }
+      ]
+    }
+  ],
+  "SessionStart": [
+    {
+      "matcher": "startup",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash \"${settings_hook_path}/session-start/stop-report-reminder.sh\""
+        }
+      ]
+    },
+    {
+      "matcher": "startup|clear|compact",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash \"${settings_hook_path}/session-start/flow-kit-resume.sh\""
+        }
+      ]
+    }
+  ]
+SETEOF
+  echo ""
+  echo "   ⚠️  上述片段需手动合并到 ~/.claude/settings.json"
+  echo "   如果是 user scope，路径使用 \${HOME}/.claude/hooks/..."
+  echo "   如果是 project scope，路径使用 \${CLAUDE_PROJECT_DIR}/.claude/hooks/..."
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -521,7 +577,7 @@ install_specs_template() {
 # ═══════════════════════════════════════════════════════════════════════
 
 if [ "$HOOKS_ONLY" = true ]; then
-  install_hooks "$TARGET_PROJECT"
+  install_hooks "$TARGET_PROJECT" "$HOOK_SCOPE"
   install_specs_template "$TARGET_PROJECT"
 else
   case "$MODE" in
@@ -533,13 +589,19 @@ else
       if [ "$NO_BROOKS" = false ]; then
         install_brooks_lint
       fi
-      echo ""
-      echo "💡 全局组件已安装。如需 hooks，请运行:"
-      echo "   $0 --project <你的项目路径> --hooks-only"
+      # --global --user: 同时安装用户级 hooks
+      if [ "$HOOK_SCOPE" = "user" ]; then
+        install_hooks "$HOME" "user"
+      else
+        echo ""
+        echo "💡 如需 hooks，请运行:"
+        echo "   $0 --project <你的项目路径> --hooks-only        # 项目级"
+        echo "   $0 --global --user                               # 用户级（所有项目生效）"
+      fi
       ;;
     project)
       if [ "$NO_HOOKS" = false ]; then
-        install_hooks "$TARGET_PROJECT"
+        install_hooks "$TARGET_PROJECT" "$HOOK_SCOPE"
       fi
       install_specs_template "$TARGET_PROJECT"
       if [ "$NO_SKILLS" = false ]; then
