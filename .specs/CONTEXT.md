@@ -53,6 +53,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | gateflow | SystemVerilog/RTL 开发助手插件（本环境已安装） |
 | LESSONS.md | 项目级经验教训与技术债记录文件，M-health 巡检结果写入此处 |
 | TECH-DEBT.md | 技术债专用清单，brooks-lint 扫描结果与人工标注的合并输出 |
+| user-scope install | flow-kit 核心引擎安装到 `~/.claude/flow-kit/`，所有项目通过 symlink 共享（而非每项目复制一份） |
+| two-level lookup | skill 文件查找策略：先查项目级 `flow-kit/`（允许项目锁定版本），未找到则回退到 `~/.claude/flow-kit/` |
+| project-priority fallback | 以项目级 `flow-kit/` 为优先的查找策略，项目有实体目录就用项目的，没有才查 user-scope |
 
 > 加新术语时只在右列写定义，不解释来历。
 
@@ -60,6 +63,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 - `[2026-06-05]` 入场扫描完成 — 该项目为 flow-kit 分发包仓库，非传统软件项目。无源代码、无框架、无数据库。来自 `I-intel-scan`
 - `[2026-06-08]` Git 仓库初始化 — `init-git-repo` CHANGE。默认分支 `main`，提交格式 [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`/`fix:`/`docs:`/`chore:`)。来自 `init-git-repo`
+- `[2026-06-09]` user-scope 安装采用 symlink 方案（`~/.claude/flow-kit/` + 项目 `flow-kit → symlink`），而非改动 86 处 skill 内部路径引用。项目级优先（project-priority fallback）——已有物理 `flow-kit/` 目录的项目不受影响。来自 `user-scope-install`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

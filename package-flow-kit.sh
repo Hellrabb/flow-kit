@@ -449,11 +449,14 @@ install_brooks_lint() {
     # 用 jq 做幂等 upsert（如果已存在同名插件则跳过）
     if command -v jq &>/dev/null; then
       local existing
-      existing=$(jq -r '.plugins[]? | select(.name == "brooks-lint") | .name' "$install_json" 2>/dev/null)
+      existing=$(jq -r '.plugins[]? | select(.name == "brooks-lint") | .name' "$install_json" 2>/dev/null) || true
       if [ -z "$existing" ]; then
-        jq --argjson entry "$plugin_entry" '.plugins += [$entry]' "$install_json" > "${install_json}.tmp" \
-          && mv "${install_json}.tmp" "$install_json"
-        echo "   ✅ brooks-lint 已注册到 installed_plugins.json"
+        if jq --argjson entry "$plugin_entry" '.plugins += [$entry]' "$install_json" > "${install_json}.tmp" 2>/dev/null; then
+          mv "${install_json}.tmp" "$install_json"
+          echo "   ✅ brooks-lint 已注册到 installed_plugins.json"
+        else
+          echo "   ⚠️  brooks-lint 注册到 installed_plugins.json 失败（插件仍可用）"
+        fi
       else
         echo "   ℹ️  brooks-lint 已存在于 installed_plugins.json，跳过注册"
       fi

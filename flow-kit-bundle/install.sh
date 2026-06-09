@@ -1,22 +1,31 @@
 #!/bin/bash
 # flow-kit-bundle installer — one-command setup for new projects
 # Usage:
-#   bash install.sh /path/to/project          # specify project
-#   bash install.sh                            # use current directory
-#   bash install.sh --dry-run /path/to/project # preview without changes
+#   bash install.sh /path/to/project                # project-level (phys dir)
+#   bash install.sh --user /path/to/project         # user-scope (symlink → ~/.claude/flow-kit/)
+#   bash install.sh                                  # use current directory
+#   bash install.sh --dry-run /path/to/project       # preview without changes
+#   bash install.sh --dry-run --user /path/to/project # preview user-scope
 set -euo pipefail
 
 BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
 DRY_RUN=false
+USER_MODE=false
+
+# user-scope install target for flow-kit core ($HOME is always resolved)
+FLOW_KIT_USER_DIR="${HOME}/.claude/flow-kit"
 
 # ── Parse args ─────────────────────────────────────────────────────
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true; shift ;;
+    --user)    USER_MODE=true; shift ;;
     -h|--help)
-      echo "Usage: bash install.sh [--dry-run] [/path/to/project]"
+      echo "Usage: bash install.sh [--dry-run] [--user] [/path/to/project]"
       echo "  --dry-run   Preview what would be installed"
+      echo "  --user      Install flow-kit core to ~/.claude/flow-kit/ (user-scope)"
+      echo "              and create symlink in project. Recommended for multi-project users."
       echo "  /path/to    Target project (default: current directory)"
       exit 0
       ;;
@@ -47,7 +56,7 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Bundle : $BUNDLE_DIR"
 echo "  Target : $TARGET"
-echo "  Mode   : $($DRY_RUN && echo 'DRY-RUN' || echo 'LIVE')"
+echo "  Mode   : $($DRY_RUN && echo 'DRY-RUN' || echo 'LIVE')$($USER_MODE && echo ' (user-scope)' || echo ' (project)')"
 echo ""
 
 if ! $DRY_RUN; then
@@ -56,15 +65,44 @@ if ! $DRY_RUN; then
 fi
 
 # ── 1. flow-kit core ───────────────────────────────────────────────
-step "1/6: flow-kit core → ${TARGET}/flow-kit/"
-if [[ -d "$TARGET/flow-kit" ]]; then
-  warn "flow-kit/ already exists, skipping (delete it first to reinstall)"
-else
-  if $DRY_RUN; then
-    info "(dry-run) rsync $BUNDLE_DIR/flow-kit/ → $TARGET/flow-kit/"
+if $USER_MODE; then
+  step "1/6: flow-kit core → ${FLOW_KIT_USER_DIR}/ (user-scope)"
+
+  # 1a. Install to ~/.claude/flow-kit/ (if not already there)
+  if [[ -d "$FLOW_KIT_USER_DIR" ]]; then
+    warn "~/.claude/flow-kit/ already exists, skipping core rsync"
   else
-    rsync -a "$BUNDLE_DIR/flow-kit/" "$TARGET/flow-kit/"
-    info "flow-kit/ installed ($(find "$TARGET/flow-kit" -type f | wc -l) files)"
+    if $DRY_RUN; then
+      info "(dry-run) rsync $BUNDLE_DIR/flow-kit/ → $FLOW_KIT_USER_DIR/"
+    else
+      mkdir -p "$FLOW_KIT_USER_DIR"
+      rsync -a "$BUNDLE_DIR/flow-kit/" "$FLOW_KIT_USER_DIR/"
+      info "flow-kit core installed to ~/.claude/flow-kit/ ($(find "$FLOW_KIT_USER_DIR" -type f | wc -l) files)"
+    fi
+  fi
+
+  # 1b. Create symlink in project → ~/.claude/flow-kit/
+  if [[ -e "$TARGET/flow-kit" ]]; then
+    warn "$TARGET/flow-kit already exists ($([[ -L "$TARGET/flow-kit" ]] && echo 'symlink' || echo 'directory')), skipping symlink"
+  else
+    if $DRY_RUN; then
+      info "(dry-run) ln -s $FLOW_KIT_USER_DIR → $TARGET/flow-kit"
+    else
+      ln -s "$FLOW_KIT_USER_DIR" "$TARGET/flow-kit"
+      info "symlink created: flow-kit → ~/.claude/flow-kit/"
+    fi
+  fi
+else
+  step "1/6: flow-kit core → ${TARGET}/flow-kit/"
+  if [[ -d "$TARGET/flow-kit" ]]; then
+    warn "flow-kit/ already exists, skipping (delete it first to reinstall)"
+  else
+    if $DRY_RUN; then
+      info "(dry-run) rsync $BUNDLE_DIR/flow-kit/ → $TARGET/flow-kit/"
+    else
+      rsync -a "$BUNDLE_DIR/flow-kit/" "$TARGET/flow-kit/"
+      info "flow-kit/ installed ($(find "$TARGET/flow-kit" -type f | wc -l) files)"
+    fi
   fi
 fi
 
@@ -175,7 +213,12 @@ echo ""
 echo "Verification:"
 ok() { echo "  ✅ $1"; }
 fail() { echo "  ❌ $1 — check manually"; }
-[[ -d "$TARGET/flow-kit" ]] && ok "flow-kit/" || fail "flow-kit/"
+if $USER_MODE; then
+  [[ -d "$FLOW_KIT_USER_DIR" ]] && ok "~/.claude/flow-kit/ (user-scope core)" || fail "~/.claude/flow-kit/"
+  [[ -L "$TARGET/flow-kit" ]] && ok "flow-kit symlink → ~/.claude/flow-kit/" || fail "flow-kit symlink (run: ln -s ~/.claude/flow-kit flow-kit)"
+else
+  [[ -d "$TARGET/flow-kit" ]] && ok "flow-kit/" || fail "flow-kit/"
+fi
 [[ -f "$TARGET/.claude/hooks/stop/00-gate.sh" ]] && ok "hooks/stop/00-gate.sh" || fail "hooks/stop/"
 [[ -d "$GLOBAL_SKILLS/flow-go" ]] && ok "skills/flow-go" || fail "skills/flow-go"
 [[ -f "$TARGET/.claude/stop-hook.json" ]] && ok "stop-hook.json" || fail "stop-hook.json"

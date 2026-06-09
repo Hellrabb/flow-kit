@@ -10,6 +10,39 @@ description: flow-kit 统一入口 — 自动路由到对应阶段（新需求/�
 
 ---
 
+## 第〇步 · 确定 flow-kit 根目录（两级查找 · project-priority fallback）
+
+**必须在任何其他文件加载前完成**（比「第一步 · 读取项目状态」更早）。本步决定后续所有 `flow-kit/` 路径从哪读。
+
+### 查找优先级
+
+1. **项目级优先**：检查项目根目录是否存在 `flow-kit/GO.md`
+   - 存在（物理目录 或 symlink）→ `FLOW_KIT_ROOT = "flow-kit"`（相对路径）
+   - 这是默认行为——项目级 flow-kit 锁定版本，不受 user-scope 升级影响
+2. **user-scope 回退**：检查 `~/.claude/flow-kit/GO.md`
+   - 存在 → `FLOW_KIT_ROOT = "~/.claude/flow-kit"`（绝对路径）
+   - 说明：项目未安装项目级 flow-kit，但用户已在全局安装
+   - 后续所有 `Read("flow-kit/...")` 调用都替换为 `Read("${FLOW_KIT_ROOT}/...")`
+3. **均不存在 → 报错并停止**：
+   ```
+   ❌ 未找到 flow-kit 核心引擎。
+
+   请安装：
+     bash ~/flow-kit-bundle/install.sh --user <项目路径>    ← 推荐（user-scope，一次安装所有项目共享）
+     bash ~/flow-kit-bundle/install.sh <项目路径>            ← 项目级（每项目一份）
+
+   如果已有 flow-kit-bundle，先确认路径：
+     ls ~/flow-kit-bundle/install.sh || ls ./flow-kit-bundle/install.sh
+   ```
+
+### 为什么这步重要
+
+- 跳过会导致 AI 用相对路径 `flow-kit/` 读文件，在 symlink 不存在时直接报 File not found
+- project-priority fallback 允许项目锁定版本（项目放实体 `flow-kit/` 目录即锁定）
+- 断链 symlink 也会被检测到（`flow-kit/GO.md` 不存在 → 落入错误提示分支）
+
+---
+
 ## 红线·Token 预算（走任何阶段前必读）
 
 flow-kit 的文件分两类，**加载策略不同**：
