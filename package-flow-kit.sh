@@ -328,13 +328,22 @@ fi
 if [ "$REINSTALL" = true ]; then
   echo "🧹 彻底重装：清理既有安装..."
   if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/marketplaces/brooks-lint-marketplace"
+    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/cache/brooks-lint-marketplace ~/.claude/plugins/marketplaces/brooks-lint-marketplace ~/.claude/commands/brooks-*.md"
   else
     rm -rf "$HOME/.claude/flow-kit"
+    rm -rf "$HOME/.claude/plugins/cache/brooks-lint-marketplace"
     rm -rf "$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
+    rm -f "$HOME/.claude/commands"/brooks-*.md
+    rm -f "$HOME/.claude/commands"/.brooks-lint-v*
     for d in "$HOME/.claude/skills"/flow-*; do
       [ -d "$d" ] && rm -rf "$d"
     done 2>/dev/null || true
+    # 从 installed_plugins.json 中移除 brooks-lint 条目（幂等）
+    INSTALL_JSON="$HOME/.claude/plugins/installed_plugins.json"
+    if [ -f "$INSTALL_JSON" ] && command -v jq &>/dev/null; then
+      jq 'del(.plugins["brooks-lint@brooks-lint-marketplace"])' "$INSTALL_JSON" > "${INSTALL_JSON}.tmp" 2>/dev/null && \
+        mv "${INSTALL_JSON}.tmp" "$INSTALL_JSON" || true
+    fi
     rm -f "$VERSION_FILE"
     echo "   ✅ 已清理既有安装"
   fi
