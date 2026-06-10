@@ -328,7 +328,7 @@ fi
 if [ "$REINSTALL" = true ]; then
   echo "🧹 彻底重装：清理既有安装..."
   if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/cache/brooks-lint-marketplace ~/.claude/plugins/marketplaces/brooks-lint-marketplace ~/.claude/commands/brooks-*.md + jq del from installed_plugins.json + known_marketplaces.json"
+    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/cache/brooks-lint-marketplace ~/.claude/plugins/marketplaces/brooks-lint-marketplace + jq del from installed_plugins.json + known_marketplaces.json"
   else
     rm -rf "$HOME/.claude/flow-kit"
     rm -rf "$HOME/.claude/plugins/cache/brooks-lint-marketplace"
@@ -415,36 +415,24 @@ install_brooks_lint() {
   echo ""
   echo "═══ 安装 brooks-lint 代码审查插件 ═══"
 
-  local cmd_src="$SCRIPT_DIR/brooks-lint/commands"
-  local cmd_dst="$HOME/.claude/commands"
   local plugin_src="$SCRIPT_DIR/brooks-lint/plugin"
   local plugin_dst="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint/1.3.0"
 
-  if [ ! -d "$cmd_src" ]; then
-    echo "   ⚠️  brooks-lint 命令源目录不存在，跳过"
+  if [ ! -d "$plugin_src" ]; then
+    echo "   ⚠️  brooks-lint 插件源目录不存在，跳过"
     return
   fi
 
   if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] cp $cmd_src/brooks-*.md -> $cmd_dst/"
     echo "   [DRY-RUN] rsync $plugin_src/ -> $plugin_dst/"
+    echo "   [DRY-RUN] rsync $plugin_src/ -> $HOME/.claude/plugins/marketplaces/brooks-lint-marketplace/"
     return
   fi
 
-  # F1: 命令入口文件
-  mkdir -p "$cmd_dst"
-  local cmd_count=0
-  for f in "$cmd_src"/brooks-*.md; do
-    [ -f "$f" ] || continue
-    cp "$f" "$cmd_dst/"
-    ((cmd_count++)) || true
-  done
-  # 版本标记
-  cp "$cmd_src"/.brooks-lint-v* "$cmd_dst/" 2>/dev/null || true
-  echo "   ✅ ${cmd_count} 个 brooks-lint 命令已安装到 $cmd_dst"
-
   # F2: 插件主体 → cache/（CC 运行时加载 + /plugin 列表识别）
   #     同时写一份到 marketplaces/（marketplace 源目录，备查 / 手工重装 / 未来 CC 可能支持同步）
+  #     注：命令入口文件（brooks-*.md → ~/.claude/commands/）由 brooks-lint 插件自身
+  #         SessionStart hook 管理，不应手动安装，否则与插件 namespace 下的 skill 重复。
   if [ -d "$plugin_src" ]; then
     mkdir -p "$plugin_dst"
     rsync -a --exclude='.git' "$plugin_src/" "$plugin_dst/"
