@@ -17,7 +17,7 @@ echo ""
 
 # ── 清理旧临时目录 ──────────────────────────────────────────────────
 rm -rf "$STAGING"
-mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/commands,brooks-lint/plugin}
+mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/plugin}
 
 # ═══════════════════════════════════════════════════════════════════════
 # Part A: flow-kit 核心引擎 (~/.claude/flow-kit/)
@@ -435,14 +435,40 @@ install_brooks_lint() {
   #         SessionStart hook 管理，不应手动安装，否则与插件 namespace 下的 skill 重复。
   if [ -d "$plugin_src" ]; then
     mkdir -p "$plugin_dst"
-    rsync -a --exclude='.git' "$plugin_src/" "$plugin_dst/"
+    rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$plugin_dst/"
     echo "   ✅ brooks-lint 插件已安装到 $plugin_dst"
 
     local mkt_dst="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
     mkdir -p "$mkt_dst"
-    rsync -a --exclude='.git' "$plugin_src/" "$mkt_dst/"
+    rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$mkt_dst/"
     echo "   ✅ brooks-lint 已同步到 $mkt_dst（marketplace 源副本）"
   fi
+
+  # 清理 commands/ 目录：防止无前缀 stub 导致的重复 skill 注册
+  # （brooks-lint v1.3.0+ 的 skills 自带 brooks-lint: 命名空间前缀，不需要额外 commands）
+  for dir in "$plugin_dst" "$mkt_dst"; do
+    if [ -d "$dir/commands" ]; then
+      rm -f "$dir/commands"/brooks-*.md "$dir/commands"/.brooks-lint-v* 2>/dev/null || true
+      rmdir "$dir/commands" 2>/dev/null || true
+      echo "   🧹 已清理 $dir/commands/（避免重复 skill 注册）"
+    fi
+  done
+  # 同时清理 ~/.claude/commands/ 下的旧残留
+  rm -f "$HOME/.claude/commands"/brooks-*.md "$HOME/.claude/commands"/.brooks-lint-v* 2>/dev/null || true
+
+  # 修补 brooks-lint SessionStart hook：
+  #   commands/ 目录已被清理 → hook 中的 cp brooks-*.md 会因为 glob 空匹配而失败
+  #   （set -euo pipefail + 非 nullglob 环境 → cp 收到字面量路径 → No such file）
+  #   修复方式：用 for + [ -f ] 替换裸 cp，使空 glob 优雅跳过。
+  for hook_dir in "$plugin_dst" "$mkt_dst"; do
+    local hook_file="$hook_dir/hooks/session-start"
+    if [ -f "$hook_file" ]; then
+      # 替换: cp "$plugin_dir"/commands/brooks-*.md "$cmd_dir/"
+      # 为:   for f in ...; do [ -f "$f" ] && cp "$f" ...; done
+      sed -i 's|cp "\$plugin_dir"/commands/brooks-\*\.md "\$cmd_dir/"|for f in "$plugin_dir"/commands/brooks-*.md; do\n            [ -f "$f" ] \&\& cp "$f" "$cmd_dir/"\n        done|' "$hook_file"
+      echo "   🔧 已修补 $hook_file（空 commands 容错）"
+    fi
+  done
 
   # F3: 注册到 installed_plugins.json（幂等合并 · Claude Code v2 格式）
   local install_json="$HOME/.claude/plugins/installed_plugins.json"
@@ -719,20 +745,11 @@ BROOKS_COMMAND_SRC="$HOME/.claude/commands"
 BROOKS_CACHE="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint"
 BROOKS_PLUGIN_SRC="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
 
-# F1: 命令入口文件（6 个 skill 入口 + 版本标记 · 不变）
-if [ -d "$BROOKS_COMMAND_SRC" ]; then
-  cp "$BROOKS_COMMAND_SRC"/brooks-audit.md   "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/brooks-debt.md    "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/brooks-health.md  "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/brooks-review.md  "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/brooks-sweep.md   "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/brooks-test.md    "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  cp "$BROOKS_COMMAND_SRC"/.brooks-lint-v*   "$STAGING/brooks-lint/commands/" 2>/dev/null || true
-  BROOKS_CMD_COUNT=$(find "$STAGING/brooks-lint/commands" -name 'brooks-*.md' 2>/dev/null | wc -l)
-  echo "   ✅ ${BROOKS_CMD_COUNT} 个 brooks-lint 命令已打包"
-else
-  echo "   ⚠️  brooks-lint 命令目录不存在，跳过"
-fi
+# F1: 命令入口文件已废弃 —— brooks-lint v1.3.0+ 插件 skills 自带 namespace 前缀
+#     (brooks-lint:brooks-review 等)，不再需要无前缀的 commands stub。
+#     旧版 commands stub 会导致 /brooks-review 和 /brooks-lint:brooks-review 重复注册。
+BROOKS_CMD_COUNT=0
+echo "   ℹ️  brooks-lint 命令入口已废弃，仅保留插件主体（skills 自带 brooks-lint: 命名空间）"
 
 # F2: 插件主体（优先级：--brooks-src > 本地缓存 > git archive fallback）
 brooks_src=""
@@ -753,7 +770,7 @@ fi
 
 if [ -n "$brooks_src" ]; then
   # 首选：rsync 离线打包
-  rsync -a --exclude='.git' "$brooks_src/" "$STAGING/brooks-lint/plugin/"
+  rsync -a --exclude='.git' --exclude='commands' "$brooks_src/" "$STAGING/brooks-lint/plugin/"
   echo "   ✅ brooks-lint 插件主体已打包（${brooks_label}）"
 elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
   # Fallback：git archive（原有逻辑）
@@ -817,5 +834,5 @@ echo "║    🪝 Stop Hook 系统 (11 模块 + 3 库)                       ║
 echo "║    🚀 SessionStart hooks (resume + report-reminder)          ║"
 echo "║    ⚙️  配置模板 (settings.json + stop-hook.json)             ║"
 echo "║    📋 SPEC 模板 (STATE.md)                                   ║"
-echo "║    🔍 brooks-lint 插件 (${BROOKS_CMD_COUNT} 命令 + 插件主体)              ║"
+echo "║    🔍 brooks-lint 插件 v1.3.0（skills 命名空间 brooks-lint:）         ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
