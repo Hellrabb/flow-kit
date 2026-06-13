@@ -1,7 +1,7 @@
 # STATE — 项目状态
 
 - **last_intel_scan**: `2026-06-05`
-- **last_change_archived**: `2026-06-09` (`user-scope-install`)
+- **last_change_archived**: `2026-06-14` (`brooks-lint-hook-fix`)
 - **context_file**: `.specs/CONTEXT.md`
 - **detected_stack**: `Bash 脚本项目（flow-kit 分发包仓库）— 无传统技术栈（无框架/无 DB/无前端/无后端）`
 - **project_type**: `meta / distribution`
