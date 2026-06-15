@@ -84,13 +84,9 @@ hook_init() {
 init_paths() {
   PROJECT_ROOT="${CWD:-$PWD}"
 
-  # Derive CONFIG_FILE: env override > user scope > project scope
+  # Derive CONFIG_FILE: env override > default project-relative path
   if [[ -z "${CONFIG_FILE:-}" ]]; then
-    if [[ -f "${HOME}/.claude/stop-hook.json" ]]; then
-      CONFIG_FILE="${HOME}/.claude/stop-hook.json"
-    else
-      CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/.claude/stop-hook.json}"
-    fi
+    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/.claude/stop-hook.json}"
   fi
 
   CLAWDE_MD="${PROJECT_ROOT}/CLAUDE.md"
