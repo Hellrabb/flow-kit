@@ -29,3 +29,7 @@ Thumbs.db
 
 # === Claude Code 本地配置 ===
 .claude/settings.local.json
+
+# === Stop hook 运行时产物 ===
+.claude/stop-hook-report.md
+.claude/stop-hook-state.json
