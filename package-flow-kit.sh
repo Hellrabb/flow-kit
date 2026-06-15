@@ -6,6 +6,7 @@
 set -euo pipefail
 
 OUTPUT_DIR="${1:-$HOME/flow-kit-export}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 PACKAGE_NAME="flow-kit-full-${TIMESTAMP}"
 STAGING="${OUTPUT_DIR}/${PACKAGE_NAME}"
@@ -60,7 +61,7 @@ echo "   ✅ ${SKILL_COUNT} 个 flow 技能已打包"
 echo ""
 echo "📦 Part C: 打包 Stop Hook 系统..."
 
-HOOK_SRC="/home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/hooks"
+HOOK_SRC="$SCRIPT_DIR/flow-kit-bundle/hooks"
 
 # Stop hook 模块脚本
 cp "$HOOK_SRC/stop/00-gate.sh"            "$STAGING/hooks/stop/"
@@ -142,7 +143,7 @@ cat > "$STAGING/hooks/config/settings.json" << 'SETEOF'
 SETEOF
 
 # stop-hook.json 模板
-cp "/home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/hooks/config/stop-hook.json" "$STAGING/hooks/config/stop-hook.json"
+cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/stop-hook.json" "$STAGING/hooks/config/stop-hook.json"
 
 # .specs/STATE.md 模板
 cp "$HOME/.claude/flow-kit/templates/STATE.md" "$STAGING/specs-template/STATE.md"
@@ -222,7 +223,7 @@ cat > "$STAGING/README.md" << 'READEOF'
 READEOF
 
 # ── 安装脚本 ──
-cp "/home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/install.sh" "$STAGING/install.sh"
+cp "$SCRIPT_DIR/flow-kit-bundle/install.sh" "$STAGING/install.sh"
 echo "   ✅ install.sh 已打包 (from flow-kit-bundle/)"
 
 chmod +x "$STAGING/install.sh"
