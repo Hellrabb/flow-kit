@@ -1,4 +1,7 @@
 {
+  "sandbox": {
+    "enabled": false
+  },
   "hooks": {
     "Stop": [
       {
