@@ -608,16 +608,20 @@ install_hooks() {
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
 
   # ═══ 自动写入 settings.local.json（Stop hook 接线） ═══
-  local settings_local="$project/.claude/settings.local.json"
+  if [ "$scope" = "user" ]; then
+    settings_target="$HOME/.claude/settings.json"
+  else
+    settings_target="$project/.claude/settings.local.json"
+  fi
   local stop_cmd="bash \"${settings_hook_path}/stop/00-gate.sh\""
 
   echo ""
   if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] 写入 Stop hook 到 ${settings_local}: command=${stop_cmd}"
-  elif [ -f "$settings_local" ] && command -v jq &>/dev/null; then
+    echo "   [DRY-RUN] 写入 Stop hook 到 ${settings_target}: command=${stop_cmd}"
+  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
     # 已存在 → 检查是否已有 flow-kit stop hook，没有则追加
-    if jq -e --arg cmd "$stop_cmd" '(.hooks.Stop // []) | any(.[].hooks[].command; . == $cmd)' "$settings_local" >/dev/null 2>&1; then
-      echo "   ✅ Stop hook 已存在于 ${settings_local}，跳过"
+    if jq -e --arg cmd "$stop_cmd" '(.hooks.Stop // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
+      echo "   ✅ Stop hook 已存在于 ${settings_target}，跳过"
     else
       local merged
       merged=$(jq --arg cmd "$stop_cmd" '
@@ -628,17 +632,17 @@ install_hooks() {
             "command": $cmd
           }]
         }]
-      ' "$settings_local" 2>/dev/null)
+      ' "$settings_target" 2>/dev/null)
       if [ -n "$merged" ]; then
-        echo "$merged" > "$settings_local"
-        echo "   ✅ ${settings_local} 已追加 Stop hook 接线"
+        echo "$merged" > "$settings_target"
+        echo "   ✅ ${settings_target} 已追加 Stop hook 接线"
       else
-        echo "   ⚠️  ${settings_local} 合并失败，请手动检查"
+        echo "   ⚠️  ${settings_target} 合并失败，请手动检查"
       fi
     fi
   else
     # 新建
-    mkdir -p "$(dirname "$settings_local")"
+    mkdir -p "$(dirname "$settings_target")"
     jq -n --arg cmd "$stop_cmd" '
       { hooks: { Stop: [{
         "matcher": "",
@@ -647,8 +651,8 @@ install_hooks() {
           "command": $cmd
         }]
       }] } }
-    ' > "$settings_local" 2>/dev/null
-    echo "   ✅ ${settings_local} 已写入 Stop hook 接线"
+    ' > "$settings_target" 2>/dev/null
+    echo "   ✅ ${settings_target} 已写入 Stop hook 接线"
   fi
 
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
