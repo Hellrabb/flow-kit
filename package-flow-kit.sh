@@ -607,47 +607,53 @@ install_hooks() {
   # 配置文件
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
 
-  # ═══ 生成 settings.json 合并片段（根据 scope 使用不同路径） ═══
+  # ═══ 自动写入 settings.local.json（Stop hook 接线） ═══
+  local settings_local="$project/.claude/settings.local.json"
+  local stop_cmd="bash \"${settings_hook_path}/stop/00-gate.sh\""
+
   echo ""
-  echo "   📋 settings.json 合并片段（粘贴到 ~/.claude/settings.json 的 \"hooks\" 段）:"
-  echo ""
-  cat << SETEOF
-  "Stop": [
-    {
-      "matcher": "",
-      "hooks": [
-        {
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] 写入 Stop hook 到 ${settings_local}: command=${stop_cmd}"
+  elif [ -f "$settings_local" ] && command -v jq &>/dev/null; then
+    # 已存在 → 检查是否已有 flow-kit stop hook，没有则追加
+    if jq -e --arg cmd "$stop_cmd" '(.hooks.Stop // []) | any(.[].hooks[].command; . == $cmd)' "$settings_local" >/dev/null 2>&1; then
+      echo "   ✅ Stop hook 已存在于 ${settings_local}，跳过"
+    else
+      local merged
+      merged=$(jq --arg cmd "$stop_cmd" '
+        .hooks.Stop = (.hooks.Stop // []) + [{
+          "matcher": "",
+          "hooks": [{
+            "type": "command",
+            "command": $cmd
+          }]
+        }]
+      ' "$settings_local" 2>/dev/null)
+      if [ -n "$merged" ]; then
+        echo "$merged" > "$settings_local"
+        echo "   ✅ ${settings_local} 已追加 Stop hook 接线"
+      else
+        echo "   ⚠️  ${settings_local} 合并失败，请手动检查"
+      fi
+    fi
+  else
+    # 新建
+    mkdir -p "$(dirname "$settings_local")"
+    jq -n --arg cmd "$stop_cmd" '
+      { hooks: { Stop: [{
+        "matcher": "",
+        "hooks": [{
           "type": "command",
-          "command": "bash \"${settings_hook_path}/stop/00-gate.sh\""
-        }
-      ]
-    }
-  ],
-  "SessionStart": [
-    {
-      "matcher": "startup",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash \"${settings_hook_path}/session-start/stop-report-reminder.sh\""
-        }
-      ]
-    },
-    {
-      "matcher": "startup|clear|compact",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash \"${settings_hook_path}/session-start/flow-kit-resume.sh\""
-        }
-      ]
-    }
-  ]
-SETEOF
-  echo ""
-  echo "   ⚠️  上述片段需手动合并到 ~/.claude/settings.json"
-  echo "   如果是 user scope，路径使用 \${HOME}/.claude/hooks/..."
-  echo "   如果是 project scope，路径使用 \${CLAUDE_PROJECT_DIR}/.claude/hooks/..."
+          "command": $cmd
+        }]
+      }] } }
+    ' > "$settings_local" 2>/dev/null
+    echo "   ✅ ${settings_local} 已写入 Stop hook 接线"
+  fi
+
+  # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
+  # 此处不再重复写入，避免同一 hook 触发两次。
+  echo "   ℹ️  SessionStart hooks 由全局配置管理，无需项目级重复接线"
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -711,7 +717,7 @@ echo "╔═══════════════════════�
 echo "║  ✅ flow-kit 安装完成!                                       ║"
 echo "║                                                              ║"
 echo "║  下一步:                                                     ║"
-echo "║  1. 合并 settings.json 中的 hooks 配置                       ║"
+echo "║  1. 检查 .claude/settings.local.json（Stop hook 已自动接线） ║"
 echo "║  2. 根据需要调整 stop-hook.json 中的模块开关                 ║"
 echo "║  3. 在项目目录运行 /flow-go 初始化                            ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
