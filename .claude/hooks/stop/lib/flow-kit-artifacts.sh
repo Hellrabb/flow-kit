@@ -8,6 +8,8 @@
 # NOTE: Does NOT set -euo pipefail — this is a library, sourced by callers.
 # Callers (26-workflow.sh, etc.) are responsible for shell flags.
 
+readonly MIN_MEANINGFUL_LINES=3   # 少于此行数的文件视为无实质内容
+
 # ── Helpers ───────────────────────────────────────────────────────────
 
 # Get .flow-active field, empty string if missing
@@ -24,7 +26,7 @@ fk_file_nonempty() {
   [[ -f "$f" ]] || return 1
   local lines
   lines=$(wc -l < "$f" 2>/dev/null || echo "0")
-  [[ "$lines" -gt 3 ]]  # More than just frontmatter + title
+  [[ "$lines" -gt $MIN_MEANINGFUL_LINES ]]  # More than just frontmatter + title
 }
 
 # ═══════════════════════════════════════════════════════════════════════

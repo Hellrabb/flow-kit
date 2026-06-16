@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+readonly STALE_SESSION_HOURS=72   # 超过此时间的会话视为过期
+
 # ── Gate: Subagent isolation ────────────────────────────────────────
 HOOK_INPUT=$(cat)
 if command -v jq &>/dev/null; then
@@ -102,7 +104,7 @@ if [[ "$token_spent" != "0" && "$token_spent" != "null" && -n "$token_spent" ]];
 fi
 
 # staleness warning
-if [[ "$age_hours" -gt 72 ]]; then
+if [[ "$age_hours" -gt $STALE_SESSION_HOURS ]]; then
   days=$((age_hours / 24))
   printf "║  ⚠️  %d 天未活动                                      ║\n" "$days"
 fi

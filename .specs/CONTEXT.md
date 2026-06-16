@@ -9,10 +9,10 @@
 
 > 步骤 0 既有文档探测结果。
 
-- **探测命中**：无（分支 C — 未发现任何 AI 上下文文档或项目级文档）
-- **用户选择**：选项 1 — 纯从代码扫描生成 CONTEXT.md
-- **决策**：生成 `.specs/CONTEXT.md`
-- **引用源**：无
+- **探测命中**：`.specs/CONTEXT.md`（已有，上次 intel-scan: 2026-06-05）、`CLAUDE.md`（仓库根）
+- **用户选择**：选项 1 — 综合现有文档 + 增量更新
+- **决策**：更新 `.specs/CONTEXT.md`（2026-06-17 增量，同步 health-fix 变更）
+- **引用源**：`.specs/CONTEXT.md`（前版）、`.specs/health/2026-06-16-HEALTH.md`（健康报告）、`.specs/archive/2026-06-16-health-fix/`（刚归档的 change）
 
 ---
 
@@ -35,7 +35,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - **前端框架**: 无（非 Web 项目）
 - **后端框架**: 无
 - **数据库**: 无
-- **测试**: 未发现测试框架
+- **测试**: bats-core 1.13.0（`npx bats` · 28 tests in `test/`）
 - **构建/部署**: 纯 Shell 脚本打包（tar + gzip），无 CI/CD 检测到
 - **栈卡片编号**: 不适用（非标准技术栈项目）
 
@@ -56,6 +56,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | user-scope install | flow-kit 核心引擎安装到 `~/.claude/flow-kit/`，所有项目通过 symlink 共享（而非每项目复制一份） |
 | two-level lookup | skill 文件查找策略：先查项目级 `flow-kit/`（允许项目锁定版本），未找到则回退到 `~/.claude/flow-kit/` |
 | project-priority fallback | 以项目级 `flow-kit/` 为优先的查找策略，项目有实体目录就用项目的，没有才查 user-scope |
+| bats / bats-core | Bash 自动化测试框架（Bash Automated Testing System），每个 .bats 文件包含一组测试用例，兼容 TAP 格式输出 |
+| health-fix | 2026-06-16 健康巡检的修复 change，一次性消除 2🔴 + 4🟡 + 2🟢 共 7 项技术债 |
 
 > 加新术语时只在右列写定义，不解释来历。
 
@@ -64,6 +66,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-06-05]` 入场扫描完成 — 该项目为 flow-kit 分发包仓库，非传统软件项目。无源代码、无框架、无数据库。来自 `I-intel-scan`
 - `[2026-06-08]` Git 仓库初始化 — `init-git-repo` CHANGE。默认分支 `main`，提交格式 [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`/`fix:`/`docs:`/`chore:`)。来自 `init-git-repo`
 - `[2026-06-09]` user-scope 安装采用 symlink 方案（`~/.claude/flow-kit/` + 项目 `flow-kit → symlink`），而非改动 86 处 skill 内部路径引用。项目级优先（project-priority fallback）——已有物理 `flow-kit/` 目录的项目不受影响。来自 `user-scope-install`
+- `[2026-06-16]` hooks 唯一源确定为 `flow-kit-bundle/hooks/`，`.claude/hooks/` 为 install.sh 安装的运行时副本（非维护源）。来自 `health-fix`
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -140,13 +143,18 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 **清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
 
-- _暂无_（尚未运行 health 巡检）
+- `flow-kit-bundle/hooks/` 与 `.claude/hooks/` 二选一删除（TD-001，2026-06-16 health）
 
 ### 技术债（来自 M-health · 给 AI 在 2-design / 4-dev 时参考，别再加同类债）
 
 > 只记 🟡 Scheduled 和 🟡 🔴 未处理项。🔴 Critical 已通过 health-fix CHANGE 处理中，不在此列。
 
-_详见 `.specs/LESSONS.md`（2026-06-08 基线：1🔴 + 3🟡 + 1🟢）_
+| # | 严重度 | 位置 | 问题 | 建议 | 来源 |
+|---|---|---|---|---|---|
+| TD-001 | 🟡 | `.claude/hooks/` ≡ `flow-kit-bundle/hooks/` | **hooks 双重维护**：16 个 .sh 文件在两处 100% 相同，修改必须手动同步。 | 选一个源目录，删除另一个，统一所有引用 | 2026-06-16 health |
+| TD-002 | 🟡 | `flow-kit-bundle/install.sh` (517行) | **install.sh 过长**：517 行混合 CLI 解析 + 5 类安装逻辑 + jq/sed 修补。 | 拆分为 lib/install_*.sh 模块，主脚本仅调度 | 2026-06-16 health |
+| TD-003 | 🟡 | `24-session.sh` 等多文件 | **魔法数字散落**：60/3600/7200/100000/72 等裸数字无命名常量，含义不透明。 | 定义 readonly 常量，加注释说明阈值含义 | 2026-06-16 health |
+| TD-004 | 🟡 | `package-flow-kit.sh` L29/L49/L242 | **外部路径依赖**：打包脚本从 `~/.claude/flow-kit/` 等机器特定路径读源。 | Part A 优先从 `flow-kit-bundle/flow-kit/` 本地副本读取 | 2026-06-16 health |
 
 ---
 
@@ -156,20 +164,34 @@ _详见 `.specs/LESSONS.md`（2026-06-08 基线：1🔴 + 3🟡 + 1🟢）_
 /home/hellrabbit/unisoc/flow-kit/
 ├── .git/                             # Git 仓库（2026-06-08 初始化）
 ├── .gitignore                        # 排除规则（bundle / secrets / IDE / temp）
-├── README.md                         # 仓库说明（用途 + 目录 + 规范）
+├── .claude/                          # Claude Code 项目配置
+│   ├── stop-hook.json                # Stop hook 模块开关
+│   └── settings.local.json           # Stop hook 接线
+├── README.md                         # 仓库说明
 ├── .specs/                           # flow-kit 规格目录
-│   ├── CONTEXT.md                    # 项目共享上下文
+│   ├── CONTEXT.md                    # 项目共享上下文（本文件）
 │   ├── STATE.md                      # 项目状态
-│   ├── LESSONS.md                    # 技术债与经验教训（2026-06-08 基线）
-│   └── init-git-repo/                # 当前活跃 change
-│       ├── CHANGE.md
-│       ├── REQUIREMENT.md
-│       ├── DESIGN.md
-│       └── TASK.md
-├── flow-kit-bundle.tar.gz            # 分发包（253KB · .gitignore 排除）
-├── flow-kit-ecosystem-guide.md       # 生态组件清单文档（8.7KB）
-├── flow-kit-bundle/                  # 分发包源码
-└── package-flow-kit.sh               # 打包 + 安装脚本（28KB）
+│   ├── LESSONS.md                    # 技术债与经验教训
+│   ├── CHANGELOG.md                  # change 历史
+│   ├── health/                       # M-health 巡检报告
+│   └── archive/                      # 已归档 change
+├── test/                             # bats-core 测试目录（28 tests）
+│   ├── test_common.bats              # common.sh 6 函数测试（17 tests）
+│   └── test_install.bats             # install.sh 参数解析测试（11 tests）
+├── flow-kit-bundle/                  # 分发包源码（唯一维护源）
+│   ├── install.sh                    # 安装主脚本（202行，调度 lib/）
+│   ├── lib/                          # install.sh 拆分模块
+│   │   ├── install_core.sh           # flow-kit 核心安装
+│   │   ├── install_skills.sh         # skills 安装
+│   │   ├── install_brooks.sh         # brooks-lint 安装 + 动态版本号
+│   │   └── install_hooks.sh          # hooks 安装 + specs 模板
+│   ├── hooks/                        # Stop/SessionStart hooks（唯一源）
+│   ├── flow-kit/                     # flow-kit 核心引擎（vendor 副本）
+│   ├── skills/                       # flow-* skill 包装器
+│   └── brooks-lint/                  # brooks-lint 插件（vendor 副本）
+├── flow-kit-bundle.tar.gz            # 分发包（.gitignore 排除）
+├── FLOW-KIT-用户指南.md              # 生态组件清单
+└── package-flow-kit.sh               # 打包脚本（3 级 fallback）
 ```
 
 ---

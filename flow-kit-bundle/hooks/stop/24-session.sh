@@ -8,6 +8,14 @@
 
 set -euo pipefail
 
+# ── 阈值常量 ──────────────────────────────────────────────────────
+readonly HIGH_USAGE_COUNT=20        # 工具调用高频阈值
+readonly GP_WARNING_COUNT=3         # GateFlow 调用次数警戒线
+readonly LONG_SESSION_SECS=7200     # 长会话阈值（2小时·秒）
+readonly TOKEN_WARNING_THRESHOLD=100000  # 单会话 token 消耗警戒
+readonly WEEKLY_HEAVY_THRESHOLD=20  # 周会话数高频阈值
+# 以下比较使用通用值（-gt 0/ -lt 60/ -lt 3600），非业务阈值，保留裸数字
+
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
@@ -56,7 +64,7 @@ check_e1() {
   most_used=$(head -1 "$HOOK_TMP_DIR/tool-counts.txt" 2>/dev/null | awk '{print $2}')
   most_count=$(head -1 "$HOOK_TMP_DIR/tool-counts.txt" 2>/dev/null | awk '{print $1}')
 
-  if [[ -n "$most_used" && "$most_count" -gt 20 ]]; then
+  if [[ -n "$most_used" && "$most_count" -gt $HIGH_USAGE_COUNT ]]; then
     case "$most_used" in
       Bash|Read|Glob|Grep)
         module_output "suggestion" "E1" "高频工具 \`${most_used}\` (${most_count}次)。检查是否有优化空间（如合并 Read、使用 Agent 代理搜索）。"
@@ -140,7 +148,7 @@ check_e3() {
   # Warn if using general-purpose agent heavily (could use specialized ones)
   local gp_count
   gp_count=$(grep 'general-purpose' "$HOOK_TMP_DIR/subagent-usage.txt" 2>/dev/null | awk '{print $1}' || echo "0")
-  if [[ "$gp_count" -gt 3 ]]; then
+  if [[ "$gp_count" -gt $GP_WARNING_COUNT ]]; then
     module_output "suggestion" "E3" "使用了 ${gp_count} 次 general-purpose agent。考虑使用专用 agent 类型以获得更好效果。"
   fi
 }
@@ -172,7 +180,7 @@ check_e4() {
         module_output "info" "E4" "Session 时长: ${dur_str} | 轮次: ${rounds}"
 
         # Long session reminder
-        if [[ "$duration" -gt 7200 ]]; then
+        if [[ "$duration" -gt $LONG_SESSION_SECS ]]; then
           module_output "suggestion" "E4" "Session 超过 2 小时 (${dur_str})。考虑适时休息和 /compact 释放上下文。"
         fi
       fi
@@ -184,7 +192,7 @@ check_e4() {
     local chars
     chars=$(wc -c < "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
     local est_tokens=$((chars / 4))
-    if [[ "$est_tokens" -gt 100000 ]]; then
+    if [[ "$est_tokens" -gt $TOKEN_WARNING_THRESHOLD ]]; then
       module_output "info" "E4" "估算 token 消耗: ~${est_tokens} (transcript: $(du -h "$TRANSCRIPT_PATH" 2>/dev/null | cut -f1))"
     fi
   fi
@@ -235,7 +243,7 @@ check_e5() {
     fi
   done
 
-  if [[ "$weekly_total" -gt 20 ]]; then
+  if [[ "$weekly_total" -gt $WEEKLY_HEAVY_THRESHOLD ]]; then
     module_output "info" "E5" "本周 Stop 频率较高: ${weekly_total} 次 / ${weekly_days} 天。context-mode 知识库持续增长中。"
   fi
 }
