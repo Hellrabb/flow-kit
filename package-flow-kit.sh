@@ -25,8 +25,12 @@ mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start
 # ═══════════════════════════════════════════════════════════════════════
 echo "📦 Part A: 打包 flow-kit 核心引擎..."
 
-# 从 git repo 直接用 git archive（最干净，不含 .git）
-if git -C "$HOME/.claude/flow-kit" rev-parse HEAD >/dev/null 2>&1; then
+# 优先本地 bundle 副本，再回退到外部 ~/.claude/flow-kit
+if [ -f "$SCRIPT_DIR/flow-kit-bundle/flow-kit/GO.md" ]; then
+  echo "   ℹ️  使用本地副本: flow-kit-bundle/flow-kit/"
+  rsync -a --exclude='.git' "$SCRIPT_DIR/flow-kit-bundle/flow-kit/" "$STAGING/flow-kit/"
+  echo "   ✅ flow-kit 本地副本打包完成"
+elif git -C "$HOME/.claude/flow-kit" rev-parse HEAD >/dev/null 2>&1; then
   git -C "$HOME/.claude/flow-kit" archive \
     --format=tar \
     --prefix="flow-kit/" \
@@ -46,13 +50,26 @@ echo ""
 echo "📦 Part B: 打包 flow-* 技能包装器..."
 
 SKILL_COUNT=0
-for skill_dir in "$HOME/.claude/skills/flow-"*/ "$HOME/.claude/skills/flow/"; do
-  [ -d "$skill_dir" ] || continue
-  skill_name=$(basename "$skill_dir")
-  mkdir -p "$STAGING/skills/${skill_name}"
-  cp "${skill_dir}SKILL.md" "$STAGING/skills/${skill_name}/"
-  SKILL_COUNT=$((SKILL_COUNT + 1))
-done
+
+# 优先本地 bundle 副本，再回退到外部 ~/.claude/skills/
+if ls "$SCRIPT_DIR/flow-kit-bundle/skills/flow-"*/SKILL.md >/dev/null 2>&1; then
+  echo "   ℹ️  使用本地副本: flow-kit-bundle/skills/"
+  for skill_dir in "$SCRIPT_DIR/flow-kit-bundle/skills/flow-"*/ "$SCRIPT_DIR/flow-kit-bundle/skills/flow/"; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    mkdir -p "$STAGING/skills/${skill_name}"
+    cp "${skill_dir}SKILL.md" "$STAGING/skills/${skill_name}/"
+    SKILL_COUNT=$((SKILL_COUNT + 1))
+  done
+else
+  for skill_dir in "$HOME/.claude/skills/flow-"*/ "$HOME/.claude/skills/flow/"; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    mkdir -p "$STAGING/skills/${skill_name}"
+    cp "${skill_dir}SKILL.md" "$STAGING/skills/${skill_name}/"
+    SKILL_COUNT=$((SKILL_COUNT + 1))
+  done
+fi
 echo "   ✅ ${SKILL_COUNT} 个 flow 技能已打包"
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -100,47 +117,8 @@ echo "   ✅ ${HOOK_FILE_COUNT} 个 hook 文件已打包"
 echo ""
 echo "📦 Part D: 生成配置文件模板..."
 
-# settings.json 模板（hook 绑定）
-cat > "$STAGING/hooks/config/settings.json" << 'SETEOF'
-{
-  "sandbox": {
-    "enabled": false
-  },
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop/00-gate.sh\""
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start/stop-report-reminder.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "startup|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start/flow-kit-resume.sh\""
-          }
-        ]
-      }
-    ]
-  }
-}
-SETEOF
+# settings.json 模板 — 从 bundle 复制（单一源，避免 heredoc 重复维护）
+cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/settings.json" "$STAGING/hooks/config/"
 
 # stop-hook.json 模板
 cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/stop-hook.json" "$STAGING/hooks/config/stop-hook.json"
@@ -291,6 +269,10 @@ elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
       "$BROOKS_PLUGIN_SRC/" "$STAGING/brooks-lint/plugin/"
     echo "   ⚠️  非 git repo，使用 rsync 回退"
   fi
+elif [ -d "$SCRIPT_DIR/flow-kit-bundle/brooks-lint/plugin" ]; then
+  echo "   ℹ️  使用本地副本: flow-kit-bundle/brooks-lint/plugin/"
+  rsync -a --exclude='.git' --exclude='commands' "$SCRIPT_DIR/flow-kit-bundle/brooks-lint/plugin/" "$STAGING/brooks-lint/plugin/"
+  echo "   ✅ brooks-lint 本地副本打包完成"
 else
   echo "   ⚠️  brooks-lint 插件目录不存在，跳过"
 fi

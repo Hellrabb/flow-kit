@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+readonly TRIVIAL_CHANGE_LINES=50    # 少于此行数的变更视为微小改动
+
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
@@ -161,7 +163,7 @@ check_d4() {
   changed_lines=$(count_changed_lines)
 
   # Threshold: only flag if >50 lines changed
-  if [[ "$changed_lines" -lt 50 ]]; then
+  if [[ "$changed_lines" -lt $TRIVIAL_CHANGE_LINES ]]; then
     return 0
   fi
 
