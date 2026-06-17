@@ -7,7 +7,7 @@ set -euo pipefail
 # ── Config ──────────────────────────────────────────────────────────
 # CONFIG_FILE is resolved in init_paths() because it depends on PROJECT_ROOT.
 # Override via env var STOP_HOOK_CONFIG before sourcing; default: <project>/.claude/stop-hook.json
-CONFIG_FILE=""
+: "${CONFIG_FILE:=}"  # 仅在未设时设默认值，不覆盖调用方已设的值
 
 # Read a config value with jq, return default if missing
 config_get() {
@@ -22,7 +22,7 @@ config_get() {
 module_enabled() {
   local mod="$1"
   local en
-  en=$(config_get ".modules.${mod}.enabled" "false")
+  en=$(config_get ".modules[\"${mod}\"].enabled" "false")
   [[ "$en" == "true" ]]
 }
 
@@ -30,13 +30,13 @@ module_enabled() {
 check_enabled() {
   local mod="$1" check="$2"
   local en
-  en=$(config_get ".modules.${mod}.enabled" "false")
+  en=$(config_get ".modules[\"${mod}\"].enabled" "false")
   [[ "$en" != "true" ]] && return 1
   # If checks array is empty or not defined, all are enabled
   local has_checks
-  has_checks=$(jq -r ".modules.${mod}.checks // [] | length" "$CONFIG_FILE" 2>/dev/null || echo "0")
+  has_checks=$(jq -r ".modules[\"${mod}\"].checks // [] | length" "$CONFIG_FILE" 2>/dev/null || echo "0")
   if [[ "$has_checks" == "0" ]]; then return 0; fi
-  jq -e ".modules.${mod}.checks | index(\"$check\")" "$CONFIG_FILE" >/dev/null 2>&1
+  jq -e ".modules[\"${mod}\"].checks | index(\"$check\")" "$CONFIG_FILE" >/dev/null 2>&1
 }
 
 # ── Environment (set by hook_init, inherited via export for subprocesses) ─
