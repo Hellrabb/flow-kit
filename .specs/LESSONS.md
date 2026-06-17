@@ -9,7 +9,7 @@
 
 | # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
 |---|---|---|---|---|---|---|
-| L-004 | 🟢 | `package-flow-kit.sh` L271-280 | **内联辅助函数未抽取**：`install_file()` 是通用 cp wrapper（dry-run + chmod），类似功能的 `check_command()` 等散落在脚本中，未被抽取为独立工具库。 | 若后续新增 ≥ 3 个辅助函数，建议抽到 `lib/utils.sh` 并 source。当前规模（7 函数）暂不强制。 | active | `init-git-repo` T03 手动基线 |
+| L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 辅助函数 `install_file()` 已从 install.sh 抽出到 lib/，但独立工具库 `lib/utils.sh` 尚不必要（当前 1 个共享函数，阈值 ≥ 3）。debt-cleanup 确认保持推迟。 | 等新增 ≥ 2 个共享辅助函数时再建 `lib/utils.sh`，避免只有一个函数的过度抽象 | deferred | `init-git-repo` T03 手动基线 |
 | L-005 | 🟡 | `package-flow-kit.sh` L20 | STAGING 前置校验已添加（debt-cleanup） | `[[ -n "$STAGING" && "$STAGING" != "/" ]]` guard 已生效 | resolved | `init-git-repo` T03 手动基线 |
 
 ---
