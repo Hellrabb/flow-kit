@@ -17,6 +17,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 清理旧临时目录 ──────────────────────────────────────────────────
+[[ -n "$STAGING" && "$STAGING" != "/" ]] || { echo "FATAL: STAGING is empty or root"; exit 1; }
 rm -rf "$STAGING"
 mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/plugin}
 

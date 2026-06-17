@@ -14,6 +14,7 @@ readonly GP_WARNING_COUNT=3         # GateFlow 调用次数警戒线
 readonly LONG_SESSION_SECS=7200     # 长会话阈值（2小时·秒）
 readonly TOKEN_WARNING_THRESHOLD=100000  # 单会话 token 消耗警戒
 readonly WEEKLY_HEAVY_THRESHOLD=20  # 周会话数高频阈值
+# 以下比较使用通用值（-gt 0/ -lt 60/ -lt 3600），非业务阈值，保留裸数字
 
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"

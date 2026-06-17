@@ -143,7 +143,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 **清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
 
-- `flow-kit-bundle/hooks/` 与 `.claude/hooks/` 二选一删除（TD-001，2026-06-16 health）
+- _暂无_（TD-001 已通过 health-fix 修复）
 
 ### 技术债（来自 M-health · 给 AI 在 2-design / 4-dev 时参考，别再加同类债）
 
@@ -151,10 +151,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 | # | 严重度 | 位置 | 问题 | 建议 | 来源 |
 |---|---|---|---|---|---|
-| TD-001 | 🟡 | `.claude/hooks/` ≡ `flow-kit-bundle/hooks/` | **hooks 双重维护**：16 个 .sh 文件在两处 100% 相同，修改必须手动同步。 | 选一个源目录，删除另一个，统一所有引用 | 2026-06-16 health |
-| TD-002 | 🟡 | `flow-kit-bundle/install.sh` (517行) | **install.sh 过长**：517 行混合 CLI 解析 + 5 类安装逻辑 + jq/sed 修补。 | 拆分为 lib/install_*.sh 模块，主脚本仅调度 | 2026-06-16 health |
-| TD-003 | 🟡 | `24-session.sh` 等多文件 | **魔法数字散落**：60/3600/7200/100000/72 等裸数字无命名常量，含义不透明。 | 定义 readonly 常量，加注释说明阈值含义 | 2026-06-16 health |
-| TD-004 | 🟡 | `package-flow-kit.sh` L29/L49/L242 | **外部路径依赖**：打包脚本从 `~/.claude/flow-kit/` 等机器特定路径读源。 | Part A 优先从 `flow-kit-bundle/flow-kit/` 本地副本读取 | 2026-06-16 health |
+| — | — | — | _所有 M-health 2026-06-16 发现的 🟡 项已在 health-fix 修复，暂无新债_ | — | — |
 
 ---
 
