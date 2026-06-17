@@ -203,7 +203,8 @@ READEOF
 
 # ── 安装脚本 ──
 cp "$SCRIPT_DIR/flow-kit-bundle/install.sh" "$STAGING/install.sh"
-echo "   ✅ install.sh 已打包 (from flow-kit-bundle/)"
+cp -r "$SCRIPT_DIR/flow-kit-bundle/lib" "$STAGING/"
+echo "   ✅ install.sh + lib/ 已打包 (from flow-kit-bundle/)"
 
 chmod +x "$STAGING/install.sh"
 
