@@ -1,9 +1,9 @@
 {
-  "change_id": "pipeline-goal",
+  "change_id": "goal-auto-extract",
   "goal": null,
-  "phase": "7",
+  "phase": "0",
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-18T16:12:53+08:00"
+  "updated_at": "2026-06-18T16:26:17+08:00"
 }

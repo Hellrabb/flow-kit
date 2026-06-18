@@ -9,21 +9,66 @@
 在读取 TASK 块之前，先检测 `.flow-active` 的 `goal` 字段（用 jq，与 flow skill 一致）：
 
 1. 检查 `.flow-active.goal`：
-   - `null` 或不存在 → 跳至步骤 4（自动提取建议）
+   - `null` 或不存在 → 进入步骤 2「自动提取 + 双模式建议」
    - `status = "active"` → 展示横幅后直接进入 goal 迭代模式（步骤 5）
 
-2. **Goal 自动提取**（AC-5）：
-   - 读取 `REQUIREMENT.md`，grep 所有 `### AC-` 标题行
-   - 取第一条 AC 的 Given/When/Then 文本，拼接为 goal 条件建议
-   - 展示：
-     ```
-     📋 建议 goal：<拼接的条件文本>
-     输入 /flow goal 确认，或直接描述修改，或输入 'skip' 跳过。
-     ```
+2. **Goal 自动提取 + 双模式建议**（goal 为 null 时触发）：
 
-3. 用户确认 goal 后 → 继续读 TASK 块（步骤 1）。
+   a. 读取 `REQUIREMENT.md`，grep 所有 `### AC-` 块，提取每条 AC 的 Given/When/Then 文本。
 
-4. 用户输入 'skip' → 跳过 goal，直接读 TASK 块（步骤 1）。
+   b. 生成**单阶段 goal 建议**——拼接所有 AC 的 Then 条件：
+      ```
+      📋 建议单阶段 goal（仅 phase 4 迭代）：
+         <AC-1 Then> + <AC-2 Then> + ...
+      ```
+
+   c. 生成**Pipeline goal 建议**——按阶段归类 AC 条件：
+      ```
+      📋 建议 Pipeline goal（4→5→6→7 全执行链）：
+         4-dev sub-goal: <从 AC 提取的实现相关条件>
+         5-test sub-goal: <从 AC 提取的测试/验证条件>
+         6-review sub-goal: <从 AC 提取的质量/审查条件 + 无 Critical>
+         7-integration sub-goal: <归档 + CHANGELOG + tag>
+      ```
+      Pipeline 自动提取规则：
+      - 4-dev: 取所有 AC 的 Then 条件拼接
+      - 5-test: 取 AC 中涉及"测试/验证/覆盖率/verify"的条件；若 REQUIREMENT 非功能性需求有覆盖率要求则追加
+      - 6-review: 固定 "brooks-review 无 🔴 Critical + spec 合规 100%"
+      - 7-integration: 固定 "CHANGELOG 更新 + archive 完整 + git tag"
+
+   d. 展示双选项，等待用户确认：
+      ```
+      选 goal 模式：
+        1. 单阶段 — 仅 phase 4 dev 迭代（条件如上）
+        2. Pipeline — 4→5→6→7 全执行链（sub-goal 如上）
+        3. 我自定义 — 输入你自己的 goal 条件
+        4. skip — 跳过 goal，直接执行 task
+      ```
+
+3. **用户确认后 → AI 直接写入 goal**（不要等用户手动输入 `/flow goal`）：
+
+   - 用户选 1 → 写单阶段 goal：
+     ```bash
+     jq --arg cond "<建议的条件文本>" --arg ts "$(date -Iseconds)" \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "native"}' \
+       .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+     ```
+     然后检测 CC 版本确定 mode（≥ 2.1.139 → native，否则 fallback）。
+
+   - 用户选 2 → 写 pipeline goal（含自动提取的 phase_sub_goals）：
+     ```bash
+     jq --arg cond "<顶层条件>" --arg ts "$(date -Iseconds)" \
+       --arg sub4 "<4-dev sub-goal>" --arg sub5 "<5-test sub-goal>" \
+       --arg sub6 "<6-review sub-goal>" --arg sub7 "<7-integration sub-goal>" \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "native", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: {}, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
+       .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+     ```
+     注意：gate keys 含 `→` 特殊字符，jq 需用 bracket 引用 `.["4→5"]`。
+
+   - 用户选 3 → 等用户输入自定义条件后写入
+   - 用户选 4 → 跳过 goal，直接读 TASK 块
+
+4. 用户确认 goal 后 → 继续读 TASK 块（步骤 1）。
 
 5. **Goal 迭代模式**（进入后）：
    - 原生模式（mode=native）："🚀 启动自主迭代（CC 原生 /goal 已接管），Ctrl+C 可中断"
