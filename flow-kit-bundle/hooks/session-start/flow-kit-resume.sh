@@ -89,6 +89,19 @@ if [[ "$task_id" != "none" && "$task_id" != "null" && -n "$task_id" ]]; then
   printf "║  task   : %-42s ║\n" "$task_id"
 fi
 
+goal_cond=$(jq -r '.goal.condition // ""' "$flow_file" 2>/dev/null)
+goal_status=$(jq -r '.goal.status // ""' "$flow_file" 2>/dev/null)
+goal_turns=$(jq -r '.goal.turns // 0' "$flow_file" 2>/dev/null)
+goal_mode=$(jq -r '.goal.mode // ""' "$flow_file" 2>/dev/null)
+
+# goal line (if active)
+if [[ -n "$goal_cond" && "$goal_cond" != "null" && "$goal_status" == "active" ]]; then
+  mode_label="回退"
+  [[ "$goal_mode" == "native" ]] && mode_label="原生"
+  printf "║  🎯 goal : %-41s ║\n" "${goal_cond:0:41}"
+  printf "║        状态: active | turns: %-3s | 模式: %-8s ║\n" "$goal_turns" "$mode_label"
+fi
+
 # interrupt line (if present)
 if [[ -n "$int_action" && "$int_action" != "null" ]]; then
   printf "║  ⚡ 中断 : %-40s ║\n" "${int_action:0:40}"
