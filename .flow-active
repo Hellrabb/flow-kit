@@ -1,13 +1,19 @@
 {
   "change_id": "pipeline-goal",
-  "goal": null,
+  "goal": {
+    "condition": "做完phase 4",
+    "status": "active",
+    "active_since": "2026-06-18T15:18:52+08:00",
+    "turns": 0,
+    "mode": "native"
+  },
   "phase": "4",
-  "task_id": "T02",
+  "task_id": "T03",
   "interrupt": {
-    "active_file": "flow-kit-bundle/flow-kit/GO.md",
-    "last_action": "T02: 开始 GO.md 路由改造 — pipeline goal 注入",
-    "checkpoint_at": "2026-06-18T15:16:39+08:00"
+    "active_file": "flow-kit-bundle/flow-kit/prompts/4-dev.md",
+    "last_action": "T03: 开始 4-dev.md pipeline goal 改造",
+    "checkpoint_at": "2026-06-18T15:19:29+08:00"
   },
   "token_spent": 0,
-  "updated_at": "2026-06-18T15:16:39+08:00"
+  "updated_at": "2026-06-18T15:19:29+08:00"
 }

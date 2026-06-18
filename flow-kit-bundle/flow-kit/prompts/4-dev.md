@@ -29,6 +29,57 @@
    - 原生模式（mode=native）："🚀 启动自主迭代（CC 原生 /goal 已接管），Ctrl+C 可中断"
    - 回退模式（mode=fallback）：内置循环——每个 turn 结束时自检条件是否满足，满足则 goal.status=done 停止，不满足则 goal.turns++ 继续；最多 20 turns。检查方法：用工具实际验证条件（如跑测试、查退出码），而非读日志文本推断。
 
+6. **Pipeline Goal 模式**（仅当 `.flow-active.goal.scope` = `"pipeline"` 且 `current_phase` = `"4"`）：
+
+   入场时检测 pipeline goal：
+   ```bash
+   jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+   ```
+   若 scope="pipeline" 且 current_phase="4"：
+   - 展示 pipeline 横幅（进度条：4🔄 → 5⏸ → 6⏸ → 7⏸）
+   - 若 `phase_sub_goals["4"]` 非空 → 展示 sub-goal："📋 本阶段 sub-goal：<phase_sub_goals["4"]>"
+   - 进入 pipeline 模式（goal 迭代模式正常运作，额外叠加 pipeline 协议）
+
+   #### 6.1 Phase Transition 4→5（所有 task done 后）
+
+   **触发条件**：TASK.md 中所有 task 状态 = "done"，且所有 SUMMARY.md 的 verify 通过。
+
+   **停下来。必须等待用户回复。禁止自动继续。**
+
+   输出 TOLL-GATE：
+   ```
+   🚦 Toll-gate 4→5：所有 dev task 已完成。
+   ✅ verify 全部通过
+   是否进入测试阶段（5-test）？
+     1. 继续 → 进入 5-test（current_phase=5, phases_done+=["4"]）
+     2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
+     3. 跳过测试 → 直接进入 6-review（current_phase=6, phases_done+=["4"]）
+     4. 💨 全自动推进 → auto_advance=true，后续 toll-gate 不再暂停，直接继续
+   ```
+
+   用户选 1/3 → 执行 transition：
+   ```bash
+   jq --arg next_phase "<5或6>" --arg ts "$(date -Iseconds)" \
+     '.goal.current_phase = $next_phase | .goal.phases_done += ["4"] | .goal.gates["4→5"] = "passed" | .updated_at = $ts' \
+     .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   ```
+   然后加载 `@flow-kit/prompts/<5-test 或 6-review>.md`。
+
+   用户选 2 → 保留状态，不更新 phase。
+   用户选 4 → 先设 auto_advance=true，再执行 transition（同选 1）：
+   ```bash
+   jq --arg ts "$(date -Iseconds)" \
+     '.goal.auto_advance = true | .updated_at = $ts' \
+     .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   ```
+
+   #### 6.2 Sub-goal 自检（AC-12 联动）
+
+   所有 task 完成后，若 `phase_sub_goals["4"]` 存在：
+   - 逐项对照 sub-goal 条件自检
+   - 满足 → ✅ 标注
+   - 未满足 → ⚠️ 提示用户 "sub-goal 未完全达成，是否仍继续？"
+
 ## 输入
 
 - `@.specs/<change-id>/TASK.md`
