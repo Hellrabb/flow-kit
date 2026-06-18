@@ -16,6 +16,13 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
     "change_id": "xxx" | null,
     "phase": "0",
     "task_id": "T1" | null,
+    "goal": {
+      "condition": "pnpm test passes and lint is clean",
+      "status": "active",
+      "active_since": "2026-06-02T15:30:00+08:00",
+      "turns": 3,
+      "mode": "native"
+    } | null,
     "interrupt": {
       "active_file": "src/foo.ts",
       "last_action": "修复类型错误",
@@ -37,7 +44,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 2. 如已存在：输出当前 change_id + phase，提示"已有活跃 change，如需新建请先 `/flow stop`"
 3. 如不存在：创建 `.flow-active`，内容：
    ```json
-   {"change_id": null, "phase": 0, "task_id": null, "interrupt": null, "token_spent": 0, "updated_at": "<当前ISO时间>"}
+   {"change_id": null, "goal": null, "phase": 0, "task_id": null, "interrupt": null, "token_spent": 0, "updated_at": "<当前ISO时间>"}
    ```
    用 `jq -n` 生成后写入
 4. 输出：`flow-kit 已激活 (phase 0)。现在告诉我你想做什么，我来自动路由。`
@@ -67,6 +74,40 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
    ```
 3. 输出：`task → T<N>`
 
+### `/flow goal`（无参数）
+查看当前 goal 状态。动作：
+1. 读取 `.flow-active` 的 `goal` 字段（`jq '.goal' .flow-active`）
+2. 如 goal 为 null → 输出："当前无活跃 goal。用 `/flow goal <条件>` 设定。"
+3. 如 goal 非空 → 格式化输出：
+   ```
+   🎯 Goal: <condition>
+      状态: <status> | 已执行: <turns> turns | 模式: <mode>
+      设定于: <active_since>
+   ```
+
+### `/flow goal <条件文本>`
+设定 goal。动作：
+1. 检查 `.flow-active` 是否存在，不存在 → 提示先 `/flow start`
+2. 写入 goal 字段（condition=<用户输入> + status=active + active_since=当前ISO时间 + turns=0 + mode=待检测）：
+   ```bash
+   jq --arg cond "$condition" --arg ts "$(date -Iseconds)" \
+     '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending"}' \
+     .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   ```
+3. 检测 CC 原生 `/goal` 可用性：
+   - 尝试 `claude --version 2>/dev/null | head -1` 获取版本号；若 ≥ 2.1.139 → mode=native，输出："✅ Goal 已设定（原生模式）。CC /goal 将自主迭代直到条件满足。"
+   - 若版本检测失败或 < 2.1.139 → mode=fallback，输出："✅ Goal 已设定（回退模式）。4-dev 将使用内置迭代循环。"
+4. 输出 goal 条件摘要（同 `/flow goal` 无参数格式）
+
+### `/flow goal clear`
+清除 goal。动作：
+1. 用 jq 将 goal 置为 null：
+   ```bash
+   jq '.goal = null | .updated_at = "'$(date -Iseconds)'"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   ```
+2. 输出："✅ Goal 已清除"
+3. 接受别名：`/flow goal stop` / `off` / `reset` / `none` / `cancel` 均等同 clear
+
 ### `/flow checkpoint <file> <description>`
 保存中断恢复上下文。AI 应在每次关键操作后调用（如开始编辑文件、遇到测试失败）。
 1. 检查 `.flow-active` 是否存在，不存在 → 提示先 `/flow start`
@@ -85,7 +126,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 
 ### `/flow doctor`
 诊断 flow-kit hook 配置状态。动作：
-1. 检查 `.flow-active` JSON 格式是否有效（`jq empty .flow-active`）
+1. 检查 `.flow-active` JSON 格式是否有效（`jq empty .flow-active`），包括 goal 字段结构（如非 null，需含 condition/status/active_since/turns/mode）
 2. 检查 Stop Hook 配置：
    - 读 `.claude/stop-hook.json`，检查 `modules.workflow.enabled` 是否为 `true`
    - 检查 `26-workflow.sh` 是否存在且可执行
