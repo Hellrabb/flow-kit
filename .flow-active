@@ -2,18 +2,14 @@
   "change_id": "pipeline-goal",
   "goal": {
     "condition": "做完phase 4",
-    "status": "active",
+    "status": "done",
     "active_since": "2026-06-18T15:18:52+08:00",
-    "turns": 0,
+    "turns": 1,
     "mode": "native"
   },
-  "phase": "4",
-  "task_id": "T06",
-  "interrupt": {
-    "active_file": "flow-kit-bundle/flow-kit/prompts/7-integration.md",
-    "last_action": "T06: 7-integration.md pipeline goal 改造",
-    "checkpoint_at": "2026-06-18T15:21:22+08:00"
-  },
+  "phase": "5",
+  "task_id": null,
+  "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-18T15:21:22+08:00"
+  "updated_at": "2026-06-18T15:29:14+08:00"
 }
