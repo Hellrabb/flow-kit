@@ -1,0 +1,13 @@
+{
+  "change_id": "pipeline-goal",
+  "goal": null,
+  "phase": "4",
+  "task_id": "T01",
+  "interrupt": {
+    "active_file": "flow-kit-bundle/skills/flow/SKILL.md",
+    "last_action": "T01: 开始扩展 /flow goal CLI — pipeline + gate_config",
+    "checkpoint_at": "2026-06-18T15:15:06+08:00"
+  },
+  "token_spent": 0,
+  "updated_at": "2026-06-18T15:15:06+08:00"
+}
