@@ -184,7 +184,7 @@ Wave 2 (parallel): T03[P], T04[P], T05[P], T06[P]  ← 4 个 prompt 同步改造
   <depends_on></depends_on>
 </task>
 
-<task id="T04" parallel="true" status="pending">
+<task id="T04" parallel="true" status="done">
   <name>5-test.md 改造：pipeline goal 检测 + toll-gate 5→6 + auto_advance 判定</name>
   <read_files>
     .specs/pipeline-goal/DESIGN.md
@@ -240,7 +240,7 @@ Wave 2 (parallel): T03[P], T04[P], T05[P], T06[P]  ← 4 个 prompt 同步改造
   <depends_on></depends_on>
 </task>
 
-<task id="T05" parallel="true" status="pending">
+<task id="T05" parallel="true" status="done">
   <name>6-review.md 改造：pipeline goal 检测 + 动态门禁 + gate 失败暂停 + phase 回退 + toll-gate 6→7</name>
   <read_files>
     .specs/pipeline-goal/DESIGN.md
@@ -314,7 +314,7 @@ Wave 2 (parallel): T03[P], T04[P], T05[P], T06[P]  ← 4 个 prompt 同步改造
   <depends_on></depends_on>
 </task>
 
-<task id="T06" parallel="true" status="pending">
+<task id="T06" parallel="true" status="done">
   <name>7-integration.md 改造：pipeline goal 检测 + pipeline 完成 + completion summary</name>
   <read_files>
     .specs/pipeline-goal/DESIGN.md

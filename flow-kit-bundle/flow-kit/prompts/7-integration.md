@@ -11,6 +11,57 @@
 - `@.specs/<change-id>/REVIEW.md`
 - 当前已合并/待合并的代码
 
+## Pipeline Goal 入场检测 + 完成
+
+进入 7-integration 后，检测 `.flow-active` 的 `goal` 字段：
+
+```bash
+jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+```
+
+若 `scope` = `"pipeline"` 且 `current_phase` = `"7"`：
+- 展示 pipeline 横幅：4✅ → 5✅ → 6✅ → 7🔄
+- 标注 "最终阶段：7-integration"
+
+### 顶层 Goal 条件自检
+
+7-integration 完成后，归档前，自检 `goal.condition` 是否满足：
+
+```
+顶层 Goal 条件：<goal.condition>
+逐项对照：
+  ✅ <条件> — 已验证（来源：<证据>）
+```
+
+全部满足 → 进入 pipeline 完成流程。
+
+### Pipeline 完成（AC-8）
+
+```
+🎯 Pipeline Goal 完成：<goal.condition>
+   经过阶段：4 → 5 → 6 → 7
+   总 turns：<N>
+   设定于：<active_since>
+```
+
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.status = "done" | .goal.phases_done += ["7"] | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+
+### Sub-goal 汇总（AC-12）
+
+若 `phase_sub_goals` 非空 → 汇总展示各阶段 sub-goal 达成：
+```
+4-dev: ✅ <sub-goal 4>
+5-test: ✅ <sub-goal 5>
+6-review: ✅ <sub-goal 6>
+7-integration: ✅ <sub-goal 7>
+```
+
+完成后建议用户运行 `/flow goal clear` 清除 pipeline 状态。
+
 ## 你的职责
 
 ### 1. 跑全套自动化

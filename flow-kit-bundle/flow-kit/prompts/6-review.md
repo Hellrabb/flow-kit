@@ -14,6 +14,83 @@
 - 本次变更的 git diff（用户提供或 AI 通过工具获取）
 - `@flow-kit/reference/ui-anti-patterns.md`（如是前端项目）
 
+## Pipeline Goal 入场检测 + 门禁
+
+进入 6-review 后，检测 `.flow-active` 的 `goal` 字段：
+
+```bash
+jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+```
+
+若 `scope` = `"pipeline"` 且 `current_phase` = `"6"`：
+- 展示 pipeline 横幅：4✅ → 5✅ → 6🔄 → 7⏸
+- 加载 `gate_config["6-review"]`（若存在）
+
+### 动态门禁判定（AC-9）
+
+审查完成后，逐项对照 `gate_config["6-review"]` 判定级别：
+
+对每个检查项，查 `gate_config["6-review"][<check>]`：
+- `"critical"` 或**未配置**（使用默认）→ 🔴 不通过则 **PIPELINE PAUSE**
+- `"warn"` → 🟡 记录 REVIEW.md，不阻塞 pipeline
+- `"ignore"` → ⚪ 跳过不查
+
+**默认门禁级别**（无 gate_config 时）：
+| 检查项 | 默认级别 |
+|---|---|
+| brooks-review 🔴 Critical | critical |
+| brooks-review 🟡 Major | warn |
+| spec 合规失败（AC 未覆盖） | critical |
+| 跨模型分歧（spot-check） | warn |
+
+### Gate 失败暂停（AC-5）
+
+检测到 ≥ 1 个 critical 问题时，**停下来。禁止自动继续。**
+
+```
+⛔ Pipeline 暂停：6-review 检测到 N 个 Critical 问题
+  - [Critical] <文件> — <问题描述>
+
+请选择：
+  1. 修复后继续 → 回到 4-dev 修复（触发 AC-10 rollback）
+  2. 接受风险继续 → Critical 降级为 Known，继续 6→7
+  3. 放弃本次 pipeline → goal.status = "aborted"
+```
+
+用户选 1 → **Phase 回退（AC-10）**：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "4" | .goal.phases_done -= ["5", "6"] | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/4-dev.md`。
+
+用户选 2 → 继续 toll-gate 6→7。
+用户选 3 → `jq '.goal.status = "aborted"' ...`
+
+### Toll-gate 6→7（审查通过后）
+
+审查通过（无 critical，或用户接受风险后）。
+
+检查 `auto_advance`：
+- 若 `true` → 自动 transition 到 7-integration
+- 若 `false` → **停下来。必须等待用户回复。**
+
+```
+🚦 Toll-gate 6→7：审查通过。
+是否归档上线（7-integration）？
+  1. 继续 → 进入 7-integration（current_phase=7, phases_done+=["6"]）
+  2. 暂停 → 保留状态
+  3. ⬅️ 回退 → 回到 4-dev 修复
+```
+
+用户选 1 → transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "7" | .goal.phases_done += ["6"] | .goal.gates["6→7"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+
 ## 你的职责
 
 使用 `@flow-kit/templates/REVIEW.md` 模板分三轮审查（后端 / lib 项目跳过第三轮）。
