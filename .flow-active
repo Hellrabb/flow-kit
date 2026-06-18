@@ -1,9 +1,9 @@
 {
-  "change_id": "goal-auto-extract",
+  "change_id": "fix-pipeline-rollback",
   "goal": null,
   "phase": "0",
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-18T16:26:17+08:00"
+  "updated_at": "2026-06-18T17:51:45+08:00"
 }
