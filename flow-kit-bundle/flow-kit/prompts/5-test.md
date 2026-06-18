@@ -63,6 +63,23 @@ jq --arg ts "$(date -Iseconds)" \
 ```
 然后加载 `@flow-kit/prompts/4-dev.md`。
 
+### Pipeline: 测试执行失败回退
+
+**当测试执行过程中发现失败（非 toll-gate，而是测试报错/断言失败）：**
+
+若当前处于 pipeline goal 模式（`scope="pipeline"`），在进入常规失败诊断前，**先展示 pipeline rollback 选项**：
+
+```
+⚠️ 5-test 发现测试失败（<N> 个失败）
+
+Pipeline 模式 — 请选择：
+  1. 修复后继续测试 → 留在 5-test，修复后重跑
+  2. ⬅️ 回退到 4-dev → 回到实现阶段修复（current_phase=4, phases_done 移除 "5"）
+  3. 跳过失败测试 → 继续 6-review（不推荐，记录已知问题）
+```
+
+用户选 2 → Phase 回退（同 toll-gate rollback jq），加载 4-dev。
+
 ### Sub-goal 自检（AC-12）
 
 测试完成后，若 `phase_sub_goals["5"]` 存在 → 逐项对照，✅/⚠️ 标注。

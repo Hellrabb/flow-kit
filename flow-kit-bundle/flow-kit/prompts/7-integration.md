@@ -86,6 +86,20 @@ jq --arg ts "$(date -Iseconds)" \
 
 任何失败（自动测试或 UAT）：
 
+**若当前处于 pipeline goal 模式**（`scope="pipeline"`），先展示 pipeline rollback 选项：
+
+```
+⛔ 7-integration 失败：<失败描述>
+
+Pipeline 模式 — 请选择：
+  1. 修复后继续 → 留在 7-integration，诊断 + fix-plan + 修复 + 重跑
+  2. ⬅️ 回退到 4-dev → 回到实现阶段修复，phases_done 移除 "5","6","7"
+     jq: .goal.current_phase = "4" | .goal.phases_done -= ["5","6","7"]
+  3. 放弃本次 pipeline → goal.status = "aborted"
+```
+
+**非 pipeline 模式**（或无 goal）按以下流程：
+
 1. 切到「Diagnose 子角色」，定位 root cause（不是症状）
 2. 产出 fix-plan：追加到 `TASK.md`，编号 `T-FIX-XX`，含完整 verify
 3. 回到 `@flow-kit/prompts/4-dev.md` 执行修复
