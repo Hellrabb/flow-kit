@@ -16,6 +16,57 @@ Test Engineer。
 - 已存在的测试代码
 - `@flow-kit/reference/test-pyramid.md`（5 轮的工具 / 标准 / 清单）
 
+## Pipeline Goal 入场检测
+
+进入 5-test 后，检测 `.flow-active` 的 `goal` 字段：
+
+```bash
+jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+```
+
+若 `scope` = `"pipeline"` 且 `current_phase` = `"5"`：
+- 展示 pipeline 横幅：4✅ → 5🔄 → 6⏸ → 7⏸
+- 标注 "当前阶段：5-test"
+- 若 `phase_sub_goals["5"]` 非空 → 展示 sub-goal
+
+### Toll-gate 5→6（测试完成后）
+
+**测试所有轮次完成，TEST.md 已生成后。**
+
+检查 `auto_advance`：
+- 若 `true` → **跳过 toll-gate**，自动 transition 到 6-review
+- 若 `false` → **停下来。必须等待用户回复。禁止自动继续。**
+
+输出 TOLL-GATE：
+```
+🚦 Toll-gate 5→6：测试已完成。
+✅ TEST.md 已生成，覆盖率报告已出
+是否进入审查阶段（6-review）？
+  1. 继续 → 进入 6-review（current_phase=6, phases_done+=["5"]）
+  2. 暂停 → 保留状态，稍后 `/flow-go 继续` 恢复
+  3. ⬅️ 回退 → 回到 4-dev 修复测试发现的问题（current_phase=4, phases_done 移除 "5"）
+```
+
+用户选 1 → transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "6" | .goal.phases_done += ["5"] | .goal.gates["5→6"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/6-review.md`。
+
+用户选 3 → **Phase 回退（AC-10）**：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "4" | .goal.phases_done -= ["5"] | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/4-dev.md`。
+
+### Sub-goal 自检（AC-12）
+
+测试完成后，若 `phase_sub_goals["5"]` 存在 → 逐项对照，✅/⚠️ 标注。
+
 ## 你的职责
 
 ### 步骤 0 · 声明本次走哪几轮（强制）
