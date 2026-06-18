@@ -107,19 +107,25 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 设定 goal。动作：
 1. 检查 `.flow-active` 是否存在，不存在 → 提示先 `/flow start`
 2. 判断模式：
-   - 有 `--pipeline` flag → pipeline 模式，写入完整 pipeline goal：
+   - 有 `--pipeline` flag → pipeline 模式，写入完整 pipeline goal。
+     若 4-dev 已自动提取 phase_sub_goals（见 4-dev.md 入场 Goal 检测步骤 2c），则传入：
      ```bash
      jq --arg cond "$condition" --arg ts "$(date -Iseconds)" \
-       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: {}, auto_advance: false, phase_sub_goals: {}}' \
+       --arg sub4 "${SUB_GOAL_4:-}" --arg sub5 "${SUB_GOAL_5:-}" \
+       --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: {}, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
-   - 有 `--pipeline` + `--gate-config '<JSON>'` → 额外解析 JSON 写入 gate_config：
+     未自动提取时（sub-goal 为空），phase_sub_goals 值为空字符串（各 prompt 检查非空才展示，空串等价于不展示）。
+   - 有 `--pipeline` + `--gate-config '<JSON>'` → 同上 + gate_config：
      ```bash
      # 先验证 JSON 有效
      echo "$GATE_JSON" | jq empty || { echo "❌ gate-config JSON 无效"; exit 1; }
-     # 再写入（合并到 pipeline goal）
+     # 再写入（合并 pipeline goal + gate_config + phase_sub_goals）
      jq --arg cond "$condition" --arg ts "$(date -Iseconds)" --argjson gates "$GATE_JSON" \
-       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: $gates, auto_advance: false, phase_sub_goals: {}}' \
+       --arg sub4 "${SUB_GOAL_4:-}" --arg sub5 "${SUB_GOAL_5:-}" \
+       --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: $gates, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
      注：jq key 含特殊字符（如 `6-review` 中的 `-`、gate key `4→5` 中的 `→`）时必须用 bracket 引用 `.["key"]`（见 LESSONS L-011）。
