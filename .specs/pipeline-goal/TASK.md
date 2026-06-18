@@ -82,7 +82,7 @@ Wave 2 (parallel): T03[P], T04[P], T05[P], T06[P]  ← 4 个 prompt 同步改造
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending">
+<task id="T02" parallel="true" status="done">
   <name>GO.md 路由改造：pipeline goal 注入 + 路由声明展示</name>
   <read_files>
     .specs/pipeline-goal/DESIGN.md

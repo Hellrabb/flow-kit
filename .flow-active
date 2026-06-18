@@ -2,12 +2,12 @@
   "change_id": "pipeline-goal",
   "goal": null,
   "phase": "4",
-  "task_id": "T01",
+  "task_id": "T02",
   "interrupt": {
-    "active_file": "flow-kit-bundle/skills/flow/SKILL.md",
-    "last_action": "T01: 开始扩展 /flow goal CLI — pipeline + gate_config",
-    "checkpoint_at": "2026-06-18T15:15:06+08:00"
+    "active_file": "flow-kit-bundle/flow-kit/GO.md",
+    "last_action": "T02: 开始 GO.md 路由改造 — pipeline goal 注入",
+    "checkpoint_at": "2026-06-18T15:16:39+08:00"
   },
   "token_spent": 0,
-  "updated_at": "2026-06-18T15:15:06+08:00"
+  "updated_at": "2026-06-18T15:16:39+08:00"
 }
