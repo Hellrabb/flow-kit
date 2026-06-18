@@ -579,6 +579,10 @@ git status --short                  # 含 untracked
 
 若 `STATE.md` 的「中断任务」非空，或用户要求"继续 task X"，**第一动作**：
 
+0. **先跑入场 Goal 检测**（见本文件上方 `## 入场 Goal 检测` 段）：
+   - 读 `.flow-active.goal`，若 `null` → 触发自动提取 + 双模式建议（步骤 2a~2d）
+   - 若 `status = "active"` → 展示横幅后进入 goal 迭代模式
+   - 用户确认 goal 后再继续以下加载
 1. 加载顺序固定：`METHODOLOGY → RULES → 本 prompt → CONTEXT → REQUIREMENT → DESIGN → TASK → <task-id>-PROGRESS`
 2. 执行 R1.6 反重复检查：读 PROGRESS 的「已排除方案」，确认下一步不撞车
 3. 从 PROGRESS 的「当前正在做」之后续起，禁止重新规划整个任务

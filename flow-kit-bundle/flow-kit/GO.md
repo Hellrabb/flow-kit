@@ -138,7 +138,7 @@ Preflight 失败时，路由声明必须写明：
 
 | 用户输入特征 | 路由到 | 备注 |
 |---|---|---|
-| `继续` / `接着上次` / `恢复` / `resume` | `prompts/4-dev.md` 的「入场恢复」段 | 加载 `STATE.md` 中断任务对应的 PROGRESS |
+| `继续` / `接着上次` / `恢复` / `resume` | `prompts/4-dev.md` 的「入场恢复」段 | 先跑入场 Goal 检测，再加载 PROGRESS 恢复 |
 | `执行 T<NN>` / `跑 T<NN>` / `do T<NN>` | `prompts/4-dev.md` | task-id 从用户输入提取 |
 | `审查` / `review` / `检查代码` / `code review` | `prompts/6-review.md` | |
 | `测试` / `写测试` / `UAT` / `test` | `prompts/5-test.md` | |
