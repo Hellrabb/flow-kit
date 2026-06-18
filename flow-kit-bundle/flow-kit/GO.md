@@ -335,6 +335,43 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 
 ## 第六步 · 执行对应阶段 prompt
 
+### 6.0 路由到 4-dev 前强制 Goal 检测（R1.9）
+
+> 本段是 GO.md 路由层的硬检查，优先级高于 4-dev.md 内部的「入场 Goal 检测」。
+> 目的：确保"AI 跳过 prompt 中的 goal 检测直接执行 task"这个已知问题不再发生。
+
+**当路由目标为 4-dev（含「继续」「执行 T<N>」「入场恢复」等所有入口）时：**
+
+0. **第一动作（必须在加载 4-dev.md 或 TASK.md 之前）** 读取 `.flow-active.goal`：
+   ```bash
+   jq -r '.goal // "null"' .flow-active
+   ```
+
+1. 若 `goal` 为 `null` 或不存在 → **停下来。禁止加载 TASK.md。禁止直接执行 task。** 执行以下：
+   a. 读取 `REQUIREMENT.md`，grep `### AC-` 块，提取 Given/When/Then
+   b. 生成单阶段 goal 建议（拼接所有 AC Then 条件）
+   c. 生成 Pipeline goal 建议（按阶段归类：4=实现/5=测试/6=审查/7=归档）
+   d. 展示双选项：
+      ```
+      ╔══════════════════════════════════════════╗
+      ║  检测到 4-dev 但无活跃 goal              ║
+      ║  选择 goal 模式（自动从 REQUIREMENT 提取）：║
+      ║                                          ║
+      ║  1. 单阶段 — 仅 phase 4 dev 迭代          ║
+      ║  2. Pipeline — 4→5→6→7 全执行链           ║
+      ║  3. 我自定义条件                           ║
+      ║  4. skip — 跳过 goal，直接执行             ║
+      ╚══════════════════════════════════════════╝
+      ```
+   e. 用户确认 → AI 直接写 goal 到 `.flow-active`（jq 原子写入，复用 /flow skill 写法）
+   f. goal 写入完成后 → 继续加载 4-dev.md
+
+2. 若 `goal.status = "active"` → 展示横幅，继续加载 4-dev.md。
+
+3. 若 `goal.status = "done"` → 提示 goal 已完成，询问是否 `/flow goal clear` 后重新设定。
+
+### 6.1 加载对应阶段 prompt
+
 加载 `prompts/<n>-*.md` 的内容并按其指令推进。所有规则（`RULES.md` / `SYSTEM.md`）继续生效。
 
 ---
