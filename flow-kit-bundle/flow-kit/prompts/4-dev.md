@@ -4,6 +4,31 @@
 
 你是 Dev。**只执行 TASK.md 中的一个任务**。多任务请分多次调用此 prompt。
 
+## 入场 Goal 检测（进任务前必跑）
+
+在读取 TASK 块之前，先检测 `.flow-active` 的 `goal` 字段（用 jq，与 flow skill 一致）：
+
+1. 检查 `.flow-active.goal`：
+   - `null` 或不存在 → 跳至步骤 4（自动提取建议）
+   - `status = "active"` → 展示横幅后直接进入 goal 迭代模式（步骤 5）
+
+2. **Goal 自动提取**（AC-5）：
+   - 读取 `REQUIREMENT.md`，grep 所有 `### AC-` 标题行
+   - 取第一条 AC 的 Given/When/Then 文本，拼接为 goal 条件建议
+   - 展示：
+     ```
+     📋 建议 goal：<拼接的条件文本>
+     输入 /flow goal 确认，或直接描述修改，或输入 'skip' 跳过。
+     ```
+
+3. 用户确认 goal 后 → 继续读 TASK 块（步骤 1）。
+
+4. 用户输入 'skip' → 跳过 goal，直接读 TASK 块（步骤 1）。
+
+5. **Goal 迭代模式**（进入后）：
+   - 原生模式（mode=native）："🚀 启动自主迭代（CC 原生 /goal 已接管），Ctrl+C 可中断"
+   - 回退模式（mode=fallback）：内置循环——每个 turn 结束时自检条件是否满足，满足则 goal.status=done 停止，不满足则 goal.turns++ 继续；最多 20 turns。检查方法：用工具实际验证条件（如跑测试、查退出码），而非读日志文本推断。
+
 ## 输入
 
 - `@.specs/<change-id>/TASK.md`

@@ -251,6 +251,7 @@ flow-kit 后续阶段需要项目上下文给 AI 用。请选择：
 
 进入对应阶段前，AI 必须自行完成：
 
+- **Goal 注入**：进入任何阶段前，读取 `.flow-active` 的 `goal` 字段（`jq -r '.goal.condition // empty' .flow-active 2>/dev/null`），若非空则注入路由声明的 `✅ Goal` 行
 - **新 CHANGE**：按 `prompts/0-change.md` 的步骤 0 自动生成 `change-id`（kebab-case，2~4 词），并在第一条回复里显式声明
 - **目录不存在**：自行 `mkdir -p .specs/<id>/`，不要让用户先建
 - **规则加载**：若 IDE 未注入全局规则，读 `@flow-kit/RULES.md`（精简版 `@flow-kit/SYSTEM.md` 也行）
@@ -297,6 +298,7 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 ```
 ✅ 路由：<阶段，例如 0-change>
 ✅ Change-ID：<id>（已自动生成 / 已恢复活跃 change：<existing-id>）
+✅ Goal：<condition> (active, N turns)（仅当 .flow-active.goal 非空时显示 · 无 goal 时本行省略）
 ✅ 已加载：
    - <file1>（全读，N 行）
    - <file2>（全读，N 行）
@@ -310,6 +312,7 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 ```
 ✅ 路由：2-design
 ✅ Change-ID：companion-platform
+✅ Goal：（无 · 仅展示格式——有 goal 时如 "backend tests pass (active, 3 turns)"）
 ✅ 已加载：
    - .specs/companion-platform/CHANGE.md（全读，52 行）
    - .specs/companion-platform/REQUIREMENT.md（全读，98 行）
