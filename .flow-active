@@ -1,15 +1,9 @@
 {
   "change_id": "pipeline-goal",
-  "goal": {
-    "condition": "做完phase 4",
-    "status": "done",
-    "active_since": "2026-06-18T15:18:52+08:00",
-    "turns": 1,
-    "mode": "native"
-  },
+  "goal": null,
   "phase": "7",
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-18T15:34:55+08:00"
+  "updated_at": "2026-06-18T16:12:53+08:00"
 }
