@@ -168,7 +168,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 ## 项目结构（当前）
 
 ```
-/home/hellrabbit/unisoc/flow-kit/
+~/unisoc/flow-kit/
 ├── .git/                             # Git 仓库（2026-06-08 初始化）
 ├── .gitignore                        # 排除规则（bundle / secrets / IDE / temp）
 ├── .claude/                          # Claude Code 项目配置

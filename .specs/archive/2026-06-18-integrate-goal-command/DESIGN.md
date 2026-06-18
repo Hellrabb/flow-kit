@@ -26,7 +26,7 @@
 - ~/.claude/skills/flow/SKILL.md（既有 · 新增 /flow goal 子命令，104 行）
 - ~/.claude/flow-kit/GO.md（既有 · 路由声明新增 goal 行，351 行）
 - ~/.claude/flow-kit/prompts/4-dev.md（既有 · 入场段新增 goal 提取+迭代逻辑）
-- /home/hellrabbit/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh（既有维护源 · 恢复时输出 goal）
+- ~/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh（既有维护源 · 恢复时输出 goal）
 - .flow-active schema（既有 JSON schema · 新增 goal 可选字段）
 
 新增模块：

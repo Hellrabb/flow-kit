@@ -164,23 +164,23 @@ Wave 2:            T04                         ← 端到端验证 (depends on T
     # 综合验证脚本
     set -euo pipefail
     echo "=== AC-6: 默认模式 dry-run ==="
-    bash /home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/install.sh --dry-run /tmp/test-ac6 2>&1 | grep -q "flow-kit core → /tmp/test-ac6/flow-kit" && echo "✅ AC-6 pass"
+    bash ~/unisoc/flow-kit/flow-kit-bundle/install.sh --dry-run /tmp/test-ac6 2>&1 | grep -q "flow-kit core → /tmp/test-ac6/flow-kit" && echo "✅ AC-6 pass"
 
     echo "=== AC-5: --user dry-run ==="
-    bash /home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/install.sh --dry-run --user /tmp/test-ac5 2>&1 | grep -q "ln -s" && echo "✅ AC-5 pass"
+    bash ~/unisoc/flow-kit/flow-kit-bundle/install.sh --dry-run --user /tmp/test-ac5 2>&1 | grep -q "ln -s" && echo "✅ AC-5 pass"
 
     echo "=== AC-1+2: 首次/复用 --user install ==="
     [ -f ~/.claude/flow-kit/GO.md ] && echo "✅ user-scope flow-kit exists"
     [ -L /tmp/test-ac5/flow-kit ] 2>/dev/null || echo "(dry-run — no symlink expected)"
 
     echo "=== Syntax checks ==="
-    bash -n /home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/install.sh && echo "✅ install.sh syntax OK"
+    bash -n ~/unisoc/flow-kit/flow-kit-bundle/install.sh && echo "✅ install.sh syntax OK"
 
     echo "=== flow-go lookup check ==="
-    grep -q "FLOW_KIT_ROOT" /home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/skills/flow-go/SKILL.md && echo "✅ flow-go has lookup"
+    grep -q "FLOW_KIT_ROOT" ~/unisoc/flow-kit/flow-kit-bundle/skills/flow-go/SKILL.md && echo "✅ flow-go has lookup"
 
     echo "=== INSTALL.md check ==="
-    grep -q "\-\-user" /home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/INSTALL.md && echo "✅ INSTALL.md has --user doc"
+    grep -q "\-\-user" ~/unisoc/flow-kit/flow-kit-bundle/INSTALL.md && echo "✅ INSTALL.md has --user doc"
 
     echo "ALL VERIFICATIONS PASSED"
     '

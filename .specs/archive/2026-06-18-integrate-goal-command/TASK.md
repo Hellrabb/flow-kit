@@ -148,15 +148,15 @@ Wave 3:            T06                    (depends on T02)
 <task id="T05" parallel="true" status="done">
   <name>flow-kit-resume.sh 恢复时输出 goal</name>
   <read_files>
-    /home/hellrabbit/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh
+    ~/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh
     ~/.claude/hooks/session-start/flow-kit-resume.sh
   </read_files>
   <write_files>
-    /home/hellrabbit/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh
+    ~/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh
   </write_files>
   <action>
     在 flow-kit-resume.sh 的恢复横幅输出中新增 goal 检测。
-    修改维护源 `/home/hellrabbit/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh`：
+    修改维护源 `~/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh`：
     1. 读 .flow-active 的 goal 字段（jq）
     2. 如果 goal 非空且 status=active：
        追加输出："📍 恢复目标: &lt;condition&gt;（已执行 N turns，模式: &lt;mode&gt;）"
@@ -164,7 +164,7 @@ Wave 3:            T06                    (depends on T02)
 
     注意：只改 flow-kit-bundle 维护源，不改 `~/.claude/hooks/` 安装副本（后者由 install.sh 同步）。
   </action>
-  <verify>bash -c 'source /home/hellrabbit/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh 2>&1 | grep -q "goal\|Goal" || echo "OK - no goal output when no goal set"'</verify>
+  <verify>bash -c 'source ~/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh 2>&1 | grep -q "goal\|Goal" || echo "OK - no goal output when no goal set"'</verify>
   <done>SessionStart 恢复横幅含 goal 信息；AC-7 可验证</done>
   <depends_on></depends_on>
 </task>
