@@ -35,7 +35,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - **前端框架**: 无（非 Web 项目）
 - **后端框架**: 无
 - **数据库**: 无
-- **测试**: bats-core 1.13.0（`npx bats` · 28 tests in `test/`）
+- **测试**: bats-core 1.13.0（`npx bats` · 59 tests in `test/`）
 - **构建/部署**: 纯 Shell 脚本打包（tar + gzip），无 CI/CD 检测到
 - **栈卡片编号**: 不适用（非标准技术栈项目）
 
@@ -165,7 +165,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 | # | 严重度 | 位置 | 问题 | 建议 | 来源 |
 |---|---|---|---|---|---|
-| — | — | — | _所有 M-health 2026-06-16 发现的 🟡 项已在 health-fix 修复，暂无新债_ | — | — |
+| TD-002 | ✅ | `flow-kit-bundle/hooks/stop/` + `lib/`（3410 行 bash）| hooks 系统无测试覆盖。test_install.bats 只测 install.sh CLI 参数（11 tests），未覆盖 install_hooks.sh / flow-kit-artifacts.sh 等核心 hook 逻辑（上次 T5 的残留尾巴）| 为 `install_hooks.sh` / `flow-kit-artifacts.sh` 加 bats smoke test | `M-health 2026-06-20` |
+| TD-003 | ✅ | `flow-kit-bundle/flow-kit/prompts/{5-test,6-review,7-integration}.md` 入场 jq | `--from 0` pipeline 扩展时，4-dev.md + GO.md 已加 `start_phase` 读取，但这三个 prompt 仍是 `current_phase // "4"`（漏改）。实际影响低（current_phase 字段在 transition 时已正确更新，fallback 不触发），但一致性应补齐 | 统一三个 prompt 入场 jq 为 `current_phase // .start_phase // "4"` | `M-health 2026-06-20`（goal-pipeline-phase0 遗留）|
+| L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 共享函数 < 3 阈值，`lib/utils.sh` 保持推迟 | 等新增 ≥ 2 个共享辅助函数时再建 | `init-git-repo` T03 · 保持 deferred |
 
 ---
 

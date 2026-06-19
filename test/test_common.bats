@@ -153,3 +153,40 @@ skip_if_no_jq() {
   result=$(line_count "$TEST_TMPDIR/nonexistent.txt")
   [ "$result" = "0" ]
 }
+
+# ── config_get 边界补全 (TD-002 / health-fix-2026-q2) ──────────────────
+
+@test "config_get returns default when CONFIG_FILE missing" {
+  skip_if_no_jq
+  # 删除 CONFIG_FILE，走缺失文件分支
+  rm -f "$CONFIG_FILE"
+  result=$(config_get ".nonexistent_key" "my-default")
+  [[ "$result" == "my-default" ]]
+}
+
+@test "config_get returns default for key not in config" {
+  skip_if_no_jq
+  # CONFIG_FILE 由 setup 预置，查询不存在的 key
+  result=$(config_get ".nonexistent.deep.path" "fallback-val")
+  [[ "$result" == "fallback-val" ]]
+}
+
+# ── check_enabled 边界补全 (TD-002 / health-fix-2026-q2) ──────────────
+
+@test "check_enabled returns false when module disabled even with matching check" {
+  skip_if_no_jq
+  # memory module: enabled=false, 但假设 checks 含某项
+  jq '.modules.memory.checks = ["duration"]' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" \
+    && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+  # module disabled → 即使 checks 含 "duration" 也应返回 false
+  run check_enabled "memory" "duration"
+  [ "$status" -ne 0 ]
+}
+
+@test "check_enabled returns true for enabled module with empty checks array" {
+  skip_if_no_jq
+  # quality module: enabled=true, checks=[] (setup 预置)
+  # checks 数组为空 → 所有 check 都视为 enabled
+  run check_enabled "quality" "any-check-name"
+  [ "$status" -eq 0 ]
+}
