@@ -156,3 +156,40 @@
 CHANGE.md 经用户确认后，根据路径建议进入：
 - `@flow-kit/prompts/1-requirement.md`（影响需求时）
 - `@flow-kit/prompts/3-task.md`（直接拆任务时）
+
+---
+
+## Pipeline Toll-Gate（仅 pipeline goal 模式）
+
+> 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "0"` 时执行本段。
+> 非 pipeline 模式直接跳过，进入常规「触发下一步」。
+
+**触发条件**：CHANGE.md 已生成并经用户确认，路径建议已给出。
+
+**停下来。必须等待用户回复。禁止自动继续。**
+
+输出 TOLL-GATE：
+
+```
+🚦 Toll-gate 0→1：Phase 0 变更提案已完成。
+✅ 产物: CHANGE.md ✓
+📋 路径建议: <完整/中等/最短>
+   子条件:
+     - "CHANGE confirmed" → ✅ 已满足（如有对应 condition 子条件）
+
+是否进入 Phase 1（需求分析）？
+  1. 继续 → 进入 1-requirement（current_phase="1", phases_done+=["0"]）
+  2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
+  3. 跳过需求 → 直接进入 3-task 或 2-design（需人工指定）
+```
+
+用户选 1 → 执行 transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "1" | .goal.phases_done += ["0"] | .goal.gates["0→1"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/1-requirement.md`。
+
+用户选 2 → 保留状态，不更新 phase。
+用户选 3 → 告知目标阶段，手动更新 current_phase + phases_done。

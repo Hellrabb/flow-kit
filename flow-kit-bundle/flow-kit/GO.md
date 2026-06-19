@@ -254,9 +254,10 @@ flow-kit 后续阶段需要项目上下文给 AI 用。请选择：
 - **Goal 注入**：进入任何阶段前，读取 `.flow-active` 的 `goal` 字段（`jq -r '.goal.condition // empty' .flow-active 2>/dev/null`），若非空则注入路由声明的 `✅ Goal` 行。
   若 `goal.scope` 为 `"pipeline"`，额外读取 pipeline 状态字段用于路由展示和阶段恢复：
   ```bash
-  jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)|\(.status // "active")|\(.turns // 0)"' .flow-active 2>/dev/null
+  jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // .start_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)|\(.status // "active")|\(.turns // 0)"' .flow-active 2>/dev/null
   ```
-  pipeline goal 注入时机：若 `current_phase` 匹配目标阶段 → 加载对应 prompt；若不匹配 → 在路由声明中提示"pipeline 当前阶段为 X，目标阶段为 Y"并询问是否调整
+  pipeline goal 注入时机：若 `current_phase` 匹配目标阶段 → 加载对应 prompt；若不匹配 → 在路由声明中提示"pipeline 当前阶段为 X，目标阶段为 Y"并询问是否调整。
+  pipeline 起始阶段由 `start_phase` 字段决定（缺失默认 "4"，向后兼容）；阶段链为 `start_phase→...→7`。
 - **新 CHANGE**：按 `prompts/0-change.md` 的步骤 0 自动生成 `change-id`（kebab-case，2~4 词），并在第一条回复里显式声明
 - **目录不存在**：自行 `mkdir -p .specs/<id>/`，不要让用户先建
 - **规则加载**：若 IDE 未注入全局规则，读 `@flow-kit/RULES.md`（精简版 `@flow-kit/SYSTEM.md` 也行）
@@ -306,8 +307,8 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 ✅ Goal：<condition> (active, N turns)（仅当 .flow-active.goal 非空时显示 · 无 goal 时本行省略）
         pipeline 模式额外显示：
         ✅ Goal：[pipeline] <condition>
-           进度: 4<✅/🔄/⏸> → 5<✅/🔄/⏸> → 6<✅/🔄/⏸> → 7<✅/🔄/⏸>
-           auto_advance: <true/false> | 门禁: 4→5 <状态> | 6→7 <状态>
+           起始: <start_phase> | 进度: <start>🔄 → ... → 7⏸（动态，根据 start_phase 生成）
+           auto_advance: <true/false> | 门禁: <start>→<start+1> <状态> | ... | 6→7 <状态>
 ✅ 已加载：
    - <file1>（全读，N 行）
    - <file2>（全读，N 行）
@@ -321,7 +322,7 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 ```
 ✅ 路由：2-design
 ✅ Change-ID：companion-platform
-✅ Goal：（无 · 仅展示格式——有 goal 时如 "backend tests pass (active, 3 turns)"；pipeline 模式如 "[pipeline] feature X shipped | 进度: 4✅→5⏳→6⏸→7⏸ | auto_advance: false"）
+✅ Goal：（无 · 仅展示格式——有 goal 时如 "backend tests pass (active, 3 turns)"；pipeline 模式如 "[pipeline] feature X shipped | 起始: 4 | 进度: 4✅→5🔄→6⏸→7⏸ | auto_advance: false"）
 ✅ 已加载：
    - .specs/companion-platform/CHANGE.md（全读，52 行）
    - .specs/companion-platform/REQUIREMENT.md（全读，98 行）

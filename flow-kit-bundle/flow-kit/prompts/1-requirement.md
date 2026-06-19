@@ -60,3 +60,36 @@
 需用户确认 REQUIREMENT.md 后，进入：
 - `@flow-kit/prompts/2-design.md`（涉及架构决策时）
 - `@flow-kit/prompts/3-task.md`（无新架构时直接拆任务）
+
+---
+
+## Pipeline Toll-Gate（仅 pipeline goal 模式）
+
+> 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "1"` 时执行本段。
+
+**触发条件**：REQUIREMENT.md 已生成并经用户确认，CONTEXT.md 术语已更新。
+
+**停下来。必须等待用户回复。禁止自动继续。**
+
+输出 TOLL-GATE：
+
+```
+🚦 Toll-gate 1→2：Phase 1 需求分析已完成。
+✅ 产物: REQUIREMENT.md ✓ | CONTEXT.md（术语更新）✓
+📋 AC: <N> 条 | v1/v2/out 已切分
+   子条件:
+     - "REQUIREMENT confirmed" → ✅ 已满足（如有对应 condition 子条件）
+
+是否进入 Phase 2（技术设计）？
+  1. 继续 → 进入 2-design（current_phase="2", phases_done+=["1"]）
+  2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
+  3. 跳过设计 → 直接进入 3-task（current_phase="3", phases_done+=["1"]）
+```
+
+用户选 1 → 执行 transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "2" | .goal.phases_done += ["1"] | .goal.gates["1→2"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/2-design.md`。

@@ -23,6 +23,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
       "turns": 3,
       "mode": "native",
       "scope": "phase",
+      "start_phase": "4",
       "current_phase": "4",
       "phases_done": [],
       "gates": {},
@@ -87,15 +88,17 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 2. 如 goal 为 null → 输出："当前无活跃 goal。用 `/flow goal <条件>` 设定。"
 3. 如 goal 非空：
    - 若 `scope` 为 `"pipeline"` → 格式化输出 pipeline 进度：
+     先从 `start_phase`（缺失默认 "4"）确定阶段链，动态生成进度行：
      ```
      🎯 [pipeline] Goal: <condition>
-        进度: 4 <✅/🔄/⏸> → 5 <✅/🔄/⏸> → 6 <✅/🔄/⏸> → 7 <✅/🔄/⏸>
-        toll-gates: 4→5 <pending/passed/skipped> | 5→6 <pending/passed/skipped> | 6→7 <pending/passed/skipped>
+        起始: <start_phase> | 进度: <start> <✅/🔄/⏸> → <start+1> <✅/🔄/⏸> → ... → 7 <✅/🔄/⏸>
+        toll-gates: <start>→<start+1> <pending/passed/skipped> | ... | 6→7 <pending/passed/skipped>
         auto_advance: <true/false>
         状态: <status> | 已执行: <turns> turns | 模式: <mode>
         设定于: <active_since>
      ```
      进度图标规则：✅=已完成(在 phases_done 中) | 🔄=当前(current_phase) | ⏸=待开始
+     阶段链由 `start_phase` 派生（0→1→...→7），`start_phase` 缺失时默认 "4"（向后兼容）。
    - 否则（单阶段 goal）→ 保持原有格式：
      ```
      🎯 Goal: <condition>
@@ -103,29 +106,40 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
         设定于: <active_since>
      ```
 
-### `/flow goal <条件文本> [--pipeline] [--gate-config <JSON>]`
+### `/flow goal <条件文本> [--pipeline] [--from <n>] [--gate-config <JSON>]`
 设定 goal。动作：
 1. 检查 `.flow-active` 是否存在，不存在 → 提示先 `/flow start`
-2. 判断模式：
-   - 有 `--pipeline` flag → pipeline 模式，写入完整 pipeline goal。
-     若 4-dev 已自动提取 phase_sub_goals（见 4-dev.md 入场 Goal 检测步骤 2c），则传入：
+2. 解析 `--from <n>` flag（从 args 中提取 `--from\s+([0-7])`）：
+   - 匹配到 → 校验值 ∈ {0,1,2,3,4,5,6,7}，无效则输出 `❌ 无效起始阶段: <值>。有效值: 0, 1, 2, 3, 4, 5, 6, 7` 并 exit 1
+   - 未匹配 → 默认 `FROM=4`
+3. 判断模式：
+   - 有 `--pipeline` flag → pipeline 模式，动态生成 gates：
      ```bash
-     jq --arg cond "$condition" --arg ts "$(date -Iseconds)" \
+     # 动态生成 gates JSON（根据 FROM 生成 "N→N+1" keys）
+     GATES_JSON=$(jq -n --arg from "$FROM" \
+       '[range($from|tonumber; 7) | "\(.)→\(.+1)"] | reduce .[] as $k ({}; .[$k] = "pending")')
+     # 写入 pipeline goal
+     jq --arg cond "$condition" --arg ts "$(date -Iseconds)" --arg from "$FROM" \
+       --argjson gates "$GATES_JSON" \
        --arg sub4 "${SUB_GOAL_4:-}" --arg sub5 "${SUB_GOAL_5:-}" \
        --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
-       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: {}, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", start_phase: $from, current_phase: $from, phases_done: [], gates: $gates, gate_config: {}, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
-     未自动提取时（sub-goal 为空），phase_sub_goals 值为空字符串（各 prompt 检查非空才展示，空串等价于不展示）。
+     注：phase_sub_goals 仍按 4/5/6/7 存储（与 pipeline 执行链后半段对应的 sub-goal）。若 FROM > 4（如 FROM=5），则 sub4 为空串不展示。
    - 有 `--pipeline` + `--gate-config '<JSON>'` → 同上 + gate_config：
      ```bash
      # 先验证 JSON 有效
      echo "$GATE_JSON" | jq empty || { echo "❌ gate-config JSON 无效"; exit 1; }
-     # 再写入（合并 pipeline goal + gate_config + phase_sub_goals）
-     jq --arg cond "$condition" --arg ts "$(date -Iseconds)" --argjson gates "$GATE_JSON" \
+     # 校验 gate_config keys 在动态 gates keys 集合内
+     # 再写入
+     GATES_JSON=$(jq -n --arg from "$FROM" \
+       '[range($from|tonumber; 7) | "\(.)→\(.+1)"] | reduce .[] as $k ({}; .[$k] = "pending")')
+     jq --arg cond "$condition" --arg ts "$(date -Iseconds)" --arg from "$FROM" \
+       --argjson gates "$GATES_JSON" --argjson custom_gates "$GATE_JSON" \
        --arg sub4 "${SUB_GOAL_4:-}" --arg sub5 "${SUB_GOAL_5:-}" \
        --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
-       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", current_phase: "4", phases_done: [], gates: {"4→5": "pending", "5→6": "pending", "6→7": "pending"}, gate_config: $gates, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
+       '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", start_phase: $from, current_phase: $from, phases_done: [], gates: $gates, gate_config: $custom_gates, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
      注：jq key 含特殊字符（如 `6-review` 中的 `-`、gate key `4→5` 中的 `→`）时必须用 bracket 引用 `.["key"]`（见 LESSONS L-011）。
@@ -135,12 +149,13 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
        '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending"}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
-3. 检测 CC 原生 `/goal` 可用性：
+4. 检测 CC 原生 `/goal` 可用性：
    - 尝试 `claude --version 2>/dev/null | head -1` 获取版本号；若 ≥ 2.1.139 → mode=native
-   - pipeline 模式 + native：输出："✅ Pipeline Goal 已设定（原生模式）。CC /goal 将自主迭代直到条件满足。执行链：4→5→6→7"
-   - pipeline 模式 + fallback：输出："✅ Pipeline Goal 已设定（回退模式）。4-dev 将使用内置迭代循环。执行链：4→5→6→7"
+   - pipeline 模式 + native：输出执行链（动态：`FROM→...→7`）：
+     `✅ Pipeline Goal 已设定（原生模式）。执行链：<FROM>→...→7`
+   - pipeline 模式 + fallback：同上但标注回退模式
    - 单阶段模式：输出保持原有格式
-4. 输出 goal 条件摘要（同 `/flow goal` 无参数格式）
+5. 输出 goal 条件摘要（同 `/flow goal` 无参数格式）
 
 ### `/flow goal clear`
 清除 goal。动作：
@@ -169,7 +184,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 
 ### `/flow doctor`
 诊断 flow-kit hook 配置状态。动作：
-1. 检查 `.flow-active` JSON 格式是否有效（`jq empty .flow-active`），包括 goal 字段结构（如非 null，需含 condition/status/active_since/turns/mode；pipeline 模式还需含 scope/current_phase/phases_done/gates/gate_config/auto_advance/phase_sub_goals）
+1. 检查 `.flow-active` JSON 格式是否有效（`jq empty .flow-active`），包括 goal 字段结构（如非 null，需含 condition/status/active_since/turns/mode；pipeline 模式还需含 scope/start_phase/current_phase/phases_done/gates/gate_config/auto_advance/phase_sub_goals；start_phase 缺失时默认 "4" 兼容旧数据）
 2. 检查 Stop Hook 配置：
    - 读 `.claude/stop-hook.json`，检查 `modules.workflow.enabled` 是否为 `true`
    - 检查 `26-workflow.sh` 是否存在且可执行

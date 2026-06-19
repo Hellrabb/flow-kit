@@ -210,3 +210,35 @@
 
 - **前端项目**（含任何用户可见 UI）→ `@flow-kit/prompts/2a-ui-design.md`（先决策视觉再拆任务）
 - **后端 / CLI / lib** → `@flow-kit/prompts/3-task.md`
+
+---
+
+## Pipeline Toll-Gate（仅 pipeline goal 模式）
+
+> 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "2"` 时执行本段。
+
+**触发条件**：DESIGN.md 已生成并经用户确认，技术栈已锁定，ADR 已记录。
+
+**停下来。必须等待用户回复。禁止自动继续。**
+
+输出 TOLL-GATE：
+
+```
+🚦 Toll-gate 2→3：Phase 2 技术设计已完成。
+✅ 产物: DESIGN.md ✓ | ADR（如有）✓
+📋 技术栈: <选定栈> | 决策: D1-Dn | 风险: R1-Rn
+   子条件:
+     - "DESIGN confirmed" → ✅ 已满足（如有对应 condition 子条件）
+
+是否进入 Phase 3（任务拆解）？
+  1. 继续 → 进入 3-task（current_phase="3", phases_done+=["2"]）
+  2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
+```
+
+用户选 1 → 执行 transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "3" | .goal.phases_done += ["2"] | .goal.gates["2→3"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/3-task.md`（或非前端项目时）或 `@flow-kit/prompts/2a-ui-design.md`（前端项目）。
