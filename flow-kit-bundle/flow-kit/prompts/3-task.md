@@ -133,3 +133,35 @@ Wave 3:            T05 (depends on T03, T04)
 ## 触发下一步
 
 `@flow-kit/prompts/4-dev.md`（按波次逐个执行）
+
+---
+
+## Pipeline Toll-Gate（仅 pipeline goal 模式）
+
+> 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "3"` 时执行本段。
+
+**触发条件**：TASK.md 已生成并经用户确认，波次划分清晰。
+
+**停下来。必须等待用户回复。禁止自动继续。**
+
+输出 TOLL-GATE：
+
+```
+🚦 Toll-gate 3→4：Phase 3 任务拆解已完成。
+✅ 产物: TASK.md ✓
+📋 Wave 1: <N> tasks [P] | Wave 2: <M> tasks | 总计 <T> tasks
+   子条件:
+     - "tasks ready" → ✅ 已满足（如有对应 condition 子条件）
+
+是否进入 Phase 4（开发执行）？
+  1. 继续 → 进入 4-dev（current_phase="4", phases_done+=["3"]）
+  2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
+```
+
+用户选 1 → 执行 transition：
+```bash
+jq --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = "4" | .goal.phases_done += ["3"] | .goal.gates["3→4"] = "passed" | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/4-dev.md`。

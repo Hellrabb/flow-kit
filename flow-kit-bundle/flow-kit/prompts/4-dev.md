@@ -74,14 +74,14 @@
    - 原生模式（mode=native）："🚀 启动自主迭代（CC 原生 /goal 已接管），Ctrl+C 可中断"
    - 回退模式（mode=fallback）：内置循环——每个 turn 结束时自检条件是否满足，满足则 goal.status=done 停止，不满足则 goal.turns++ 继续；最多 20 turns。检查方法：用工具实际验证条件（如跑测试、查退出码），而非读日志文本推断。
 
-6. **Pipeline Goal 模式**（仅当 `.flow-active.goal.scope` = `"pipeline"` 且 `current_phase` = `"4"`）：
+6. **Pipeline Goal 模式**（仅当 `.flow-active.goal.scope` = `"pipeline"` 且 `current_phase` = `start_phase` 或 `current_phase` = `"4"`（start_phase 缺失时默认））：
 
    入场时检测 pipeline goal：
    ```bash
-   jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+   jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // .start_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
    ```
-   若 scope="pipeline" 且 current_phase="4"：
-   - 展示 pipeline 横幅（进度条：4🔄 → 5⏸ → 6⏸ → 7⏸）
+   若 scope="pipeline" 且 current_phase 匹配 start_phase（默认 "4"）：
+   - 展示 pipeline 横幅（进度条动态生成：从 start_phase 到 7，如 start_phase=4 → "4🔄 → 5⏸ → 6⏸ → 7⏸"）
    - 若 `phase_sub_goals["4"]` 非空 → 展示 sub-goal："📋 本阶段 sub-goal：<phase_sub_goals["4"]>"
    - 进入 pipeline 模式（goal 迭代模式正常运作，额外叠加 pipeline 协议）
 
