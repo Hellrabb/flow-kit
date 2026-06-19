@@ -21,7 +21,7 @@ Test Engineer。
 进入 5-test 后，检测 `.flow-active` 的 `goal` 字段：
 
 ```bash
-jq -r '.goal | "\(.scope // "phase")|\(.current_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
+jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // .start_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
 ```
 
 若 `scope` = `"pipeline"` 且 `current_phase` = `"5"`：
