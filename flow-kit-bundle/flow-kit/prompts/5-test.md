@@ -44,7 +44,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 是否进入审查阶段（6-review）？
   1. 继续 → 进入 6-review（current_phase=6, phases_done+=["5"]）
   2. 暂停 → 保留状态，稍后 `/flow-go 继续` 恢复
-  3. ⬅️ 回退 → 回到 4-dev 修复测试发现的问题（current_phase=4, phases_done 移除 "5"）
+  3. ⬅️ 回退 → 回到 <建议目标>（默认 4-dev；--from 0 时可回退到 0/1/2/3/4）
 ```
 
 用户选 1 → transition：
@@ -55,13 +55,8 @@ jq --arg ts "$(date -Iseconds)" \
 ```
 然后加载 `@flow-kit/prompts/6-review.md`。
 
-用户选 3 → **Phase 回退（AC-10）**：
-```bash
-jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "4" | .goal.phases_done -= ["5"] | .updated_at = $ts' \
-  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
-```
-然后加载 `@flow-kit/prompts/4-dev.md`。
+用户选 3 → **Phase 回退（通用化，见下方「Pipeline: 测试执行失败回退」步骤 4 的 jq 模板）**：
+默认 $TARGET="4"（向后兼容）；`--from 0` 时 AI 按 toll-gate 发现的问题类型建议目标（参考失败分类表），用户确认后执行通用回退 jq。
 
 ### Pipeline: 测试执行失败回退
 
@@ -69,16 +64,58 @@ jq --arg ts "$(date -Iseconds)" \
 
 若当前处于 pipeline goal 模式（`scope="pipeline"`），在进入常规失败诊断前，**先展示 pipeline rollback 选项**：
 
+#### 步骤 1 · 读取 pipeline 状态
+
+```bash
+jq -r '.goal | "\(.start_phase // "4")|\(.current_phase // .start_phase // "4")|\((.phases_done // []) | join(","))"' .flow-active
+```
+
+#### 步骤 2 · 生成可回退目标列表
+
+`rollback_targets = [start_phase .. current_phase-1]`（仅可回退到已走过的阶段）。
+- `--from 4`, current=5 → 可回退目标 = [4]
+- `--from 0`, current=5 → 可回退目标 = [0,1,2,3,4]
+
+#### 步骤 3 · 失败分类表（AI 按现象建议回退目标）
+
+| 失败现象 | 建议回退目标 |
+|---|---|
+| 测试断言失败 / 代码 bug | 4-dev（最常见）|
+| AC 未覆盖或无法满足（需求层问题）| 1-requirement（仅当 start_phase ≤ 1）|
+| 测试用例设计缺陷（漏边界，task 拆解问题）| 3-task（仅当 start_phase ≤ 3）|
+| 其他 / 不确定 | 4-dev（默认兜底）|
+
+> 建议目标必须在 rollback_targets 内（start_phase 之后）。若建议目标 < start_phase（如 start_phase=4 时建议回 1），则不可选，降级为回退到 start_phase。
+
+#### 步骤 4 · 展示 + 用户确认
+
 ```
 ⚠️ 5-test 发现测试失败（<N> 个失败）
+   失败现象：<AI 根据测试输出判断，如「断言失败」「AC 无法满足」>
+   💡 建议回退到：<建议阶段名>（<理由>）
+   可回退目标：<rollback_targets>
 
 Pipeline 模式 — 请选择：
-  1. 修复后继续测试 → 留在 5-test，修复后重跑
-  2. ⬅️ 回退到 4-dev → 回到实现阶段修复（current_phase=4, phases_done 移除 "5"）
+  1. 就地修复 → 留在 5-test，修复后重跑
+  2. ⬅️ 回退（默认建议：<建议目标>）→ current_phase=<目标>, phases_done 移除该目标之后的阶段
   3. 跳过失败测试 → 继续 6-review（不推荐，记录已知问题）
 ```
 
-用户选 2 → Phase 回退（同 toll-gate rollback jq），加载 4-dev。
+用户选 2（确认建议或手动指定其他可回退目标）→ **Phase 回退（通用化 jq，$TARGET 为选定目标）**：
+
+```bash
+# 计算需移除的阶段：TARGET 之后到当前的所有已完成阶段
+TARGET=<用户确认的目标，如 "4" 或 "2" 或 "1">
+PHASES_DONE=$(jq -c '.goal.phases_done // []' .flow-active)
+REMOVE=$(jq -n --arg target "$TARGET" --argjson done "$PHASES_DONE" \
+  '[$done[] | select((. | tonumber) > ($target | tonumber))]')
+jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = $target | .goal.phases_done -= $remove | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/<对应阶段>.md`（4-dev / 3-task / 2-design / 1-requirement / 0-change 之一）。
+
+> **向后兼容**：`--from 4`（默认）时，可回退目标仅 [4]，建议即回 4，行为与改造前一致。
 
 ### Sub-goal 自检（AC-12）
 

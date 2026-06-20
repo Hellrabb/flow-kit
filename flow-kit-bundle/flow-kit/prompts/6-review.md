@@ -47,23 +47,46 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
 检测到 ≥ 1 个 critical 问题时，**停下来。禁止自动继续。**
 
+#### 失败分类表（AI 按问题类型建议回退目标）
+
+| 失败现象 | 建议回退目标 |
+|---|---|
+| brooks-review 🔴 Critical（代码 bug）| 4-dev（最常见）|
+| spec 合规失败（AC 未覆盖 / 无法满足）| 1-requirement |
+| 架构决策缺陷（撞 ADR / 跨模块契约）| 2-design |
+| 跨模块契约违反 | 2-design |
+| 其他 / 不确定 | 4-dev（默认兜底）|
+
+> 建议目标必须在 `[start_phase .. current_phase-1]` 内（仅可回退到已走过的阶段）。
+> `--from 4`（默认）时，可回退目标仅 [4]，建议即回 4（向后兼容）。
+> `--from 0` 时，可回退到 0/1/2/3/4，AI 按 critical 类型建议（如 spec 合规失败→1-requirement）。
+
 ```
 ⛔ Pipeline 暂停：6-review 检测到 N 个 Critical 问题
   - [Critical] <文件> — <问题描述>
 
+   失败现象：<AI 判断，如「spec 合规失败」「架构撞 ADR」>
+   💡 建议回退到：<建议阶段名>（<理由>）
+   可回退目标：<rollback_targets = [start_phase .. 5]>
+
 请选择：
-  1. 修复后继续 → 回到 4-dev 修复（触发 AC-10 rollback）
+  1. ⬅️ 回退（默认建议：<建议目标>）→ current_phase=<目标>, phases_done 移除该目标之后的阶段
   2. 接受风险继续 → Critical 降级为 Known，继续 6→7
   3. 放弃本次 pipeline → goal.status = "aborted"
 ```
 
-用户选 1 → **Phase 回退（AC-10）**：
+用户选 1（确认建议或手动指定其他可回退目标）→ **Phase 回退（通用化 jq，$TARGET 为选定目标）**：
+
 ```bash
-jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "4" | .goal.phases_done -= ["5", "6"] | .updated_at = $ts' \
+TARGET=<用户确认的目标，如 "4" 或 "2" 或 "1">
+PHASES_DONE=$(jq -c '.goal.phases_done // []' .flow-active)
+REMOVE=$(jq -n --arg target "$TARGET" --argjson done "$PHASES_DONE" \
+  '[$done[] | select((. | tonumber) > ($target | tonumber))]')
+jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = $target | .goal.phases_done -= $remove | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
-然后加载 `@flow-kit/prompts/4-dev.md`。
+然后加载 `@flow-kit/prompts/<对应阶段>.md>`（4-dev / 3-task / 2-design / 1-requirement 之一）。
 
 用户选 2 → 继续 toll-gate 6→7。
 用户选 3 → `jq '.goal.status = "aborted"' ...`
@@ -81,7 +104,7 @@ jq --arg ts "$(date -Iseconds)" \
 是否归档上线（7-integration）？
   1. 继续 → 进入 7-integration（current_phase=7, phases_done+=["6"]）
   2. 暂停 → 保留状态
-  3. ⬅️ 回退 → 回到 4-dev 修复
+  3. ⬅️ 回退 → 回到 <建议目标>（默认 4-dev；--from 0 时可回退到 0/1/2/3/4）
 ```
 
 用户选 1 → transition：
@@ -90,6 +113,9 @@ jq --arg ts "$(date -Iseconds)" \
   '.goal.current_phase = "7" | .goal.phases_done += ["6"] | .goal.gates["6→7"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
+
+用户选 3 → **Phase 回退（通用化，见上方「Gate 失败暂停」的 jq 模板）**：
+默认 $TARGET="4"（向后兼容）；`--from 0` 时按 toll-gate 发现的问题建议目标，用户确认后执行通用回退 jq。
 
 ## 你的职责
 
