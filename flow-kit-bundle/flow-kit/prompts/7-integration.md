@@ -88,15 +88,47 @@ jq --arg ts "$(date -Iseconds)" \
 
 **若当前处于 pipeline goal 模式**（`scope="pipeline"`），先展示 pipeline rollback 选项：
 
+#### 失败分类表（AI 按问题类型建议回退目标）
+
+| 失败现象 | 建议回退目标 |
+|---|---|
+| 集成测试失败 / 代码 bug | 4-dev（最常见）|
+| UAT 揭示 AC 错误（需求层问题）| 1-requirement |
+| 集成时发现架构缺陷（撞 ADR）| 2-design |
+| 部署 / 环境配置问题 | 4-dev（重新执行）|
+| 其他 / 不确定 | 4-dev（默认兜底）|
+
+> 建议目标必须在 `[start_phase .. current_phase-1]` 内（仅可回退到已走过的阶段）。
+> `--from 4`（默认）时，可回退目标仅 [4]，建议即回 4（向后兼容）。
+> `--from 0` 时，可回退到 0/1/2/3/4，AI 按失败类型建议。
+
 ```
 ⛔ 7-integration 失败：<失败描述>
 
+   失败现象：<AI 判断，如「UAT 揭示 AC 错误」「集成失败」>
+   💡 建议回退到：<建议阶段名>（<理由>）
+   可回退目标：<rollback_targets = [start_phase .. 6]>
+
 Pipeline 模式 — 请选择：
   1. 修复后继续 → 留在 7-integration，诊断 + fix-plan + 修复 + 重跑
-  2. ⬅️ 回退到 4-dev → 回到实现阶段修复，phases_done 移除 "5","6","7"
-     jq: .goal.current_phase = "4" | .goal.phases_done -= ["5","6","7"]
+  2. ⬅️ 回退（默认建议：<建议目标>）→ current_phase=<目标>, phases_done 移除该目标之后的阶段
   3. 放弃本次 pipeline → goal.status = "aborted"
 ```
+
+用户选 2（确认建议或手动指定其他可回退目标）→ **Phase 回退（通用化 jq，$TARGET 为选定目标）**：
+
+```bash
+TARGET=<用户确认的目标，如 "4" 或 "2" 或 "1">
+PHASES_DONE=$(jq -c '.goal.phases_done // []' .flow-active)
+REMOVE=$(jq -n --arg target "$TARGET" --argjson done "$PHASES_DONE" \
+  '[$done[] | select((. | tonumber) > ($target | tonumber))]')
+jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)" \
+  '.goal.current_phase = $target | .goal.phases_done -= $remove | .updated_at = $ts' \
+  .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+```
+然后加载 `@flow-kit/prompts/<对应阶段>.md>`（4-dev / 3-task / 2-design / 1-requirement 之一）。
+
+> **向后兼容**：`--from 4` 时，$TARGET 默认 "4"，REMOVE=[5,6,7]，行为与改造前的 `current_phase="4" | phases_done-=["5","6","7"]` 完全一致。
 
 **非 pipeline 模式**（或无 goal）按以下流程：
 

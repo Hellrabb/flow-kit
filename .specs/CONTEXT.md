@@ -35,7 +35,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - **前端框架**: 无（非 Web 项目）
 - **后端框架**: 无
 - **数据库**: 无
-- **测试**: bats-core 1.13.0（`npx bats` · 59 tests in `test/`）
+- **测试**: bats-core 1.13.0（`npx bats` · 72 tests in `test/`）
 - **构建/部署**: 纯 Shell 脚本打包（tar + gzip），无 CI/CD 检测到
 - **栈卡片编号**: 不适用（非标准技术栈项目）
 
