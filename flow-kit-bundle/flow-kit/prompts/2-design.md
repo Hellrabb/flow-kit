@@ -213,6 +213,29 @@
 
 ---
 
+## 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Pipeline Toll-Gate 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `DESIGN.md` 已写入 `.specs/<change-id>/` | `test -f .specs/<change-id>/DESIGN.md` | ✅ / ❌ |
+| 2 | 技术栈已锁定（`## 0` 段填齐） | 人工确认 | ✅ / ❌ |
+| 3 | 既有架构对齐已写入（`## 0.5` 段，brownfield 必跑） | 人工确认 | ✅ / ❌ |
+| 4 | 每条决策含「备选 + 理由 + 代价」 | 人工确认 | ✅ / ❌ |
+| 5 | 至少一张数据流/架构图 | 人工确认 | ✅ / ❌ |
+| 6 | 风险 ≥ 3 条且各有缓解方案 | 人工确认 | ✅ / ❌ |
+| 7 | ADR 已记录（如有不可逆决策） | `test -f .specs/adr/*.md`（如适用） | ✅ / ❌ |
+| 8 | § 9 架构沉淀建议已写（或整段写"无建议"） | 人工确认 | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：全 ✅ → 自动 transition 到 3-task；有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定
+- 若 `auto_advance=false`：全 ✅ → 进入 toll-gate；有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
+---
+
 ## Pipeline Toll-Gate（仅 pipeline goal 模式）
 
 > 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "2"` 时执行本段。

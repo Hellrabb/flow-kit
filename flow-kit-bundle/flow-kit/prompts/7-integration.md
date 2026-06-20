@@ -35,6 +35,25 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
 全部满足 → 进入 pipeline 完成流程。
 
+### 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在 Pipeline 完成之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止执行 pipeline 完成**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | 全量自动化测试通过（步骤 1 全套） | `npx bats test/`（或等价命令）退出码 0 | ✅ / ❌ |
+| 2 | UAT 引导已完成（步骤 2） | 人工确认 | ✅ / ❌ |
+| 3 | 失败诊断已完成（步骤 3，如有失败） | 人工确认 | ✅ / ❌ |
+| 4 | LESSONS.md 提名已完成（步骤 4） | 人工确认 | ✅ / ❌ |
+| 5 | 顶层 Goal 条件自检通过 | 逐项对照 `goal.condition` | ✅ / ❌ |
+| 6 | 全部上游阶段产物均存在（CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW） | `test -f .specs/<change-id>/*.md` | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：全 ✅ → 执行 pipeline 完成流程（`goal.status="done", phases_done+=["7"]`）；有 ❌ → 输出缺失清单，等待用户决定
+- 若 `auto_advance=false`：全 ✅ → 进入 pipeline 完成；有 ❌ → **禁止执行 pipeline 完成**，补齐缺失项后重新自检
+
 ### Pipeline 完成（AC-8）
 
 ```

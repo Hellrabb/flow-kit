@@ -91,12 +91,35 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 用户选 2 → 继续 toll-gate 6→7。
 用户选 3 → `jq '.goal.status = "aborted"' ...`
 
+### 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Toll-gate 6→7 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `REVIEW.md` 已写入 `.specs/<change-id>/`（含三轮审查结果） | `test -f .specs/<change-id>/REVIEW.md` | ✅ / ❌ |
+| 2 | 第一轮 · Spec 合规审查已完成 | 人工确认 | ✅ / ❌ |
+| 3 | 第二轮 · 代码质量审查已完成 | 人工确认 | ✅ / ❌ |
+| 4 | 第三轮 · UI 审查已完成（前端项目）或已声明跳过 | 人工确认 | ✅ / ❌ |
+| 5 | 动态门禁判定（AC-9）已通过（无 🔴 Critical，或已记录接受风险） | 人工确认 | ✅ / ❌ |
+| 6 | Gate 失败项（如有）已记录在 REVIEW.md | 人工确认 | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：
+  - 全 ✅ → 执行 transition jq（`current_phase=7, phases_done+=["6"]`），输出"✅ 自检通过，自动进入 7-integration"，加载 `@flow-kit/prompts/7-integration.md`
+  - 有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定（回退/跳过/手动补齐）
+- 若 `auto_advance=false`：
+  - 全 ✅ → 进入 toll-gate
+  - 有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
 ### Toll-gate 6→7（审查通过后）
 
 审查通过（无 critical，或用户接受风险后）。
 
 检查 `auto_advance`：
-- 若 `true` → 自动 transition 到 7-integration
+- 若 `true` → 已在「阶段完成自检」段处理（全 ✅ 自动 transition，有 ❌ 暂停）。**不再进入本 toll-gate 交互**。
 - 若 `false` → **停下来。必须等待用户回复。**
 
 ```
