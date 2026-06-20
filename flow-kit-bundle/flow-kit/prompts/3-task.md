@@ -136,6 +136,27 @@ Wave 3:            T05 (depends on T03, T04)
 
 ---
 
+## 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Pipeline Toll-Gate 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `TASK.md` 已写入 `.specs/<change-id>/` | `test -f .specs/<change-id>/TASK.md` | ✅ / ❌ |
+| 2 | 每个任务含完整 7 字段（id/name/read_files/write_files/action/verify/done） | 人工确认 | ✅ / ❌ |
+| 3 | 每个 `write_files` 均在 DESIGN 触碰/新增模块范围内 | 人工确认 | ✅ / ❌ |
+| 4 | 禁动清单无越界 | 人工确认 | ✅ / ❌ |
+| 5 | 波次划分图清晰、无环依赖 | 人工确认 | ✅ / ❌ |
+| 6 | 至少 1 个 `[P]` 并行任务（除非纯串行） | 人工确认 | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：全 ✅ → 自动 transition 到 4-dev；有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定
+- 若 `auto_advance=false`：全 ✅ → 进入 toll-gate；有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
+---
+
 ## Pipeline Toll-Gate（仅 pipeline goal 模式）
 
 > 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "3"` 时执行本段。

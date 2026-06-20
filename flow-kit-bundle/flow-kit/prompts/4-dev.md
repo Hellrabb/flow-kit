@@ -85,6 +85,24 @@
    - 若 `phase_sub_goals["4"]` 非空 → 展示 sub-goal："📋 本阶段 sub-goal：<phase_sub_goals["4"]>"
    - 进入 pipeline 模式（goal 迭代模式正常运作，额外叠加 pipeline 协议）
 
+   #### 6.0 阶段完成自检（Phase Completion Self-Check）
+
+   > ⚠️ **强制**：在进入 Phase Transition 之前，必须逐项完成以下自检。
+   > 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+   | # | 产物/检查项 | 验证方式 | 状态 |
+   |---|---|---|---|
+   | 1 | `TASK.md` 中所有 task 状态 = "done" | `grep -c 'status="done"' TASK.md` | ✅ / ❌ |
+   | 2 | 每个 task 的 `*-SUMMARY.md` 已写入 | `test -f .specs/<change-id>/T*-SUMMARY.md` | ✅ / ❌ |
+   | 3 | 所有 verify 命令均已通过 | 检查 SUMMARY 中 verify 结果 | ✅ / ❌ |
+   | 4 | diff 边界 verify 已通过（提交前 diff 不越界） | `git diff --stat` 与 write_files 对照 | ✅ / ❌ |
+   | 5 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
+
+   ### auto_advance 分支
+
+   - 若 `auto_advance=true`：全 ✅ → 自动 transition 到 5-test；有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定
+   - 若 `auto_advance=false`：全 ✅ → 进入 toll-gate；有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
    #### 6.1 Phase Transition 4→5（所有 task done 后）
 
    **触发条件**：TASK.md 中所有 task 状态 = "done"，且所有 SUMMARY.md 的 verify 通过。

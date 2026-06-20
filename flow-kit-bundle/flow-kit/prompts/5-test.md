@@ -29,12 +29,34 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 - 标注 "当前阶段：5-test"
 - 若 `phase_sub_goals["5"]` 非空 → 展示 sub-goal
 
+### 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Toll-gate 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `TEST.md` 已写入 `.specs/<change-id>/`（含测试结果） | `test -f .specs/<change-id>/TEST.md` | ✅ / ❌ |
+| 2 | 本次测试范围声明（步骤 0）已明确 | 人工确认 | ✅ / ❌ |
+| 3 | 声明的测试轮次均已执行 | 人工确认（对照步骤 0 声明） | ✅ / ❌ |
+| 4 | 测试质量自检（1.4 段 · 6 维测试衰退风险）已完成 | 人工确认 | ✅ / ❌ |
+| 5 | 覆盖率指标已记录（如适用） | `grep -c 'Coverage' TEST.md` | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：
+  - 全 ✅ → 执行 transition jq（`current_phase=6, phases_done+=["5"]`），输出"✅ 自检通过，自动进入 6-review"，加载 `@flow-kit/prompts/6-review.md`
+  - 有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定（回退/跳过/手动补齐）
+- 若 `auto_advance=false`：
+  - 全 ✅ → 进入 toll-gate
+  - 有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
 ### Toll-gate 5→6（测试完成后）
 
 **测试所有轮次完成，TEST.md 已生成后。**
 
 检查 `auto_advance`：
-- 若 `true` → **跳过 toll-gate**，自动 transition 到 6-review
+- 若 `true` → 已在「阶段完成自检」段处理（全 ✅ 自动 transition，有 ❌ 暂停）。**不再进入本 toll-gate 交互**。
 - 若 `false` → **停下来。必须等待用户回复。禁止自动继续。**
 
 输出 TOLL-GATE：

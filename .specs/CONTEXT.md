@@ -69,6 +69,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | start_phase（pipeline 起始阶段）| `.flow-active.goal.start_phase` 字段，指定 pipeline goal 从哪个阶段开始执行（0-7，默认 "4"）。gates 和 current_phase 初始值均由此字段派生 |
 | `--from <n>` | `/flow goal --pipeline` 的可选参数，指定 pipeline 起始阶段。不传时默认 "4"（向后兼容）|
 | cross-phase condition（跨阶段复合条件）| pipeline goal 的 condition 语法扩展，支持 `AND` 连接多个阶段子条件（如 `"CHANGE.md confirmed AND all tests pass"`），evaluator 在各阶段完成后分步评估 |
+| Phase Completion Self-Check (PCSC) | 阶段完成自检 — 每个阶段 prompt 中 Pipeline Toll-Gate 之前的强制产物自检段。列出本阶段必产文件清单，逐项标记 ✅/❌。任一 ❌ → 禁止进入 toll-gate，要求先补齐。auto_advance=true 时仍执行，全 ✅ 自动 transition，有 ❌ 暂停告警 |
+| Phase Completion Gate (PCG) | GO.md 路由层的独立产物检查门禁。AI 请求进入 phase N+1 时，GO.md 检查 phase N 的必须产物是否存在于磁盘。缺失 → 拒绝路由，输出缺失清单。独立于 prompt 指令，AI 无法绕过 |
+| artifact verification | 产物存在性验证 — 在进入 toll-gate 或 transition 之前，检查对应阶段必须产出的文件是否已写入磁盘（如 `test -f .specs/<id>/TEST.md`）。双层防护（PCSC + PCG）的核心机制 |
 
 > 加新术语时只在右列写定义，不解释来历。
 

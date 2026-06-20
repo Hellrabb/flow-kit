@@ -1,9 +1,45 @@
 {
-  "change_id": "fix-pipeline-rollback",
-  "goal": null,
-  "phase": "0",
+  "change_id": null,
+  "goal": {
+    "condition": "实际使用中发现agent有时候会跳过阶段，但是阶段报告里面却显示没跳过，造成了流程上的漏洞，我需要解决它。该新增测试要做，全量测试基线该更新更新，要做全量测试，该归档归档，该提交提交",
+    "status": "done",
+    "active_since": "2026-06-21T02:38:51+08:00",
+    "turns": 0,
+    "mode": "native",
+    "scope": "pipeline",
+    "start_phase": "0",
+    "current_phase": "7",
+    "phases_done": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "gates": {
+      "0→1": "passed",
+      "1→2": "passed",
+      "2→3": "passed",
+      "3→4": "passed",
+      "4→5": "passed",
+      "5→6": "passed",
+      "6→7": "passed"
+    },
+    "gate_config": {},
+    "auto_advance": true,
+    "phase_sub_goals": {
+      "4": "",
+      "5": "",
+      "6": "",
+      "7": ""
+    }
+  },
+  "phase": 0,
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-18T17:51:45+08:00"
+  "updated_at": "2026-06-21T02:58:31+08:00"
 }

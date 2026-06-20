@@ -63,6 +63,26 @@
 
 ---
 
+## 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Pipeline Toll-Gate 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `REQUIREMENT.md` 已写入 `.specs/<change-id>/` | `test -f .specs/<change-id>/REQUIREMENT.md` | ✅ / ❌ |
+| 2 | `CONTEXT.md` 术语表已更新（本次新术语已追加） | 人工确认 | ✅ / ❌ |
+| 3 | 每条 AC 均为 Given/When/Then 结构 | 人工确认 | ✅ / ❌ |
+| 4 | v1 / v2 / out 三类均已切分 | 人工确认 | ✅ / ❌ |
+| 5 | 非功能性需求已显式列出（含"无"） | 人工确认 | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：全 ✅ → 自动 transition 到 2-design；有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定
+- 若 `auto_advance=false`：全 ✅ → 进入 toll-gate；有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
+---
+
 ## Pipeline Toll-Gate（仅 pipeline goal 模式）
 
 > 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "1"` 时执行本段。

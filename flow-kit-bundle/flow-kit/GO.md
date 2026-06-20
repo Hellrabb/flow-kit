@@ -130,6 +130,57 @@ Preflight 失败时，路由声明必须写明：
 规则 R2.7 触发：目标阶段缺少 <工件>。本次先回到 <阶段> 补齐，不能直接继续。
 ```
 
+---
+
+## Phase Completion Gate · 阶段退出检查（pipeline goal 强制）
+
+> **仅 pipeline goal 模式触发**（`.flow-active.goal.scope = "pipeline"`）。
+> 当 AI 请求从 phase N 进入 phase N+1 时（目标阶段 > current_phase），先验证 phase N 的产物已写入磁盘。
+> 缺失 → **拒绝路由**，输出缺失清单，要求回 phase N 补齐。
+> **独立于 prompt 指令**——AI 无法绕过此检查。
+
+### 触发条件
+
+1. `.flow-active.goal.scope = "pipeline"`
+2. 目标阶段 > `current_phase`（AI 试图推进阶段）
+3. `change_id` 非 null（否则跳过 PCG + 警告）
+
+### 产物清单
+
+| 退出阶段 | 必须产物（`.specs/<change-id>/` 下） | 验证命令 |
+|---|---|---|
+| 0 | `CHANGE.md` | `test -s .specs/$CHANGE_ID/CHANGE.md` |
+| 1 | `REQUIREMENT.md` | `test -s .specs/$CHANGE_ID/REQUIREMENT.md` |
+| 2 | `DESIGN.md` | `test -s .specs/$CHANGE_ID/DESIGN.md` |
+| 3 | `TASK.md` | `test -s .specs/$CHANGE_ID/TASK.md` |
+| 4 | `TASK.md`（含各 task 的 `*-SUMMARY.md`） | `test -s .specs/$CHANGE_ID/TASK.md` |
+| 5 | `TEST.md` | `test -s .specs/$CHANGE_ID/TEST.md` |
+| 6 | `REVIEW.md` | `test -s .specs/$CHANGE_ID/REVIEW.md` |
+
+### 拦截逻辑
+
+读取 `.flow-active` 的 `change_id` 和 `goal.current_phase` → 对照上表检查当前阶段的必须产物 → 
+- 产物完整 → ✅ 放行，继续路由
+- 产物缺失 → ❌ 拒绝路由，输出：
+
+```
+⛔ Phase Completion Gate 拦截：Phase <N> 产物缺失
+   缺失清单：
+     - ❌ .specs/<change-id>/<缺失文件> — 未找到
+   动作：请回到 Phase <N>，完成阶段工作并产出缺失文件后重试。
+  提示：不要直接修改 .flow-active 的 phases_done 跳过此检查。
+```
+
+### 与 Artifact Preflight Gate 的区别
+
+| | Artifact Preflight Gate（已有） | Phase Completion Gate（新增） |
+|---|---|---|
+| 方向 | **前向**：进入目标阶段需要什么 | **后向**：离开当前阶段产出了什么 |
+| 触发时机 | 每次路由到新阶段 | pipeline 模式推进阶段时 |
+| 检查对象 | 目标阶段的上游工件 | 当前阶段的应产工件 |
+
+---
+
 ## 第二步 · 解析用户意图，路由到阶段
 
 匹配表格前先判断是否是**新事物描述**：如果当前没有活跃 change，且用户是在说"做 / 想 / 加 / 实现 / 设计 + X"，即使句子里含有"设计 / UI / 测试 / review"等词，也优先路由到 `0-change`。只有已经存在活跃 change 且 Artifact Preflight Gate 通过时，才允许直达中间阶段。
