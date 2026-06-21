@@ -8,6 +8,7 @@ GO_MD="flow-kit-bundle/flow-kit/GO.md"
 
 # 阶段 prompt 文件名（按 phase 顺序）
 PHASE_PROMPTS=(
+  "0-change.md"
   "1-requirement.md"
   "2-design.md"
   "3-task.md"
@@ -51,7 +52,7 @@ PHASE_PROMPTS=(
 
 # ── AC-2: 阻断规则 ─────────────────────────────────────────────────────
 
-@test "AC-2: all 7 prompts contain blocking rule (禁止进入 toll-gate or equivalent)" {
+@test "AC-2: all 8 prompts contain blocking rule (禁止进入 toll-gate or equivalent)" {
   local missing=0
   for f in "${PHASE_PROMPTS[@]}"; do
     if ! grep -q "禁止进入 toll-gate\|禁止执行 pipeline 完成" "$PROMPTS_DIR/$f"; then
@@ -62,7 +63,7 @@ PHASE_PROMPTS=(
   [[ $missing -eq 0 ]]
 }
 
-@test "AC-2: all 7 prompts contain '补齐缺失项后重新自检' remedy instruction" {
+@test "AC-2: all 8 prompts contain '补齐缺失项后重新自检' remedy instruction" {
   local missing=0
   for f in "${PHASE_PROMPTS[@]}"; do
     if ! grep -q "补齐缺失项后重新自检" "$PROMPTS_DIR/$f"; then
@@ -179,7 +180,7 @@ PHASE_PROMPTS=(
 
 # ── 结构完整性 ──────────────────────────────────────────────────────────
 
-@test "PCSC auto_advance branch exists in all 7 prompts" {
+@test "PCSC auto_advance branch exists in all 8 prompts" {
   local missing=0
   for f in "${PHASE_PROMPTS[@]}"; do
     if ! grep -q "auto_advance 分支\|### auto_advance 分支" "$PROMPTS_DIR/$f"; then
