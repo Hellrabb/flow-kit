@@ -16,3 +16,22 @@
 | 2026-06-08 | `offline-brooks-bundle` | 打包脚本 Part F 离线化：rsync 本地缓存替代 git archive（三级优先级：--brooks-src > 本地缓存 > git archive），自动版本选择 | — |
 | 2026-06-08 | `init-git-repo` | 初始化 Git 仓库（main 分支 + Conventional Commits），建立 .gitignore / README / 技术债基线（LESSONS.md 5 条），同步 CONTEXT 和 STATE | L-001 ~ L-005 |
 - **pipeline-goal** (2026-06-18): Goal 从单阶段自循环扩展到跨阶段 Pipeline — 6 files, +396/-15, 12 AC covered, review passed
+
+## 2026-06-22 — pcsc-audit-v2
+
+PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
+
+| # | 严重度 | 维度 | 简述 |
+|---|---|---|---|
+| A1 | 🔴 | Logic | 0-change 没有 PCSC 段 |
+| A2 | 🟡 | Logic | 1/2/3 toll-gate 缺少 auto_advance 分支 |
+| B1 | 🟡 | Coverage | 7-integration 缺少 Sub-goal 汇总 |
+| C1 | 🟡 | PCG | Phase 4 PCG 不检查 SUMMARY 文件 |
+| D1 | 🟡 | Install | 安装脚本无文件级校验 |
+| A3 | 🟢 | Logic | 4-dev 选项4说明过时 |
+| B2 | 🟢 | Coverage | 7-integration 缺少出PR步骤 |
+| B3 | 🟢 | Coverage | 4-dev PCSC 未显式检查 self-review |
+| B4 | 🟢 | Coverage | 5-test 矩阵/UAT 子步骤未展开 |
+| C2 | 🟢 | PCG | PCG 延迟到下次路由触发 |
+| C3 | 🟢 | PCG | PCG 表无 phase 7 |
+| D2 | 🟢 | Install | 无 post-install 自检 |
