@@ -48,6 +48,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 | 4 | LESSONS.md 提名已完成（步骤 4） | 人工确认 | ✅ / ❌ |
 | 5 | 顶层 Goal 条件自检通过 | 逐项对照 `goal.condition` | ✅ / ❌ |
 | 6 | 全部上游阶段产物均存在（CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW） | `test -f .specs/<change-id>/*.md` | ✅ / ❌ |
+| 7 | 归档已完成：`.specs/<id>/` → `archive/` + `STATE.md` last_change_archived 已更新 + `CHANGELOG.md` 已追加 | 人工确认 | ✅ / ❌ |
 
 ### auto_advance 分支
 
