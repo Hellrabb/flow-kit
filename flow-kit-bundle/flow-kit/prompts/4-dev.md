@@ -94,9 +94,10 @@
    |---|---|---|---|
    | 1 | `TASK.md` 中所有 task 状态 = "done" | `grep -c 'status="done"' TASK.md` | ✅ / ❌ |
    | 2 | 每个 task 的 `*-SUMMARY.md` 已写入 | `test -f .specs/<change-id>/T*-SUMMARY.md` | ✅ / ❌ |
-   | 3 | 所有 verify 命令均已通过 | 检查 SUMMARY 中 verify 结果 | ✅ / ❌ |
+   | 3 | 所有 verify 通过 + 6 维 self-review 已完成（brooks-review 或内置 6 维快查） | 检查 SUMMARY 中 verify + self-review 结果 | ✅ / ❌ |
    | 4 | diff 边界 verify 已通过（提交前 diff 不越界） | `git diff --stat` 与 write_files 对照 | ✅ / ❌ |
-   | 5 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
+   | 5 | 沿用既有抽象 grep 已跑（1.4 段），结果在 SUMMARY 中 | 人工确认 | ✅ / ❌ |
+   | 6 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
 
    ### auto_advance 分支
 
@@ -117,7 +118,7 @@
      1. 继续 → 进入 5-test（current_phase=5, phases_done+=["4"]）
      2. 暂停 → 保留当前状态，稍后 `/flow-go 继续` 恢复
      3. 跳过测试 → 直接进入 6-review（current_phase=6, phases_done+=["4"]）
-     4. 💨 全自动推进 → auto_advance=true，后续 toll-gate 不再暂停，直接继续
+     4. 💨 全自动推进 → auto_advance=true，后续 toll-gate 自动推进（PCSC 自检仍执行：全 ✅ 自动过，有 ❌ 暂停）
    ```
 
    用户选 1/3 → 执行 transition：

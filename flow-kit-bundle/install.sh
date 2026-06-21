@@ -15,6 +15,7 @@ HOOK_SCOPE="project"
 REINSTALL=false
 BROOKS_SRC=""
 DRY_RUN=false
+SELF_TEST=false
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION_FILE="$HOME/.claude/.flow-kit-version"
 BUNDLE_VERSION_FILE="$SCRIPT_DIR/.flow-kit-version"
@@ -42,6 +43,7 @@ usage() {
   --no-brooks           跳过 brooks-lint 安装
   --hooks-only          仅安装 hooks（需配合 --project）
   --dry-run             仅打印将要执行的操作，不实际执行
+  --self-test           安装后自动运行 bats 测试验证安装完整性
 
 示例:
   $0 --global                              # 全局安装全部组件
@@ -68,6 +70,7 @@ while [[ $# -gt 0 ]]; do
     --reinstall)   REINSTALL=true; MODE="global"; shift ;;
     --user)        HOOK_SCOPE="user"; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
+    --self-test)   SELF_TEST=true; shift ;;
     --brooks-src)  BROOKS_SRC="$2"; shift 2 ;;
     -h|--help)     usage ;;
     *) echo "未知选项: $1"; usage ;;
@@ -178,6 +181,36 @@ else
       fi
       ;;
   esac
+fi
+
+# ── --self-test: 安装后自检 ──────────────────────────────────────────
+if [ "$SELF_TEST" = true ]; then
+  echo ""
+  echo "🧪 运行安装后自检..."
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] npx bats test/"
+  else
+    # 优先用项目本地 test/；否则用 bundle 自带 test/
+    if [ -d "$SCRIPT_DIR/../test" ] && [ -f "$SCRIPT_DIR/../test/test_phase_gate.bats" ]; then
+      TEST_DIR="$SCRIPT_DIR/../test"
+    elif [ -d "$SCRIPT_DIR/test" ] && [ -f "$SCRIPT_DIR/test/test_phase_gate.bats" ]; then
+      TEST_DIR="$SCRIPT_DIR/test"
+    else
+      echo "   ⚠️  未找到测试目录，跳过自检"
+      TEST_DIR=""
+    fi
+    if [ -n "$TEST_DIR" ]; then
+      if command -v npx &>/dev/null; then
+        npx bats "$TEST_DIR/" 2>&1 || {
+          echo "   ❌ 安装后自检未通过，请检查安装"
+          exit 1
+        }
+        echo "   ✅ 安装后自检通过"
+      else
+        echo "   ⚠️  npx 不可用，跳过自检（请手动运行 npx bats test/）"
+      fi
+    fi
+  fi
 fi
 
 echo ""

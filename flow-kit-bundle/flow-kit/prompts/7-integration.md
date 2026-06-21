@@ -49,6 +49,8 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 | 5 | 顶层 Goal 条件自检通过 | 逐项对照 `goal.condition` | ✅ / ❌ |
 | 6 | 全部上游阶段产物均存在（CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW） | `test -f .specs/<change-id>/*.md` | ✅ / ❌ |
 | 7 | 归档已完成：`.specs/<id>/` → `archive/` + `STATE.md` last_change_archived 已更新 + `CHANGELOG.md` 已追加 | 人工确认 | ✅ / ❌ |
+| 8 | Sub-goal 汇总已完成（AC-12，若 `phase_sub_goals` 非空） | 人工确认 | ✅ / ❌ |
+| 9 | PR 已提交（如适用） | 人工确认 | ✅ / N/A |
 
 ### auto_advance 分支
 

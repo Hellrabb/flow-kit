@@ -159,6 +159,27 @@ CHANGE.md 经用户确认后，根据路径建议进入：
 
 ---
 
+## 阶段完成自检（Phase Completion Self-Check）
+
+> ⚠️ **强制**：在进入 Pipeline Toll-Gate 之前，必须逐项完成以下自检。
+> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+
+| # | 产物/检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `CHANGE.md` 已写入 `.specs/<change-id>/` | `test -s .specs/<change-id>/CHANGE.md` | ✅ / ❌ |
+| 2 | Why 段已写（场景/痛点/触发原因，非空话） | 人工确认 | ✅ / ❌ |
+| 3 | What 段已写（范围摘要，一段话可说清） | 人工确认 | ✅ / ❌ |
+| 4 | 影响面已判定（checkbox 至少勾 1 项） | 人工确认 | ✅ / ❌ |
+| 5 | 范围排除已写（至少 1 条"本次不做"） | 人工确认 | ✅ / ❌ |
+| 6 | 验收线已写（粗粒度，1~3 条） | 人工确认 | ✅ / ❌ |
+
+### auto_advance 分支
+
+- 若 `auto_advance=true`：全 ✅ → 自动 transition 到 1-requirement；有 ❌ → **暂停 pipeline**，输出缺失清单，等待用户决定
+- 若 `auto_advance=false`：全 ✅ → 进入 toll-gate；有 ❌ → **禁止进入 toll-gate**，补齐缺失项后重新自检
+
+---
+
 ## Pipeline Toll-Gate（仅 pipeline goal 模式）
 
 > 仅当 `.flow-active.goal.scope = "pipeline"` 且 `current_phase = "0"` 时执行本段。

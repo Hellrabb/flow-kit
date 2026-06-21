@@ -153,7 +153,7 @@ Preflight 失败时，路由声明必须写明：
 | 1 | `REQUIREMENT.md` | `test -s .specs/$CHANGE_ID/REQUIREMENT.md` |
 | 2 | `DESIGN.md` | `test -s .specs/$CHANGE_ID/DESIGN.md` |
 | 3 | `TASK.md` | `test -s .specs/$CHANGE_ID/TASK.md` |
-| 4 | `TASK.md`（含各 task 的 `*-SUMMARY.md`） | `test -s .specs/$CHANGE_ID/TASK.md` |
+| 4 | `TASK.md`（含各 task 的 `*-SUMMARY.md`） | `test -s .specs/$CHANGE_ID/TASK.md && ls .specs/$CHANGE_ID/T*-SUMMARY.md >/dev/null 2>&1` |
 | 5 | `TEST.md` | `test -s .specs/$CHANGE_ID/TEST.md` |
 | 6 | `REVIEW.md` | `test -s .specs/$CHANGE_ID/REVIEW.md` |
 
