@@ -84,7 +84,12 @@ SHIMEOF
   for tool_name in depcheck jscpd knip ts-prune; do
     if [ -x "$bin_dst/$tool_name" ]; then
       local ver
-      ver=$("$bin_dst/$tool_name" --version 2>/dev/null | head -1) || true
+      # ts-prune 不支持 --version（需要 tsconfig.json），用 --help 替代表明可执行
+      if [ "$tool_name" = "ts-prune" ]; then
+        ver=$("$bin_dst/$tool_name" --help 2>&1 | head -1) || true
+      else
+        ver=$("$bin_dst/$tool_name" --version 2>/dev/null | head -1) || true
+      fi
       if [ -n "$ver" ]; then
         echo "   ✅ $tool_name $ver"
       else
