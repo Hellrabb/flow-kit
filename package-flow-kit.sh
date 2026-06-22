@@ -357,6 +357,17 @@ else
       entry=$(jq -r 'if (.bin | type) == "object" then .bin[(.bin | keys[0])] else .bin end' "$pkg_json")
       name=$(jq -r 'if (.bin | type) == "object" then (.bin | keys[0]) else "'"$tool"'" end' "$pkg_json")
 
+      # 安全校验：name 不得含路径穿越字符（../ 或 /）
+      case "$name" in
+        *..*|*/*|*\\*) echo "   ⚠️  ${tool}: 不安全的 bin name '$name'，跳过 wrapper"; continue ;;
+        *) ;;
+      esac
+      # 安全校验：entry 不得含 shell 元字符（防止注入）
+      case "$entry" in
+        *[{\"\'\;\&\|\`\$\(\)\<\>\#\!]*|*..*) echo "   ⚠️  ${tool}: 不安全的 bin entry '$entry'，跳过 wrapper"; continue ;;
+        *) ;;
+      esac
+
       # 计算 entry 相对路径（从 brooks-tools/ 根）
       entry_rel="extracted/${tool}/package/${entry#./}"
       entry_abs="$STAGING/brooks-tools/$entry_rel"
@@ -366,12 +377,9 @@ else
         continue
       fi
 
-      # 生成 shell wrapper（设置 NODE_PATH 指向合并的 node_modules）
-      cat > "$TOOLS_BIN_DIR/$name" << WRAPPEREOF
-#!/bin/sh
-DIR="\$(cd "\$(dirname "\$0")" && pwd)"
-NODE_PATH="\$DIR/../node_modules" exec node "\$DIR/../${entry_rel}" "\$@"
-WRAPPEREOF
+      # 生成 shell wrapper（用 printf 替代 heredoc 防止变量注入）
+      printf '#!/bin/sh\nDIR="$(cd "$(dirname "$0")" && pwd)"\nNODE_PATH="$DIR/../node_modules" exec node "$DIR/../%s" "$@"\n' \
+        "$entry_rel" > "$TOOLS_BIN_DIR/$name"
       chmod +x "$TOOLS_BIN_DIR/$name"
       echo "   🔧 bin/$name → $entry_rel"
     done
