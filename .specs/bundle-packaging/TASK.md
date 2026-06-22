@@ -21,7 +21,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
 ## 任务清单
 
 ```xml
-<task id="T01" parallel="true" status="pending">
+<task id="T01" parallel="true" status="done">
   <name>新建 install_brooks_tools.sh 安装模块</name>
   <read_files>
     flow-kit-bundle/lib/install_brooks.sh
@@ -54,7 +54,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending">
+<task id="T02" parallel="true" status="done">
   <name>package-flow-kit.sh 新增 Part G（npm 工具打包）</name>
   <read_files>
     package-flow-kit.sh
@@ -93,7 +93,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T03" status="pending">
+<task id="T03" status="done">
   <name>install.sh 集成 brooks-tools 安装</name>
   <read_files>
     flow-kit-bundle/install.sh
@@ -137,7 +137,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
   <depends_on>T01</depends_on>
 </task>
 
-<task id="T04" status="pending">
+<task id="T04" status="done">
   <name>bats 测试：install_brooks_tools.sh 单元测试 + 回归</name>
   <read_files>
     flow-kit-bundle/lib/install_brooks_tools.sh
@@ -168,7 +168,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
   <depends_on>T01, T03</depends_on>
 </task>
 
-<task id="T05" status="pending">
+<task id="T05" status="done">
   <name>端到端验证：打包 → 离线安装 → 工具可用</name>
   <read_files>
     package-flow-kit.sh
@@ -215,7 +215,7 @@ Wave 4:            T05 (depends on T01, T02, T03, T04)
 
 ## 状态字段说明
 
-- `status="pending"` — 未开始
+- `status="done"` — 未开始
 - `status="in_progress"` — 进行中（同时只允许一个非 [P] 任务为此状态）
 - `status="done"` — 已完成（verify 通过）
 - `status="blocked"` — 阻塞（必须在文件末尾「阻塞日志」记录）
