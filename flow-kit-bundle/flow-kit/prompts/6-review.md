@@ -104,7 +104,8 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 | 4 | 第三轮 · UI 审查已完成（前端项目）或已声明跳过 | 人工确认 | ✅ / ❌ |
 | 5 | 动态门禁判定（AC-9）已通过（无 🔴 Critical，或已记录接受风险） | 人工确认 | ✅ / ❌ |
 | 6 | Gate 失败项（如有）已记录在 REVIEW.md | 人工确认 | ✅ / ❌ |
-| 7 | TEST.md 5 轮金字塔完整性已验证（2.0 段：功能/性能/安全/兼容/可观测） | 人工确认 | ✅ / ❌ |
+| 7 | 技术债已同步到 CONTEXT.md（若 4.1 触发且有 🟡 Scheduled 产出，确认已写入 `.specs/CONTEXT.md` 技术债段） | 人工确认（检查 4.1 是否触发；若触发则 `grep` CONTEXT.md 技术债段确认新条目已追加） | ✅ / ❌ / N/A |
+| 8 | TEST.md 5 轮金字塔完整性已验证（2.0 段：功能/性能/安全/兼容/可观测） | 人工确认 | ✅ / ❌ |
 
 ### auto_advance 分支
 
