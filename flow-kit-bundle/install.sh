@@ -10,6 +10,7 @@ TARGET_PROJECT=""
 NO_HOOKS=false
 NO_SKILLS=false
 NO_BROOKS=false
+NO_BROOKS_TOOLS=false
 HOOKS_ONLY=false
 HOOK_SCOPE="project"
 REINSTALL=false
@@ -25,6 +26,7 @@ source "$SCRIPT_DIR/lib/install_hooks.sh"   # install_file(), install_hooks(), i
 source "$SCRIPT_DIR/lib/install_core.sh"    # install_flow_kit_core()
 source "$SCRIPT_DIR/lib/install_skills.sh"  # install_skills()
 source "$SCRIPT_DIR/lib/install_brooks.sh"  # install_brooks_lint()
+source "$SCRIPT_DIR/lib/install_brooks_tools.sh"  # install_brooks_tools()
 # NOTE: 新增 lib/ 文件时必须在此添加 source 声明，否则运行时 "command not found"
 
 # ── usage ─────────────────────────────────────────────────────────────
@@ -41,6 +43,7 @@ usage() {
   --no-hooks            跳过 stop hook 安装
   --no-skills           跳过 skills 安装
   --no-brooks           跳过 brooks-lint 安装
+  --no-brooks-tools     跳过 brooks-lint npm 工具安装
   --hooks-only          仅安装 hooks（需配合 --project）
   --dry-run             仅打印将要执行的操作，不实际执行
   --self-test           安装后自动运行 bats 测试验证安装完整性
@@ -57,6 +60,18 @@ EOF
   exit 0
 }
 
+# ── check_node ─────────────────────────────────────────────────────────
+check_node() {
+  if command -v node &>/dev/null; then
+    NODE_AVAILABLE=true
+    echo "   ✅ Node.js $(node --version) 已检测到"
+  else
+    NODE_AVAILABLE=false
+    echo "   ⚠️  Node.js 未安装，跳过 brooks-lint 工具安装。"
+    echo "   请先安装 Node.js ≥ 18：dnf module install nodejs:18"
+  fi
+}
+
 # ── 解析参数 ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --no-hooks)    NO_HOOKS=true; shift ;;
     --no-skills)   NO_SKILLS=true; shift ;;
     --no-brooks)   NO_BROOKS=true; shift ;;
+    --no-brooks-tools)   NO_BROOKS_TOOLS=true; shift ;;
     --hooks-only)  HOOKS_ONLY=true; shift ;;
     --update)      MODE="update"; shift ;;
     --reinstall)   REINSTALL=true; MODE="global"; shift ;;
@@ -158,6 +174,12 @@ else
       fi
       if [ "$NO_BROOKS" = false ]; then
         install_brooks_lint
+      fi
+      if [ "$NO_BROOKS_TOOLS" = false ]; then
+        check_node
+        if [ "$NODE_AVAILABLE" = true ]; then
+          install_brooks_tools
+        fi
       fi
       # --global --user: 同时安装用户级 hooks
       if [ "$HOOK_SCOPE" = "user" ]; then

@@ -19,7 +19,7 @@ echo ""
 # ── 清理旧临时目录 ──────────────────────────────────────────────────
 [[ -n "$STAGING" && "$STAGING" != "/" ]] || { echo "FATAL: STAGING is empty or root"; exit 1; }
 rm -rf "$STAGING"
-mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/plugin}
+mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/plugin,brooks-tools/packs}
 
 # ═══════════════════════════════════════════════════════════════════════
 # Part A: flow-kit 核心引擎 (~/.claude/flow-kit/)
@@ -150,6 +150,7 @@ cat > "$STAGING/README.md" << 'READEOF'
 | 配置文件 | `hooks/config/` | settings.json 模板 + stop-hook.json 模板 |
 | SPEC 模板 | `specs-template/` | STATE.md 模板 |
 | brooks-lint 插件 | `brooks-lint/` | 6 个代码审查 skill（review/audit/debt/test/health/sweep） |
+| brooks-lint 工具 | `brooks-tools/` | depcheck / jscpd / knip / ts-prune 离线可用（linux-x64） |
 | 安装脚本 | `install.sh` | 自动安装到目标环境 |
 
 ## 源信息
@@ -283,6 +284,85 @@ BROOKS_FILE_COUNT=$(find "$STAGING/brooks-lint" -type f 2>/dev/null | wc -l)
 echo "   ✅ ${BROOKS_FILE_COUNT} 个 brooks-lint 文件已打包"
 
 # ═══════════════════════════════════════════════════════════════════════
+# Part G: brooks-lint npm 工具离线打包（depcheck / jscpd / knip / ts-prune）
+# ═══════════════════════════════════════════════════════════════════════
+echo ""
+echo "📦 Part G: 打包 brooks-lint npm 工具（离线）..."
+
+# ── 工具版本定义（升级时同步修改）──
+declare -A BROOKS_TOOLS
+BROOKS_TOOLS=(
+  ["depcheck"]="1.4.7"
+  ["jscpd"]="5.0.11"
+  ["knip"]="6.17.1"
+  ["ts-prune"]="0.10.3"
+)
+
+# ── 检测 npm 可用性 ──
+if ! command -v npm &>/dev/null; then
+  echo "   ⚠️  npm 未安装，跳过 Part G（brooks-lint 工具离线包）"
+else
+  echo "   ℹ️  npm $(npm --version) 已检测到"
+
+  # ── 逐工具 npm pack ──
+  TOOLS_PACK_DIR="$STAGING/brooks-tools/packs"
+  TOOLS_EXTRACT_DIR="$STAGING/brooks-tools/extracted"
+  TOOLS_BIN_DIR="$STAGING/brooks-tools/bin"
+  TOOLS_NM_DIR="$STAGING/brooks-tools/node_modules"
+
+  mkdir -p "$TOOLS_EXTRACT_DIR" "$TOOLS_BIN_DIR" "$TOOLS_NM_DIR"
+
+  pack_ok=0; pack_fail=0
+  for tool in "${!BROOKS_TOOLS[@]}"; do
+    ver="${BROOKS_TOOLS[$tool]}"
+    echo "   📥 npm pack ${tool}@${ver} ..."
+    if npm pack "${tool}@${ver}" --pack-destination="$TOOLS_PACK_DIR" --silent 2>/dev/null; then
+      echo "   ✅ ${tool}@${ver} .tgz 已下载"
+      ((pack_ok++)) || true
+
+      # 解压到 extracted/<tool>/
+      tgz_file=
+      tgz_file=$(ls -t "$TOOLS_PACK_DIR/${tool}-${ver}.tgz" 2>/dev/null | head -1)
+      if [ -n "$tgz_file" ] && [ -f "$tgz_file" ]; then
+        mkdir -p "$TOOLS_EXTRACT_DIR/$tool"
+        tar xzf "$tgz_file" -C "$TOOLS_EXTRACT_DIR/$tool"
+
+        # 合并 node_modules
+        if [ -d "$TOOLS_EXTRACT_DIR/$tool/package/node_modules" ]; then
+          cp -rn "$TOOLS_EXTRACT_DIR/$tool/package/node_modules/"* "$TOOLS_NM_DIR/" 2>/dev/null || true
+        fi
+
+        # 合并 bin 入口
+        if [ -d "$TOOLS_EXTRACT_DIR/$tool/package/bin" ]; then
+          cp -rn "$TOOLS_EXTRACT_DIR/$tool/package/bin/"* "$TOOLS_BIN_DIR/" 2>/dev/null || true
+        fi
+      fi
+    else
+      echo "   ⚠️  ${tool}@${ver} npm pack 失败，跳过"
+      ((pack_fail++)) || true
+    fi
+  done
+
+  # ── 生成 manifest.json ──
+  cat > "$STAGING/brooks-tools/manifest.json" << MANIFESTEOF
+{
+  "tools": {
+    "depcheck": "${BROOKS_TOOLS[depcheck]}",
+    "jscpd": "${BROOKS_TOOLS[jscpd]}",
+    "knip": "${BROOKS_TOOLS[knip]}",
+    "ts-prune": "${BROOKS_TOOLS[ts-prune]}"
+  },
+  "platform": "linux-x64",
+  "node_min": "18.0.0"
+}
+MANIFESTEOF
+
+  TOOLS_FILE_COUNT=$(find "$STAGING/brooks-tools" -type f 2>/dev/null | wc -l)
+  TOOLS_SIZE=$(du -sh "$STAGING/brooks-tools" 2>/dev/null | cut -f1)
+  echo "   ✅ brooks-tools 打包完成（${pack_ok} 成功 / ${pack_fail} 失败，${TOOLS_FILE_COUNT} 文件，${TOOLS_SIZE}）"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════
 # 打包
 # ═══════════════════════════════════════════════════════════════════════
 echo ""
@@ -316,4 +396,5 @@ echo "║    🚀 SessionStart hooks (resume + report-reminder)          ║"
 echo "║    ⚙️  配置模板 (settings.json + stop-hook.json)             ║"
 echo "║    📋 SPEC 模板 (STATE.md)                                   ║"
 echo "║    🔍 brooks-lint 插件 v1.3.0（skills 命名空间 brooks-lint:）         ║"
+echo "║    🔧 brooks-tools（4 个 npm 工具离线包 · linux-x64）          ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
