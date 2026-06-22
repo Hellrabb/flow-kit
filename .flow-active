@@ -1,18 +1,17 @@
 {
-  "change_id": "bundle-packaging",
+  "change_id": "docs-sync",
   "goal": {
-    "condition": "实现这个打包，严格按流程执行",
+    "condition": "我们的说明文档应该需要根据近期修改更新,要增加新增内容，删除过时内容",
     "status": "done",
-    "active_since": "2026-06-22T10:32:25+08:00",
+    "active_since": "2026-06-22T11:30:54+08:00",
     "turns": 0,
-    "mode": "native",
+    "mode": "pending",
     "scope": "pipeline",
     "start_phase": "0",
     "current_phase": "7",
     "phases_done": [
       "0",
       "1",
-      "2",
       "3",
       "4",
       "5",
@@ -22,28 +21,25 @@
     "gates": {
       "0→1": "passed",
       "1→2": "passed",
-      "2→3": "passed",
+      "2→3": "skipped",
       "3→4": "passed",
       "4→5": "passed",
       "5→6": "passed",
-      "6→7": "passed"
+      "6→7": "passed",
+      "7": "passed"
     },
     "gate_config": {},
-    "auto_advance": true,
+    "auto_advance": false,
     "phase_sub_goals": {
-      "0": "",
-      "1": "",
-      "2": "",
-      "3": "",
       "4": "",
       "5": "",
       "6": "",
       "7": ""
     }
   },
-  "phase": "0",
-  "task_id": null,
+  "phase": "7",
+  "task_id": "T01",
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-22T11:23:35+08:00"
+  "updated_at": "2026-06-22T11:38:51+08:00"
 }
