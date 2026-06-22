@@ -6,19 +6,34 @@ flow-kit 分发包仓库。将完整的 flow-kit 生态（核心引擎 + 15 个�
 
 ```
 flow-kit/
-├── package-flow-kit.sh              # 打包 + 安装脚本（28KB · 核心）
+├── package-flow-kit.sh              # 打包 + 安装脚本（核心）
 ├── flow-kit-bundle.tar.gz           # 分发包（.gitignore 排除）
 ├── FLOW-KIT-用户指南.md             # 完整用户指南（安装 / 命令 / 生命周期 / Goal 系统 / 工作流示例）
-├── flow-kit-bundle/                 # 分发包源码
+├── README.md                        # 本文件
+├── flow-kit-ecosystem-guide.md      # 生态组件清单与架构文档
+├── flow-kit-bundle/                 # 分发包源码（唯一维护源）
 │   ├── flow-kit/                    # 核心引擎（GO.md / RULES.md / prompts / templates / reference）
 │   ├── skills/                      # flow-* 技能定义
-│   ├── hooks/                       # Stop + SessionStart 钩子系统
+│   ├── hooks/                       # Stop + SessionStart 钩子系统（唯一源）
 │   ├── brooks-lint/                 # 代码审查插件（12 本经典工程书籍驱动）
-│   └── install.sh                   # 安装器（由 package-flow-kit.sh 生成）
-├── .specs/                          # 项目规格（CONTEXT / STATE / CHANGE 子目录）
-│   └── init-git-repo/               # 当前活跃 change
+│   ├── lib/                         # install.sh 拆分模块
+│   │   ├── install_core.sh          # flow-kit 核心安装
+│   │   ├── install_skills.sh        # skills 安装
+│   │   ├── install_brooks.sh        # brooks-lint 安装 + 动态版本号
+│   │   └── install_hooks.sh         # hooks 安装 + specs 模板
+│   └── install.sh                   # 安装主脚本（调度 lib/）
+├── test/                            # bats-core 测试（72 tests）
+│   ├── test_common.bats             # common.sh 函数测试
+│   └── test_install.bats            # install.sh 参数解析测试
+├── .specs/                          # 项目规格
+│   ├── CONTEXT.md                   # 项目共享上下文（术语表 + 抽象索引 + 禁动清单）
+│   ├── STATE.md                     # 项目状态
+│   ├── CHANGELOG.md                 # change 历史
+│   ├── LESSONS.md                   # 技术债与经验教训
+│   ├── health/                      # M-health 巡检报告
+│   └── archive/                     # 已归档 change
 ├── .gitignore
-└── README.md                        # 本文件
+└── .claude/                         # Claude Code 项目配置
 ```
 
 ## 开发规范
@@ -68,5 +83,6 @@ flow-kit/
 bash package-flow-kit.sh
 
 # 安装到目标项目
-bash flow-kit-bundle.tar.gz  # 解压后运行 install.sh
+tar xzf flow-kit-bundle.tar.gz
+cd flow-kit-bundle && bash install.sh /path/to/target-project
 ```

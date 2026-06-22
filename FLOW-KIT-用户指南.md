@@ -1,6 +1,6 @@
 # Flow-Kit 全包使用指南
 
-> 版本: 20260615-120000 | 源: https://github.com/hellrabbit/flow-kit/tree/develop
+> 版本: 20260622 | 源: https://github.com/hellrabbit/flow-kit/tree/develop
 
 ---
 
@@ -876,6 +876,26 @@ brooks-lint 提供 6 个独立的代码审查 skill，基于 12 本经典软件�
 **Remedy（修补）**：<具体怎么改，贴 before/after 代码>
 ```
 
+### 8.1 brooks-tools 离线打包
+
+brooks-lint 依赖 4 个外部 npm 工具，统称 **brooks-tools**：
+
+| 工具 | 用途 | npm 包 |
+|------|------|--------|
+| `depcheck` | 未使用依赖检测 | `depcheck` |
+| `jscpd` | 代码重复检测（copy-paste detector） | `jscpd` |
+| `knip` | 未使用文件/导出检测 | `knip` |
+| `ts-prune` | 未使用 TypeScript 导出检测 | `ts-prune` |
+
+**为什么需要离线打包**：项目使用 pnpm 管理依赖，pnpm 的虚拟存储（content-addressable store + symlink）依赖符号链接，无法跨机迁移。因此 `package-flow-kit.sh` Part G 采用 `npm pack` 逐工具打包为 `.tgz`，解压出扁平 node_modules（所有依赖摊平在 `node_modules/` 顶层），在目标环境无需 pnpm 即可独立运行。
+
+**安装行为**：
+- `install.sh` 检测到 Node.js 可用时，自动解压 brooks-tools 到 `~/.claude/tools/brooks-lint/`
+- 自动生成 shim（薄 wrapper 脚本），将 `~/.local/bin/` 映射到真实可执行文件
+- 可通过 `--no-brooks-tools` flag 跳过此步骤
+
+**当前限制**：仅打包 linux-x64 二进制。多平台矩阵（macOS arm64/x64、linux arm64）列为 v2。
+
 ---
 
 <a id="sec-9-workflows"></a>
@@ -1054,6 +1074,8 @@ flow-kit 的核心规则（RULES.md）：
 │   ├── flow-restyle/SKILL.md
 │   └── flow-kit-install/SKILL.md
 └── plugins/.../brooks-lint/     # brooks-lint 插件
+├── tools/brooks-lint/            # brooks-tools 离线工具（depcheck/jscpd/knip/ts-prune）
+├── .local/bin/                   # brooks-tools shim wrapper（depcheck 等符号链接）
 ```
 
 ### 项目级文件
@@ -1064,9 +1086,9 @@ flow-kit 的核心规则（RULES.md）：
 ├── .specs/
 │   ├── STATE.md                 # 跨会话项目状态
 │   ├── CONTEXT.md               # 入场扫描产物（术语表 + 抽象索引）
-│   ├── lessons/                 # 经验教训
+│   ├── CHANGELOG.md             # change 历史
+│   ├── LESSONS.md               # 经验教训与技术债
 │   ├── health/                  # 健康检查报告
-│   ├── evolve/                  # 架构沉淀记录
 │   ├── archive/                 # 已归档 change 的副本
 │   └── <change-id>/             # 单个 change 全部产物
 │       ├── CHANGE.md

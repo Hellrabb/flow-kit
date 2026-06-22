@@ -37,6 +37,14 @@
 | `L-restyle.md` | 视觉重构 | 换肤不改功能 |
 | `M-health.md` | 健康检查 | 技术债盘点 + 冗余扫描 + 改进路线图 |
 
+### 核心机制
+
+| 机制 | 涉及文件 | 说明 |
+|------|---------|------|
+| **Pipeline Goal** | `GO.md`、`4-dev.md`、`.flow-active` | 跨阶段自动推进（0→1→2→2a→3→4→5→6→7），支持 `--from <n>` 从任意阶段起步（默认 4）。Toll-gate 暂停 + auto_advance 自动推进两种模式 |
+| **PCSC/PG 双层防护** | 各阶段 prompt、`GO.md` | Phase Completion Self-Check（prompt 内产物自检）+ Phase Completion Gate（GO.md 路由层磁盘存在性检查），防止产物遗漏和阶段跳过 |
+| **Pipeline Rollback（智能回退）** | `GO.md`、`.flow-active` | 阶段失败时自动回退到上一个通过门禁的阶段，支持失败分类表 + 动态下界（不低于 start_phase）。用户可选择重试/跳过/放弃 |
+
 ### Templates（13 个）— 各阶段产物模板
 
 `ARCHITECTURE` `CHANGE` `CONTEXT` `DESIGN` `LESSONS` `PROGRESS` `REQUIREMENT` `REVIEW` `STATE` `SUMMARY` `TASK` `TEST` `UI-DESIGN`
@@ -151,6 +159,18 @@ Claude Code 的 **Stop 事件钩子链**——每次会话结束自动触发，1
 - flow-kit `6-review` 阶段的代码质量审查可优先调用 brooks-lint
 - flow-kit `M-health` 阶段的巡检可优先调用 brooks-lint
 - GO.md 的 budget 估算中「brooks-lint 已装」因子 +10%
+
+### brooks-tools 离线工具包（`~/.claude/tools/brooks-lint/`）
+
+brooks-lint 依赖 4 个 npm 工具（depcheck / jscpd / knip / ts-prune），统称 brooks-tools。由于 pnpm 虚拟存储的符号链接无法跨机迁移，`package-flow-kit.sh` Part G 采用 `npm pack` 逐工具打包为 `.tgz`，解压为扁平 node_modules 后离线安装到 `~/.claude/tools/brooks-lint/`。
+
+| 组件 | 路径 | 说明 |
+|------|------|------|
+| 工具可执行文件 | `~/.claude/tools/brooks-lint/<tool>/node_modules/.bin/` | 扁平 node_modules，无需 pnpm |
+| shim（工具适配层） | `~/.local/bin/depcheck` 等 | 薄 wrapper 映射到真实可执行文件 |
+| 安装控制 | `install.sh --no-brooks-tools` | 跳过 brooks-tools 安装的 flag |
+
+当前仅打包 linux-x64 二进制，多平台矩阵列为 v2。
 
 ---
 
