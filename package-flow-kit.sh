@@ -327,14 +327,13 @@ else
         mkdir -p "$TOOLS_EXTRACT_DIR/$tool"
         tar xzf "$tgz_file" -C "$TOOLS_EXTRACT_DIR/$tool"
 
+        # 安装生产依赖（npm pack 不含 node_modules；npm install 生成 .bin wrapper + 依赖树）
+        echo "   📦 安装 ${tool} 依赖..."
+        (cd "$TOOLS_EXTRACT_DIR/$tool/package" && npm install --omit=dev --ignore-scripts --legacy-peer-deps --silent 2>/dev/null) || true
+
         # 合并 node_modules
         if [ -d "$TOOLS_EXTRACT_DIR/$tool/package/node_modules" ]; then
           cp -rn "$TOOLS_EXTRACT_DIR/$tool/package/node_modules/"* "$TOOLS_NM_DIR/" 2>/dev/null || true
-        fi
-
-        # 合并 bin 入口
-        if [ -d "$TOOLS_EXTRACT_DIR/$tool/package/bin" ]; then
-          cp -rn "$TOOLS_EXTRACT_DIR/$tool/package/bin/"* "$TOOLS_BIN_DIR/" 2>/dev/null || true
         fi
       fi
     else
@@ -343,28 +342,41 @@ else
     fi
   done
 
-  # ── 生成可执行 wrapper：bin/ 中的 .js 文件缺少对应的无后缀入口 ──
-  # npm 包的 bin/ 目录通常只含 .js 源文件；install_brooks_tools.sh 期望无后缀的可执行 wrapper
-  for tool in "${!BROOKS_TOOLS[@]}"; do
-    if [ ! -f "$TOOLS_BIN_DIR/$tool" ] && [ -f "$TOOLS_BIN_DIR/${tool}.js" ]; then
-      cat > "$TOOLS_BIN_DIR/$tool" << WRAPPEREOF
-#!/bin/sh
-exec node "\$(dirname "\$0")/${tool}.js" "\$@"
-WRAPPEREOF
-      chmod +x "$TOOLS_BIN_DIR/$tool"
-      echo "   🔧 已生成 wrapper: bin/$tool → bin/${tool}.js"
-    fi
-  done
-
-  # ── 兜底：若 node_modules/.bin/ 中存在 wrapper，合并到 bin/ ──
-  if [ -d "$TOOLS_NM_DIR/.bin" ]; then
+  # ── 为每个工具生成可执行 wrapper → 扁平 bin/ ──
+  # npm install 安装依赖到 node_modules 但不创建包自身的 .bin 入口
+  # 需解析 package.json bin 字段，创建指向 entry 的 shell wrapper
+  if command -v jq &>/dev/null; then
     for tool in "${!BROOKS_TOOLS[@]}"; do
-      if [ ! -f "$TOOLS_BIN_DIR/$tool" ] && [ -f "$TOOLS_NM_DIR/.bin/$tool" ]; then
-        cp -n "$TOOLS_NM_DIR/.bin/$tool" "$TOOLS_BIN_DIR/$tool" 2>/dev/null || true
-        [ -f "$TOOLS_BIN_DIR/$tool" ] && chmod +x "$TOOLS_BIN_DIR/$tool" \
-          && echo "   🔧 已合并 wrapper: node_modules/.bin/$tool → bin/$tool"
+      pkg_json="$TOOLS_EXTRACT_DIR/$tool/package/package.json"
+      if [ ! -f "$pkg_json" ]; then
+        echo "   ⚠️  ${tool} package.json 未找到，跳过 wrapper"
+        continue
       fi
+
+      # 解析 bin 字段（用单次 jq 处理对象和字符串两种格式）
+      entry=$(jq -r 'if (.bin | type) == "object" then .bin[(.bin | keys[0])] else .bin end' "$pkg_json")
+      name=$(jq -r 'if (.bin | type) == "object" then (.bin | keys[0]) else "'"$tool"'" end' "$pkg_json")
+
+      # 计算 entry 相对路径（从 brooks-tools/ 根）
+      entry_rel="extracted/${tool}/package/${entry#./}"
+      entry_abs="$STAGING/brooks-tools/$entry_rel"
+
+      if [ ! -f "$entry_abs" ]; then
+        echo "   ⚠️  ${tool} entry 未找到: $entry_rel"
+        continue
+      fi
+
+      # 生成 shell wrapper（设置 NODE_PATH 指向合并的 node_modules）
+      cat > "$TOOLS_BIN_DIR/$name" << WRAPPEREOF
+#!/bin/sh
+DIR="\$(cd "\$(dirname "\$0")" && pwd)"
+NODE_PATH="\$DIR/../node_modules" exec node "\$DIR/../${entry_rel}" "\$@"
+WRAPPEREOF
+      chmod +x "$TOOLS_BIN_DIR/$name"
+      echo "   🔧 bin/$name → $entry_rel"
     done
+  else
+    echo "   ⚠️  jq 未安装，跳过 wrapper 生成"
   fi
 
   # ── 生成 manifest.json ──
