@@ -2,7 +2,7 @@
   "change_id": "bundle-packaging",
   "goal": {
     "condition": "实现这个打包，严格按流程执行",
-    "status": "active",
+    "status": "done",
     "active_since": "2026-06-22T10:32:25+08:00",
     "turns": 0,
     "mode": "native",
@@ -16,7 +16,8 @@
       "3",
       "4",
       "5",
-      "6"
+      "6",
+      "7"
     ],
     "gates": {
       "0→1": "passed",
@@ -44,5 +45,5 @@
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-22T11:23:03+08:00"
+  "updated_at": "2026-06-22T11:23:35+08:00"
 }
