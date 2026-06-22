@@ -1,9 +1,9 @@
 {
-  "change_id": "security-privacy-audit",
+  "change_id": "fix-pcsc-gaps",
   "goal": {
-    "condition": "全面审查安全和隐私泄露问题，我想push到远程仓库了，绝对不可以出现类似问题",
-    "status": "completed",
-    "active_since": "2026-06-22T14:51:48+08:00",
+    "condition": "修复全部gap：Gap1 7-integration加T-FIX关闭检查 + Gap2 6-review加CONTEXT技术债写入验证",
+    "status": "done",
+    "active_since": "2026-06-22T22:01:19+08:00",
     "turns": 0,
     "mode": "native",
     "scope": "pipeline",
@@ -11,8 +11,6 @@
     "current_phase": "7",
     "phases_done": [
       "0",
-      "1",
-      "2",
       "3",
       "4",
       "5",
@@ -20,26 +18,27 @@
       "7"
     ],
     "gates": {
-      "0→1": "passed",
-      "1→2": "passed",
-      "2→3": "passed",
+      "0→1": "skipped",
+      "1→2": "skipped",
+      "2→3": "skipped",
       "3→4": "passed",
       "4→5": "passed",
       "5→6": "passed",
-      "6→7": "passed"
+      "6→7": "passed",
+      "7→done": "passed"
     },
     "gate_config": {},
     "auto_advance": true,
     "phase_sub_goals": {
-      "4": "",
+      "4": "Gap1: 7-integration PCSC 增加 T-FIX 任务完成检查 + Gap2: 6-review PCSC 增加 CONTEXT 技术债写入验证",
       "5": "",
       "6": "",
       "7": ""
     }
   },
-  "phase": "7",
+  "phase": "done",
   "task_id": null,
   "interrupt": null,
   "token_spent": 0,
-  "updated_at": "2026-06-22T15:09:09+08:00"
+  "updated_at": "2026-06-22T22:13:29+08:00"
 }

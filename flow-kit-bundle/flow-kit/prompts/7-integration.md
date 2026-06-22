@@ -48,9 +48,11 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 | 4 | LESSONS.md 提名已完成（步骤 4） | 人工确认 | ✅ / ❌ |
 | 5 | 顶层 Goal 条件自检通过 | 逐项对照 `goal.condition` | ✅ / ❌ |
 | 6 | 全部上游阶段产物均存在（CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW） | `test -f .specs/<change-id>/*.md` | ✅ / ❌ |
-| 7 | 归档已完成：`.specs/<id>/` → `archive/` + `STATE.md` last_change_archived 已更新 + `CHANGELOG.md` 已追加 | 人工确认 | ✅ / ❌ |
-| 8 | Sub-goal 汇总已完成（AC-12，若 `phase_sub_goals` 非空） | 人工确认 | ✅ / ❌ |
-| 9 | PR 已提交（如适用） | 人工确认 | ✅ / N/A |
+| 7 | TASK.md 中所有 T-FIX-XX 任务状态 = done（无 pending T-FIX，归档前必须全部关闭） | `grep -c 'T-FIX.*status="pending"' .specs/<change-id>/TASK.md` 输出 0 | ✅ / ❌ |
+| 8 | 归档已完成：`.specs/<id>/` → `archive/` + `STATE.md` last_change_archived 已更新 + `CHANGELOG.md` 已追加 | 人工确认 | ✅ / ❌ |
+| 8a | **CHANGELOG LESSONS 列已同步**：若步骤 4 产出了新 L-NNN → CHANGELOG 该行列明 `L-NNN`；若步骤 4 无提名 → CHANGELOG 该行写 `—`。禁止步骤 4 有提名但 CHANGELOG 写 `—` | `grep -c "L-NNN" .specs/CHANGELOG.md` 与 `grep -c "L-NNN" .specs/LESSONS.md` 一致 | ✅ / ❌ |
+| 9 | Sub-goal 汇总已完成（AC-12，若 `phase_sub_goals` 非空） | 人工确认 | ✅ / ❌ |
+| 10 | PR 已提交（如适用） | 人工确认 | ✅ / N/A |
 
 ### auto_advance 分支
 
@@ -179,7 +181,7 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 全部通过后：
 
 - 把 `.specs/<change-id>/` 移动到 `.specs/archive/<YYYY-MM-DD>-<change-id>/`
-- 在 `.specs/CHANGELOG.md` 里追加一行（日期 / change-id / 一句话摘要 / PR 链接 / 新增 LESSONS 条目编号）
+- 在 `.specs/CHANGELOG.md` 里追加一行（日期 / change-id / 一句话摘要 / LESSONS 条目编号）。**LESSONS 列强制**：回读步骤 4 的产出——若步骤 4 向 `LESSONS.md` 追加了 `L-NNN`，则此列填入 `L-NNN`；若步骤 4 判定无提名，则填 `—`。**禁止步骤 4 有产出但此处写 `—`**
 - 更新仓库根的 `STATE.md`
 - **不要归档 `.specs/LESSONS.md`**——它是项目级常驻文件，跨 change 累积
 
