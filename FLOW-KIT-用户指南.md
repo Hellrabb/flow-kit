@@ -208,6 +208,9 @@ Phase 7: INTEGRATION — 集成、合并与发布
 | `/flow stop` | 结束当前 change，清理 `.flow-active` | change 完成后收尾 |
 | `/flow phase <n>` | 手动切换阶段 | 想跳转/回退到某个阶段时 |
 | `/flow task <T<N>>` | 设置当前任务 ID | 手动指定要执行的任务 |
+| `/flow goal <条件> [--pipeline] [--from <n>]` | 设定完成条件（Goal），支持单阶段和跨阶段 Pipeline 模式 | 想让 AI 自动跨 turn 迭代直到条件满足时 |
+| `/flow goal`（无参数） | 查看当前 goal 状态 | 查看 goal 条件、进度、toll-gate 状态 |
+| `/flow goal clear` | 清除当前 goal | goal 已满足或不再需要时 |
 | `/flow checkpoint <file> <desc>` | 保存中断恢复点 | AI 在关键操作后自动调用 |
 | `/flow`（无参数） | 查看当前状态 | 想知道现在在哪个阶段、哪个任务 |
 | `/flow doctor` | 诊断配置状态 | 排查 hook 配置、产物完整性等问题 |
@@ -221,6 +224,148 @@ Phase 7: INTEGRATION — 集成、合并与发布
 ```
 
 **典型使用顺序**：先 `/flow start` 创建状态文件，再用 `/flow-go` 描述意图让 AI 自动路由。后续的 checkpoint、phase、doctor 都依赖 `.flow-active` 存在。
+
+### 4.1 `/flow goal` — Goal 系统与 Pipeline 执行模型
+
+Goal 是 flow-kit 的**自动迭代引擎**——设定一个完成条件后，AI 自主跨 turn 迭代，直到条件满足。
+
+#### 4.1.1 Goal 基础：单阶段模式
+
+```bash
+# 设定一个简单的 goal（当前阶段的完成条件）
+/flow goal "pnpm test passes and lint is clean"
+
+# 查看 goal 状态
+/flow goal
+# → 🎯 Goal: pnpm test passes and lint is clean
+#      状态: active | 已执行: 3 turns | 模式: native
+
+# 条件满足后清除
+/flow goal clear
+```
+
+**工作原理**：AI 每 turn 结束后自动检查条件是否满足。满足则停止；不满足则继续迭代修复。CC ≥ v2.1.139 时使用原生 `/goal` 命令（更高效），旧版本使用内置 prompt 回退。
+
+**Goal 自动提取**：进入阶段 4（DEV）时，AI 自动从 `REQUIREMENT.md` 的 Given/When/Then AC 中提取 goal 建议文本，用户可确认或修改。无需手动编写 goal 条件。
+
+#### 4.1.2 Pipeline Goal：跨阶段自动执行
+
+Pipeline goal 将 goal 从**单阶段自循环**扩展到**跨阶段自动推进**，覆盖完整的 0→1→2→3→4→5→6→7 执行链。
+
+```bash
+# 从阶段 4 起步（默认，向后兼容）
+/flow goal "all tests pass AND review passes" --pipeline
+
+# 从阶段 0 起步（全链路）
+/flow goal "CHANGE.md confirmed AND all tests pass" --pipeline --from 0
+
+# 自定义门禁配置
+/flow goal "docs updated" --pipeline --from 0 --gate-config '{"2→3": "skip", "5→6": "manual"}'
+```
+
+**执行链**：由 `--from <n>` 决定起始阶段（0-7，默认 4），AI 在每个阶段完成后自动推进到下一阶段。
+
+| 阶段 | 作用 | Toll-Gate |
+|------|------|-----------|
+| 0→1 | CHANGE → REQUIREMENT | 产物确认 |
+| 1→2 | REQUIREMENT → DESIGN | AC 已切分 v1/v2/out |
+| 2→3 | DESIGN → TASK | 技术栈已锁定 |
+| 3→4 | TASK → DEV | 波次划分清晰 |
+| 4→5 | DEV → TEST | 所有 task verify 通过 |
+| 5→6 | TEST → REVIEW | 测试矩阵通过 |
+| 6→7 | REVIEW → INTEGRATION | 审查无 🔴 Critical |
+| 7 | INTEGRATION → 完成 | 归档产物齐全 |
+
+##### Toll-Gate（阶段过渡暂停点）
+
+每个阶段完成后，AI 在 toll-gate **暂停并等待用户确认**，不自动继续。这确保用户在每个关键节点有决策权。
+
+```
+🚦 Toll-gate 4→5：Phase 4 开发已完成。
+✅ 产物: T1-SUMMARY.md ✓ | T2-SUMMARY.md ✓
+📋 verify: T1 ✅ | T2 ✅
+   子条件: "all tests pass" → ✅ 已满足
+
+是否进入 Phase 5（测试）？
+  1. 继续 → 进入 5-test
+  2. 暂停 → 保留状态
+  3. 跳过 → 直接进入 6-review
+```
+
+##### Auto-Advance（自动推进模式）
+
+当 `auto_advance=true` 时，阶段完成自检（PCSC）全绿后自动 transition，不等待用户确认。适用于无人值守的批处理场景。默认 `false`。
+
+##### 阶段子目标（phase_sub_goals）
+
+可为每个阶段设定独立的子目标：
+
+```bash
+/flow goal "docs updated" --pipeline --from 4 \
+  --sub-goal-4 "write all sections" \
+  --sub-goal-5 "grep checks pass" \
+  --sub-goal-6 "manual review done"
+```
+
+#### 4.1.3 PCSC/PG 双层防护
+
+flow-kit 用**两层独立检查**确保每个阶段的产物完整性，防止 AI 跳过阶段或遗漏产物。
+
+##### 第一层：PCSC（Phase Completion Self-Check）
+
+**每个阶段 prompt 内置的产物自检段。** AI 在进入 toll-gate 前必须逐项自检：
+
+```
+# Phase 4 自检示例：
+| # | 产物/检查项                          | 状态 |
+|---|-------------------------------------|------|
+| 1 | T<N>-SUMMARY.md 已写入 .specs/<id>/ | ✅   |
+| 2 | verify 命令已通过                    | ✅   |
+| 3 | write_files 边界未越界               | ✅   |
+| 4 | TDD RED→GREEN→REFACTOR 已完成        | ✅   |
+```
+
+任一 ❌ → **禁止进入 toll-gate**，必须先补齐缺失项。
+
+##### 第二层：PCG（Phase Completion Gate）
+
+**GO.md 路由层的独立产物检查门禁。** 当 AI 请求进入 phase N+1 时，GO.md 检查 phase N 的必须产物是否**存在于磁盘**（`test -f`）。缺失 → 拒绝路由，输出缺失清单。
+
+PCG 独立于 prompt 指令运行——即使 AI "忘记"跑 PCSC，PCG 也会在路由层拦截。
+
+##### 双层防护如何协作
+
+```
+Phase N 完成
+    │
+    ▼
+PCSC（prompt 层）— AI 自检产物清单 → 有 ❌ → 补齐
+    │ 全 ✅
+    ▼
+Toll-Gate — 等待用户确认
+    │ 确认继续
+    ▼
+PCG（路由层）— GO.md 检查磁盘产物 → 缺失 → 拒绝路由
+    │ 存在
+    ▼
+Phase N+1 开始
+```
+
+这种双层设计修复了一个曾存在的**阶段跳过漏洞**：AI 可能在 PCSC 不完整的情况下直接进入 toll-gate 并 transition。PCG 作为独立于 prompt 的第二道防线，确保了无论 AI 行为如何，产物必须在磁盘上才能推进。
+
+#### 4.1.4 Pipeline Rollback（智能回退）
+
+当 pipeline 执行中某个阶段失败时，flow-kit 根据**失败分类表**决定回退策略：
+
+| 失败类型 | 示例 | 回退动作 |
+|---------|------|---------|
+| 产物缺失 | `TEST.md` 不存在 | 回退到缺失阶段，补齐产物 |
+| 门禁失败 | verify 命令报错 | 留在当前阶段，修复后重试 |
+| 不可恢复 | 设计推翻 (ADR 冲突) | 回退到 DESIGN（阶段 2）重新设计 |
+
+**动态下界**：回退不会低于 pipeline 的 `start_phase`（由 `--from <n>` 决定）。例如 `--from 4` 时，任何失败的回退最多到阶段 4，不会意外回到 0-3。
+
+**jq 通用化**：回退操作通过 jq 更新 `.flow-active` 实现，不依赖特定工具或运行时。
 
 ---
 

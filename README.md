@@ -8,7 +8,7 @@ flow-kit 分发包仓库。将完整的 flow-kit 生态（核心引擎 + 15 个�
 flow-kit/
 ├── package-flow-kit.sh              # 打包 + 安装脚本（28KB · 核心）
 ├── flow-kit-bundle.tar.gz           # 分发包（.gitignore 排除）
-├── flow-kit-ecosystem-guide.md      # 生态组件清单与架构文档
+├── FLOW-KIT-用户指南.md             # 完整用户指南（安装 / 命令 / 生命周期 / Goal 系统 / 工作流示例）
 ├── flow-kit-bundle/                 # 分发包源码
 │   ├── flow-kit/                    # 核心引擎（GO.md / RULES.md / prompts / templates / reference）
 │   ├── skills/                      # flow-* 技能定义
