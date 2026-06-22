@@ -343,6 +343,30 @@ else
     fi
   done
 
+  # ── 生成可执行 wrapper：bin/ 中的 .js 文件缺少对应的无后缀入口 ──
+  # npm 包的 bin/ 目录通常只含 .js 源文件；install_brooks_tools.sh 期望无后缀的可执行 wrapper
+  for tool in "${!BROOKS_TOOLS[@]}"; do
+    if [ ! -f "$TOOLS_BIN_DIR/$tool" ] && [ -f "$TOOLS_BIN_DIR/${tool}.js" ]; then
+      cat > "$TOOLS_BIN_DIR/$tool" << WRAPPEREOF
+#!/bin/sh
+exec node "\$(dirname "\$0")/${tool}.js" "\$@"
+WRAPPEREOF
+      chmod +x "$TOOLS_BIN_DIR/$tool"
+      echo "   🔧 已生成 wrapper: bin/$tool → bin/${tool}.js"
+    fi
+  done
+
+  # ── 兜底：若 node_modules/.bin/ 中存在 wrapper，合并到 bin/ ──
+  if [ -d "$TOOLS_NM_DIR/.bin" ]; then
+    for tool in "${!BROOKS_TOOLS[@]}"; do
+      if [ ! -f "$TOOLS_BIN_DIR/$tool" ] && [ -f "$TOOLS_NM_DIR/.bin/$tool" ]; then
+        cp -n "$TOOLS_NM_DIR/.bin/$tool" "$TOOLS_BIN_DIR/$tool" 2>/dev/null || true
+        [ -f "$TOOLS_BIN_DIR/$tool" ] && chmod +x "$TOOLS_BIN_DIR/$tool" \
+          && echo "   🔧 已合并 wrapper: node_modules/.bin/$tool → bin/$tool"
+      fi
+    done
+  fi
+
   # ── 生成 manifest.json ──
   cat > "$STAGING/brooks-tools/manifest.json" << MANIFESTEOF
 {

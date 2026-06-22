@@ -40,6 +40,8 @@ install_brooks_tools() {
   else
     cp -r "$tools_src/"* "$tools_dst/"
   fi
+  # 确保 bin/ 下所有文件可执行（兜底：cp -r 不保留权限 / tar 解压丢失 x-bit）
+  find "$tools_dst/bin" -type f 2>/dev/null | while read -r f; do chmod +x "$f"; done
   local tool_count
   tool_count=$(find "$tools_dst/bin" -type f 2>/dev/null | wc -l)
   echo "   ✅ brooks-tools 已安装到 $tools_dst（${tool_count} 个可执行文件）"
