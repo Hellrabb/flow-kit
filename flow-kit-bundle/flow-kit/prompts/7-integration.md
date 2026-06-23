@@ -176,6 +176,8 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 把入选的失败按 LESSONS.md 的条目格式追加到 `.specs/LESSONS.md`，编号续上 `L-NNN`，必须填齐：标签 / 关键词 / 适用栈 / 状态。
 **复核**：扫一眼现有 active 条目，看是否有本次 change 让它们 `superseded` 或 `deprecated`，标注上。
 
+**⚠️ 强制同步**：向 `LESSONS.md` 追加新条目后，**立即**更新 `.specs/CHANGELOG.md` 中本 change 行的 LESSONS 列——把新编号（如 `L-013`）填入。不要等到步骤 5 归档时才做——那时容易遗漏。若本轮无提名，LESSONS 列写 `—`。
+
 ### 5. 归档（ARCHIVE）
 
 全部通过后：
