@@ -80,6 +80,13 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | SECURITY-REPORT.md | 安全审查报告产物，汇总六维度的扫描结果，每项标记 `✅ CLEAN` 或 `🔴 FINDING`（含文件路径、行号、风险等级、修复建议）|
 | 六大风险维度 | 安全审查的六个检查方向：🔑 硬编码凭证（密钥/Token/密码）、🏠 内部路径/IP（个人目录/内网地址）、📧 个人信息（邮箱/手机号）、🐚 注入风险（eval/exec/路径遍历）、🌐 第三方端点（内部 API URL）、📜 Git 历史（已删除文件的残留敏感信息）|
 | 公开仓库安全标准 | Push 到 GitHub public 前的零容忍策略：任一 🔴 Critical 发现项必须在 push 前修复并重新扫描验证；所有匹配项必须有人工确认标记（`✅ CLEAN` / `✅ FALSE_POSITIVE` / `🔴 FINDING`）|
+| 弱模型（weak model） | 能遵循结构化指令但易幻觉、易跳步骤的 LLM（如 minimax-m2.7 / qwen3.6-35b-a3b / deepseek-v4-pro）。与强模型相对 |
+| 强模型（strong model） | 能稳定自觉遵守 RULES/prompt、低幻觉的 LLM（如 Claude 级）。flow-kit 原始设计的假设对象 |
+| protect the weakest | 弱模型鲁棒性设计哲学：规则/prompt 默认按"最弱模型能扛住"写，所有人开局受保护；降级（opt-out）才需显式声明。依据是风险不对称——弱模型缺约束崩溃 ≫ 强模型多约束啰嗦 |
+| 分层防御 L1/L2/L3/L4 | weak-model-robustness 的四层防幻觉/防跳步设计：L1 规则硬护栏（RULES/SYSTEM）/ L2 prompt 结构化强化（主轴）/ L3 证据链机制 / L4 伪双轨（model_tier opt-out，v2） |
+| 证据链（evidence chain） | L3 机制：模型提到任何文件/API/字段前必须先 `grep`/`read` 验证其存在，把"靠模型自觉不幻觉"改成"靠工具验证兜底" |
+| 自检 gate（self-check gate） | L2 机制：每个阶段 prompt 内嵌的强制产物/行为自检段，模板填空式，模型无法跳过（不填空就产不出） |
+| regression-demo | 弱模型鲁棒性的验收反例载体（`flow-kit-bundle/flow-kit/regression-demos/`）：每个失败模式一个 demo，含诱导场景 + `check.sh` 验证护栏是否生效 |
 
 > 加新术语时只在右列写定义，不解释来历。
 
@@ -94,13 +101,14 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-06-22]` 说明文档同步策略 — 三个面向用户的说明文档（FLOW-KIT-用户指南.md、README.md、flow-kit-ecosystem-guide.md）在每次重大 change 归档后应同步更新。优先更新用户指南（最详细），README 和 ecosystem-guide 做一致性对齐。来自 `docs-sync`
 - `[2026-06-20]` pipeline goal 起始阶段可配置 — 新增 `--from <n>` 参数（0-7，默认 4），`start_phase` 字段，动态 gates 生成，0-3 阶段 pipeline toll-gate，跨阶段 AND condition 语法。向后兼容：旧 pipeline goal 无 `start_phase` 默认 "4"。来自 `goal-pipeline-phase0`
 - `[2026-06-22]` brooks-tools 离线打包策略 — 采用 `npm pack` 逐工具打包 .tgz（非 pnpm store 直接提取），原因：pnpm 虚拟存储依赖符号链接无法跨机迁移。目标环境仅解压扁平 node_modules，无需 pnpm。仅打包 linux-x64 二进制，多平台矩阵列为 v2。来自 `bundle-packaging`
+- `[2026-06-25]` 弱模型鲁棒性哲学定为 **protect the weakest** — 规则/prompt 默认全含加严（按最弱模型写），降级（强模型 opt-out，`model_tier: strong`）才需显式声明。**限定**：仅加"结构刚性"护栏（强模型也受益、不啰嗦），不加"重复唠叨"（啰嗦会反噬强模型、甚至增幻觉，由 AC-7 强制约束）。**否决**"运行时模型能力自动探测"方案（弱模型会幻觉自己很强，不可靠）。本次仅做 L1+L2+L3，L4 伪双轨留 v2。来自 `weak-model-robustness`
 
 ## 默认偏好（AI 在缺省时按此决策）
 
 - 命名风格：Shell 脚本遵循 `kebab-case` 命名（如 `package-flow-kit.sh`、`flow-kit-ecosystem-guide.md`）
 - 错误处理：Bash 脚本使用 `set -euo pipefail`（`package-flow-kit.sh:3`）
 - 状态管理：无（非前端/后端项目）
-- 测试策略：未引入测试框架
+- 测试策略：bats-core 1.13.0（npx）· 94 个测试（截至 2026-06-25）。weak-model-robustness change 将追加弱模型护栏结构测试（见该 change REQUIREMENT AC-1/3/5）
 - 提交格式：Conventional Commits — `feat:` / `fix:` / `docs:` / `chore:` / `refactor:`；禁止 force push 到 main
 
 ## 既有抽象索引（来自 I-intel-scan · 防 AI 重复实现 · B5 老项目护栏）
