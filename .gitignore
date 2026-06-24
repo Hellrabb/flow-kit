@@ -29,6 +29,8 @@ Thumbs.db
 
 # === Claude Code 本地配置 ===
 .claude/settings.local.json
+# 用户环境注入的第三方 skill（非 flow-kit 项目产物；产物在 flow-kit-bundle/skills/）
+.claude/skills/
 
 # === Stop hook 运行时产物 ===
 .claude/stop-hook-report.md
