@@ -35,3 +35,6 @@ Thumbs.db
 # === Stop hook 运行时产物 ===
 .claude/stop-hook-report.md
 .claude/stop-hook-state.json
+
+# === flow-kit 运行时状态（每会话不同，不入库） ===
+.flow-active
