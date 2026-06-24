@@ -1,1 +1,4 @@
-[{"date":"2026-06-16","mode":"Full Sweep","score":62,"findings":{"critical":2,"warning":4,"suggestion":2},"scope":"219 files (19 shell scripts analyzed)"}]
+[
+  {"date": "2026-06-16", "mode": "Full Sweep", "score": 62, "findings": {"critical": 2, "warning": 4, "suggestion": 2}, "scope": "219 files (19 shell scripts analyzed)"},
+  {"date": "2026-06-24", "mode": "health", "score": 97, "findings": {"critical": 0, "warning": 1, "suggestion": 3}, "scope": "flow-kit-bundle/ + package-flow-kit.sh + test/ (PR dimension skipped — no review diff; weights redistributed to Arch 0.40 / Debt 0.33 / Test 0.27)", "note": "First brooks-health run. Parallel to internal-score (92/100) in 2026-06-24-HEALTH.md Appendix B. Cross-mode reference: 2026-06-16 Full Sweep = 62 (different mode, not directly comparable). Two scoring series coexist from 2026-07-24 onward."}
+]
