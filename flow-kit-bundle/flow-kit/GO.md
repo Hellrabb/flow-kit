@@ -352,6 +352,8 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 
 进入实际工作前，AI 必须输出一段**路由声明**，**每个加载项必须标明起止行或「全读」**：
 
+> **阶段入场 goal 锚定（弱模型鲁棒性 · 防中途漂移）**：若 `.flow-active.goal` 非空，路由声明必须含一行「🎯 本阶段锚定」——一句话说明本阶段如何服务于顶层 goal condition。**仅入场锚定一次，非每步唠叨**（避免反噬强模型）。对应 RULES R3.5 / AC-5。
+
 ```
 ✅ 路由：<阶段，例如 0-change>
 ✅ Change-ID：<id>（已自动生成 / 已恢复活跃 change：<existing-id>）
@@ -360,6 +362,7 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
         ✅ Goal：[pipeline] <condition>
            起始: <start_phase> | 进度: <start>🔄 → ... → 7⏸（动态，根据 start_phase 生成）
            auto_advance: <true/false> | 门禁: <start>→<start+1> <状态> | ... | 6→7 <状态>
+🎯 本阶段锚定：<一句话说明本阶段如何服务于顶层 goal · 仅入场一次>（仅 pipeline/active goal 时）
 ✅ 已加载：
    - <file1>（全读，N 行）
    - <file2>（全读，N 行）
