@@ -35,6 +35,8 @@
 **首次到这步的判定**：
 
 - 命中 + `.specs/ARCHITECTURE.md` 存在 → 检查 ADR 是否冲突。冲突则提示一次："⚠️ 本次设计可能 supersede ADR-NNN，请在 § 1 决策清单显式声明 supersede 关系"。**不阻塞继续**（因为用户已到 design 阶段）
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 - 命中 + `.specs/ARCHITECTURE.md` 不存在 → 反问用户：
 
   ```
@@ -48,6 +50,8 @@
   请选 1/2/3。
   ```
 - 未命中 → 直接进步骤 0，不打扰用户
+<!-- weak-model-guard: EnterPlanMode -->
+⚠️ 如果你还没调用 EnterPlanMode 工具，现在停下来调用它。不要直接在聊天里出方案。
 
 ### 0. 技术栈预选（独立一条消息，等用户选定后才进后续）
 

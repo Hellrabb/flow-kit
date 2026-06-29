@@ -61,6 +61,8 @@ Chief Architect。**只产架构文档，不动业务代码**。和用户协作�
 
 #### 2.1 一句话定位 + 服务边界图
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 反问用户：
 
 ```
@@ -73,6 +75,8 @@ Chief Architect。**只产架构文档，不动业务代码**。和用户协作�
 得到一句话后，AI 自己 grep + 分析画 mermaid 图（参考 ARCHITECTURE 模板 § 1.2 结构），给用户校准。
 
 #### 2.2 NFR 基线
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 
 反问用户：
 
@@ -178,6 +182,8 @@ grep -rn "router\\.(get|post|put|patch|delete)\\|@(Get|Post|Put|Patch|Delete)" s
 
 ### 步骤 6 · 扩展点 + 容量边界（推荐但非必填）
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 #### 6.1 § 5 扩展点
 
 反问用户："新人 / 新功能最常碰的 5 个扩展点是？"

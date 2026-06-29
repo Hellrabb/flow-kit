@@ -271,6 +271,8 @@ test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && \
 
 - **R2.6**：UAT 失败的自动重试 ≤ 3 轮
 - **R4.4**：禁止声称"通过"而没贴真实输出
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 - 归档操作必须用户确认后才执行（移动/删除文件不可逆）
 
 ## 自检

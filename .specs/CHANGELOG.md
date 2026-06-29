@@ -44,3 +44,36 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 | C2 | 🟢 | PCG | PCG 延迟到下次路由触发 |
 | C3 | 🟢 | PCG | PCG 表无 phase 7 |
 | D2 | 🟢 | Install | 无 post-install 自检 |
+
+## [weak-model-interactive-ui] — 2026-06-29
+
+### 变更摘要
+
+弱模型交互式 UI 触发强化：hook 脚本为主防线 + prompt 轻量护栏为辅，确保弱模型在 flow-kit 交互 gate 处实际调用 `AskUserQuestion` / `EnterPlanMode` 工具。
+
+### 新增
+
+- `hooks/stop/27-interactive-ui-check.sh` — Stop hook 模块：检测弱模型是否跳过了交互 gate
+- `hooks/stop/lib/interactive-ui-check.sh` — 交互 UI 检测逻辑库（GATE_MAP + 检测函数 + 矫正文件管理）
+- `reference/interactive-ui-guard.md` — Prompt 层护栏参考模板
+- `regression-demos/weak-model-interactive-ui/` — 回归演示（模拟 transcript + check.sh）
+- `test/test_interactive_ui_check.bats` — 24 个 bats 测试
+- `stop-hook.json` 新增 `interactive_ui_check` 模块开关
+
+### 修改
+
+- 8 个 prompt 文件（GO.md + 7 个阶段 prompt）— 13 处轻量护栏（≤3 行/点）
+- `session-start/flow-kit-resume.sh` — 矫正文件检测 + 矫正 banner 注入
+- `package-flow-kit.sh` — 新文件打包覆盖
+- `CONTEXT.md` — 术语 + 已锁决策更新
+
+### 架构决策
+
+- 双层防线：hook 脚本（系统级不可绕过）+ prompt 护栏（预防 ~60% 跳过）
+- GATE_MAP 集中维护 9 个交互 gate 关键词映射
+- 矫正文件 `.flow-active.interactive-ui-fix`（不入库）跨 turn 传递
+- 连续跳过 ≥3 次时停止自动矫正提示人工介入
+
+### 测试基线
+
+194/194 tests pass（24 new + 162 existing + 8 regression demo）

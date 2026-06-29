@@ -1,0 +1,13 @@
+好的，以下是我的设计方案：
+
+## 方案概述
+
+我建议采用 hook 脚本为主 + prompt 护栏为辅的架构：
+
+1. 在 Stop hook 链中插入 27-interactive-ui-check.sh
+2. SessionStart 检测矫正文件并注入矫正指令
+3. 各 prompt 加轻量护栏
+
+## 详细设计
+
+首先，我们需要创建一个共享库文件...

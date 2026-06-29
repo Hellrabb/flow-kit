@@ -41,6 +41,53 @@ if ! jq empty "$flow_file" 2>/dev/null; then
   exit 0
 fi
 
+# ── Interactive UI correction check ──────────────────────────────────
+correction_file="${PROJECT_ROOT}/.flow-active.interactive-ui-fix"
+if [[ -f "$correction_file" ]] && jq empty "$correction_file" 2>/dev/null; then
+  corr_gate=$(jq -r '.gate_type // "unknown"' "$correction_file" 2>/dev/null)
+  corr_tool=$(jq -r '.required_tool // "unknown"' "$correction_file" 2>/dev/null)
+  corr_retry=$(jq -r '.retry_count // 0' "$correction_file" 2>/dev/null)
+
+  if [[ "$corr_retry" -ge 2 ]]; then
+    # Stop correction — too many consecutive skips, need human
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  🛑 交互 gate 连续跳过 ≥3 次                          ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    printf "║  gate : %-44s ║\n" "${corr_gate:0:44}"
+    printf "║  tool : %-44s ║\n" "${corr_tool:0:44}"
+    echo "║                                                      ║"
+    echo "║  弱模型反复跳过交互式 UI，请人工介入。                 ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    rm -f "$correction_file"
+  else
+    # Inject correction instruction
+    urgency=""
+    [[ "$corr_retry" -eq 1 ]] && urgency="（第 2 次提醒，上轮你跳过了）"
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚠️ 交互 UI 矫正：上轮你跳过了交互 gate               ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    printf "║  gate : %-44s ║\n" "${corr_gate:0:44}"
+    printf "║  应调用 : %-42s ║\n" "${corr_tool:0:42}"
+    echo "║                                                      ║"
+    if [[ "$corr_tool" == "AskUserQuestion" ]]; then
+      echo "║  现在立即调用 AskUserQuestion 工具补上。              ║"
+      echo "║  AskUserQuestion({ questions: [{ question: \"...\",   ║"
+      echo "║    header: \"...\", options: [...] }] })              ║"
+    elif [[ "$corr_tool" == "EnterPlanMode" ]]; then
+      echo "║  现在立即调用 EnterPlanMode 工具进入计划模式。        ║"
+    fi
+    echo "║                                                      ║"
+    printf "║  %-50s ║\n" "${urgency}"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    # Don't delete correction file yet — the Stop hook will clear it
+    # after the model successfully calls the tool this turn.
+  fi
+fi
+
 # ── Read fields ─────────────────────────────────────────────────────
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
 phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null)

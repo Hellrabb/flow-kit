@@ -249,6 +249,8 @@ Preflight 失败时，路由声明必须写明：
 
 #### 情况 D · 未发现 CONTEXT.md，但有其他 AI 上下文文档（AGENTS / CLAUDE / Cursor / 等）
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 **反问用户**（**必须**等待回复才能继续）：
 
 ```
@@ -268,6 +270,8 @@ flow-kit 默认用 CONTEXT.md 作为单一源。请选择：
 - **选 3**：在 `STATE.md` 写 `ai_context_doc: none / skip`，回到原意图（带警告）
 
 #### 情况 E · 未发现任何 AI 上下文文档（CONTEXT / AGENTS / CLAUDE / Cursor / Windsurf / Copilot / Cline 全无）
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 
 **反问用户**（**必须**等待回复才能继续）：
 
