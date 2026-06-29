@@ -87,8 +87,16 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 证据链（evidence chain） | L3 机制：模型提到任何文件/API/字段前必须先 `grep`/`read` 验证其存在，把"靠模型自觉不幻觉"改成"靠工具验证兜底" |
 | 自检 gate（self-check gate） | L2 机制：每个阶段 prompt 内嵌的强制产物/行为自检段，模板填空式，模型无法跳过（不填空就产不出） |
 | regression-demo | 弱模型鲁棒性的验收反例载体（`flow-kit-bundle/flow-kit/regression-demos/`）：每个失败模式一个 demo，含诱导场景 + `check.sh` 验证护栏是否生效 |
+| 归档双向校验（archive bidirectional check） | L-013 修复：7-integration 归档完成后的二合一自动操作——① 清理已归档 change 的 `.specs/<id>/` 工作目录；② 扫描 `.specs/` 下其他已完成但未归档的 change 并提示 |
+| 打包完整性校验（package integrity validation） | L-012 修复：`package-flow-kit.sh --validate` 模式，比对 `flow-kit-bundle/` 实际目录树与 Part A~F 的 cp/rsync 指令覆盖范围，逐项对账，漏配报错 |
+| 1.8 恢复验证（1.8 recovery verification） | L-010 修复：4-dev 中 1.8 破坏性变更协议触发后自动执行 `npx bats test/`，0 fail 才放行，失败则阻断流程 |
+| lessons-cleanup | 2026-06-29 change：一次性消除 LESSONS.md L-010/L-012/L-013 三条活跃技术债，加自动化兜底防复发 |
 
-> 加新术语时只在右列写定义，不解释来历。
+| pipeline-gates.md | flow-kit/reference/ 下的 toll-gate 协议共享片段文件，prompt 和 skill 通过 @see 引用此处作为单一源 |
+| check-gate-sync.sh | flow-kit/reference/ 下的协议漂移检测脚本，diff prompt 和 skill 的 toll-gate 段，不一致时报错 |
+| make check | Makefile target，一键跑 test + lint + 打包校验 + test 双源 diff，pre-push hook 自动调用 |
+| shellcheck | Bash 静态分析工具，make lint 集成，当前仅 error 级别（-e SC1091）|
+| quality-baseline | 2026-06-29 change：质量基础设施补强 E+F+G+H+I |
 
 ## 已锁决策
 

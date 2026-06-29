@@ -87,6 +87,8 @@
 
    #### 6.0 阶段完成自检（Phase Completion Self-Check）
 
+   > @see flow-kit/reference/pipeline-gates.md — toll-gate 协议单一源。
+
    > ⚠️ **强制**：在进入 Phase Transition 之前，必须逐项完成以下自检。
    > 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
 
@@ -98,6 +100,7 @@
    | 4 | diff 边界 verify 已通过（提交前 diff 不越界） | `git diff --stat` 与 write_files 对照 | ✅ / ❌ |
    | 5 | 沿用既有抽象 grep 已跑（1.4 段），结果在 SUMMARY 中 | 人工确认 | ✅ / ❌ |
    | 6 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
+| 7 | **1.8 触发时 bats 已跑且 0 fail**（L-010） | `grep "0 failures"` 1.8.4 输出 | ✅ / ❌ |
 
    ### auto_advance 分支
 
@@ -454,12 +457,54 @@ grep -rn "from.*old-helpers\|import.*old-helpers" src/ tests/
 无人工确认前，我不动手。
 ```
 
-#### 1.8.4 回归测试覆盖
+#### 1.8.4 回归测试覆盖（强制 · 自动执行 · L-010）
 
 无论选哪个方案，必须确保：
 
 - 删除 / 改动的旧路径**有测试覆盖**（不能默默 break）
 - 改公共 API 的新旧版本必须**同时有测试**（兼容期内两套都跑）
+
+##### 1.8.4.1 自动 bats 执行（强制 · L2 自检 gate）
+
+1.8.3 反问用户确认后，**立即**自动执行全量测试：
+
+```bash
+# 先检查 bats 是否可用
+npx bats --version 2>/dev/null || { echo "⚠️ bats 不可用，跳过自动测试（WARNING 非阻断）"; }
+
+# 可用则跑全量
+npx bats test/ --formatter tap 2>&1
+```
+
+##### 1.8.4.2 结果判定
+
+```
+bats 结果判定：
+  0 failures → ✅ 输出 "bats: N tests, 0 failures" 摘要，继续
+  ≥1 failure → 🔴 阻断：
+    1. 输出失败测试清单（grep "not ok" 行）
+    2. 暂停流程，禁止进入 toll-gate
+    3. 输出提示："修复以上测试失败后重跑 npx bats test/，确认 0 fail 后继续"
+```
+
+##### 1.8.4.3 结果写入 SUMMARY
+
+在 1.8.5 的 `<task-id>-SUMMARY.md`「破坏性变更」段追加 bats 结果字段：
+
+```
+| bats 结果 | N tests / M failures / N-M passed / 耗时 Xs |
+```
+
+##### 1.8.4.4 L2 自检 gate 填空
+
+```
+1.8 破坏性变更 bats 自检：
+  [ ] bats 已执行：npx bats test/ 已跑（或 bats 不可用已标 WARNING）
+  [ ] 结果：___ tests, ___ failures, ___ passed
+  [ ] 阻断判定：✅ 0 fail 继续 / 🔴 ≥1 fail 已暂停（圈选）
+```
+
+**注意**：bats 不可用时降级为 WARNING 而非阻断（避免因环境问题误伤）。但必须显式标注"bats 不可用，跳过自动验证"。
 
 #### 1.8.5 写入 SUMMARY「破坏性变更」段
 

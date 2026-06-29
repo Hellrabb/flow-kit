@@ -69,6 +69,32 @@ description: flow-kit 阶段7：集成、合并与发布检查
 - 更新仓库根的 `STATE.md`
 - **不要归档 `.specs/LESSONS.md`**——它是项目级常驻文件，跨 change 累积
 
+#### 5.0 归档后清理与扫描（L-013 双向校验 · 强制）
+
+> ⚠️ **L2 自检 gate**：以下两步必须在归档 mv 完成后立即执行。
+
+##### 5.0.1 清理工作目录
+
+归档 mv 完成后，确认 PROGRESS.md 已存在于 archive 目标目录，然后删除原工作目录：
+```bash
+test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && rm -rf ".specs/<change-id>/"
+```
+**双重确认**：① PROGRESS.md 存在 ② archive 目录名匹配 change-id ③ 列出待删内容给用户确认
+
+##### 5.0.2 扫描未归档的已完成 change
+
+遍历 `.specs/` 下非 archive 目录，检出 REVIEW✅ + TASK 全 done + 不在 archive 中的 change，命中则输出警告清单。
+
+##### 5.0.3 L2 自检 gate 填空
+
+```
+归档后清理与扫描自检：
+  [ ] PROGRESS.md 已确认在 archive 中
+  [ ] 工作目录已删除: test ! -d .specs/<id>/
+  [ ] 孤儿扫描已跑: 已遍历 .specs/ 下所有非 archive 目录
+  [ ] 扫描结果: ✅ 无遗漏 / ⚠️ 有 N 个未归档 change
+```
+
 #### 5.1 项目级架构文档同步（不在本步做 · 走 A-evolve）
 
 本 change 的 `DESIGN.md § 9 架构沉淀建议` **不在归档时立即合并到 `CONTEXT.md`**。原因：单个 change 视角窄，容易把临时决策错升项目级。

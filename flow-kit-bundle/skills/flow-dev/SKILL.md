@@ -3,6 +3,8 @@ name: flow-dev
 description: flow-kit 阶段4：执行开发任务，TDD 驱动，含既有抽象检查 + 破坏性变更门槛 + diff 边界验证
 ---
 
+> @see flow-kit/reference/pipeline-gates.md — toll-gate 协议单一源（PCSC 自检 + auto_advance 分支 + Pipeline Toll-Gate）
+
 # 阶段 4 · DEV — 在 fresh context 中执行单个任务
 
 ## 角色
@@ -308,12 +310,38 @@ grep -rn "from.*old-helpers\|import.*old-helpers" src/ tests/
 无人工确认前，我不动手。
 ```
 
-#### 1.8.4 回归测试覆盖
+#### 1.8.4 回归测试覆盖（强制 · 自动执行 · L-010）
 
 无论选哪个方案，必须确保：
 
 - 删除 / 改动的旧路径**有测试覆盖**（不能默默 break）
 - 改公共 API 的新旧版本必须**同时有测试**（兼容期内两套都跑）
+
+##### 1.8.4.1 自动 bats 执行（强制 · L2 自检 gate）
+
+1.8.3 反问用户确认后，**立即**自动执行：
+```bash
+npx bats --version 2>/dev/null || { echo "⚠️ bats 不可用，跳过自动测试（WARNING 非阻断）"; }
+npx bats test/ --formatter tap 2>&1
+```
+
+##### 1.8.4.2 结果判定
+
+- 0 failures → ✅ 输出摘要，继续
+- ≥1 failure → 🔴 阻断：输出失败清单，暂停流程，禁止进入 toll-gate，提示"修复后重跑 npx bats test/"
+
+##### 1.8.4.3 结果写入 SUMMARY
+
+在 1.8.5 的 SUMMARY「破坏性变更」段追加 bats 结果字段（N tests / M failures / N-M passed / 耗时）
+
+##### 1.8.4.4 L2 自检 gate 填空
+
+```
+1.8 破坏性变更 bats 自检：
+  [ ] bats 已执行（或已标 WARNING）
+  [ ] 结果: ___ tests, ___ failures, ___ passed
+  [ ] 阻断判定: ✅ 0 fail / 🔴 ≥1 fail 已暂停
+```
 
 #### 1.8.5 写入 SUMMARY「破坏性变更」段
 
