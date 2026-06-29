@@ -38,3 +38,4 @@ Thumbs.db
 
 # === flow-kit 运行时状态（每会话不同，不入库） ===
 .flow-active
+.flow-active.*
