@@ -45,7 +45,7 @@ flow-kit 是一套 **AI 驱动的软件开发流程框架**，为 Claude Code（
 |------|------|
 | **flow-kit 核心引擎** | `~/.claude/flow-kit/` — GO.md（统一入口）、RULES.md（硬规则）、SYSTEM.md（永久注入）、prompts/（各阶段详细 prompt）、reference/（参考文档）、templates/（产出模板） |
 | **flow-* 技能包装器** | `~/.claude/skills/flow-*/` — Claude Code skill（17 个），委托到 flow-kit 核心 |
-| **Stop Hook 系统** | `.claude/hooks/stop/` — 11 个模块化会话后处理脚本（CLAUDE.md 更新、记忆整理、Git 检查、质量诊断、工作流状态、AI 分析、报告生成） |
+| **Stop Hook 系统** | `.claude/hooks/stop/` — 13 个模块化会话后处理脚本（CLAUDE.md 更新、记忆整理、Git 检查、质量诊断、工作流状态、交互 UI 检测、弱模型合规验证、AI 分析、报告生成） |
 | **SessionStart Hook** | `.claude/hooks/session-start/` — 会话恢复 + Stop 报告提醒 |
 | **brooks-lint 插件** | 6 个代码审查 skill：review / audit / debt / test / health / sweep |
 
@@ -823,7 +823,7 @@ Phase N+1 开始
 <a id="sec-7-stop-hook"></a>
 ## 7. Stop Hook 系统
 
-Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 11 个模块化脚本：
+Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 13 个模块化脚本：
 
 ### Hook 模块列表
 
@@ -838,12 +838,14 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 11 个模�
 | 24 | `24-session.sh` | 会话 | E1 清窗次数 / E2 任务完成率 / E3 中断频率 / E4 上下文利用率 / E5 工具分布 |
 | 25 | `25-project.sh` | 项目 | F1 SPEC 过期 / F2 死文件 / F3 依赖过期 / F4 重复配置 / F5 文档缺口 |
 | 26 | `26-workflow.sh` | 工作流 | G1 阶段门禁 / G2 产物完整性 / G3 未完成 task / G4 审查 backlog / G5 checkpoint 断层 |
+| 27 | `27-interactive-ui-check.sh` | 交互 UI 检测 | I1 检测弱模型跳过 AskUserQuestion/EnterPlanMode 交互 gate → 写入矫正文件 |
+| 28 | `28-weak-model-compliance.sh` | 弱模型合规 | W1 L1 规则合规（禁动清单+通用规则）/ W2 L2 自检完整性 / W3 L3 证据链真实性 → 写入统一矫正文件 |
 | 30 | `30-ai-analyze.sh` | AI 分析 | 将结构化数据提交给 AI 做深度分析（默认模型: deepseek-v4-flash） |
 | 99 | `99-report.sh` | 报告 | 生成 stop-hook-report.md + stop-hook-suggestions.md |
 
 ### SessionStart Hook
 
-- `flow-kit-resume.sh`：检测 `.flow-active` 中的中断信息，提醒用户恢复
+- `flow-kit-resume.sh`：检测 `.flow-active` 中的中断信息，提醒用户恢复；检测 `.flow-active.interactive-ui-fix` 和 `.flow-active.correction` 矫正文件，注入交互 UI / 合规矫正 banner 后自动清除
 - `stop-report-reminder.sh`：提醒用户查看上次会话的 stop hook 报告
 
 ### 配置文件
