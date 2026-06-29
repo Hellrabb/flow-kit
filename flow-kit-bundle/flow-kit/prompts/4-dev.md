@@ -191,6 +191,8 @@ AI 不允许自行编造临时最小 TASK；缺字段必须反问用户或回到
 ### 1. 读取任务
 
 从 TASK.md 取出对应 `<task>` 块，读懂 `action / files / verify / done`。
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 若发现任务定义有歧义，**停下来反问**，不允许凭感觉补全。
 
 ### 1.0 动手前复述边界 + 关键节点 checkpoint + 证据链（弱模型鲁棒性 · R7.4 / R6.1 / AC-3）
@@ -338,6 +340,8 @@ prisma/schema.prisma 的 datasource 段
 serverless.yml / wrangler.toml（如适用）
 ```
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 ##### 路径 A · 找到凭据
 
 **必须停下来反问用户**，模板：

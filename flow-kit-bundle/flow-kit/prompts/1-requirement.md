@@ -30,6 +30,8 @@
 
 > 域语言是 token 优化的基石。"主题切换的级联触发" 比展开描述短得多，但要先在 CONTEXT.md 里定义清楚。
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 ### 3. 反问 gate（R3.5 硬约束 · 弱模型鲁棒性）
 
 任何不能被一句话验证的 AC，必须停下来反问。**gate 规则：反问未完成前禁止产出 REQUIREMENT.md**——弱模型最易跳反问直接写需求，此为硬 gate。REQUIREMENT.md 的 AC / 范围切分采用填空式（Given/When/Then + v1/v2/out 槽位），未填全则产出不全。每轮反问 ≤ 3 个（避免啰嗦，AC-7）。例：

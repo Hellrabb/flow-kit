@@ -45,6 +45,8 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
 ### Gate 失败暂停（AC-5）
 
+<!-- weak-model-guard: AskUserQuestion -->
+❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 检测到 ≥ 1 个 critical 问题时，**停下来。禁止自动继续。**
 
 #### 失败分类表（AI 按问题类型建议回退目标）

@@ -97,6 +97,13 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | make check | Makefile target，一键跑 test + lint + 打包校验 + test 双源 diff，pre-push hook 自动调用 |
 | shellcheck | Bash 静态分析工具，make lint 集成，当前仅 error 级别（-e SC1091）|
 | quality-baseline | 2026-06-29 change：质量基础设施补强 E+F+G+H+I |
+| 交互式 UI（interactive UI） | Claude Code 内置的交互工具集，包括 `AskUserQuestion`（多选/单选对话框）、`EnterPlanMode`（计划模式）、Permission Prompt（权限弹窗）。flow-kit 大量依赖这些工具作为决策 gate |
+| 交互 gate（interaction gate） | flow-kit prompt 中要求模型触发交互式 UI 的决策点——如"反问用户"→ 必须调 `AskUserQuestion`、"进入计划模式"→ 必须调 `EnterPlanMode`。弱模型常跳过这些 gate 直接幻觉用户回复 |
+| 交互式 UI 触发护栏（interactive UI guard） | 确保弱模型实际调用交互式 UI 工具（而非幻觉已调用）的 prompt 结构化加固。三层：① 结构化自检句（"如果你还没调用 X，现在停下来调用"）② 工具调用模板（写出参数骨架）③ L3 证据链（"确认：你上一条消息是否包含工具调用？"）。每点 ≥2 层 |
+| interactive-ui-guard.md | flow-kit/reference/ 下新增的共享护栏模板片段，供各 prompt 通过 `@see` 引用，统一交互式 UI 触发加固格式 |
+| weak-model-interactive-ui | 2026-06-29 change：全链路扫描 + 加固 flow-kit 所有交互 gate，确保弱模型实际触发 `AskUserQuestion` / `EnterPlanMode` |
+| 27-interactive-ui-check.sh | Stop hook 第 27 号模块：每次会话停止时 grep transcript 检测弱模型是否跳过了交互 gate（prompt 含"反问用户"等关键词但回复中无 AskUserQuestion/EnterPlanMode 工具调用），跳过则写入矫正文件 `.flow-active.interactive-ui-fix` |
+| 矫正文件（correction file） | `.flow-active.interactive-ui-fix`（JSON，不入库）：Stop hook 检测到交互 gate 跳过时写入，含 gate_type / required_tool / retry_count。SessionStart flow-kit-resume.sh 检测到后注入矫正 banner 强制模型补调工具，retry_count ≥ 2 时停止矫正提示人工介入 |
 
 ## 已锁决策
 
@@ -110,6 +117,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-06-20]` pipeline goal 起始阶段可配置 — 新增 `--from <n>` 参数（0-7，默认 4），`start_phase` 字段，动态 gates 生成，0-3 阶段 pipeline toll-gate，跨阶段 AND condition 语法。向后兼容：旧 pipeline goal 无 `start_phase` 默认 "4"。来自 `goal-pipeline-phase0`
 - `[2026-06-22]` brooks-tools 离线打包策略 — 采用 `npm pack` 逐工具打包 .tgz（非 pnpm store 直接提取），原因：pnpm 虚拟存储依赖符号链接无法跨机迁移。目标环境仅解压扁平 node_modules，无需 pnpm。仅打包 linux-x64 二进制，多平台矩阵列为 v2。来自 `bundle-packaging`
 - `[2026-06-25]` 弱模型鲁棒性哲学定为 **protect the weakest** — 规则/prompt 默认全含加严（按最弱模型写），降级（强模型 opt-out，`model_tier: strong`）才需显式声明。**限定**：仅加"结构刚性"护栏（强模型也受益、不啰嗦），不加"重复唠叨"（啰嗦会反噬强模型、甚至增幻觉，由 AC-7 强制约束）。**否决**"运行时模型能力自动探测"方案（弱模型会幻觉自己很强，不可靠）。本次仅做 L1+L2+L3，L4 伪双轨留 v2。来自 `weak-model-robustness`
+- `[2026-06-29]` 交互式 UI 触发防护策略 — hook 脚本为主防线（Stop hook 27-interactive-ui-check.sh 系统级检测 + SessionStart 矫正注入），prompt 轻量护栏为辅（每点 ≤3 行）。GATE_MAP 集中维护 9 个交互 gate 关键词映射。矫正文件 `.flow-active.interactive-ui-fix`（不入库）跨 turn 传递矫正指令。连续跳过 ≥3 次时停止自动矫正提示人工介入。来自 `weak-model-interactive-ui`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

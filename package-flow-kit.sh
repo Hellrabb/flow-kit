@@ -224,6 +224,7 @@ cp "$HOOK_SRC/stop/23-quality.sh"         "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/24-session.sh"          "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/25-project.sh"         "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/26-workflow.sh"        "$STAGING/hooks/stop/"
+cp "$HOOK_SRC/stop/27-interactive-ui-check.sh" "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/30-ai-analyze.sh"      "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/99-report.sh"          "$STAGING/hooks/stop/"
 
@@ -232,6 +233,7 @@ mkdir -p "$STAGING/hooks/stop/lib"
 cp "$HOOK_SRC/stop/lib/common.sh"              "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/flow-kit-artifacts.sh"   "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/transcript-parser.sh"    "$STAGING/hooks/stop/lib/"
+cp "$HOOK_SRC/stop/lib/interactive-ui-check.sh" "$STAGING/hooks/stop/lib/"
 
 # SessionStart hook 脚本
 cp "$HOOK_SRC/session-start/flow-kit-resume.sh"       "$STAGING/hooks/session-start/"
