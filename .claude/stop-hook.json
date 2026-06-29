@@ -67,6 +67,14 @@
         "G4",
         "G5"
       ]
+    },
+    "weak_model_compliance": {
+      "enabled": true,
+      "checks": [
+        "W1",
+        "W2",
+        "W3"
+      ]
     }
   },
   "ai": {

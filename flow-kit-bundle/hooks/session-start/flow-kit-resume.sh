@@ -88,6 +88,47 @@ if [[ -f "$correction_file" ]] && jq empty "$correction_file" 2>/dev/null; then
   fi
 fi
 
+# ── Compliance correction check ─────────────────────────────────────
+compliance_correction_file="${PROJECT_ROOT}/.flow-active.correction"
+if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_file" 2>/dev/null; then
+  corr_type=$(jq -r '.type // "unknown"' "$compliance_correction_file" 2>/dev/null)
+  corr_count=$(jq -r '.violations | length // 0' "$compliance_correction_file" 2>/dev/null)
+
+  if [[ "$corr_type" == "compliance" && "$corr_count" -gt 0 ]]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚠️ 合规矫正：上轮弱模型违规                          ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+
+    # List violations grouped by layer
+    idx=0
+    while [[ "$idx" -lt "$corr_count" ]]; do
+      v_layer=$(jq -r ".violations[$idx].layer // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_rule=$(jq -r ".violations[$idx].rule // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_location=$(jq -r ".violations[$idx].location // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_fix=$(jq -r ".violations[$idx].fix // \"?\"" "$compliance_correction_file" 2>/dev/null)
+
+      printf "║  [%s] %-44s ║\n" "${v_layer:0:3}" "${v_rule:0:44}"
+      printf "║  loc: %-46s ║\n" "${v_location:0:46}"
+      printf "║  fix: %-46s ║\n" "${v_fix:0:46}"
+      if [[ "$idx" -lt $((corr_count - 1)) ]]; then
+        echo "║  ────────────────────────────────────────────────── ║"
+      fi
+      idx=$((idx + 1))
+    done
+
+    echo "║                                                      ║"
+    echo "║  请按上述修复动作逐项执行，完成后继续任务。            ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+  else
+    # Unknown type or empty violations — warn and clean up
+    echo "[flow-kit-resume] ⚠️ .flow-active.correction 格式异常（type=${corr_type} count=${corr_count}），已清除" >&2
+  fi
+
+  rm -f "$compliance_correction_file"
+fi
+
 # ── Read fields ─────────────────────────────────────────────────────
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
 phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null)

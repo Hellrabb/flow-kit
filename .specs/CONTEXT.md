@@ -104,6 +104,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | weak-model-interactive-ui | 2026-06-29 change：全链路扫描 + 加固 flow-kit 所有交互 gate，确保弱模型实际触发 `AskUserQuestion` / `EnterPlanMode` |
 | 27-interactive-ui-check.sh | Stop hook 第 27 号模块：每次会话停止时 grep transcript 检测弱模型是否跳过了交互 gate（prompt 含"反问用户"等关键词但回复中无 AskUserQuestion/EnterPlanMode 工具调用），跳过则写入矫正文件 `.flow-active.interactive-ui-fix` |
 | 矫正文件（correction file） | `.flow-active.interactive-ui-fix`（JSON，不入库）：Stop hook 检测到交互 gate 跳过时写入，含 gate_type / required_tool / retry_count。SessionStart flow-kit-resume.sh 检测到后注入矫正 banner 强制模型补调工具，retry_count ≥ 2 时停止矫正提示人工介入 |
+| weak-model-compliance | Stop hook 第 28 号模块：每次会话停止时对模型回复做三层事后合规验证——L1 规则合规（禁动清单+通用规则）、L2 自检完整性（自检表无空白/跳过）、L3 证据链真实性（引用路径在工具调用历史中出现过）。检测到违规 → 写入统一矫正文件 `.flow-active.correction` |
+| `.flow-active.correction` | 统一矫正文件（JSON，不入库）：用 `type` 字段区分违规类型（`compliance` / `interactive-ui`），含 `layer`（L1/L2/L3）、`violations` 数组、`written_at` 时间戳。v1 仅 `28-weak-model-compliance.sh` 写入 `compliance` 类型；`27-interactive-ui-check.sh` 暂保持旧文件，v2 迁移。SessionStart 同时处理两个矫正文件 |
+| L1 hook 层规则合规检测 | Stop hook 对 transcript 中模型回复做规则合规扫描——grep 触碰 CONTEXT.md 禁动清单路径 + 违反 RULES.md/SYSTEM.md 通用禁动规则（如"禁止编造文件路径"）。属 28 号模块 L1 层 |
+| L3 hook 层证据链检测 | Stop hook 验证模型回复中引用的文件路径/API 名/字段名是否在 transcript 工具调用历史中出现过——未出现则判定为幻觉引用。属 28 号模块 L3 层，是对 prompt 层 L3 护栏（grep-before-cite）的系统级兜底 |
 
 ## 已锁决策
 
@@ -118,6 +122,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-06-22]` brooks-tools 离线打包策略 — 采用 `npm pack` 逐工具打包 .tgz（非 pnpm store 直接提取），原因：pnpm 虚拟存储依赖符号链接无法跨机迁移。目标环境仅解压扁平 node_modules，无需 pnpm。仅打包 linux-x64 二进制，多平台矩阵列为 v2。来自 `bundle-packaging`
 - `[2026-06-25]` 弱模型鲁棒性哲学定为 **protect the weakest** — 规则/prompt 默认全含加严（按最弱模型写），降级（强模型 opt-out，`model_tier: strong`）才需显式声明。**限定**：仅加"结构刚性"护栏（强模型也受益、不啰嗦），不加"重复唠叨"（啰嗦会反噬强模型、甚至增幻觉，由 AC-7 强制约束）。**否决**"运行时模型能力自动探测"方案（弱模型会幻觉自己很强，不可靠）。本次仅做 L1+L2+L3，L4 伪双轨留 v2。来自 `weak-model-robustness`
 - `[2026-06-29]` 交互式 UI 触发防护策略 — hook 脚本为主防线（Stop hook 27-interactive-ui-check.sh 系统级检测 + SessionStart 矫正注入），prompt 轻量护栏为辅（每点 ≤3 行）。GATE_MAP 集中维护 9 个交互 gate 关键词映射。矫正文件 `.flow-active.interactive-ui-fix`（不入库）跨 turn 传递矫正指令。连续跳过 ≥3 次时停止自动矫正提示人工介入。来自 `weak-model-interactive-ui`
+- `[2026-06-29]` 弱模型合规检测策略 — Stop hook 28 号模块对 L1/L2/L3 三层做系统级事后验证 + 矫正注入。采用统一矫正文件 `.flow-active.correction`（`type: "compliance"`），与交互 UI 矫正文件并行存在（v1 不合并，v2 迁移 27 号模块）。L1 检测范围覆盖 CONTEXT.md 禁动清单 + RULES.md/SYSTEM.md 通用禁动规则。SessionStart 同时处理 `.flow-active.interactive-ui-fix` 和 `.flow-active.correction` 两个矫正文件。代码长度 350 行为软指标（超出人工判断）。不改动现有 prompt 护栏（hook 是第二道防线）。来自 `robustness-hook-hardening`
 
 ## 默认偏好（AI 在缺省时按此决策）
 
