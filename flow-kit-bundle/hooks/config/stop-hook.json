@@ -70,7 +70,17 @@
     },
     "interactive_ui_check": {
       "enabled": true,
-      "description": "检测弱模型是否跳过了交互式 UI 工具调用（AskUserQuestion/EnterPlanMode），跳过时写入矫正文件供 SessionStart 注入矫正指令"
+      "checks": [
+        "I1"
+      ]
+    },
+    "weak_model_compliance": {
+      "enabled": true,
+      "checks": [
+        "W1",
+        "W2",
+        "W3"
+      ]
     }
   },
   "ai": {

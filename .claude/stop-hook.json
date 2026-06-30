@@ -68,6 +68,12 @@
         "G5"
       ]
     },
+    "interactive_ui_check": {
+      "enabled": true,
+      "checks": [
+        "I1"
+      ]
+    },
     "weak_model_compliance": {
       "enabled": true,
       "checks": [
