@@ -73,17 +73,21 @@ teardown() {
 # ═══════════════════════════════════════════════════════════════════════════
 
 @test "AC-3: --validate 检测到未覆盖文件时 exit ≠ 0" {
-  # 在当前仓库跑 validate——已知有未覆盖文件，应返回非零
+  # 临时注入一个假文件触发 gap，验证 validate 检测能力
+  local gap_file="flow-kit-bundle/TEST_GAP_DO_NOT_PACKAGE"
+  touch "$gap_file"
   run bash package-flow-kit.sh --validate
-  # exit 1 = 有漏配（预期行为）, exit 2 = 脚本错误
-  [ "$status" -ne 0 ]
+  local result=$status
+  rm -f "$gap_file"
+  [ "$result" -ne 0 ]
 }
 
 @test "AC-3: --validate 输出包含 ERROR 标记" {
+  local gap_file="flow-kit-bundle/TEST_GAP_DO_NOT_PACKAGE"
+  touch "$gap_file"
   run bash package-flow-kit.sh --validate
-  # 输出中应包含 "漏配" 或 "ERROR" 关键词
-  grep -q "漏配\|ERROR" <<< "$output"
-  [ "$status" -eq 0 ] || true  # output may not contain ERROR if all clean
+  rm -f "$gap_file"
+  echo "$output" | grep -q "ERROR"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
