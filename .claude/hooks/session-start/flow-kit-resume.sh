@@ -41,6 +41,94 @@ if ! jq empty "$flow_file" 2>/dev/null; then
   exit 0
 fi
 
+# ── Interactive UI correction check ──────────────────────────────────
+correction_file="${PROJECT_ROOT}/.flow-active.interactive-ui-fix"
+if [[ -f "$correction_file" ]] && jq empty "$correction_file" 2>/dev/null; then
+  corr_gate=$(jq -r '.gate_type // "unknown"' "$correction_file" 2>/dev/null)
+  corr_tool=$(jq -r '.required_tool // "unknown"' "$correction_file" 2>/dev/null)
+  corr_retry=$(jq -r '.retry_count // 0' "$correction_file" 2>/dev/null)
+
+  if [[ "$corr_retry" -ge 2 ]]; then
+    # Stop correction — too many consecutive skips, need human
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  🛑 交互 gate 连续跳过 ≥3 次                          ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    printf "║  gate : %-44s ║\n" "${corr_gate:0:44}"
+    printf "║  tool : %-44s ║\n" "${corr_tool:0:44}"
+    echo "║                                                      ║"
+    echo "║  弱模型反复跳过交互式 UI，请人工介入。                 ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    rm -f "$correction_file"
+  else
+    # Inject correction instruction
+    urgency=""
+    [[ "$corr_retry" -eq 1 ]] && urgency="（第 2 次提醒，上轮你跳过了）"
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚠️ 交互 UI 矫正：上轮你跳过了交互 gate               ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    printf "║  gate : %-44s ║\n" "${corr_gate:0:44}"
+    printf "║  应调用 : %-42s ║\n" "${corr_tool:0:42}"
+    echo "║                                                      ║"
+    if [[ "$corr_tool" == "AskUserQuestion" ]]; then
+      echo "║  现在立即调用 AskUserQuestion 工具补上。              ║"
+      echo "║  AskUserQuestion({ questions: [{ question: \"...\",   ║"
+      echo "║    header: \"...\", options: [...] }] })              ║"
+    elif [[ "$corr_tool" == "EnterPlanMode" ]]; then
+      echo "║  现在立即调用 EnterPlanMode 工具进入计划模式。        ║"
+    fi
+    echo "║                                                      ║"
+    printf "║  %-50s ║\n" "${urgency}"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    # Don't delete correction file yet — the Stop hook will clear it
+    # after the model successfully calls the tool this turn.
+  fi
+fi
+
+# ── Compliance correction check ─────────────────────────────────────
+compliance_correction_file="${PROJECT_ROOT}/.flow-active.correction"
+if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_file" 2>/dev/null; then
+  corr_type=$(jq -r '.type // "unknown"' "$compliance_correction_file" 2>/dev/null)
+  corr_count=$(jq -r '.violations | length // 0' "$compliance_correction_file" 2>/dev/null)
+
+  if [[ "$corr_type" == "compliance" && "$corr_count" -gt 0 ]]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚠️ 合规矫正：上轮弱模型违规                          ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+
+    # List violations grouped by layer
+    idx=0
+    while [[ "$idx" -lt "$corr_count" ]]; do
+      v_layer=$(jq -r ".violations[$idx].layer // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_rule=$(jq -r ".violations[$idx].rule // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_location=$(jq -r ".violations[$idx].location // \"?\"" "$compliance_correction_file" 2>/dev/null)
+      v_fix=$(jq -r ".violations[$idx].fix // \"?\"" "$compliance_correction_file" 2>/dev/null)
+
+      printf "║  [%s] %-44s ║\n" "${v_layer:0:3}" "${v_rule:0:44}"
+      printf "║  loc: %-46s ║\n" "${v_location:0:46}"
+      printf "║  fix: %-46s ║\n" "${v_fix:0:46}"
+      if [[ "$idx" -lt $((corr_count - 1)) ]]; then
+        echo "║  ────────────────────────────────────────────────── ║"
+      fi
+      idx=$((idx + 1))
+    done
+
+    echo "║                                                      ║"
+    echo "║  请按上述修复动作逐项执行，完成后继续任务。            ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+  else
+    # Unknown type or empty violations — warn and clean up
+    echo "[flow-kit-resume] ⚠️ .flow-active.correction 格式异常（type=${corr_type} count=${corr_count}），已清除" >&2
+  fi
+
+  rm -f "$compliance_correction_file"
+fi
+
 # ── Read fields ─────────────────────────────────────────────────────
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
 phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null)
@@ -87,6 +175,19 @@ printf "║  phase  : %-2s (%-34s) ║\n" "$phase" "$p_label"
 # task line (if active)
 if [[ "$task_id" != "none" && "$task_id" != "null" && -n "$task_id" ]]; then
   printf "║  task   : %-42s ║\n" "$task_id"
+fi
+
+goal_cond=$(jq -r '.goal.condition // ""' "$flow_file" 2>/dev/null)
+goal_status=$(jq -r '.goal.status // ""' "$flow_file" 2>/dev/null)
+goal_turns=$(jq -r '.goal.turns // 0' "$flow_file" 2>/dev/null)
+goal_mode=$(jq -r '.goal.mode // ""' "$flow_file" 2>/dev/null)
+
+# goal line (if active)
+if [[ -n "$goal_cond" && "$goal_cond" != "null" && "$goal_status" == "active" ]]; then
+  mode_label="回退"
+  [[ "$goal_mode" == "native" ]] && mode_label="原生"
+  printf "║  🎯 goal : %-41s ║\n" "${goal_cond:0:41}"
+  printf "║        状态: active | turns: %-3s | 模式: %-8s ║\n" "$goal_turns" "$mode_label"
 fi
 
 # interrupt line (if present)
