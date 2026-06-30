@@ -3,7 +3,7 @@
 - **Change ID**: goal-auto-extract
 - **创建日期**: 2026-06-18
 - **路径建议**: 最短（直接改 2 个文件）
-- **状态**: draft
+- **状态**: archived
 
 ## Why
 
