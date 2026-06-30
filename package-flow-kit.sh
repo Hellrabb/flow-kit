@@ -64,10 +64,10 @@ validate_staging_coverage() {
   for spec_file in "$BUNDLE_DIR/specs-template/"*; do
     [ -f "$spec_file" ] && EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$spec_file")
   done
-  # test/ directory is part of the bundle
-  for test_file in "$BUNDLE_DIR/test/"*.bats; do
-    [ -f "$test_file" ] && EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$test_file")
-  done
+  # test/ directory is part of the bundle (recursive for subdirs)
+  while IFS= read -r -d '' test_file; do
+    EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$test_file")
+  done < <(find "$BUNDLE_DIR/test" -name '*.bats' -type f -print0 2>/dev/null)
 
   echo "   解析 Part F (brooks-lint 插件)..."
   local brooks_files
@@ -106,7 +106,7 @@ validate_staging_coverage() {
 
   while IFS= read -r actual_file; do
     [ -z "$actual_file" ] && continue
-    if echo "$actual_file" | grep -qE "$KNOWN_SKIP"; then
+    if echo "$actual_file" | grep -q "$KNOWN_SKIP"; then
       continue
     fi
     if ! echo "$EXPECTED" | grep -qF "$actual_file"; then
