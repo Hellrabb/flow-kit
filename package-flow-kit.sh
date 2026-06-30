@@ -578,10 +578,3 @@ echo "║    🔍 brooks-lint 插件 v1.3.0（skills 命名空间 brooks-lint:�
 echo "║    🔧 brooks-tools（4 个 npm 工具离线包 · linux-x64）          ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 
-# ═══════════════════════════════════════════════════════════════════════
-# validate_staging_coverage() — 校验 Part A~G staging 指令覆盖完整性
-    echo ""
-    echo "   ✅ 校验通过：所有文件均被 Part A~G 覆盖。"
-    exit 0
-  fi
-}

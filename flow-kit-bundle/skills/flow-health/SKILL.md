@@ -124,6 +124,29 @@ Maintenance Engineer。**只产健康报告 + 改造建议清单，不直接改�
 - **跨模块"重复块"常见假阳性**：模板化 CRUD / 单测 setup 常长得类似，如果背后语义不同 → 不算冷败，留 🟢提示
 - **与 6-review R3 协作**：本步是字面级 + 死代码级；6-review R3 是概念级（决策多处表达）。**两者不互代替**
 
+### 步骤 2.6 · 全量 bash -n 语法门禁（装/未装 brooks-lint 都要跑）
+
+**为什么单独一步**：概念级（R3）/ 字面级（jscpd）/ 死代码级（knip）巡检都查不出**语法错误**（孤儿 token / 未闭合 `fi` / 残留碎片），而语法错误会让脚本**完全不可用且静默阻断 CI/自动化**（`bash -n` 失败 = 打包/部署链路断）。`bash -n` 是 bash 内建，零依赖、秒级出结果。
+
+> **来由**：2026-06-30 健康报告 89/100 漏检 `package-flow-kit.sh` 末尾孤儿 `fi`（Critical，导致打包脚本不可用），根因就是巡检流程无语法门禁。本步堵这个盲区。
+
+**命令**：
+```bash
+find . -name '*.sh' \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' \
+  -not -path '*/brooks-lint/plugin/*' -not -path '*/brooks-tools/*' \
+  -not -path '*/.claude/plugins/*' \
+  -exec bash -n {} \; -print 2>&1
+```
+
+**判定**：
+- 任一脚本输出语法错误（如「未预期的记号 "fi" 附近有语法错误」/ `unexpected token`）→ 🔴 **Critical**（脚本不可用，阻断 CI/自动化），直接进健康报告 Critical 清单 + 开 health-fix change
+- 全部通过 → 在健康报告「综合分」前记录「语法门禁：N 个脚本全过 ✅」
+
+**边界**：
+- 排除第三方目录（brooks-lint / brooks-tools / plugins / node_modules / .git）—— 非本仓库维护代码
+- `bash -n` 只查语法合法性，不查风格；风格检查（shellcheck）留给未来单独工具 / health-fix
+
 ### 步骤 3 · 未装 brooks-lint（内置回退）
 
 AI 自己按 6+6 维度过一遍主仓库的 `src/` / `lib/` / `app/` 目录（按项目结构选）：
@@ -224,6 +247,7 @@ AI 用 grep + import 分析画一个简化 Mermaid 依赖图，标出循环依�
 - [ ] 选了正确的模式（首次 sweep / 周期 health / 单维深挖）
 - [ ] 装了 brooks-lint 优先用工具输出，未装走内置回退并明确标注
 - [ ] **步骤 2.5 冗余巡检已跑**：jscpd + 语言原生工具（装了）或 fallback grep（未装 · 已标 ⚠️ 精度低）
+- [ ] **步骤 2.6 bash -n 语法门禁已跑**：所有生产 `.sh` 通过 `bash -n`（任一错误 → 🔴 Critical，不得跳过）
 - [ ] 综合分有「与上次对比」段
 - [ ] Critical 项已生成 health-fix CHANGE 提案
 - [ ] 未用依赖已写进 CONTEXT.md「禁动清单」（避免 AI 再次使用）
