@@ -79,3 +79,4 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 ### 测试基线
 
 194/194 tests pass（24 new + 162 existing + 8 regression demo）
+| 2026-07-01 | independent-review | L2 盲审 + L3 hook 强制独立 review（1/2/6 阶段，默认关闭）| — |
