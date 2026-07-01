@@ -32,5 +32,16 @@
       "suggestion": 2
     },
     "scope": "34 shell scripts + 17 bats files"
+  },
+  {
+    "date": "2026-07-01",
+    "mode": "Health Dashboard (post-sweep)",
+    "score": 91,
+    "findings": {
+      "critical": 0,
+      "warning": 1,
+      "suggestion": 1
+    },
+    "scope": "flow-kit 全量 (post sweep-fix)"
   }
 ]
