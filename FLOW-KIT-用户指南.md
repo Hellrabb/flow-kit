@@ -1,6 +1,6 @@
 # Flow-Kit 全包使用指南
 
-> 版本: 20260622 | 源: https://github.com/hellrabbit/flow-kit/tree/develop
+> 版本: 20260622 | 源: https://github.com/hellrabb/flow-kit/tree/main
 
 ---
 
