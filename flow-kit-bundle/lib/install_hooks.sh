@@ -41,7 +41,8 @@ install_hooks() {
 
   # Stop hook 模块
   for script in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
-                23-quality 24-session 25-project 26-workflow 30-ai-analyze 99-report; do
+                23-quality 24-session 25-project 26-workflow 27-interactive-ui-check \
+                28-weak-model-compliance 29-independent-review 30-ai-analyze 99-report; do
     install_file "$SCRIPT_DIR/hooks/stop/${script}.sh" "$hook_dst/stop/${script}.sh"
     chmod +x "$hook_dst/stop/${script}.sh" 2>/dev/null || true
   done
@@ -56,6 +57,12 @@ install_hooks() {
     install_file "$SCRIPT_DIR/hooks/session-start/${script}.sh" "$hook_dst/session-start/${script}.sh"
     chmod +x "$hook_dst/session-start/${script}.sh" 2>/dev/null || true
   done
+
+  # PreToolUse hooks（独立 review gate · 硬拦截 commit/PR/阶段切换）
+  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/independent-review-gate.sh" ]; then
+    install_file "$SCRIPT_DIR/hooks/pre-tool-use/independent-review-gate.sh" "$hook_dst/pre-tool-use/independent-review-gate.sh"
+    chmod +x "$hook_dst/pre-tool-use/independent-review-gate.sh" 2>/dev/null || true
+  fi
 
   # 配置文件
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
@@ -109,6 +116,44 @@ install_hooks() {
       }] } }
     ' > "$settings_target" 2>/dev/null
     echo "   ✅ ${settings_target} 已写入 Stop hook 接线"
+  fi
+
+  # ═══ 自动写入 PreToolUse hook 接线（独立 review gate）═══
+  local pre_cmd="bash \"${settings_hook_path}/pre-tool-use/independent-review-gate.sh\""
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] 写入 PreToolUse hook 到 ${settings_target}: command=${pre_cmd}"
+  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
+    if jq -e --arg cmd "$pre_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
+      echo "   ✅ PreToolUse hook 已存在于 ${settings_target}，跳过"
+    else
+      local merged_pre
+      merged_pre=$(jq --arg cmd "$pre_cmd" '
+        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
+          "matcher": "Bash",
+          "hooks": [{
+            "type": "command",
+            "command": $cmd
+          }]
+        }]
+      ' "$settings_target" 2>/dev/null)
+      if [ -n "$merged_pre" ]; then
+        echo "$merged_pre" > "$settings_target"
+        echo "   ✅ ${settings_target} 已追加 PreToolUse hook 接线"
+      else
+        echo "   ⚠️  ${settings_target} PreToolUse 合并失败，请手动检查"
+      fi
+    fi
+  else
+    jq -n --arg cmd "$pre_cmd" '
+      { hooks: { PreToolUse: [{
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": $cmd
+        }]
+      }] } }
+    ' > "$settings_target" 2>/dev/null
+    echo "   ✅ ${settings_target} 已写入 PreToolUse hook 接线"
   fi
 
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），

@@ -131,7 +131,9 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
      ```bash
      # 先验证 JSON 有效
      echo "$GATE_JSON" | jq empty || { echo "❌ gate-config JSON 无效"; exit 1; }
-     # 校验 gate_config keys 在动态 gates keys 集合内
+     # 校验 gate_config keys：接受阶段名（1-requirement / 2-design / 6-review）或 transition key（如 4→5）
+     # 阶段名 key 的值 independent/true = 开启该阶段独立 review（L2 盲审 + L3 外部模型）；
+     # transition key 控制阶段间门禁级别（critical/warn/ignore）。两者可共存于同一 gate_config。
      # 再写入
      GATES_JSON=$(jq -n --arg from "$FROM" \
        '[range($from|tonumber; 7) | "\(.)→\(.+1)"] | reduce .[] as $k ({}; .[$k] = "pending")')
@@ -165,6 +167,24 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
    ```
 2. 输出："✅ Goal 已清除"
 3. 接受别名：`/flow goal stop` / `off` / `reset` / `none` / `cancel` 均等同 clear
+
+### `/flow gate-config <phase>=<value>`
+单独 patch 某阶段的独立 review gate（无需重建 goal）。动作：
+1. 检查 `.flow-active` 是否存在 + `.goal` 非 null（gate_config 是 goal 子字段；无 goal → 提示先 `/flow goal`）
+2. 解析参数：
+   - `<phase>`：阶段名字符串，合法值 `1-requirement` / `2-design` / `6-review`
+   - `<value>`：`independent`（或 `true`）= 开启该阶段独立 review；`off`（或 `false`）= 关闭
+   - 无参数 → 输出当前 `goal.gate_config`（jq 格式化）即可，不要改文件
+3. 用 jq patch 单个 key（bracket 引用，见 LESSONS L-011）：
+   ```bash
+   # 开启：/flow gate-config 6-review=independent
+   jq --arg pn "6-review" --arg val "independent" --arg ts "$(date -Iseconds)" \
+     '.goal.gate_config[$pn] = $val | .updated_at = $ts' \
+     .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   # 关闭：/flow gate-config 6-review=off → 同上但 val="off"
+   ```
+4. 输出：`✅ gate_config[<phase>] = <value>。` + 当前完整 gate_config 摘要
+5. 副作用提示：开启某阶段后，进入/处于该阶段时，Stop hook `29-independent-review.sh` 会跑 L3，PreToolUse hook `independent-review-gate.sh` 会拦 commit / PR / 切阶段直到主 agent 写 `.specs/<id>/.independent-review-<phase>.done`（机制见 `@flow-kit/prompts/independent/L2-blind-review.md` 与各阶段 prompt 的「独立 review 调度」段）
 
 ### `/flow checkpoint <file> <description>`
 保存中断恢复上下文。AI 应在每次关键操作后调用（如开始编辑文件、遇到测试失败）。

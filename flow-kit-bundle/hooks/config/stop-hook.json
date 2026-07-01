@@ -81,6 +81,12 @@
         "W2",
         "W3"
       ]
+    },
+    "independent_review": {
+      "enabled": true,
+      "checks": [
+        "IR"
+      ]
     }
   },
   "ai": {
@@ -105,5 +111,19 @@
   "session_start": {
     "remind_unreviewed": true,
     "max_reminders": 3
+  },
+  "independent_review": {
+    "phases": [],
+    "model": "deepseek-v4-flash",
+    "max_artifact_chars": 20000,
+    "max_failures_before_bypass": 3
+  },
+  "pre_tool_use_gates": {
+    "independent_review": {
+      "enabled": true,
+      "matchers": [
+        "Bash"
+      ]
+    }
   }
 }

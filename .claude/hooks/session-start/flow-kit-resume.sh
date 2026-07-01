@@ -129,6 +129,48 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
   rm -f "$compliance_correction_file"
 fi
 
+# ── Independent review report injection ──────────────────────────────
+ir_state_file="${PROJECT_ROOT}/.flow-active.independent-review"
+if [[ -f "$ir_state_file" ]] && jq empty "$ir_state_file" 2>/dev/null; then
+  ir_phase=$(jq -r '.phase // "?"' "$ir_state_file" 2>/dev/null)
+  ir_status=$(jq -r '.status // ""' "$ir_state_file" 2>/dev/null)
+  ir_report=$(jq -r '.report_file // ""' "$ir_state_file" 2>/dev/null)
+  ir_fail=$(jq -r '.fail_count // 0' "$ir_state_file" 2>/dev/null)
+  [[ "$ir_fail" =~ ^[0-9]+$ ]] || ir_fail=0
+  ir_change=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
+  ir_done="${PROJECT_ROOT}/.specs/${ir_change}/.independent-review-${ir_phase}.done"
+
+  if [[ "$ir_change" != "none" && "$ir_status" == "done" && ! -f "$ir_done" ]]; then
+    ir_verdict="?"
+    ir_report_path="${PROJECT_ROOT}/.specs/${ir_change}/${ir_report}"
+    if [[ -f "$ir_report_path" ]]; then
+      ir_verdict=$(sed -n '/```json/,/```/p' "$ir_report_path" 2>/dev/null | sed '1d;$d' \
+        | jq -r '.verdict // "?"' 2>/dev/null || echo "?")
+    fi
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  🔎 独立 review 报告就绪（L3 外部模型）              ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    printf "║  阶段    : %-41s ║\n" "${ir_phase}"
+    printf "║  verdict : %-41s ║\n" "${ir_verdict:0:41}"
+    printf "║  报告    : %-41s ║\n" ".specs/${ir_change}/${ir_report}"
+    echo "║                                                      ║"
+    echo "║  L3 已跑完。读报告 + 确认 L2 盲审段就绪后，写 done： ║"
+    printf "║  touch %-45s ║\n" ".specs/${ir_change}/.independent-review-${ir_phase}.done"
+    echo "║  写完才能 commit / 切换阶段。                        ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+  elif [[ "$ir_status" == "failed" && "$ir_fail" -ge 3 && ! -f "$ir_done" ]]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    printf "║  ⚠️ 独立 review L3 连续失败 %-2s 次                   ║\n" "$ir_fail"
+    echo "║  允许手动绕过（touch done 标志后可继续推进）。       ║"
+    printf "║  touch %-45s ║\n" ".specs/${ir_change}/.independent-review-${ir_phase}.done"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+  fi
+fi
+
 # ── Read fields ─────────────────────────────────────────────────────
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
 phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null)
