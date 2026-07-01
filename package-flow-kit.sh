@@ -47,7 +47,7 @@ validate_staging_coverage() {
   done
 
   echo "   解析 Part C (Hook 系统)..."
-  for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh; do
+  for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh "$BUNDLE_DIR/hooks/pre-tool-use/"*.sh; do
     [ -f "$pattern" ] && EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$pattern")
   done
 
@@ -225,6 +225,8 @@ cp "$HOOK_SRC/stop/24-session.sh"          "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/25-project.sh"         "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/26-workflow.sh"        "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/27-interactive-ui-check.sh" "$STAGING/hooks/stop/"
+cp "$HOOK_SRC/stop/28-weak-model-compliance.sh" "$STAGING/hooks/stop/"
+cp "$HOOK_SRC/stop/29-independent-review.sh" "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/30-ai-analyze.sh"      "$STAGING/hooks/stop/"
 cp "$HOOK_SRC/stop/99-report.sh"          "$STAGING/hooks/stop/"
 
@@ -234,10 +236,17 @@ cp "$HOOK_SRC/stop/lib/common.sh"              "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/flow-kit-artifacts.sh"   "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/transcript-parser.sh"    "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/interactive-ui-check.sh" "$STAGING/hooks/stop/lib/"
+cp "$HOOK_SRC/stop/lib/weak-model-compliance.sh" "$STAGING/hooks/stop/lib/"
 
 # SessionStart hook 脚本
 cp "$HOOK_SRC/session-start/flow-kit-resume.sh"       "$STAGING/hooks/session-start/"
 cp "$HOOK_SRC/session-start/stop-report-reminder.sh"   "$STAGING/hooks/session-start/"
+
+# PreToolUse hook 脚本
+mkdir -p "$STAGING/hooks/pre-tool-use"
+if [ -f "$HOOK_SRC/pre-tool-use/independent-review-gate.sh" ]; then
+  cp "$HOOK_SRC/pre-tool-use/independent-review-gate.sh" "$STAGING/hooks/pre-tool-use/"
+fi
 
 # 模块设计文档
 if [ -f "$HOOK_SRC/MODULE_IDEAS.md" ]; then
