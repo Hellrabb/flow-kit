@@ -154,6 +154,15 @@ file_not_empty() { [[ -f "$1" && -s "$1" ]]; }
 # Count lines in file, 0 if missing
 line_count() { wc -l < "$1" 2>/dev/null || echo "0"; }
 
+# Atomically apply a jq filter to a JSON file (write to .tmp then mv).
+# Usage: jq_atomic_write '<jq filter>' <target_file>
+# Returns: 0 on success, 1 on failure (file unchanged)
+jq_atomic_write() {
+  local filter="$1" target="$2"
+  if [[ ! -f "$target" ]]; then return 1; fi
+  jq "$filter" "$target" > "${target}.tmp" 2>/dev/null && mv "${target}.tmp" "$target" || return 1
+}
+
 # ── Git helpers ─────────────────────────────────────────────────────
 # Run git command if in a git repo
 git_safe() {
@@ -197,3 +206,14 @@ GOTCHA_PATTERNS=(
 : "${REPORT_FILE:=}"
 : "${SUGGESTIONS_FILE:=}"
 : "${STATE_FILE:=}"
+
+# ── Hook module registry (single source of truth) ────────────────────
+# All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
+# Single source for install_hooks.sh, package-flow-kit.sh, and any
+# future script that needs to enumerate all stop hook modules.
+declare -a HOOK_MODULE_NAMES=(
+  00-gate 01-transcript-parse
+  20-claude-md 21-memory 22-git 23-quality 24-session 25-project
+  26-workflow 27-interactive-ui-check 28-weak-model-compliance
+  29-independent-review 30-ai-analyze 99-report
+)

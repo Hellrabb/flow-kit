@@ -108,6 +108,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | `.flow-active.correction` | 统一矫正文件（JSON，不入库）：用 `type` 字段区分违规类型（`compliance` / `interactive-ui`），含 `layer`（L1/L2/L3）、`violations` 数组、`written_at` 时间戳。v1 仅 `28-weak-model-compliance.sh` 写入 `compliance` 类型；`27-interactive-ui-check.sh` 暂保持旧文件，v2 迁移。SessionStart 同时处理两个矫正文件 |
 | L1 hook 层规则合规检测 | Stop hook 对 transcript 中模型回复做规则合规扫描——grep 触碰 CONTEXT.md 禁动清单路径 + 违反 RULES.md/SYSTEM.md 通用禁动规则（如"禁止编造文件路径"）。属 28 号模块 L1 层 |
 | L3 hook 层证据链检测 | Stop hook 验证模型回复中引用的文件路径/API 名/字段名是否在 transcript 工具调用历史中出现过——未出现则判定为幻觉引用。属 28 号模块 L3 层，是对 prompt 层 L3 护栏（grep-before-cite）的系统级兜底 |
+| HOOK_MODULE_NAMES | `common.sh` 中定义的共享 hook 模块名数组（`declare -a HOOK_MODULE_NAMES=(00-gate 01-transcript-parse ... 99-report)`）。`install_hooks.sh` 和 `package-flow-kit.sh` 均引用此数组，消除两处重复维护 |
+| PHASE_ARTIFACTS | `flow-kit-artifacts.sh` 中定义的关联数组（`declare -A`），将 phase 映射到其必须产物列表。`fk_artifact_check()` 据此查表驱动，替代硬编码分支判断 |
+| correction-file.sh | 新建的通用 JSON correction file 管理 lib（`hooks/stop/lib/correction-file.sh`），提供 `correction_file_write()` / `correction_file_read()` / `correction_file_clear()` / `correction_file_exists()` 四个函数。`interactive-ui-check.sh` 和 `weak-model-compliance.sh` 均调用此 lib，消除结构重复 |
+| sweep-fix-2026-07 | 2026-07 全量健康扫描（68/100）的修复 change，消除 1🔴 + 3🟡 + 2🟢 共 6 项技术债 |
 
 ## 已锁决策
 

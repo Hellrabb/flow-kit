@@ -80,3 +80,4 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 
 194/194 tests pass（24 new + 162 existing + 8 regression demo）
 | 2026-07-01 | independent-review | L2 盲审 + L3 hook 强制独立 review（1/2/6 阶段，默认关闭）| — |
+| 2026-07-01 | sweep-fix-2026-07 | 修复全量健康扫描 6 项技术债（hook列表去重/查表驱动/correction统一/bats安装/格式审计/注释） | — |

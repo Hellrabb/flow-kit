@@ -11,6 +11,9 @@
 # 'set -e' interacts badly with for-loops over associative arrays
 # when grep -q returns non-zero inside an if-condition (pipefail kills the loop).
 
+# shellcheck source=/dev/null
+source "${HOOK_BASE_DIR}/lib/correction-file.sh" 2>/dev/null || true
+
 # ── Correction file path ──────────────────────────────────────────────
 # Default: <project>/.flow-active.interactive-ui-fix (JSON, gitignored)
 : "${CORRECTION_FILE:=}"
@@ -143,6 +146,8 @@ detect_interaction_skip() {
 }
 
 # ── Correction file management ─────────────────────────────────────────
+# Delegates to correction-file.sh for JSON read/write/clear/exists.
+# Business logic (retry_count tracking) stays here.
 
 # Set the correction file path (call before write/read/clear)
 # Defaults to PROJECT_ROOT/.flow-active.interactive-ui-fix
@@ -165,55 +170,47 @@ write_correction_file() {
 
   # Read existing retry_count (increment if file exists)
   local retry_count=0
-  if [[ -f "$CORRECTION_FILE" ]]; then
+  if correction_file_exists "$CORRECTION_FILE"; then
     retry_count=$(jq -r '.retry_count // 0' "$CORRECTION_FILE" 2>/dev/null || echo "0")
     retry_count=$((retry_count + 1))
   fi
 
-  # Build JSON with jq
-  jq -n \
+  # Build JSON and delegate write to correction-file.sh (overwrite strategy)
+  local json
+  json=$(jq -n \
     --arg gate_type "$gate_type" \
     --arg required_tool "$required_tool" \
     --arg timestamp "$timestamp" \
     --argjson retry_count "$retry_count" \
-    '{
-      gate_type: $gate_type,
-      required_tool: $required_tool,
-      retry_count: $retry_count,
-      timestamp: $timestamp
-    }' > "$CORRECTION_FILE"
+    '{gate_type: $gate_type, required_tool: $required_tool, retry_count: $retry_count, timestamp: $timestamp}')
+  correction_file_write "$CORRECTION_FILE" "$json" "overwrite" || return 1
 
   echo "[interactive-ui-check] Correction file written: gate=${gate_type} tool=${required_tool} retry=${retry_count}"
   return 0
 }
 
-# Read correction file, return JSON
+# Read correction file, return JSON (delegates to correction-file.sh)
 read_correction_file() {
   if [[ -z "${CORRECTION_FILE:-}" ]]; then
     return 1
   fi
-  if [[ ! -f "$CORRECTION_FILE" ]]; then
-    return 1
-  fi
-  cat "$CORRECTION_FILE"
-  return 0
+  correction_file_read "$CORRECTION_FILE"
 }
 
-# Clear correction file
+# Clear correction file (delegates to correction-file.sh)
 clear_correction_file() {
   if [[ -z "${CORRECTION_FILE:-}" ]]; then
     return 1
   fi
-  rm -f "$CORRECTION_FILE"
-  return 0
+  correction_file_clear "$CORRECTION_FILE"
 }
 
-# Check if correction file exists and is valid JSON
+# Check if correction file exists and is valid JSON (delegates to correction-file.sh)
 has_correction_file() {
   if [[ -z "${CORRECTION_FILE:-}" ]]; then
     return 1
   fi
-  [[ -f "$CORRECTION_FILE" ]] && jq empty "$CORRECTION_FILE" 2>/dev/null
+  correction_file_exists "$CORRECTION_FILE"
 }
 
 # Get the retry count from an existing correction file
