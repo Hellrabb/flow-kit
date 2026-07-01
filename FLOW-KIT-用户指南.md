@@ -823,7 +823,7 @@ Phase N+1 开始
 <a id="sec-7-stop-hook"></a>
 ## 7. Stop Hook 系统
 
-Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 13 个模块化脚本：
+Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 15 个模块化脚本，外加一个 PreToolUse hook 用于硬拦截：
 
 ### Hook 模块列表
 
@@ -840,8 +840,15 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 13 个模�
 | 26 | `26-workflow.sh` | 工作流 | G1 阶段门禁 / G2 产物完整性 / G3 未完成 task / G4 审查 backlog / G5 checkpoint 断层 |
 | 27 | `27-interactive-ui-check.sh` | 交互 UI 检测 | I1 检测弱模型跳过 AskUserQuestion/EnterPlanMode 交互 gate → 写入矫正文件 |
 | 28 | `28-weak-model-compliance.sh` | 弱模型合规 | W1 L1 规则合规（禁动清单+通用规则）/ W2 L2 自检完整性 / W3 L3 证据链真实性 → 写入统一矫正文件 |
+| 29 | `29-independent-review.sh` | 独立审查 (L3) | IR 调外部模型（deepseek-v4-flash）盲审阶段 1/2/6 产物，写 .flow-active.independent-review 握手 + INDEPENDENT-REVIEW-N.md |
 | 30 | `30-ai-analyze.sh` | AI 分析 | 将结构化数据提交给 AI 做深度分析（默认模型: deepseek-v4-flash） |
 | 99 | `99-report.sh` | 报告 | 生成 stop-hook-report.md + stop-hook-suggestions.md |
+
+### PreToolUse Hook（独立 Review Gate）
+
+| 脚本 | 触发条件 | 行为 |
+|------|---------|------|
+| `pre-tool-use/independent-review-gate.sh` | matcher: `Bash`，当前阶段 1/2/6 且 gate 开启且 `.independent-review-<phase>.done` 不存在 | 拦截 `git commit` / `gh pr create` / 改阶段的 jq，`exit 2` deny + stderr 提示。done 存在则放行。fail-open 原则（不确定就放行） |
 
 ### SessionStart Hook
 
@@ -850,7 +857,35 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 13 个模�
 
 ### 配置文件
 
-`stop-hook.json` 控制各模块的启用/禁用、检查项、AI 分析频率（默认每 5 次会话）、各阈值和输出路径。
+`stop-hook.json` 控制各模块的启用/禁用、检查项、AI 分析频率（默认每 5 次会话）、各阈值和输出路径。自 v2026-07 起新增 `independent_review` 和 `pre_tool_use_gates` 两块配置：
+
+- `independent_review.phases`: 项目级默认开启独立 review 的阶段列表（如 `["6-review"]`），非 pipeline 项目用此兜底
+- `independent_review.model`: L3 调用的外部模型（默认 `deepseek-v4-flash`）
+- `independent_review.max_failures_before_bypass`: L3 连续失败多少次后允许手动绕过（默认 3）
+- `pre_tool_use_gates.independent_review.enabled`: 是否启用 PreToolUse 硬拦截（默认 true）
+
+### 独立 Review 机制（L2 盲审 + L3 hook 强制）
+
+> **默认关闭**——用户通过 `/flow gate-config` 显式开启某阶段才跑，避免每个 change 付 token 成本。
+
+独立 review 为主 agent 的 self-review 提供**第二意见**，解决证实偏差和 sycophancy。覆盖三个阶段：
+
+- **阶段 1（需求）**: L2 盲审 REQUIREMENT.md 的 AC 可验证性和范围切分；L3 用外部模型独立审
+- **阶段 2（设计）**: L2 盲审 DESIGN.md 的 ADR 合理性和架构对齐；L3 独立审
+- **阶段 6（代码审查）**: L2 盲审 git diff 的 spec 合规和 6 维衰退风险；L3 独立审
+
+**L2（子 agent 盲审）**: 主 agent 用 Agent tool 派固化盲审子 agent（`qa-expert` / `architect-reviewer` / `code-reviewer`），prompt 原样注入 `L2-blind-review.md` 固化模板，**禁喂主 agent 自评/草稿**。子 agent 产四要素报告（Symptom/Source/Consequence/Remedy + 🔴🟡🟢）写入 `INDEPENDENT-REVIEW-<phase>.md` 的 L2 段。
+
+**L3（hook 强制 · 三道防线）**: 
+1. **PreToolUse 硬拦截**: 主 agent 尝试 git commit / gh pr / 切阶段时，若本阶段独立 review 未完成（无 `.independent-review-<phase>.done`），`exit 2` deny
+2. **fk_auto_phase gate**: 阻断 Stop hook 内部自动推进（`fk_auto_phase` 返回空）
+3. **pipeline auto_advance=false**: pipeline 模式强制需人工确认
+
+L3 的外部模型审查由 Stop 模块 `29-independent-review.sh` 自动完成，用户无需手动调度。审查结果写入 `INDEPENDENT-REVIEW-<phase>.md` 的 L3 段 + `.flow-active.independent-review` 握手文件，SessionStart 自动注入摘要。
+
+**done 标志**: L2 + L3 都完成后，主 agent 执行 `touch .specs/<id>/.independent-review-<phase>.done`，三道防线全部放行。
+
+**降级兜底**: L3 调用连续失败 ≥ 3 次 → Stop 报告提示"允许手动绕过"，可手动 touch done 继续，不卡死流水线。
 
 ---
 
@@ -1007,6 +1042,23 @@ brooks-lint 依赖 4 个外部 npm 工具，统称 **brooks-tools**：
 /brooks-health         # 全面健康检查
 /brooks-sweep          # 全库清扫 + 自动修复
 ```
+
+### 9.7 启用独立 Review
+
+```
+# 方式 A: 建 pipeline goal 时一次配齐三阶段
+/flow goal "完成退款功能并上线" --pipeline --from 1 \
+  --gate-config '{"1-requirement":"independent","2-design":"independent","6-review":"independent"}'
+
+# 方式 B: 中途单独开启某阶段
+/flow gate-config 6-review=independent
+/flow gate-config 2-design=off          # 关闭
+
+# 方式 C: 非 pipeline 项目（项目级默认）
+# 编辑 .claude/stop-hook.json → "independent_review": {"phases": ["6-review"]}
+```
+
+> 开启后进入该阶段 → AI 自动派 L2 盲审子 agent → Stop hook 自动跑 L3（外部模型）→ SessionStart 注入报告摘要 → 确认后写 done → 才能切阶段/commit。
 
 ---
 
