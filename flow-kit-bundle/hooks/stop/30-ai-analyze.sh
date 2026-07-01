@@ -85,13 +85,28 @@ PROMPT
 )
 
 # ── Call AI model ───────────────────────────────────────────────────
-model=$(config_get '.ai.model' "deepseek-v4-flash")
+# Model: env var (ANTHROPIC_DEFAULT_HAIKU_MODEL) > config > hardcoded default
+model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-$(config_get '.ai.model' "deepseek-v4-flash")}"
 
-# Use OneCLI proxy if available, otherwise try direct API
+# API path: direct $ANTHROPIC_BASE_URL (primary) → onecli (optional) → legacy key (fallback)
 ai_response=""
+base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
 
-# Try OneCLI gateway first (preferred — credentials managed)
-if command -v onecli &>/dev/null; then
+# Path 1: Direct API call (env-var-first — uses user's configured endpoint)
+if [ -n "$auth_token" ]; then
+  ai_response=$(curl -s "${base_url}/v1/messages" \
+    -H "Authorization: Bearer ${auth_token}" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg prompt "$prompt" --arg model "$model" '{
+      model: $model,
+      max_tokens: 1000,
+      messages: [{role: "user", content: $prompt}]
+    }')" 2>/dev/null || true)
+fi
+
+# Path 2: onecli proxy fallback (optional — only if installed)
+if [ -z "$ai_response" ] && command -v onecli &>/dev/null; then
   ai_response=$(onecli proxy curl -s https://api.anthropic.com/v1/messages \
     -H "Content-Type: application/json" \
     -d "$(jq -n --arg prompt "$prompt" --arg model "$model" '{
@@ -101,8 +116,8 @@ if command -v onecli &>/dev/null; then
     }')" 2>/dev/null || true)
 fi
 
-# Fallback: check if ANTHROPIC_API_KEY is available directly
-if [[ -z "$ai_response" && -n "${ANTHROPIC_API_KEY:-}" ]]; then
+# Path 3: Legacy ANTHROPIC_API_KEY direct (backward compat)
+if [ -z "$ai_response" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   ai_response=$(curl -s https://api.anthropic.com/v1/messages \
     -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "Content-Type: application/json" \

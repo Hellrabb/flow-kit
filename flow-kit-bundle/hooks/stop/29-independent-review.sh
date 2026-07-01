@@ -38,8 +38,10 @@ max_chars=$(config_get '.independent_review.max_artifact_chars' "20000")
 [[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=20000
 max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
+# Model: env var (ANTHROPIC_DEFAULT_HAIKU_MODEL) > config > hardcoded default
 default_model=$(config_get '.ai.model' "deepseek-v4-flash")
-model=$(config_get '.independent_review.model' "$default_model")
+configured_model=$(config_get '.independent_review.model' "$default_model")
+model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-$configured_model}"
 [ -n "$model" ] || model="deepseek-v4-flash"
 
 # ── Gate 4: 幂等——本阶段 L3 已成功就跳过 ──
@@ -109,14 +111,29 @@ prompt_text=$(jq -nr \
   --arg artifact "$artifact" \
   '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n工件（阶段 " + $phase + "）：\n" + $artifact + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。"')
 
-# ── 调外部模型（onecli proxy 优先，直连兜底）──
+# ── 调外部模型（直连 $ANTHROPIC_BASE_URL 优先，onecli 可选 fallback）──
 ai_response=""
-if command -v onecli &>/dev/null; then
+base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
+
+# Path 1: Direct API call (env-var-first — uses user's configured endpoint)
+if [ -n "$auth_token" ]; then
+  ai_response=$(curl -s "${base_url}/v1/messages" \
+    -H "Authorization: Bearer ${auth_token}" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
+      '{model:$m, max_tokens:2000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+fi
+
+# Path 2: onecli proxy fallback (optional — only if installed)
+if [ -z "$ai_response" ] && command -v onecli &>/dev/null; then
   ai_response=$(onecli proxy curl -s https://api.anthropic.com/v1/messages \
     -H "Content-Type: application/json" \
     -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
       '{model:$m, max_tokens:2000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
 fi
+
+# Path 3: Legacy ANTHROPIC_API_KEY direct (backward compat)
 if [ -z "$ai_response" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   ai_response=$(curl -s https://api.anthropic.com/v1/messages \
     -H "x-api-key: $ANTHROPIC_API_KEY" \

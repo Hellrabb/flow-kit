@@ -127,14 +127,32 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
      ```
      注：phase_sub_goals 仍按 4/5/6/7 存储（与 pipeline 执行链后半段对应的 sub-goal）。若 FROM > 4（如 FROM=5），则 sub4 为空串不展示。
-   - 有 `--pipeline` + `--gate-config '<JSON>'` → 同上 + gate_config：
+   - 有 `--pipeline` + `--gate-config '<VALUE>'` → 同上 + gate_config。解析策略（三段式 auto-detect）：
+
+     **第一段：解析 gate_config 值**（`resolve_gate_config()`）：
      ```bash
-     # 先验证 JSON 有效
-     echo "$GATE_JSON" | jq empty || { echo "❌ gate-config JSON 无效"; exit 1; }
-     # 校验 gate_config keys：接受阶段名（1-requirement / 2-design / 6-review）或 transition key（如 4→5）
-     # 阶段名 key 的值 independent/true = 开启该阶段独立 review（L2 盲审 + L3 外部模型）；
-     # transition key 控制阶段间门禁级别（critical/warn/ignore）。两者可共存于同一 gate_config。
-     # 再写入
+     # 预设名映射表（PRESET_MAP）
+     # full               → {"1-requirement":"independent","2-design":"independent","6-review":"independent"}
+     # code-only          → {"6-review":"independent"}
+     # review             → {"6-review":"independent"}   (code-only 别名)
+     # design             → {"2-design":"independent"}
+     # requirement        → {"1-requirement":"independent"}
+     # plan               → {"1-requirement":"independent","2-design":"independent"}
+     # design-review      → {"2-design":"independent","6-review":"independent"}
+     # requirement-review → {"1-requirement":"independent","6-review":"independent"}
+     #
+     # 数字映射：1→"1-requirement"  2→"2-design"  6→"6-review"
+
+     # 三段式 auto-detect：
+     # a. echo "$VALUE" | jq -e 'type == "object"' 成功 → 合法 JSON 对象 → 直接使用（向后兼容）
+     #    （注意：必须是 object 类型——"6"/"1" 等裸数字也是合法 JSON，会被误拦截，需 type check）
+     # b. VALUE 匹配预设名 → 查 PRESET_MAP 映射为 JSON
+     # c. VALUE 匹配 /^[0-9](,[0-9])*$/ → 拆分逗号，逐数字映射，合成 JSON（如 "1,2"→{"1-requirement":"independent","2-design":"independent"}）
+     # d. 以上都不匹配 → ❌ 报错并列出可用预设名
+     ```
+
+     **第二段：写入 goal**（与原逻辑一致，`$GATE_JSON` 替换为解析结果）：
+     ```bash
      GATES_JSON=$(jq -n --arg from "$FROM" \
        '[range($from|tonumber; 7) | "\(.)→\(.+1)"] | reduce .[] as $k ({}; .[$k] = "pending")')
      jq --arg cond "$condition" --arg ts "$(date -Iseconds)" --arg from "$FROM" \
