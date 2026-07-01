@@ -259,9 +259,23 @@ Pipeline goal 将 goal 从**单阶段自循环**扩展到**跨阶段自动推进
 # 从阶段 0 起步（全链路）
 /flow goal "CHANGE.md confirmed AND all tests pass" --pipeline --from 0
 
-# 自定义门禁配置
-/flow goal "docs updated" --pipeline --from 0 --gate-config '{"2→3": "skip", "5→6": "manual"}'
+# 自定义门禁配置（两种 key 类型可共存）
+/flow goal "docs updated" --pipeline --from 0 \
+  --gate-config '{"1-requirement":"independent","2-design":"independent","6-review":"independent"}'
+#                                                               ^^^^^^^^^^^^                    ^^^^^^^^
+#                                       阶段名 key → 开启独立 review (L2+L3)       transition key → 门禁级别
+#                                       可选值: independent / true / off / false   可选值: critical / warn / ignore
 ```
+```
+
+**`--gate-config` 接受两类 key**：
+
+| Key 类型 | 格式 | 示例 | 用途 | 有效值 |
+|----------|------|------|------|--------|
+| **阶段名 key** | `1-requirement` / `2-design` / `6-review` | `"6-review":"independent"` | 开启该阶段独立 review（L2 盲审 + L3 外部模型），阻止 commit/PR/切阶段直到 done | `independent` / `true`（开启）<br>`off` / `false`（关闭） |
+| **Transition key** | `N→N+1`（如 `4→5`） | `"4→5":"critical"` | 控制阶段间 toll-gate 门禁级别 | `critical`（阻断 pipeline）<br>`warn`（提示但不阻断）<br>`ignore`（跳过该 gate） |
+
+两类 key 可在同一个 `--gate-config` JSON 中并存，互不冲突。
 
 **执行链**：由 `--from <n>` 决定起始阶段（0-7，默认 4），AI 在每个阶段完成后自动推进到下一阶段。
 
@@ -1043,22 +1057,43 @@ brooks-lint 依赖 4 个外部 npm 工具，统称 **brooks-tools**：
 /brooks-sweep          # 全库清扫 + 自动修复
 ```
 
-### 9.7 启用独立 Review
+### 9.7 gate-config 门禁配置
+
+`--gate-config` 接受 JSON，内含两类 key（详见 §4.1.2 Pipeline Goal 的表格）：
+
+| Key 类型 | 键值格式 | 用途 | 有效值 |
+|----------|---------|------|--------|
+| 阶段名 | `1-requirement` / `2-design` / `6-review` | 开启独立 review（L2+L3） | `independent` / `true` / `off` / `false` |
+| Transition | `N→N+1`（如 `4→5`） | 控制 toll-gate 门禁级别 | `critical` / `warn` / `ignore` |
+
+#### 启用独立 Review
 
 ```
 # 方式 A: 建 pipeline goal 时一次配齐三阶段
 /flow goal "完成退款功能并上线" --pipeline --from 1 \
   --gate-config '{"1-requirement":"independent","2-design":"independent","6-review":"independent"}'
 
-# 方式 B: 中途单独开启某阶段
+# 方式 B: 中途单独开启/关闭某阶段（无需重建 goal）
 /flow gate-config 6-review=independent
-/flow gate-config 2-design=off          # 关闭
+/flow gate-config 2-design=off
 
 # 方式 C: 非 pipeline 项目（项目级默认）
 # 编辑 .claude/stop-hook.json → "independent_review": {"phases": ["6-review"]}
 ```
 
 > 开启后进入该阶段 → AI 自动派 L2 盲审子 agent → Stop hook 自动跑 L3（外部模型）→ SessionStart 注入报告摘要 → 确认后写 done → 才能切阶段/commit。
+
+#### 调整 Toll-Gate 门禁级别
+
+```
+# 将 4→5（DEV→TEST）的 gate 从默认 critical 降为 warn（提示但不阻断）
+/flow goal "..." --pipeline --from 4 --gate-config '{"4→5":"warn"}'
+
+# 跳过某个阶段的 gate（如 3→4 不设门禁）
+/flow goal "..." --pipeline --from 0 --gate-config '{"3→4":"ignore"}'
+```
+
+> 默认所有 transition gate 为 `critical`（阻断 pipeline），可通过 transition key 降级。
 
 ---
 
