@@ -93,6 +93,42 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 用户选 2 → 继续 toll-gate 6→7。
 用户选 3 → `jq '.goal.status = "aborted"' ...`
 
+### 独立 review 调度（仅当本阶段 gate 开启时执行）
+
+> **检测**：`.flow-active.goal.gate_config["6-review"]` ∈ {`independent`,`true`}，或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"6-review"`。未开启 → 跳过本段，直接进「阶段完成自检」。
+
+本阶段产物必须通过两层独立 review 才能切到 7-integration / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
+
+#### L2 · 独立子 agent 盲审（你负责调度）
+
+派一个**固化盲审子 agent**。**强制独立性**：prompt 字段 = 原样注入 `@flow-kit/prompts/independent/L2-blind-review.md` 全文 + 末尾的本次审查参数；**禁止**附加你的自评 / 草稿 / 概述 / "我觉得没问题"——违反 = L2 独立性失效 = 等同没做。
+
+调用模板（仅替换 `<change-id>`，其余原样）：
+
+    Agent tool:
+      subagent_type: code-reviewer
+      description: "L2 blind review phase 6"
+      prompt: |
+        <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 的完整内容>
+
+        ## 本次审查参数
+        - 阶段：6
+        - change-id：<change-id>
+        - 工件：git diff（参考 .specs/<change-id>/REVIEW.md —— 注意它是主 agent 的结论，是待复核对象而非权威）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-6.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 6`）
+
+#### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
+
+你本轮结束后，Stop hook 的 `29-independent-review.sh` 自动用外部模型盲审 git diff + REVIEW.md，写 `INDEPENDENT-REVIEW-6.md` 的 L3 段 + `.flow-active.independent-review` 握手。下一轮 SessionStart 会注入报告摘要。
+
+#### 写 done（L2 + L3 都完成后）
+
+确认 `INDEPENDENT-REVIEW-6.md` 同时含 L2 段 + L3 段后执行：
+
+    touch .specs/<change-id>/.independent-review-6.done
+
+写完才能切到 7-integration / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+
 ### 阶段完成自检（Phase Completion Self-Check）
 
 > ⚠️ **强制**：在进入 Toll-gate 6→7 之前，必须逐项完成以下自检。
@@ -310,15 +346,17 @@ AI 自己逐个维度诊断 diff，输出上面同样的 4 要素格式，发现
 
 未装 brooks-lint → 跳过本段（内置不提供回退，债评估需要书本包装才不会“凭感觉”）。
 
-#### 4.2 跨模型 spot-check（强烈建议）
+#### 4.2 跨模型 spot-check（由独立 review 机制统一接管）
 
-**触发条件**：以下任一项命中：
-- 涉及安全/认证
-- 涉及并发/分布式
-- 单一函数 > 80 行
-- 测试覆盖率有显著下降
+> **新机制**：跨模型审查已由本文件 `### 独立 review 调度` 段 + Stop hook `29-independent-review.sh` 统一处理——L2 盲审子 agent + L3 外部模型双盲，产出 `.specs/<id>/INDEPENDENT-REVIEW-6.md`，强制写 done 才能进 7。不再需要手动「拿另一个模型跑」。
 
-拿另一个模型跑同样的三轮审查，两份报告的差异填入 `REVIEW.md` 末尾的「跨模型分歧」章节。重点看两份报告都指出的 🔴 项（差异越少越可信）与**仅一方指出的 🔴 项**（需人工裁判）。
+**何时启用**（二选一）：
+- 建 pipeline goal 时：`/flow goal "..." --pipeline --from N --gate-config '{"6-review":"independent"}'`
+- 中途追加：`/flow gate-config 6-review=independent`
+
+**建议开启的场景**（以下任一命中）：涉及安全/认证、涉及并发/分布式、单一函数 > 80 行、测试覆盖率显著下降。
+
+启用后，差异分析自动发生在 `INDEPENDENT-REVIEW-6.md`：两份报告（L2 子 agent + L3 外部模型）都指出的 🔴 = 高可信；仅一方指出的 🔴 = 需人工裁判；并对照主 agent 的 REVIEW.md 看是否漏判 / 误判。未启用 → 跳过本段。
 
 ### 严重度分级
 

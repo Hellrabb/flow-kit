@@ -130,6 +130,51 @@ fk_artifact_check() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
+# Independent review gate (L2/L3 独立 review)
+# ═══════════════════════════════════════════════════════════════════════
+
+# Usage: fk_independent_review_gate_active <phase>
+# Returns: 0 (true) = gate 生效（应阻止阶段推进）；1 (false) = 放行
+# gate 生效当且仅当：phase∈{1,2,6} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
+# gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {independent,true} 优先，
+#                 回退 .claude/stop-hook.json 的 independent_review.phases 数组含该阶段名。
+fk_independent_review_gate_active() {
+  local phase="$1"
+  local flow_file="${PROJECT_ROOT}/.flow-active"
+  [[ -f "$flow_file" ]] || return 1
+  [[ "$phase" =~ ^(1|2|6)$ ]] || return 1
+
+  local change_id
+  change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
+  [[ "$change_id" != "none" && "$change_id" != "null" ]] || return 1
+
+  local phase_name
+  case "$phase" in
+    1) phase_name="1-requirement" ;;
+    2) phase_name="2-design" ;;
+    6) phase_name="6-review" ;;
+    *) return 1 ;;
+  esac
+
+  # 双源读 gate
+  local gate_on=""
+  gate_on=$(jq -r --arg pn "$phase_name" \
+    '.goal.gate_config[$pn] // empty' "$flow_file" 2>/dev/null || echo "")
+  if [[ "$gate_on" != "independent" && "$gate_on" != "true" ]]; then
+    local cfg="${PROJECT_ROOT}/.claude/stop-hook.json"
+    if [[ -f "$cfg" ]] && jq -e --arg pn "$phase_name" \
+        '.independent_review.phases // [] | index($pn)' "$cfg" >/dev/null 2>&1; then
+      gate_on="independent"
+    fi
+  fi
+  [[ "$gate_on" == "independent" || "$gate_on" == "true" ]] || return 1
+
+  # gate 开启：done 标志存在则放行（return 1），不存在则 gate 生效（return 0）
+  local done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
+  [[ ! -f "$done_marker" ]]
+}
+
+# ═══════════════════════════════════════════════════════════════════════
 # Auto phase transition detection
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -138,6 +183,11 @@ fk_artifact_check() {
 fk_auto_phase() {
   local change_id="$1" phase="$2"
   local spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
+
+  # 独立 review gate：本阶段开启独立 review 且未完成 → echo 空，阻断 check_g1 自动推进
+  if fk_independent_review_gate_active "$phase"; then
+    return 0
+  fi
 
   case "$phase" in
     1)

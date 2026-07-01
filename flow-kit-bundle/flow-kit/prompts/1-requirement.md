@@ -65,6 +65,44 @@
 
 ---
 
+## 独立 review 调度（仅当本阶段 gate 开启时执行）
+
+> **检测**：`.flow-active.goal.gate_config["1-requirement"]` ∈ {`independent`,`true`}，或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"1-requirement"`。未开启 → 跳过本段，直接进「阶段完成自检」。
+
+本阶段产物必须通过两层独立 review 才能切阶段 / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
+
+### L2 · 独立子 agent 盲审（你负责调度）
+
+派一个**固化盲审子 agent**。**强制独立性**：prompt 字段 = 原样注入 `@flow-kit/prompts/independent/L2-blind-review.md` 全文 + 末尾的本次审查参数；**禁止**附加你的自评 / 草稿 / 概述 / "我觉得没问题"——违反 = L2 独立性失效 = 等同没做。
+
+调用模板（仅替换 `<change-id>`，其余原样）：
+
+    Agent tool:
+      subagent_type: qa-expert
+      description: "L2 blind review phase 1"
+      prompt: |
+        <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 的完整内容>
+
+        ## 本次审查参数
+        - 阶段：1
+        - change-id：<change-id>
+        - 工件：读 .specs/<change-id>/REQUIREMENT.md（参考 .specs/<change-id>/CHANGE.md）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-1.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 1`）
+
+### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
+
+你本轮结束后，Stop hook 的 `29-independent-review.sh` 自动用外部模型盲审同一工件，写 `INDEPENDENT-REVIEW-1.md` 的 L3 段 + `.flow-active.independent-review` 握手。下一轮 SessionStart 会注入报告摘要（verdict + 报告路径）。
+
+### 写 done（L2 + L3 都完成后）
+
+确认 `INDEPENDENT-REVIEW-1.md` 同时含 L2 段 + L3 段后执行：
+
+    touch .specs/<change-id>/.independent-review-1.done
+
+写完才能切阶段 / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+
+---
+
 ## 阶段完成自检（Phase Completion Self-Check）
 
 > ⚠️ **强制**：在进入 Pipeline Toll-Gate 之前，必须逐项完成以下自检。
