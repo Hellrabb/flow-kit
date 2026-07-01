@@ -261,7 +261,11 @@ Pipeline goal 将 goal 从**单阶段自循环**扩展到**跨阶段自动推进
 
 # 自定义门禁配置（两种 key 类型可共存）
 /flow goal "docs updated" --pipeline --from 0 \
-  --gate-config '{"1-requirement":"independent","2-design":"independent","6-review":"independent"}'
+  --gate-config '{"1-requirement":"independent","6-review":"independent"}'
+
+# 同时使用两种 key 的示例：
+/flow goal "..." --pipeline --from 4 \
+  --gate-config '{"6-review":"independent","4→5":"warn"}'
 ```
 
 **`--gate-config` 接受两类 key**：
