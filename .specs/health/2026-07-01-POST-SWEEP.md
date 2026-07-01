@@ -1,15 +1,15 @@
 # Brooks-Lint Health Dashboard
 
-**Mode:** Health Dashboard（sweep-fix 修复后确认评分）
+**Mode:** Health Dashboard（sweep-fix + test-harden 修复后确认评分）
 **Scope:** flow-kit 全量代码库
-**Composite Score:** 91/100
-**Baseline:** 68/100 (2026-07-01 Full Sweep) → **+23 ↑**
+**Composite Score:** 92/100
+**Baseline:** 68/100 (2026-07-01 Full Sweep) → **+24 ↑**
 
 | 维度 | 分数 | Top Finding |
 |------|------|-------------|
 | 架构 | 95/100 | 依赖方向正确，HOOK_MODULE_NAMES 单一来源 |
 | 技术债 | 90/100 | 1 项已知残留（package-flow-kit.sh v2 范围） |
-| 测试 | 85/100 | bats 1.13.0 已安装，+3 新测试文件，201 断言 |
+| 测试 | 90/100 | bats 1.13.0 + 12 个真实 hook 执行测试 + 201 总断言 |
 
 > PR 维度跳过（无未提交变更）。权重重分配：Arch 0.40 / Debt 0.33 / Test 0.27。
 
@@ -81,12 +81,10 @@ graph TD
 - **Consequence**: 新增 Part 或修改 staging 逻辑仍需通读全文件。当前可维护但不理想。
 - **Remedy**: v2 拆分为 `lib/package-part-*.sh` 模块，类似 hook 管道模式。
 
-### 🟢 Minor — 新增 SessionStart 测试为骨架级
+### ~~🟢 Minor — 新增 SessionStart 测试为骨架级~~ ✅ 已修复 (test-harden-sessionstart)
 
-- **Symptom**: `test_flow_kit_resume.bats` 和 `test_stop_report_reminder.bats` 仅验证 JSON 字段存在性，未覆盖 hook 的实际执行逻辑。
-- **Source**: Meszaros — xUnit Test Patterns — Lazy Test
-- **Consequence**: 低风险——当前断言覆盖关键分支的**数据源**，hook 的执行逻辑由 bash -n 语法门禁兜底。
-- **Remedy**: 后续迭代补充 mock hook 环境的集成级 bats 用例（需要构造 TRANSCRIPT_PATH + HOOK_EVENT stdin）。
+- ~~Symptom~~ → 已升级为真实 hook 执行测试: `test_flow_kit_resume.bats` 7 用例 + `test_stop_report_reminder.bats` 5 用例，全部 source hook 脚本 + mock stdin JSON + stdout 断言。
+- Commit: `61e72d4` test(harden): SessionStart 测试从骨架升级为真实 hook 执行测试
 
 ---
 
