@@ -14,6 +14,9 @@
 # NOTE: intentionally NOT using 'set -euo pipefail' here.
 # This is a sourced library — the calling script sets its own flags.
 
+# shellcheck source=/dev/null
+source "${HOOK_BASE_DIR}/lib/correction-file.sh" 2>/dev/null || true
+
 # ── Correction file path ──────────────────────────────────────────────
 : "${COMPLIANCE_CORRECTION_FILE:=}"
 
@@ -46,6 +49,8 @@ L3_PATH_PREFIXES=(
 )
 
 # ── Correction file management ─────────────────────────────────────────
+# Delegates to correction-file.sh for JSON read/write/clear/exists.
+# Business logic (layer tagging, dedup by rule+location) stays here.
 
 init_compliance_correction_path() {
   local project_root="${1:-$PWD}"
@@ -57,10 +62,10 @@ has_compliance_correction() {
   if [[ -z "${COMPLIANCE_CORRECTION_FILE:-}" ]]; then
     return 1
   fi
-  [[ -f "$COMPLIANCE_CORRECTION_FILE" ]] && jq empty "$COMPLIANCE_CORRECTION_FILE" 2>/dev/null
+  correction_file_exists "$COMPLIANCE_CORRECTION_FILE"
 }
 
-# Merge-write correction: read old violations, append new (dedup by rule+location),
+# Merge-write correction: read old violations, append new (dedup by layer+rule+location),
 # write merged JSON with timestamp.
 write_compliance_correction() {
   local layer="$1"    # L1 | L2 | L3
@@ -72,7 +77,7 @@ write_compliance_correction() {
     return 1
   fi
 
-  # Build violations array for this layer
+  # Tag violations with layer
   local new_violations
   new_violations=$(echo "$violations_json" | jq -c --arg layer "$layer" \
     '[.[] | . + {layer: $layer}]' 2>/dev/null) || {
@@ -80,31 +85,29 @@ write_compliance_correction() {
     return 1
   }
 
-  # Read existing, merge, dedup by (layer, rule, location)
-  local merged
-  if [[ -f "$COMPLIANCE_CORRECTION_FILE" ]] && jq empty "$COMPLIANCE_CORRECTION_FILE" 2>/dev/null; then
-    local old_violations
-    old_violations=$(jq -c '.violations // []' "$COMPLIANCE_CORRECTION_FILE" 2>/dev/null || echo "[]")
-    merged=$(jq -nc \
-      --argjson old "$old_violations" \
-      --argjson new "$new_violations" \
-      '[($old[]?, $new[]?)] | unique_by({layer, rule, location})')
-  else
-    merged="$new_violations"
+  # Read existing violations from wrapper, merge, dedup by (layer, rule, location)
+  local existing_violations="[]"
+  if correction_file_exists "$COMPLIANCE_CORRECTION_FILE"; then
+    existing_violations=$(jq -c '.violations // []' "$COMPLIANCE_CORRECTION_FILE" 2>/dev/null || echo "[]")
   fi
 
-  jq -n \
+  local merged_violations
+  merged_violations=$(jq -nc \
+    --argjson existing "$existing_violations" \
+    --argjson new "$new_violations" \
+    '[($existing[]?), ($new[]?)] | unique_by({layer, rule, location})' 2>/dev/null) || merged_violations="$new_violations"
+
+  # Write wrapper object atomically (correction_file_write with overwrite)
+  local wrapper_json
+  wrapper_json=$(jq -n \
     --arg type "compliance" \
-    --argjson violations "$merged" \
+    --argjson violations "$merged_violations" \
     --arg timestamp "$timestamp" \
-    '{
-      type: $type,
-      violations: $violations,
-      written_at: $timestamp
-    }' > "$COMPLIANCE_CORRECTION_FILE"
+    '{type: $type, violations: $violations, written_at: $timestamp}')
+  correction_file_write "$COMPLIANCE_CORRECTION_FILE" "$wrapper_json" "overwrite" || return 1
 
   local count
-  count=$(echo "$merged" | jq 'length' 2>/dev/null || echo "?")
+  count=$(echo "$merged_violations" | jq 'length' 2>/dev/null || echo "?")
   echo "[weak-model-compliance] Correction file written: type=compliance layer=${layer} total_violations=${count}"
   return 0
 }
@@ -113,8 +116,7 @@ clear_compliance_correction() {
   if [[ -z "${COMPLIANCE_CORRECTION_FILE:-}" ]]; then
     return 1
   fi
-  rm -f "$COMPLIANCE_CORRECTION_FILE"
-  return 0
+  correction_file_clear "$COMPLIANCE_CORRECTION_FILE"
 }
 
 # ── Helper: extract forbidden paths from CONTEXT.md ────────────────────

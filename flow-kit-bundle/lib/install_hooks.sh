@@ -39,13 +39,17 @@ install_hooks() {
 
   echo "   安装到: $hook_dst"
 
-  # Stop hook 模块
-  for script in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
-                23-quality 24-session 25-project 26-workflow 27-interactive-ui-check \
-                28-weak-model-compliance 29-independent-review 30-ai-analyze 99-report; do
+  # Stop hook 模块（来源: common.sh::HOOK_MODULE_NAMES — 单一来源）
+  # shellcheck source=/dev/null
+  source "${SCRIPT_DIR}/hooks/stop/lib/common.sh" 2>/dev/null || {
+    echo "   ⚠️  common.sh 不可用，使用回退列表"
+    HOOK_MODULE_NAMES=(00-gate 01-transcript-parse 20-claude-md 21-memory 22-git 23-quality 24-session 25-project 26-workflow 27-interactive-ui-check 28-weak-model-compliance 29-independent-review 30-ai-analyze 99-report)
+  }
+  for script in "${HOOK_MODULE_NAMES[@]}"; do
     install_file "$SCRIPT_DIR/hooks/stop/${script}.sh" "$hook_dst/stop/${script}.sh"
     chmod +x "$hook_dst/stop/${script}.sh" 2>/dev/null || true
   done
+  unset HOOK_MODULE_NAMES
 
   # Stop hook 库文件
   for lib in common flow-kit-artifacts transcript-parser; do

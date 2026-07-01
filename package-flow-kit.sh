@@ -214,21 +214,25 @@ echo "📦 Part C: 打包 Stop Hook 系统..."
 
 HOOK_SRC="$SCRIPT_DIR/flow-kit-bundle/hooks"
 
-# Stop hook 模块脚本
-cp "$HOOK_SRC/stop/00-gate.sh"            "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/01-transcript-parse.sh" "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/20-claude-md.sh"       "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/21-memory.sh"          "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/22-git.sh"             "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/23-quality.sh"         "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/24-session.sh"          "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/25-project.sh"         "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/26-workflow.sh"        "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/27-interactive-ui-check.sh" "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/28-weak-model-compliance.sh" "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/29-independent-review.sh" "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/30-ai-analyze.sh"      "$STAGING/hooks/stop/"
-cp "$HOOK_SRC/stop/99-report.sh"          "$STAGING/hooks/stop/"
+# Stop hook 模块脚本（来源: common.sh::HOOK_MODULE_NAMES — 单一来源）
+# shellcheck source=/dev/null
+if source "$HOOK_SRC/stop/lib/common.sh" 2>/dev/null; then
+  for name in "${HOOK_MODULE_NAMES[@]}"; do
+    cp "$HOOK_SRC/stop/${name}.sh" "$STAGING/hooks/stop/"
+    HOOK_COUNT=$((HOOK_COUNT + 1))
+  done
+  unset HOOK_MODULE_NAMES
+else
+  echo "   ⚠️  common.sh 不可用，使用回退列表"
+  for name in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
+              23-quality 24-session 25-project 26-workflow 27-interactive-ui-check \
+              28-weak-model-compliance 29-independent-review 30-ai-analyze 99-report; do
+    cp "$HOOK_SRC/stop/${name}.sh" "$STAGING/hooks/stop/"
+    HOOK_COUNT=$((HOOK_COUNT + 1))
+  done
+fi
+HOOK_COUNT=${HOOK_COUNT:-14}
+echo "   ✅ ${HOOK_COUNT} 个 stop hook 模块已打包"
 
 # Stop hook 库文件
 mkdir -p "$STAGING/hooks/stop/lib"
@@ -237,6 +241,7 @@ cp "$HOOK_SRC/stop/lib/flow-kit-artifacts.sh"   "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/transcript-parser.sh"    "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/interactive-ui-check.sh" "$STAGING/hooks/stop/lib/"
 cp "$HOOK_SRC/stop/lib/weak-model-compliance.sh" "$STAGING/hooks/stop/lib/"
+cp "$HOOK_SRC/stop/lib/correction-file.sh"      "$STAGING/hooks/stop/lib/"
 
 # SessionStart hook 脚本
 cp "$HOOK_SRC/session-start/flow-kit-resume.sh"       "$STAGING/hooks/session-start/"

@@ -8,7 +8,7 @@
 # NOTE: Does NOT set -euo pipefail — this is a library, sourced by callers.
 # Callers (26-workflow.sh, etc.) are responsible for shell flags.
 
-readonly MIN_MEANINGFUL_LINES=3   # 少于此行数的文件视为无实质内容
+readonly MIN_MEANINGFUL_LINES=3   # 阈值:<3行的文件视为空壳(常见于仅shebang+空行的空模板/占位文件);≥3行才开始内容检验
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -41,90 +41,54 @@ fk_artifact_check() {
   local spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
   local missing=0
 
-  case "$phase" in
-    1)
-      if ! fk_file_nonempty "${spec_dir}/CHANGE.md"; then
-        echo "warning|G1|Phase ${phase} 但 CHANGE.md 缺失或为空 — 回 0-change 补齐"
+  # ── Phase → required artifacts map (cumulative semantics encoded) ──
+  # Each value lists files that must exist (non-empty) at that phase.
+  # Adding a phase: add ONE line here — no if/elif branches to touch.
+  declare -A PHASE_ARTIFACTS=(
+    ["1"]="CHANGE.md"
+    ["2"]="CHANGE.md REQUIREMENT.md"
+    ["2a"]="CHANGE.md REQUIREMENT.md"
+    ["3"]="REQUIREMENT.md DESIGN.md"
+    ["4"]="REQUIREMENT.md DESIGN.md TASK.md"
+    ["5"]="REQUIREMENT.md DESIGN.md TASK.md"
+    ["6"]="TEST.md"
+    ["7"]="REVIEW.md"
+  )
+
+  # Generic: check all table-defined required artifacts
+  local files="${PHASE_ARTIFACTS[$phase]:-}"
+  if [[ -n "$files" ]]; then
+    for f in $files; do
+      if ! fk_file_nonempty "${spec_dir}/${f}"; then
+        echo "warning|G1|Phase ${phase} 但 ${f} 缺失或为空"
         missing=1
       fi
-      ;;
-    2|2a)
-      if ! fk_file_nonempty "${spec_dir}/CHANGE.md"; then
-        echo "warning|G1|Phase ${phase} 但 CHANGE.md 缺失或为空"
-        missing=1
+    done
+  fi
+
+  # ── Conditional checks (table can't express these) ──────────────────
+
+  # Phase 4: check current task has SUMMARY (task_id lookup)
+  if [[ "$phase" == "4" ]]; then
+    local task_id
+    task_id=$(fk_flow_field "task_id" "")
+    if [[ -n "$task_id" && "$task_id" != "none" ]]; then
+      local summary_file="${spec_dir}/${task_id}-SUMMARY.md"
+      if [[ ! -f "$summary_file" ]]; then
+        echo "info|G1|当前 task ${task_id} 尚无 SUMMARY.md — 开发进行中"
       fi
-      if ! fk_file_nonempty "${spec_dir}/REQUIREMENT.md"; then
-        echo "warning|G1|Phase ${phase} 但 REQUIREMENT.md 缺失或为空 — 回 1-requirement 补齐"
-        missing=1
-      fi
-      ;;
-    3)
-      if ! fk_file_nonempty "${spec_dir}/REQUIREMENT.md"; then
-        echo "warning|G1|Phase ${phase} 但 REQUIREMENT.md 缺失或为空"
-        missing=1
-      fi
-      if ! fk_file_nonempty "${spec_dir}/DESIGN.md"; then
-        echo "warning|G1|Phase ${phase} 但 DESIGN.md 缺失或为空 — 回 2-design 补齐"
-        missing=1
-      fi
-      ;;
-    4)
-      if ! fk_file_nonempty "${spec_dir}/REQUIREMENT.md"; then
-        echo "warning|G1|Phase ${phase} 但 REQUIREMENT.md 缺失或为空"
-        missing=1
-      fi
-      if ! fk_file_nonempty "${spec_dir}/DESIGN.md"; then
-        echo "warning|G1|Phase ${phase} 但 DESIGN.md 缺失或为空"
-        missing=1
-      fi
-      if ! fk_file_nonempty "${spec_dir}/TASK.md"; then
-        echo "warning|G1|Phase ${phase} 但 TASK.md 缺失或为空 — 回 3-task 补齐"
-        missing=1
-      fi
-      # Check current task has SUMMARY
-      local task_id
-      task_id=$(fk_flow_field "task_id" "")
-      if [[ -n "$task_id" && "$task_id" != "none" ]]; then
-        local summary_file="${spec_dir}/${task_id}-SUMMARY.md"
-        if [[ ! -f "$summary_file" ]]; then
-          echo "info|G1|当前 task ${task_id} 尚无 SUMMARY.md — 开发进行中"
-        fi
-      fi
-      ;;
-    5)
-      if ! fk_file_nonempty "${spec_dir}/REQUIREMENT.md"; then
-        echo "warning|G1|Phase ${phase} 但 REQUIREMENT.md 缺失"
-        missing=1
-      fi
-      if ! fk_file_nonempty "${spec_dir}/DESIGN.md"; then
-        echo "warning|G1|Phase ${phase} 但 DESIGN.md 缺失"
-        missing=1
-      fi
-      if ! fk_file_nonempty "${spec_dir}/TASK.md"; then
-        echo "warning|G1|Phase ${phase} 但 TASK.md 缺失"
-        missing=1
-      fi
-      # Check for at least one SUMMARY
-      local summary_count
-      summary_count=$(find "$spec_dir" -name "*-SUMMARY.md" -type f 2>/dev/null | wc -l)
-      if [[ "$summary_count" -eq 0 ]]; then
-        echo "warning|G1|Phase ${phase} 但没有任何 SUMMARY.md — 回 4-dev 补齐"
-        missing=1
-      fi
-      ;;
-    6)
-      if ! fk_file_nonempty "${spec_dir}/TEST.md"; then
-        echo "warning|G1|Phase ${phase} 但 TEST.md 缺失或为空 — 回 5-test 补齐"
-        missing=1
-      fi
-      ;;
-    7)
-      if ! fk_file_nonempty "${spec_dir}/REVIEW.md"; then
-        echo "warning|G1|Phase ${phase} 但 REVIEW.md 缺失或为空 — 回 6-review 补齐"
-        missing=1
-      fi
-      ;;
-  esac
+    fi
+  fi
+
+  # Phase 5: check for at least one SUMMARY (find + wc)
+  if [[ "$phase" == "5" ]]; then
+    local summary_count
+    summary_count=$(find "$spec_dir" -name "*-SUMMARY.md" -type f 2>/dev/null | wc -l)
+    if [[ "$summary_count" -eq 0 ]]; then
+      echo "warning|G1|Phase ${phase} 但没有任何 SUMMARY.md — 回 4-dev 补齐"
+      missing=1
+    fi
+  fi
 
   return $missing
 }
