@@ -28,9 +28,9 @@ is_handshake_write() {
   local c="$1"
   [[ "$c" == *.flow-active.independent-review* ]] || return 1
   [[ "$c" =~ \>[^=] ]] && return 0                      # > / >> 重定向（排除 >=）
-  [[ "$c" =~ [[:space:]]tee[[:space:]] ]] && return 0
+  [[ "$c" =~ (^|[[:space:]])tee[[:space:]] ]] && return 0
   [[ "$c" =~ (cp|mv)[[:space:]] ]] && return 0
-  [[ "$c" =~ sed[[:space:]]+(-i|--in-place) ]] && return 0
+  [[ "$c" =~ sed[[:space:]].*(-i|--in-place) ]] && return 0
   [[ "$c" =~ printf[[:space:]] ]] && return 0
   [[ "$c" =~ dd[[:space:]].*of= ]] && return 0
   [[ "$c" =~ install[[:space:]] ]] && return 0
