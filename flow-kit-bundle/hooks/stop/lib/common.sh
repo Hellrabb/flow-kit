@@ -140,15 +140,22 @@ write_failed_state() {
   local state_file="$1" phase="$2"
   local fc="0"
   if [[ -f "$state_file" ]]; then
-    fc=$(jq -r '.fail_count // 0' "$state_file" 2>/dev/null || echo "0")
+    fc=$(jq -r --arg p "$phase" '.[$p].fail_count // 0' "$state_file" 2>/dev/null || echo "0")
   fi
   [[ "$fc" =~ ^[0-9]+$ ]] || fc="0"
   fc=$((fc + 1))
   local ts
   ts=$(date -Iseconds 2>/dev/null || echo "")
-  jq -n --arg p "$phase" --argjson fc "$fc" --arg ts "$ts" \
-    '{phase:$p, status:"failed", fail_count:$fc, written_at:$ts}' \
-    > "$state_file" 2>/dev/null || true
+  # Per-phase merge: preserve other phases' state
+  if [[ -f "$state_file" ]]; then
+    jq --arg p "$phase" --argjson fc "$fc" --arg ts "$ts" \
+      '.[$p] = {status:"failed", fail_count:$fc, written_at:$ts}' \
+      "$state_file" > "${state_file}.tmp" 2>/dev/null && mv "${state_file}.tmp" "$state_file" || true
+  else
+    jq -n --arg p "$phase" --argjson fc "$fc" --arg ts "$ts" \
+      '{($p): {status:"failed", fail_count:$fc, written_at:$ts}}' \
+      > "$state_file" 2>/dev/null || true
+  fi
 }
 
 # ── File helpers ────────────────────────────────────────────────────

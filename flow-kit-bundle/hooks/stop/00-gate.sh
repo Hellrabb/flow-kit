@@ -65,7 +65,7 @@ run_module() {
     chmod +x "$script" 2>/dev/null || true
   fi
   if [[ -f "$script" ]]; then
-    bash "$script" >> "$HOOK_TMP_DIR/module-errors.log" 2>&1 || true
+    timeout 120 bash "$script" >> "$HOOK_TMP_DIR/module-errors.log" 2>&1 || true
   fi
 }
 

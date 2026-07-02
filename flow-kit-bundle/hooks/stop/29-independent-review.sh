@@ -47,9 +47,8 @@ model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-$configured_model}"
 # ── Gate 4: 幂等——本阶段 L3 已成功就跳过 ──
 state_file="${PROJECT_ROOT}/.flow-active.independent-review"
 if [ -f "$state_file" ]; then
-  prev_phase=$(jq -r '.phase // "?"' "$state_file" 2>/dev/null || echo "?")
-  prev_status=$(jq -r '.status // ""' "$state_file" 2>/dev/null || echo "")
-  if [[ "$prev_phase" == "$phase" && "$prev_status" == "done" ]]; then
+  prev_status=$(jq -r --arg p "$phase" '.[$p].status // ""' "$state_file" 2>/dev/null || echo "")
+  if [[ "$prev_status" == "done" ]]; then
     exit 0
   fi
 fi
@@ -198,8 +197,8 @@ if [ -n "$content" ]; then
   l3_token=$(printf '%s' "$content" | sha256sum 2>/dev/null | cut -d' ' -f1)
   [ -n "$l3_token" ] || l3_token="unknown"
   jq -n --arg p "$phase" --arg ts "$ts_iso" --arg rf "INDEPENDENT-REVIEW-${phase}.md" --argjson fc "$fc_l3" \
-    --arg wby "stop-hook-29" --arg tok "$l3_token" \
-    '{phase:$p, status:"done", fail_count:$fc, written_at:$ts, report_file:$rf, written_by:$wby, l3_token:$tok}' \
+    --arg wby "stop-hook-29" --arg tok "$l3_token" --arg v "$verdict" \
+    '{($p): {phase:$p, status:"done", verdict:$v, fail_count:$fc, written_at:$ts, report_file:$rf, written_by:$wby, l3_token:$tok}}' \
     > "$state_file" 2>/dev/null || true
 
   module_output "info" "IR" "独立 review L3 完成（阶段 ${phase}, verdict=${verdict}）→ INDEPENDENT-REVIEW-${phase}.md"
@@ -208,7 +207,7 @@ fi
 
 # ── 失败降级（不卡死）──
 write_failed_state "$state_file" "$phase"
-fc=$(jq -r '.fail_count // 0' "$state_file" 2>/dev/null || echo "0")
+fc=$(jq -r --arg p "$phase" '.[$p].fail_count // 0' "$state_file" 2>/dev/null || echo "0")
 [[ "$fc" =~ ^[0-9]+$ ]] || fc=0
 if [ "$fc" -ge "$max_fail" ]; then
   module_output "error" "IR" "L3 独立 review 连续失败 ${fc} 次（≥${max_fail}），允许手动绕过：touch ${done_marker}"

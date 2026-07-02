@@ -99,7 +99,7 @@ fk_artifact_check() {
 
 # Usage: fk_independent_review_gate_active <phase>
 # Returns: 0 (true) = gate 生效（应阻止阶段推进）；1 (false) = 放行
-# gate 生效当且仅当：phase∈{1,2,6} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
+# gate 生效当且仅当：phase∈{1,2,3,5,6,7} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
 # gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {independent,true} 优先，
 #                 回退 .claude/stop-hook.json 的 independent_review.phases 数组含该阶段名。
 fk_independent_review_gate_active() {
@@ -193,12 +193,10 @@ fk_validate_done_marker() {
   # T3 D7 握手锚点（挡威胁③ + ⑤-L3 常见路径）
   local hs_path="${flow_file}.independent-review"
   [[ -f "$hs_path" ]] || return 2
-  local hs_wby hs_phase hs_verdict
-  hs_wby=$(jq -r '.written_by // ""' "$hs_path" 2>/dev/null || echo "")
-  hs_phase=$(jq -r '.phase // ""' "$hs_path" 2>/dev/null || echo "")
-  hs_verdict=$(jq -r '.verdict // ""' "$hs_path" 2>/dev/null || echo "")
+  local hs_wby hs_verdict
+  hs_wby=$(jq -r --arg p "$phase" '.[$p].written_by // ""' "$hs_path" 2>/dev/null || echo "")
+  hs_verdict=$(jq -r --arg p "$phase" '.[$p].verdict // ""' "$hs_path" 2>/dev/null || echo "")
   [[ "$hs_wby" == "stop-hook-29" ]] || return 2
-  [[ "$hs_phase" == "$phase" ]] || return 2
   local l3v
   l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
   [[ -n "$l3v" && "$hs_verdict" == "$l3v" ]] || return 2
@@ -218,6 +216,10 @@ fk_validate_done_marker() {
   md_path="${PROJECT_ROOT:-}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
   if [[ -n "$l2v" && -f "$md_path" ]]; then
     md_v=$(grep -iE 'verdict[^a-z]*[:：]' "$md_path" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+    # Fallback: heading-style format (e.g. "## Verdict\npass")
+    if [[ -z "$md_v" ]]; then
+      md_v=$(grep -iA 2 '^##.*Verdict' "$md_path" 2>/dev/null | grep -ioE 'pass|fail' | tail -1)
+    fi
     [[ -z "$md_v" || "$md_v" == "$l2v" ]] || return 2     # 提取不到 verdict 不挡（best-effort）
   fi
 
