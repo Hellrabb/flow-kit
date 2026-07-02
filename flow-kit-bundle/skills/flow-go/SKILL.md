@@ -28,11 +28,11 @@ description: flow-kit 统一入口 — 自动路由到对应阶段（新需求/�
    ❌ 未找到 flow-kit 核心引擎。
 
    请安装：
-     bash ~/flow-kit-bundle/install.sh --user <项目路径>    ← 推荐（user-scope，一次安装所有项目共享）
-     bash ~/flow-kit-bundle/install.sh <项目路径>            ← 项目级（每项目一份）
+     bash ~/flow-kit-export/flow-kit-full-*/install.sh --global --user <项目路径>    ← 推荐（user-scope，一次安装所有项目共享）
+     bash ~/flow-kit-export/flow-kit-full-*/install.sh --project <项目路径>            ← 项目级（每项目一份）
 
-   如果已有 flow-kit-bundle，先确认路径：
-     ls ~/flow-kit-bundle/install.sh || ls ./flow-kit-bundle/install.sh
+   如果已打包 flow-kit-export，先确认路径：
+     ls ~/flow-kit-export/flow-kit-full-*/install.sh || ls ./flow-kit-bundle/install.sh
    ```
 
 ### 为什么这步重要

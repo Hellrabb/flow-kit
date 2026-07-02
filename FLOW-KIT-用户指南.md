@@ -58,7 +58,7 @@ flow-kit 是一套 **AI 驱动的软件开发流程框架**，为 Claude Code（
 
 ```bash
 # 进入 bundle 目录
-cd ~/flow-kit-bundle
+cd ~/flow-kit-export/flow-kit-full-*/
 
 # 全局安装（全部组件：核心引擎 + skills + brooks-lint + hooks）
 ./install.sh --global

@@ -18,8 +18,9 @@ description: |
 - 用户可能指定 bundle 路径，也可能不指定
 - 默认按以下顺序探测：
   1. 用户指定的路径
-  2. `~/flow-kit-bundle/`
-  3. `./flow-kit-bundle/`（项目内）
+  2. `~/flow-kit-export/flow-kit-full-*/`（最新打包导出）
+  3. `~/flow-kit-bundle/`（旧版兼容）
+  4. `./flow-kit-bundle/`（项目内）
   4. 问用户 bundle 在哪
 
 ## 安装步骤
@@ -28,10 +29,10 @@ description: |
 
 ```bash
 # Try common locations
-ls ~/flow-kit-bundle/install.sh 2>/dev/null || ls ./flow-kit-bundle/install.sh 2>/dev/null
+ls ~/flow-kit-export/flow-kit-full-*/install.sh 2>/dev/null || ls ~/flow-kit-bundle/install.sh 2>/dev/null || ls ./flow-kit-bundle/install.sh 2>/dev/null
 ```
 
-如果找不到，问用户：「flow-kit-bundle 目录在哪？请提供路径。」
+如果找不到，问用户：「flow-kit 安装包目录在哪？请提供路径。」
 
 ### 步骤 1：预览模式 (dry-run)
 
