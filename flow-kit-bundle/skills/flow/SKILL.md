@@ -137,7 +137,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
      ```bash
      # 预设名映射表（PRESET_MAP）
      # full               → {"1-requirement":"independent","2-design":"independent","6-review":"independent"}
-     # all                → {"1-requirement":"independent","2-design":"independent","3-task":"independent","5-test":"independent","6-review":"independent","7-integration":"independent"}
+     # all                → {"1-requirement":"independent","2-design":"independent","3-task":"independent","5-test":"independent","6-review":"independent","7-integration":"independent"}  ⚠️ 预计增加 30k-75k tokens/pipeline run
      # code-only          → {"6-review":"independent"}
      # review             → {"6-review":"independent"}   (code-only 别名)
      # design             → {"2-design":"independent"}
@@ -145,6 +145,14 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
      # plan               → {"1-requirement":"independent","2-design":"independent"}
      # design-review      → {"2-design":"independent","6-review":"independent"}
      # requirement-review → {"1-requirement":"independent","6-review":"independent"}
+     # task               → {"3-task":"independent"}
+     # test               → {"5-test":"independent"}
+     # integration        → {"7-integration":"independent"}
+     # task-review        → {"3-task":"independent","6-review":"independent"}
+     # test-review        → {"5-test":"independent","6-review":"independent"}
+     # task-test          → {"3-task":"independent","5-test":"independent"}
+     # task-test-review   → {"3-task":"independent","5-test":"independent","6-review":"independent"}
+     # spec-test          → {"1-requirement":"independent","2-design":"independent","5-test":"independent"}
      #
      # 数字映射：1→"1-requirement"  2→"2-design"  3→"3-task"  5→"5-test"  6→"6-review"  7→"7-integration"
 
@@ -199,7 +207,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 单独 patch 某阶段的独立 review gate（无需重建 goal）。动作：
 1. 检查 `.flow-active` 是否存在 + `.goal` 非 null（gate_config 是 goal 子字段；无 goal → 提示先 `/flow goal`）
 2. 解析参数：
-   - `<phase>`：阶段名字符串，合法值 `1-requirement` / `2-design` / `6-review`
+   - `<phase>`：阶段名字符串，合法值 `1-requirement` / `2-design` / `3-task` / `5-test` / `6-review` / `7-integration`。提示：开启前确认对应阶段 prompt 已含独立审查段（3/5/7 由 independent-review-gap change 补齐）
    - `<value>`：`independent`（或 `true`）= 开启该阶段独立 review；`off`（或 `false`）= 关闭
    - 无参数 → 输出当前 `goal.gate_config`（jq 格式化）即可，不要改文件
 3. 用 jq patch 单个 key（bracket 引用，见 LESSONS L-011）：
