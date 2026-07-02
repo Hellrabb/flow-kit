@@ -190,3 +190,31 @@ skip_if_no_jq() {
   run check_enabled "quality" "any-check-name"
   [ "$status" -eq 0 ]
 }
+
+# ── init_paths CONFIG_FILE 回退 (gate-integrity / AC-6 dogfood) ──────────
+# 修复：项目级 stop-hook.json 缺失时回退 user-scope，否则全局 enabled=true 未被读
+
+@test "init_paths falls back to user-scope stop-hook.json when project-level missing" {
+  skip_if_no_jq
+  local proj="$TEST_TMPDIR/proj"
+  local fakehome="$TEST_TMPDIR/home"
+  mkdir -p "$proj" "$fakehome/.claude"
+  cat > "$fakehome/.claude/stop-hook.json" << 'EOF'
+{ "modules": { "independent_review": { "enabled": true } } }
+EOF
+  # 项目级无 stop-hook.json，user-scope 有 → CONFIG_FILE 应回退到 user-scope
+  CONFIG_FILE="" CWD="$proj" HOME="$fakehome" init_paths
+  [[ "$CONFIG_FILE" == "$fakehome/.claude/stop-hook.json" ]]
+}
+
+@test "init_paths prefers project-level stop-hook.json over user-scope" {
+  skip_if_no_jq
+  local proj="$TEST_TMPDIR/proj"
+  local fakehome="$TEST_TMPDIR/home"
+  mkdir -p "$proj/.claude" "$fakehome/.claude"
+  echo '{ "modules": {} }' > "$proj/.claude/stop-hook.json"
+  echo '{ "modules": {} }' > "$fakehome/.claude/stop-hook.json"
+  # 项目级存在 → 不回退，优先用项目级
+  CONFIG_FILE="" CWD="$proj" HOME="$fakehome" init_paths
+  [[ "$CONFIG_FILE" == "$proj/.claude/stop-hook.json" ]]
+}

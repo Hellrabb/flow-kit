@@ -82,6 +82,59 @@ check_pair() {
   echo ""
 }
 
+# ── 校验对 2: gate-config 预设名同步（SKILL.md PRESET_MAP ↔ bats 镜像）──
+# G4 ADR: 语义 set-diff（非文本段 marker）。防"SKILL.md 加预设但 bats 镜像没跟"的漂移。
+# 提取两侧预设名集合做 diff；集合不等 → exit 1（计入 ERRORS）。
+check_gate_config_sync() {
+  local skill_file="$BUNDLE_ROOT/skills/flow/SKILL.md"
+  local bats_file="$BUNDLE_ROOT/test/test_gate_config_presets.bats"
+
+  echo "   校验: gate-config 预设名同步 (SKILL.md PRESET_MAP ↔ bats resolve_gate_config)"
+  echo "     skill:  $skill_file"
+  echo "     bats:   $bats_file"
+
+  if [ ! -f "$skill_file" ] || [ ! -f "$bats_file" ]; then
+    echo "   ⚠️  WARNING: 文件缺失，跳过 gate-config 同步校验"
+    echo ""
+    return
+  fi
+
+  # 提取 SKILL.md PRESET_MAP 段预设名集合
+  # 段标记：「预设名映射表（PRESET_MAP）」→「数字映射：」；每行格式 `# <name> → {...}`
+  # grep 必须含 → 约束：只认 `# name →` 格式，忽略段内英文注释（防误报）；行有前导空格故
+  # 允许 ^[[:space:]]*#（L-014：避免 \] 字符类陷阱，用 [a-z0-9-] + [[:space:]] POSIX 类）
+  local skill_presets
+  skill_presets=$(sed -n '/预设名映射表（PRESET_MAP）/,/数字映射：/p' "$skill_file" \
+    | grep -E '^[[:space:]]*#[[:space:]]*[a-z][a-z0-9-]*[[:space:]]+→' \
+    | sed -E 's/^[[:space:]]*#[[:space:]]*([a-z0-9-]+).*/\1/' \
+    | sort -u)
+
+  # 提取 bats resolve_gate_config 的 case 分支预设名集合
+  # 分支格式：`    full)` 或 `    code-only|review)`（| 分隔别名）
+  local bats_presets
+  bats_presets=$(sed -n '/^  case "$value" in/,/^  esac/p' "$bats_file" \
+    | grep -E '^    [a-z]' \
+    | sed -E 's/^[[:space:]]+//; s/\).*//' \
+    | tr '|' '\n' \
+    | sed 's/^[[:space:]]*//' \
+    | sort -u)
+
+  # 语义 set-diff（集合不等即漂移）
+  local diff_out
+  diff_out=$(diff <(printf '%s\n' "$skill_presets") <(printf '%s\n' "$bats_presets") || true)
+
+  if [ -n "$diff_out" ]; then
+    echo "   🔴 DRIFT: gate-config 预设名集合不一致！"
+    echo "$diff_out" | sed 's/^/     /'
+    ERRORS=$((ERRORS + 1))
+  else
+    local preset_count
+    preset_count=$(printf '%s\n' "$skill_presets" | grep -c .)
+    echo "   ✅ 预设名集合一致 ($preset_count 个预设)"
+  fi
+  echo ""
+}
+
 # ── 校验对定义 ──
 # 首批：4-dev prompt + flow-dev skill
 check_pair \
@@ -90,6 +143,8 @@ check_pair \
   "$BUNDLE_ROOT/skills/flow-dev/SKILL.md" \
   "PCSC\|Phase Completion Self-Check" \
   "Phase Transition 4→5"
+
+check_gate_config_sync
 
 # 后续可按需加其他 phase 对
 

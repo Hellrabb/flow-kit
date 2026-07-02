@@ -117,6 +117,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | ANTHROPIC_DEFAULT_HAIKU_MODEL | 环境变量，指向 session 配置的 haiku-tier 模型 ID（如 `deepseek-v4-flash`）。L3 独立 review 和 AI 分析 hook 从此变量读取模型名，不再硬编码 |
 | L3 API 直连 | 29/30 号 hook 脚本的 API 调用策略：优先直连 `$ANTHROPIC_BASE_URL`（用 `$ANTHROPIC_AUTH_TOKEN` 鉴权），onecli proxy 降级为可选（有则用，无则直连不报错） |
 | env-var-first config | hook 脚本配置读取优先级：环境变量 > stop-hook.json 字段 > 硬编码默认值。当前仅应用于模型名和 API endpoint 配置 |
+| gate-integrity | 本次 change：加固 toll-gate 不可绕过性 + 扩展 L2 独立审查到 3/5/7。Q1 hook 层强制 .done 真实性 + transition 前置查 gate；Q2 给 3/5/7 加 L2 |
+| .done 真实性校验（.done authenticity validation）| 区别于 PCG 的"存在性"检查：校验 `.independent-review-<phase>.done` / 阶段 `.done` 是由真实 review 子进程产出，而非主 agent touch/echo 伪造。含三层：空文件拒、假内容识别、跳过子进程拦截 |
+| transition 前置 gate 查（pre-transition gate check）| pipeline phase N→N+1 transition 执行前，hook 强制查 `goal.gates["N→N+1"]` 是否 passed（passed 依赖合法 .done），未 passed 拒绝推进 |
+| 三种威胁模型（gate bypass）| gate-integrity 防的三种 agent 绕过方式：① 空 .done（touch 空文件）② 假内容 .done（写非真实证据）③ 跳过子进程（不派 review 直接 transition）。v1 三种全防 |
+| gate-config 3-5-7 扩展 | gate-config 预设/数字映射从 {1,2,6} 扩展到 {1,2,3,5,6,7}。3→`3-task`、5→`5-test`、7→`7-integration`。默认 off：`full` 预设仍只含 1/2/6，用户显式开 3/5/7 |
 
 ## 已锁决策
 
@@ -132,6 +137,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-06-25]` 弱模型鲁棒性哲学定为 **protect the weakest** — 规则/prompt 默认全含加严（按最弱模型写），降级（强模型 opt-out，`model_tier: strong`）才需显式声明。**限定**：仅加"结构刚性"护栏（强模型也受益、不啰嗦），不加"重复唠叨"（啰嗦会反噬强模型、甚至增幻觉，由 AC-7 强制约束）。**否决**"运行时模型能力自动探测"方案（弱模型会幻觉自己很强，不可靠）。本次仅做 L1+L2+L3，L4 伪双轨留 v2。来自 `weak-model-robustness`
 - `[2026-06-29]` 交互式 UI 触发防护策略 — hook 脚本为主防线（Stop hook 27-interactive-ui-check.sh 系统级检测 + SessionStart 矫正注入），prompt 轻量护栏为辅（每点 ≤3 行）。GATE_MAP 集中维护 9 个交互 gate 关键词映射。矫正文件 `.flow-active.interactive-ui-fix`（不入库）跨 turn 传递矫正指令。连续跳过 ≥3 次时停止自动矫正提示人工介入。来自 `weak-model-interactive-ui`
 - `[2026-06-29]` 弱模型合规检测策略 — Stop hook 28 号模块对 L1/L2/L3 三层做系统级事后验证 + 矫正注入。采用统一矫正文件 `.flow-active.correction`（`type: "compliance"`），与交互 UI 矫正文件并行存在（v1 不合并，v2 迁移 27 号模块）。L1 检测范围覆盖 CONTEXT.md 禁动清单 + RULES.md/SYSTEM.md 通用禁动规则。SessionStart 同时处理 `.flow-active.interactive-ui-fix` 和 `.flow-active.correction` 两个矫正文件。代码长度 350 行为软指标（超出人工判断）。不改动现有 prompt 护栏（hook 是第二道防线）。来自 `robustness-hook-hardening`
+- `[2026-07-01]` gate-integrity v1 范围 = 三种威胁全防（空 / 假 / 跳过 .done），分层校验（存在性 + 真实性 + transition 前置查 gate）。"假内容 .done"判定算法交 DESIGN 定，REQUIREMENT 仅约束"非真实产出的 .done 必须被识别为无效"。来自 `gate-integrity`（0-change + 1-requirement）
+- `[2026-07-01]` Q1 防线定在 hook 层（非 prompt 层）—— agent 无法绕过 hook。PCSC/PCG 现有防线只查"存在性"被 touch 骗过，本次升级为查"真实性"。来自 `gate-integrity`
+- `[2026-07-01]` 3/5/7 L2 默认 off —— gate-config `full` 预设仍只含 1/2/6，3/5/7 由用户显式开（数字简写 `1,2,3,5,6,7` 或新预设）。理由：避免 pipeline token 成本爆炸。来自 `gate-integrity`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

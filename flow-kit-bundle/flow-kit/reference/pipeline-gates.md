@@ -50,4 +50,36 @@ jq --arg ts "$(date -Iseconds)" \
 
 ---
 
-> **协议源声明**：本文件由 `quality-baseline` change (2026-06-29) 创建，是 toll-gate 协议段的第一批 DRY 提取（范围：4-dev）。其他 phase 的 toll-gate 协议按需分批迁移。
+## 全链 Gate Key Transition 校验语义（AC-2 · gate-integrity 扩展）
+
+> **transition 前置查（核心）**：任何 phase N→N+1 transition 执行前，transition hook 必须读 `.flow-active.goal.gates["N→N+1"]`：
+> - 值 = `"passed"` → 允许 transition
+> - 值 ≠ `"passed"`（`"pending"` / 缺失 / 篡改）→ **拒绝推进**（deny），输出缺失的 gate key + 提示先产出合法 `.done`
+>
+> `passed` 状态只能由**合法 review 子进程**产出的 `.done` 触发设置（真实性校验见 gate-integrity Q1：`fk_validate_done_marker` Tier 1/2 拒空文件 / 假内容 / 跳过子进程）。agent 直接 `touch`/`echo`/写 `.done` → 真实性校验拒 → gate 保持 `pending` → transition 被前置查拦。这是防"威胁③ 跳过子进程"的协议层定义。
+
+### 7 个 gate key
+
+pipeline goal（`scope: "pipeline"`）的 `goal.gates` 字段含全链 transition key。`--from <n>` 决定起始阶段（默认 4 → 生成 4→5/5→6/6→7；`--from 0` → 全链 0→1...6→7）：
+
+| gate key | from → to | transition 前置条件（gate 外的产物门禁）|
+|---|---|---|
+| `0→1` | 0-change → 1-requirement | `CHANGE.md` 存在 |
+| `1→2` | 1-requirement → 2-design | `REQUIREMENT.md` 存在 |
+| `2→3` | 2-design → 3-task | `DESIGN.md` 存在 |
+| `3→4` | 3-task → 4-dev | `TASK.md` 存在 |
+| `4→5` | 4-dev → 5-test | 所有 task done（**参考实例见上方 Pipeline Toll-Gate 段**）|
+| `5→6` | 5-test → 6-review | `TEST.md` 存在 |
+| `6→7` | 6-review → 7-integration | REVIEW 无 🔴 Critical |
+
+> 注：gate 开启与否由 `goal.gate_config["<phase_name>"]` 决定（默认 `full` 预设仅 1/2/6 independent，3/5/7 由用户显式开）。gate 开启的 phase → transition 前置查 `gates["N→N+1"]` 必须为 `passed`（依赖合法 `.done`）；gate 未开启的 phase → transition 仅查产物门禁（上表第 3 列），不查 `.done`。
+
+### 与 PCSC / Toll-Gate 的层次关系
+
+- **PCSC 自检表**（本文件上方）：phase 完成前的产物/行为自检，phase-specific（4-dev 实例已列，其他 phase 按需补）
+- **Toll-Gate**（上方 4→5 实例）：PCSC 全 ✅ 后的人工确认暂停点（`auto_advance=false` 时）
+- **全链 transition 前置查**（本段）：transition **执行时**的 hook 强制 gate 检查，覆盖所有 7 个 gate key，是 toll-gate 确认后的最后一道自动门禁
+
+---
+
+> **协议源声明**：本文件由 `quality-baseline` change (2026-06-29) 创建（首批 DRY 提取，范围 4-dev），`gate-integrity` change (2026-07 · AC-2) 扩展为覆盖**全链 gate key transition 校验语义**。4-dev（4→5）段作为参考实例保留；其他 phase 的 PCSC 细节按需补充。
