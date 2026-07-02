@@ -64,10 +64,10 @@ validate_staging_coverage() {
   for spec_file in "$BUNDLE_DIR/specs-template/"*; do
     [ -f "$spec_file" ] && EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$spec_file")
   done
-  # test/ directory is part of the bundle (recursive for subdirs)
+  # test/ directory is part of the bundle (all fixtures: .bats, .sh, .md, .json)
   while IFS= read -r -d '' test_file; do
     EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$test_file")
-  done < <(find "$BUNDLE_DIR/test" -name '*.bats' -type f -print0 2>/dev/null)
+  done < <(find "$BUNDLE_DIR/test" -type f ! -path '*/.git/*' -print0 2>/dev/null)
 
   echo "   解析 Part F (brooks-lint 插件)..."
   local brooks_files
@@ -152,7 +152,7 @@ echo ""
 # ── 清理旧临时目录 ──────────────────────────────────────────────────
 [[ -n "$STAGING" && "$STAGING" != "/" ]] || { echo "FATAL: STAGING is empty or root"; exit 1; }
 rm -rf "$STAGING"
-mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,brooks-lint/plugin,brooks-tools/packs}
+mkdir -p "$STAGING"/{flow-kit,skills,hooks/config,hooks/stop,hooks/session-start,specs-template,test,brooks-lint/plugin,brooks-tools/packs}
 
 # ═══════════════════════════════════════════════════════════════════════
 # Part A: flow-kit 核心引擎 (~/.claude/flow-kit/)
@@ -555,6 +555,20 @@ MANIFESTEOF
   TOOLS_FILE_COUNT=$(find "$STAGING/brooks-tools" -type f 2>/dev/null | wc -l)
   TOOLS_SIZE=$(du -sh "$STAGING/brooks-tools" 2>/dev/null | cut -f1)
   echo "   ✅ brooks-tools 打包完成（${pack_ok} 成功 / ${pack_fail} 失败，${TOOLS_FILE_COUNT} 文件，${TOOLS_SIZE}）"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════
+# Part H: 测试套件（bats + regression demos + fixtures）
+# ═══════════════════════════════════════════════════════════════════════
+echo ""
+echo "📦 Part H: 打包测试套件..."
+
+if [ -d "$SCRIPT_DIR/flow-kit-bundle/test" ]; then
+  rsync -a --exclude='.git' "$SCRIPT_DIR/flow-kit-bundle/test/" "$STAGING/test/"
+  TEST_FILE_COUNT=$(find "$STAGING/test" -type f 2>/dev/null | wc -l)
+  echo "   ✅ ${TEST_FILE_COUNT} 个测试文件已打包"
+else
+  echo "   ⚠️  test/ 目录不存在，跳过"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
