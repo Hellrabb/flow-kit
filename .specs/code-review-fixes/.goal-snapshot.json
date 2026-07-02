@@ -1,0 +1,11 @@
+{
+  "gate_config": {
+    "1-requirement": "independent",
+    "2-design": "independent",
+    "3-task": "independent",
+    "5-test": "independent",
+    "6-review": "independent",
+    "7-integration": "independent"
+  },
+  "created_at": 1783007653.011004
+}

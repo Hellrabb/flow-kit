@@ -1,7 +1,7 @@
 #!/bin/bash
 # 29-independent-review.sh — 独立 review L3（外部模型强制审查）
 #
-# 当某 change 在阶段 1/2/6 开启了独立 review（gate_config 或 stop-hook.json），
+# 当某 change 在阶段 1/2/3/5/6/7 开启了独立 review（gate_config 或 stop-hook.json），
 # 用外部模型（默认 deepseek-v4-flash）对该阶段产物做盲审，产出
 # .specs/<id>/INDEPENDENT-REVIEW-<phase>.md，并写 .flow-active.independent-review
 # 握手文件供 SessionStart 注入 + 主 agent 判 done。
