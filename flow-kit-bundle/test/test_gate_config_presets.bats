@@ -62,6 +62,30 @@ resolve_gate_config() {
     requirement-review)
       echo '{"1-requirement":"independent","6-review":"independent"}'
       ;;
+    task)
+      echo '{"3-task":"independent"}'
+      ;;
+    test)
+      echo '{"5-test":"independent"}'
+      ;;
+    integration)
+      echo '{"7-integration":"independent"}'
+      ;;
+    task-review)
+      echo '{"3-task":"independent","6-review":"independent"}'
+      ;;
+    test-review)
+      echo '{"5-test":"independent","6-review":"independent"}'
+      ;;
+    task-test)
+      echo '{"3-task":"independent","5-test":"independent"}'
+      ;;
+    task-test-review)
+      echo '{"3-task":"independent","5-test":"independent","6-review":"independent"}'
+      ;;
+    spec-test)
+      echo '{"1-requirement":"independent","2-design":"independent","5-test":"independent"}'
+      ;;
     *)
       # c. Numeric shorthand (comma-separated digits)
       if echo "$value" | grep -qE '^[0-9](,[0-9])*$'; then
@@ -278,6 +302,79 @@ resolve_gate_config() {
   [ "$status" -eq 0 ]
   count=$(echo "$output" | jq 'length')
   [ "$count" -eq 3 ]
+}
+
+# ── 新增预设 (independent-review-gap) ──────────────────────────────────
+
+@test "preset 'task' → only 3-task" {
+  run resolve_gate_config "task"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 1 ]
+  [ "$(echo "$output" | jq -r '.["3-task"]')" = "independent" ]
+}
+
+@test "preset 'test' → only 5-test" {
+  run resolve_gate_config "test"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 1 ]
+  [ "$(echo "$output" | jq -r '.["5-test"]')" = "independent" ]
+}
+
+@test "preset 'integration' → only 7-integration" {
+  run resolve_gate_config "integration"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 1 ]
+  [ "$(echo "$output" | jq -r '.["7-integration"]')" = "independent" ]
+}
+
+@test "preset 'task-review' → 3+6" {
+  run resolve_gate_config "task-review"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 2 ]
+  [ "$(echo "$output" | jq -r '.["3-task"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["6-review"]')" = "independent" ]
+}
+
+@test "preset 'test-review' → 5+6" {
+  run resolve_gate_config "test-review"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 2 ]
+  [ "$(echo "$output" | jq -r '.["5-test"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["6-review"]')" = "independent" ]
+}
+
+@test "preset 'task-test' → 3+5" {
+  run resolve_gate_config "task-test"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 2 ]
+  [ "$(echo "$output" | jq -r '.["3-task"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["5-test"]')" = "independent" ]
+}
+
+@test "preset 'task-test-review' → 3+5+6" {
+  run resolve_gate_config "task-test-review"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 3 ]
+  [ "$(echo "$output" | jq -r '.["3-task"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["5-test"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["6-review"]')" = "independent" ]
+}
+
+@test "preset 'spec-test' → 1+2+5" {
+  run resolve_gate_config "spec-test"
+  [ "$status" -eq 0 ]
+  count=$(echo "$output" | jq 'length')
+  [ "$count" -eq 3 ]
+  [ "$(echo "$output" | jq -r '.["1-requirement"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["2-design"]')" = "independent" ]
+  [ "$(echo "$output" | jq -r '.["5-test"]')" = "independent" ]
 }
 
 # ── 无效输入报错 ──────────────────────────────────────────────────────

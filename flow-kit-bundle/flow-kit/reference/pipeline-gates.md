@@ -72,7 +72,7 @@ pipeline goal（`scope: "pipeline"`）的 `goal.gates` 字段含全链 transitio
 | `5→6` | 5-test → 6-review | `TEST.md` 存在 |
 | `6→7` | 6-review → 7-integration | REVIEW 无 🔴 Critical |
 
-> 注：gate 开启与否由 `goal.gate_config["<phase_name>"]` 决定（默认 `full` 预设仅 1/2/6 independent，3/5/7 由用户显式开）。gate 开启的 phase → transition 前置查 `gates["N→N+1"]` 必须为 `passed`（依赖合法 `.done`）；gate 未开启的 phase → transition 仅查产物门禁（上表第 3 列），不查 `.done`。
+> 注：gate 开启与否由 `goal.gate_config["<phase_name>"]` 决定（默认 `full` 预设仅 1/2/6 independent，3/5/7 由用户显式开；3/5/7 的 prompt 层独立审查支持由 `independent-review-gap` change (2026-07-02) 补齐，开启前确保 prompt 文件版本与此 change 同步）。gate 开启的 phase → transition 前置查 `gates["N→N+1"]` 必须为 `passed`（依赖合法 `.done`）；gate 未开启的 phase → transition 仅查产物门禁（上表第 3 列），不查 `.done`。
 
 ### 与 PCSC / Toll-Gate 的层次关系
 

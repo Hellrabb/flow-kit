@@ -44,3 +44,25 @@
 
 - **最近更新**: 2026-06-16（health-fix 归档）
 - **下次复查**: 2026-07-16（建议每月一次 M-health）
+
+## L-016 · 独立审查四层架构必须全对齐
+
+**日期**: 2026-07-02 | **来源**: independent-review-gap
+
+**教训**: L2/L3 独立审查的端到端可用性依赖四层同步：PRESET_MAP → Prompt 模板 → Hook 层 → L2-blind-review.md。任一层缺失，即使 gate_config 正确设置，pipeline 也会在对应阶段死锁——hook 层等 .done 文件，但主 agent 的 prompt 不知道要写 .done。
+
+**预防**: 新增 gate_config 阶段支持时，必须同时检查四层是否都已更新。check-gate-sync.sh 可检测 PRESET_MAP 和 bats 之间的漂移，但 prompt 层和 L2 checklist 层的完整性需要 AC-1/AC-4 验证脚本人工跑。
+
+**状态**: ✅ 已修复 — 3-task/5-test/7-integration prompt + PRESET_MAP 8 新预设 + L2 checklist 3/5/7 均已补齐
+
+---
+
+## L-017 · PRESET_MAP 声明与实现必须同步交付
+
+**日期**: 2026-07-02 | **来源**: independent-review-gap
+
+**教训**: gate-integrity change 的 `all` 预设提前声明了 3/5/7 的 independent 支持，但 prompt 层实现未同步交付。这造成了结构性死锁：hook 层已就绪（会拦 transition 等 .done），但主 agent 不知道该写 .done。"先声明后实现"在跨层变更中是危险的——声明让用户以为可用，实现缺失让实际不可用。
+
+**预防**: 跨层变更（如独立审查这种涉及 Hook + Prompt + Config 三层的功能）不应分 change 交付。要么一个 change 四层全做完，要么 feature-flag 默认关闭直到最后一层就绪。
+
+**状态**: ✅ 已修复 — independent-review-gap 补齐了 gate-integrity 遗留的三层

@@ -64,6 +64,33 @@
 - 对照主 agent 的 REVIEW.md，指出它**漏判或误判**的 🔴 项（明确标注「主 agent 漏判：…」/「主 agent 误判：…」）
 - 若主 agent REVIEW.md 与你的判断一致，也要说明你是独立得出该结论（不是抄它）
 
+### 阶段 3 · 任务拆解审查（3-task）
+工件：`.specs/<id>/TASK.md`（参考：`.specs/<id>/REQUIREMENT.md`、`.specs/<id>/DESIGN.md`）
+重点：
+- **任务粒度**：单 task 是否 ≤ 200 行变更？波次划分是否清晰（wave 1/2/3）？
+- **依赖链**：依赖图是否无环？可并行部分是否已标 `[P]`？
+- **verify 可验证性**：每条 verify 是否可机器执行（非"人工确认"空话）？
+- **覆盖完整性**：所有 AC 是否有对应 task？`read_files`/`write_files` 约束是否到位？
+- **禁动清单**：`write_files` 是否触碰了 DESIGN 或 CONTEXT 禁动清单中的文件？
+
+### 阶段 5 · 测试审查（5-test）
+工件：`.specs/<id>/TEST.md`（参考：`.specs/<id>/REQUIREMENT.md`、`.specs/<id>/TASK.md`）
+重点：
+- **AC 覆盖**：测试矩阵是否覆盖所有 AC（每条 AC ≥ 1 条测试用例对应）？
+- **5 轮金字塔**：功能/性能/安全/兼容/可观测是否逐轮填写（跳过的有理由）？
+- **覆盖率达标**：功能轮是否 100% AC 覆盖？
+- **UAT 可执行**：Given/When/Then 是否可脚本化（非手工步骤描述）？
+- **回归安全**：全量 bats 是否不退化？
+
+### 阶段 7 · 集成审查（7-integration）
+工件：`.specs/<id>/` 下全部产物（参考：`.specs/<id>/REVIEW.md`、`.specs/LESSONS.md`、`.specs/CHANGELOG.md`）
+重点：
+- **产物齐全**：CHANGE/REQUIREMENT/DESIGN/TASK/SUMMARY×N/TEST/REVIEW 是否全部存在？
+- **LESSONS 同步**：是否从本次 REVIEW 中提取了新教训并写入 LESSONS.md？
+- **CHANGELOG 更新**：本次 change 条目是否已追加到 CHANGELOG.md？
+- **归档清洁**：`.specs/<id>/` 目录是否有残留临时文件未清理？
+- **done 标记**：`.independent-review-7.done` 是否存在且由合法 review 子进程写入（非 touch 空文件）？
+
 ## 与主 agent 的关系
 
 - 默认**怀疑**主 agent 的结论。它可能赶进度、可能 sycophancy、可能证实偏差。
