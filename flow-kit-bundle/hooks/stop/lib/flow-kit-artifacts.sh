@@ -106,7 +106,7 @@ fk_independent_review_gate_active() {
   local phase="$1"
   local flow_file="${PROJECT_ROOT}/.flow-active"
   [[ -f "$flow_file" ]] || return 1
-  [[ "$phase" =~ ^(1|2|6)$ ]] || return 1
+  [[ "$phase" =~ ^(1|2|3|5|6|7)$ ]] || return 1
 
   local change_id
   change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
@@ -116,7 +116,10 @@ fk_independent_review_gate_active() {
   case "$phase" in
     1) phase_name="1-requirement" ;;
     2) phase_name="2-design" ;;
+    3) phase_name="3-task" ;;
+    5) phase_name="5-test" ;;
     6) phase_name="6-review" ;;
+    7) phase_name="7-integration" ;;
     *) return 1 ;;
   esac
 
@@ -136,6 +139,89 @@ fk_independent_review_gate_active() {
   # gate 开启：done 标志存在则放行（return 1），不存在则 gate 生效（return 0）
   local done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
   [[ ! -f "$done_marker" ]]
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# .done authenticity validation (AC-1 · D1/D5/G1 · 两层时机)
+# ═══════════════════════════════════════════════════════════════════════
+
+# Helper: 提取 .done 的 KVP 值（key=value，值可含 =）。未找到 → 空。
+# Usage: _fk_done_kvp <path> <key>
+_fk_done_kvp() {
+  local path="$1" key="$2"
+  [[ -f "$path" ]] || { echo ""; return; }
+  grep -E "^${key}=" "$path" 2>/dev/null | head -1 | sed "s/^${key}=//"
+}
+
+# Usage: fk_validate_done_marker <done_path> <phase> <change_id> <tier>
+#   tier = write (Tier 1 元数据快校验) | transition (Tier 1 + Tier 2 后置)
+# Returns: 0 = .done 有效（放行）; 2 = 无效 deny（对齐 DESIGN §3 "deny exit 2" + forged-done check.sh rc=2）
+# fail-close（D9）: jq 不可用 / 解析异常 / 畸形输入 → return 2（deny，agent 不能靠制造 hook 内部错误放行）
+# phases_done 短路（D1/R11）: phase ∈ goal.phases_done → 直接有效（历史 .done 兜底）
+fk_validate_done_marker() {
+  local done_path="$1" phase="$2" change_id="$3" tier="${4:-write}"
+  local flow_file="${PROJECT_ROOT:-}/.flow-active"
+
+  [[ -f "$done_path" ]] || return 2
+
+  # phases_done 短路（历史 .done · written_by=main-agent 不触发回头校验）
+  if [[ -f "$flow_file" ]]; then
+    local in_done
+    in_done=$(jq -r --arg p "$phase" \
+      '.goal.phases_done // [] | map(select(. == $p)) | length' \
+      "$flow_file" 2>/dev/null || echo "0")
+    [[ "$in_done" != "0" ]] && return 0
+  fi
+
+  # ── Tier 1 · 元数据快校验（不依赖下游产物）──
+  [[ -s "$done_path" ]] || return 2                        # T1 非空（挡威胁① touch 空文件）
+  local dlines
+  dlines=$(wc -l < "$done_path" 2>/dev/null | tr -dc '0-9')
+  [[ "${dlines:-0}" -ge "$MIN_MEANINGFUL_LINES" ]] || return 2
+
+  local k_phase k_cid k_wby                                # T2 KVP（挡威胁② 伪造）
+  k_phase=$(_fk_done_kvp "$done_path" "phase")
+  k_cid=$(_fk_done_kvp "$done_path" "change_id")
+  k_wby=$(_fk_done_kvp "$done_path" "written_by")
+  [[ "$k_phase" == "$phase" ]] || return 2
+  [[ "$k_cid" == "$change_id" ]] || return 2
+  [[ -n "$k_wby" ]] || return 2
+
+  [[ "$tier" == "transition" ]] || return 0                # tier=write 到此为止
+
+  # ── Tier 2 · transition 后置（产物已齐）──
+  # T3 D7 握手锚点（挡威胁③ + ⑤-L3 常见路径）
+  local hs_path="${flow_file}.independent-review"
+  [[ -f "$hs_path" ]] || return 2
+  local hs_wby hs_phase hs_verdict
+  hs_wby=$(jq -r '.written_by // ""' "$hs_path" 2>/dev/null || echo "")
+  hs_phase=$(jq -r '.phase // ""' "$hs_path" 2>/dev/null || echo "")
+  hs_verdict=$(jq -r '.verdict // ""' "$hs_path" 2>/dev/null || echo "")
+  [[ "$hs_wby" == "stop-hook-29" ]] || return 2
+  [[ "$hs_phase" == "$phase" ]] || return 2
+  local l3v
+  l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
+  [[ -n "$l3v" && "$hs_verdict" == "$l3v" ]] || return 2
+
+  # T3b SESSION_ID 跨会话锚点（挡威胁④ 移花接木）
+  local cur_sid done_sid
+  cur_sid="${CLAUDE_CODE_SESSION_ID:-}"
+  done_sid=$(_fk_done_kvp "$done_path" "session_id")
+  if [[ -n "$cur_sid" && -n "$done_sid" ]]; then
+    [[ "$done_sid" == "$cur_sid" ]] || return 2
+  fi
+  # cur_sid / done_sid 缺失 → best-effort 不挡（跨会话合法推进由 phases_done 短路兜底）
+
+  # T4 L2_verdict 与 INDEPENDENT-REVIEW-<phase>.md 比对（挡威胁⑤-L2 · v1 best-effort 提高成本）
+  local l2v md_path md_v
+  l2v=$(_fk_done_kvp "$done_path" "L2_verdict")
+  md_path="${PROJECT_ROOT:-}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+  if [[ -n "$l2v" && -f "$md_path" ]]; then
+    md_v=$(grep -iE 'verdict[^a-z]*[:：]' "$md_path" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+    [[ -z "$md_v" || "$md_v" == "$l2v" ]] || return 2     # 提取不到 verdict 不挡（best-effort）
+  fi
+
+  return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════

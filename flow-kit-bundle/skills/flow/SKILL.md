@@ -125,6 +125,10 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
        --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
        '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", start_phase: $from, current_phase: $from, phases_done: [], gates: $gates, gate_config: {}, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+     # 写 gate_config 快照（D8 ⑥检测 · G3 · .goal-snapshot.json 入 .specs/<id>/ 受 git 跟踪）
+     change_id=$(jq -r '.change_id' .flow-active) && mkdir -p ".specs/${change_id}" \
+       && jq '{gate_config: .goal.gate_config, created_at: now}' .flow-active \
+          > ".specs/${change_id}/.goal-snapshot.json"
      ```
      注：phase_sub_goals 仍按 4/5/6/7 存储（与 pipeline 执行链后半段对应的 sub-goal）。若 FROM > 4（如 FROM=5），则 sub4 为空串不展示。
    - 有 `--pipeline` + `--gate-config '<VALUE>'` → 同上 + gate_config。解析策略（三段式 auto-detect）：
@@ -133,6 +137,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
      ```bash
      # 预设名映射表（PRESET_MAP）
      # full               → {"1-requirement":"independent","2-design":"independent","6-review":"independent"}
+     # all                → {"1-requirement":"independent","2-design":"independent","3-task":"independent","5-test":"independent","6-review":"independent","7-integration":"independent"}
      # code-only          → {"6-review":"independent"}
      # review             → {"6-review":"independent"}   (code-only 别名)
      # design             → {"2-design":"independent"}
@@ -141,7 +146,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
      # design-review      → {"2-design":"independent","6-review":"independent"}
      # requirement-review → {"1-requirement":"independent","6-review":"independent"}
      #
-     # 数字映射：1→"1-requirement"  2→"2-design"  6→"6-review"
+     # 数字映射：1→"1-requirement"  2→"2-design"  3→"3-task"  5→"5-test"  6→"6-review"  7→"7-integration"
 
      # 三段式 auto-detect：
      # a. echo "$VALUE" | jq -e 'type == "object"' 成功 → 合法 JSON 对象 → 直接使用（向后兼容）
@@ -161,6 +166,10 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
        --arg sub6 "${SUB_GOAL_6:-}" --arg sub7 "${SUB_GOAL_7:-}" \
        '.goal = {condition: $cond, status: "active", active_since: $ts, turns: 0, mode: "pending", scope: "pipeline", start_phase: $from, current_phase: $from, phases_done: [], gates: $gates, gate_config: $custom_gates, auto_advance: false, phase_sub_goals: {"4": $sub4, "5": $sub5, "6": $sub6, "7": $sub7}}' \
        .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+     # 写 gate_config 快照（D8 ⑥检测 · G3 · 入 .specs/<id>/ 受 git 跟踪）
+     change_id=$(jq -r '.change_id' .flow-active) && mkdir -p ".specs/${change_id}" \
+       && jq '{gate_config: .goal.gate_config, created_at: now}' .flow-active \
+          > ".specs/${change_id}/.goal-snapshot.json"
      ```
      注：jq key 含特殊字符（如 `6-review` 中的 `-`、gate key `4→5` 中的 `→`）时必须用 bracket 引用 `.["key"]`（见 LESSONS L-011）。
    - 无 `--pipeline` → 保持原有行为（单阶段 goal）：

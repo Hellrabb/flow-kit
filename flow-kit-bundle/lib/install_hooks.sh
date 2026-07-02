@@ -133,7 +133,7 @@ install_hooks() {
       local merged_pre
       merged_pre=$(jq --arg cmd "$pre_cmd" '
         .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
-          "matcher": "Bash",
+          "matcher": "Bash|Write|Edit",
           "hooks": [{
             "type": "command",
             "command": $cmd
@@ -150,7 +150,7 @@ install_hooks() {
   else
     jq -n --arg cmd "$pre_cmd" '
       { hooks: { PreToolUse: [{
-        "matcher": "Bash",
+        "matcher": "Bash|Write|Edit",
         "hooks": [{
           "type": "command",
           "command": $cmd

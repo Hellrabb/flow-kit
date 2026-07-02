@@ -95,6 +95,15 @@ run_module "${HOOK_BASE_DIR}/25-project.sh" "project"
 # 26 — Module G: Workflow state
 run_module "${HOOK_BASE_DIR}/26-workflow.sh" "workflow"
 
+# 27 — Module: Interactive UI check (weak-model guard)
+run_module "${HOOK_BASE_DIR}/27-interactive-ui-check.sh" "interactive-ui-check"
+
+# 28 — Module: Weak model compliance (L1/L2/L3 post-hoc verification)
+run_module "${HOOK_BASE_DIR}/28-weak-model-compliance.sh" "weak-model-compliance"
+
+# 29 — Module: Independent review L3 (external model audit)
+run_module "${HOOK_BASE_DIR}/29-independent-review.sh" "independent-review"
+
 # 30 — AI deep analysis (frequency-gated)
 run_module "${HOOK_BASE_DIR}/30-ai-analyze.sh" "ai-analyze"
 

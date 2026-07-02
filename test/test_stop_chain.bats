@@ -77,3 +77,12 @@ STOP_DIR="flow-kit-bundle/hooks/stop"
   run grep -q "build_summary\|generate_report()" "$STOP_DIR/99-report.sh"
   [ "$status" -eq 0 ]
 }
+
+# ── 00-gate.sh 调度列表完整性 (gate-integrity / AC-6 dogfood) ──────────
+# 修复：00-gate 必须调度 27/28/29（否则 L3/合规/交互UI 三模块从不自动跑）
+
+@test "smoke: 00-gate.sh 调度列表含 27/28/29（L3 自动跑前提）" {
+  run grep -c "run_module.*27-interactive-ui-check\|run_module.*28-weak-model-compliance\|run_module.*29-independent-review" "$STOP_DIR/00-gate.sh"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 3 ]
+}

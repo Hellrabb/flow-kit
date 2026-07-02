@@ -8,5 +8,5 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 102 tests`
+- **test_framework**: `bats-core 1.13.0 (npx) · 213 tests (test/ 实测 @ 2026-07-01)`
 - **ci_cd**: `未检测到`

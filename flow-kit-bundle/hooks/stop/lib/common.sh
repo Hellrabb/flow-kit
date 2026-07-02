@@ -84,9 +84,13 @@ hook_init() {
 init_paths() {
   PROJECT_ROOT="${CWD:-$PWD}"
 
-  # Derive CONFIG_FILE: env override > default project-relative path
+  # Derive CONFIG_FILE: env override > project-level > user-scope fallback
+  # (gate-integrity dogfood: 项目级缺失时回退 user-scope，否则全局 enabled=true 未被读 → module_enabled 恒 false)
   if [[ -z "${CONFIG_FILE:-}" ]]; then
     CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/.claude/stop-hook.json}"
+    if [[ ! -f "$CONFIG_FILE" && -f "${HOME}/.claude/stop-hook.json" ]]; then
+      CONFIG_FILE="${HOME}/.claude/stop-hook.json"
+    fi
   fi
 
   CLAWDE_MD="${PROJECT_ROOT}/CLAUDE.md"
