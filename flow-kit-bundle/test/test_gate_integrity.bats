@@ -41,10 +41,10 @@ session_id=abc-session-123
 EOF
 }
 
-# Helper: 写合法握手（phase=6, written_by=stop-hook-29, verdict=pass）
+# Helper: 写合法握手（per-phase 格式 · phase=6, written_by=stop-hook-29, verdict=pass）
 write_valid_handshake() {
   cat > "$PROJECT_ROOT/.flow-active.independent-review" << 'EOF'
-{"phase":"6","status":"done","verdict":"pass","written_by":"stop-hook-29","written_at":"2026-07-02T00:00:00Z"}
+{"6":{"phase":"6","status":"done","verdict":"pass","written_by":"stop-hook-29","written_at":"2026-07-02T00:00:00Z"}}
 EOF
 }
 

@@ -132,10 +132,10 @@ fi
 # ── Independent review report injection ──────────────────────────────
 ir_state_file="${PROJECT_ROOT}/.flow-active.independent-review"
 if [[ -f "$ir_state_file" ]] && jq empty "$ir_state_file" 2>/dev/null; then
-  ir_phase=$(jq -r '.phase // "?"' "$ir_state_file" 2>/dev/null)
-  ir_status=$(jq -r '.status // ""' "$ir_state_file" 2>/dev/null)
-  ir_report=$(jq -r '.report_file // ""' "$ir_state_file" 2>/dev/null)
-  ir_fail=$(jq -r '.fail_count // 0' "$ir_state_file" 2>/dev/null)
+  ir_phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null)
+  ir_status=$(jq -r --arg p "$ir_phase" '.[$p].status // ""' "$ir_state_file" 2>/dev/null)
+  ir_report=$(jq -r --arg p "$ir_phase" '.[$p].report_file // ""' "$ir_state_file" 2>/dev/null)
+  ir_fail=$(jq -r --arg p "$ir_phase" '.[$p].fail_count // 0' "$ir_state_file" 2>/dev/null)
   [[ "$ir_fail" =~ ^[0-9]+$ ]] || ir_fail=0
   ir_change=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
   ir_done="${PROJECT_ROOT}/.specs/${ir_change}/.independent-review-${ir_phase}.done"

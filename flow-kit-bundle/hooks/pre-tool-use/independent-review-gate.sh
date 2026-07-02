@@ -66,9 +66,9 @@ is_phase_write() {
   elif [[ "$c" =~ tee[[:space:]]+\.flow-active ]]; then :;
   elif [[ "$c" =~ \>[^=] ]]; then :;
   else return 1; fi
-  [[ "$c" =~ \.phase[[:space:]]*= ]] && return 0
-  [[ "$c" =~ \.goal\.current_phase[[:space:]]*= ]] && return 0
-  [[ "$c" =~ \.goal\.phases_done ]] && return 0
+  [[ "$c" =~ \.flow-active.*\.phase[[:space:]]*= ]] && return 0
+  [[ "$c" =~ \.flow-active.*\.goal\.current_phase[[:space:]]*= ]] && return 0
+  [[ "$c" =~ \.flow-active.*\.goal\.phases_done ]] && return 0
   return 1
 }
 is_git_commit() {
