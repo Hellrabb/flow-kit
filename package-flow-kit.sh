@@ -217,6 +217,7 @@ HOOK_SRC="$SCRIPT_DIR/flow-kit-bundle/hooks"
 # Stop hook 模块脚本（来源: common.sh::HOOK_MODULE_NAMES — 单一来源）
 # shellcheck source=/dev/null
 if source "$HOOK_SRC/stop/lib/common.sh" 2>/dev/null; then
+  HOOK_COUNT=0
   for name in "${HOOK_MODULE_NAMES[@]}"; do
     cp "$HOOK_SRC/stop/${name}.sh" "$STAGING/hooks/stop/"
     HOOK_COUNT=$((HOOK_COUNT + 1))
@@ -224,6 +225,7 @@ if source "$HOOK_SRC/stop/lib/common.sh" 2>/dev/null; then
   unset HOOK_MODULE_NAMES
 else
   echo "   ⚠️  common.sh 不可用，使用回退列表"
+  HOOK_COUNT=0
   for name in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
               23-quality 24-session 25-project 26-workflow 27-interactive-ui-check \
               28-weak-model-compliance 29-independent-review 30-ai-analyze 99-report; do
