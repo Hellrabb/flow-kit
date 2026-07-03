@@ -87,22 +87,42 @@ l3_review_run() {
       checklist="测试矩阵是否覆盖全 AC？覆盖率是否达标？UAT 是否可复现？是否有 mock 屏蔽真实失败？回归测试是否含？"
       ;;
     6)
-      # Phase 6: read git diff from project root
+      # Phase 6: git diff (tracked) + untracked new .sh/.bats files (F1 fix)
       local project_root="$(dirname "$(dirname "$artifacts_dir")")"
-      artifact=$(cd "$project_root" && git diff HEAD 2>/dev/null | head -c "$max_chars" || true)
+      artifact=$(cd "$project_root" && {
+        git diff HEAD 2>/dev/null
+        # Append content of new untracked shell/test files
+        git ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(sh|bats)$' | while read -r f; do
+          echo ""
+          echo "=== NEW FILE: $f ==="
+          head -c 5000 "$project_root/$f" 2>/dev/null || true
+        done
+      } | head -c "$max_chars" || true)
       if [ -f "${artifacts_dir}/REVIEW.md" ]; then
         artifact="${artifact}"$'\n\n=== 主 agent REVIEW.md ===\n'"$(head -c 8000 "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")"
       fi
       checklist="spec 合规（每条 AC 是否被代码覆盖）？代码质量（6 维衰退风险：认知过载/变更传播/知识重复/偶然复杂/依赖混乱/领域扭曲）？是否有 critical？"
       ;;
     7)
-      if [ -f "${artifacts_dir}/REVIEW.md" ]; then
-        artifact=$(head -c "$max_chars" "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")
-      fi
-      local changelog="${project_root:-.}/CHANGELOG.md"
+      # Phase 7: directory listing + all artifact summaries (F2 fix)
+      local project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      artifact="=== 产物目录 ===\n$(ls -la "$artifacts_dir" 2>/dev/null | head -30)\n"
+      for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
+        if [ -f "${artifacts_dir}/$f" ]; then
+          artifact="${artifact}\n\n=== $f ===\n$(head -c 3000 "${artifacts_dir}/$f" 2>/dev/null || echo "")"
+        else
+          artifact="${artifact}\n\n=== $f === MISSING"
+        fi
+      done
+      local changelog="${project_root:-.}/.specs/CHANGELOG.md"
       if [ -f "$changelog" ]; then
-        artifact="${artifact}"$'\n\n=== CHANGELOG.md ===\n'"$(head -c 4000 "$changelog" 2>/dev/null || echo "")"
+        artifact="${artifact}\n\n=== CHANGELOG.md ===\n$(head -c 3000 "$changelog" 2>/dev/null || echo "")"
       fi
+      local lessons="${project_root:-.}/.specs/LESSONS.md"
+      if [ -f "$lessons" ]; then
+        artifact="${artifact}\n\n=== LESSONS.md ===\n$(head -c 2000 "$lessons" 2>/dev/null || echo "")"
+      fi
+      artifact=$(echo -e "$artifact" | head -c "$max_chars")
       checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/SUMMARY/TEST/REVIEW）？CHANGELOG 是否更新且 Conventional Commits 语义正确？archive 是否完整？"
       ;;
   esac
@@ -122,26 +142,26 @@ l3_review_run() {
   local auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
 
   if [ -n "$auth_token" ]; then
-    ai_response=$(curl -s --max-time 25 "${base_url}/v1/messages" \
+    ai_response=$(curl -s --max-time 90 "${base_url}/v1/messages" \
       -H "Authorization: Bearer ${auth_token}" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
-        '{model:$m, max_tokens:2000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+        '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
   fi
 
   # Path 2: Legacy ANTHROPIC_API_KEY (向后兼容)
   if [ -z "$ai_response" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    ai_response=$(curl -s --max-time 25 https://api.anthropic.com/v1/messages \
+    ai_response=$(curl -s --max-time 90 https://api.anthropic.com/v1/messages \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
-        '{model:$m, max_tokens:2000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+        '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
   fi
 
   # ── 解析响应 ──
   local content=""
   if [ -n "$ai_response" ]; then
-    content=$(echo "$ai_response" | jq -r '.content[0].text // empty' 2>/dev/null || echo "")
+    content=$(echo "$ai_response" | jq -r '[.content[] | select(.type == "text") | .text][0] // .content[0].thinking // .content[0].text // empty' 2>/dev/null || echo "")
   fi
 
   # ── API 调用失败 ──
@@ -150,8 +170,13 @@ l3_review_run() {
     return 3
   fi
 
-  # ── 追加 L3 段到 review 文件 (追加非覆盖，保留 L2 段) ──
+  # ── 写入 L3 段到 review 文件 (F3: 先剥离已有 L3 段，再追加，保持幂等) ──
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
+  if [ -f "$review_md" ]; then
+    local tmp_review="${review_md}.tmp"
+    awk '/^## L3 盲审/{stop=1} !stop{print}' "$review_md" > "$tmp_review" 2>/dev/null
+    mv "$tmp_review" "$review_md" 2>/dev/null || true
+  fi
   local ts
   ts=$(date '+%Y-%m-%d %H:%M' 2>/dev/null || echo "")
   local written_by="pre-tool-use-gate"
@@ -172,12 +197,23 @@ l3_review_run() {
     echo '```'
   } >> "$review_md"
 
-  # ── 提取 verdict ──
+  # ── 提取 verdict（三层提取：代码块 → 纯 JSON → grep 正则）──
   local extracted
   extracted=$(echo "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' 2>/dev/null || echo "")
-  [ -n "$extracted" ] || extracted="$content"
-  local l3_verdict
-  l3_verdict=$(echo "$extracted" | jq -r '.verdict // "unknown"' 2>/dev/null || echo "unknown")
+  local l3_verdict=""
+  # Layer 1: code block extraction
+  if [ -n "$extracted" ]; then
+    l3_verdict=$(echo "$extracted" | jq -r '.verdict // ""' 2>/dev/null || echo "")
+  fi
+  # Layer 2: direct JSON (for models returning raw JSON)
+  if [ -z "$l3_verdict" ]; then
+    l3_verdict=$(echo "$content" | jq -r '.verdict // ""' 2>/dev/null || echo "")
+  fi
+  # Layer 3: regex fallback (for mixed text+JSON like DeepSeek thinking)
+  if [ -z "$l3_verdict" ]; then
+    l3_verdict=$(echo "$content" | grep -oP '"verdict"\s*:\s*"\K(pass|fail)(?=")' 2>/dev/null | tail -1 || echo "")
+  fi
+  [ -n "$l3_verdict" ] || l3_verdict="unknown"
 
   # Verdict 值域校验 (非法值降级)
   case "$l3_verdict" in pass|fail) ;; *)

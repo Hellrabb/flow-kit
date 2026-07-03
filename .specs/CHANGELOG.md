@@ -80,8 +80,10 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 
 ### 测试基线
 
-194/194 tests pass（24 new + 162 existing + 8 regression demo）
+211/211 tests pass（17 new + 194 existing）
 | 2026-07-01 | independent-review | L2 盲审 + L3 hook 强制独立 review（1/2/6 阶段，默认关闭）| — |
 | 2026-07-01 | sweep-fix-2026-07 | 修复全量健康扫描 6 项技术债（hook列表去重/查表驱动/correction统一/bats安装/格式审计/注释） | — |
 | 2026-07-01 | test-harden-sessionstart | SessionStart 测试从骨架升级为真实 hook 执行测试（7+5 用例） | — |
 | 2026-07-02 | independent-review-gap | 补齐 L2/L3 独立审查 3/5/7 缺失：prompt 段 + PRESET_MAP + L2 checklist + 全链路同步 | L-016, L-017 |
+| 2026-07-03 | flow-active-integrity | L2+L3 .flow-active 状态完整性检查：8 prompt PCSC + 33 号 hook 模块 + 19 bats tests | L-019, L-020 |
+| 2026-07-03 | l3-review-hardening | l3-review.sh 6 项修复：F1 新文件/F2 全产物/F3 幂等/B1-B4 DeepSeek 兼容 | — |

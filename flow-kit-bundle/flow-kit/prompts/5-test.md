@@ -88,6 +88,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 | 4 | 测试质量自检（1.4 段 · 6 维测试衰退风险）已完成 | 人工确认 | ✅ / ❌ |
 | 5 | 覆盖率指标已记录（如适用） | `grep -c 'Coverage' TEST.md` | ✅ / ❌ |
 | 6 | 回归测试登记（步骤 N）已完成 | 人工确认 | ✅ / ❌ |
+| 7 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 

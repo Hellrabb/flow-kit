@@ -159,6 +159,8 @@ Preflight 失败时，路由声明必须写明：
 
 ### 拦截逻辑
 
+<!-- PCSC: .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 — transition/phase-switch 后必须确认 -->
+
 读取 `.flow-active` 的 `change_id` 和 `goal.current_phase` → 对照上表检查当前阶段的必须产物 → 
 - 产物完整 → ✅ 放行，继续路由
 - 产物缺失 → ❌ 拒绝路由，输出：

@@ -195,6 +195,7 @@ Wave 3:            T05 (depends on T03, T04)
 | 6 | 至少 1 个 `[P]` 并行任务（除非纯串行） | 人工确认 | ✅ / ❌ |
 | 7 | 每个任务的 `verify` 都是可执行命令 | 人工确认 | ✅ / ❌ |
 | 8 | 任务编号连续（T01, T02, ...） | 人工确认 | ✅ / ❌ |
+| 9 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 

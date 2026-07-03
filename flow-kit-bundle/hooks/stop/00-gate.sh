@@ -107,6 +107,15 @@ run_module "${HOOK_BASE_DIR}/29-independent-review.sh" "independent-review"
 # 30 — AI deep analysis (frequency-gated)
 run_module "${HOOK_BASE_DIR}/30-ai-analyze.sh" "ai-analyze"
 
+# 31 — Auto-advance hook fallback (pipeline goal)
+run_module "${HOOK_BASE_DIR}/31-auto-advance.sh" "auto-advance"
+
+# 32 — Fallback guard hook (pipeline goal)
+run_module "${HOOK_BASE_DIR}/32-fallback-guard.sh" "fallback-guard"
+
+# 33 — .flow-active state integrity cross-validation (L3)
+run_module "${HOOK_BASE_DIR}/33-flow-active-integrity.sh" "flow_active_integrity"
+
 # 99 — Report generation
 run_module "${HOOK_BASE_DIR}/99-report.sh" "report"
 
