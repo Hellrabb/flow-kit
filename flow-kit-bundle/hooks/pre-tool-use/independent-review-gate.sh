@@ -71,6 +71,19 @@ is_phase_write() {
   [[ "$c" =~ \.flow-active.*\.goal\.phases_done ]] && return 0
   return 1
 }
+
+# _fk_phase_direction() — 判定 phase write 的方向 (P0-3/F3 修复)
+# 参数: $1 = command string, $2 = current_phase from .flow-active
+# 输出: "rollback" (target < current) | "forward" (target > current) | "noop" (target == current or no target)
+_fk_phase_direction() {
+  local c="$1" cur="$2"
+  local target
+  target=$(echo "$c" | grep -oP 'current_phase[[:space:]]*=[[:space:]]*"\K[0-7]' | head -1 || echo "")
+  if [[ -z "$target" ]]; then echo "noop"; return 0; fi
+  if [[ "$target" < "$cur" ]]; then echo "rollback"; return 0; fi
+  if [[ "$target" == "$cur" ]]; then echo "noop"; return 0; fi
+  echo "forward"
+}
 is_git_commit() {
   [[ "$1" =~ (^|[[:space:]])git[[:space:]]+commit([[:space:]]|$) ]]
 }
@@ -115,7 +128,13 @@ EOF
   fi
 
   # ── review gate 段（仅 1/2/3/5/6/7 阶段且 gate 开启）──
-  phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
+  # pipeline 模式优先读 goal.current_phase；单阶段模式读 phase（pipeline-fallback-fix UAT 发现）
+  scope=$(jq -r '.goal.scope // ""' "$flow_file" 2>/dev/null || echo "")
+  if [[ "$scope" == "pipeline" ]]; then
+    phase=$(jq -r '.goal.current_phase // "?"' "$flow_file" 2>/dev/null || echo "?")
+  else
+    phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
+  fi
   change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
   [[ "$phase" =~ ^(1|2|3|5|6|7)$ ]] || exit 0
   { [ "$change_id" != "none" ] && [ "$change_id" != "null" ]; } || exit 0
@@ -146,6 +165,53 @@ EOF
    如确需调整 gate-config：用 /flow gate-config 重设（同时更新快照），或手动更新 .goal-snapshot.json 并 commit。
 EOF
     exit 2
+  fi
+
+  # ── P0-1/F1 · L3 前置 + P0-3/F3 · 方向判定 ──
+  if is_phase_write "$cmd"; then
+    cur_phase=$(jq -r '.goal.current_phase // ""' "$flow_file" 2>/dev/null || echo "")
+    dir=$(_fk_phase_direction "$cmd" "$cur_phase")
+    case "$dir" in
+      rollback)
+        # 回退放行（不要求 .done）—— AC-3
+        cat >&2 <<EOF
+⏎ 独立 review gate：检测到回退操作（phase ${cur_phase} → 更早阶段），放行不要求 .done。
+EOF
+        exit 0
+        ;;
+      noop)
+        # no-op 放行（状态维护操作）—— AC-3b
+        exit 0
+        ;;
+      forward)
+        # 前进 → 尝试 L3 前置
+
+        # 检查 L2 是否已完成
+        review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+        if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
+          # L2 已完成，尝试同步 L3
+          l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
+          if [ -f "$l3_lib" ]; then
+            source "$l3_lib" 2>/dev/null || true
+            if type l3_review_with_timeout >/dev/null 2>&1; then
+              # 从 INDEPENDENT-REVIEW-<N>.md 提取 L2 verdict
+              l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+              [ -n "$l2v" ] || l2v="fail"  # 无法提取时默认 fail
+              spec_dir="${cwd}/.specs/${change_id}"
+              cat >&2 <<EOF
+⏳ L3 独立审查中（外部模型 · phase ${phase}）...
+EOF
+              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 2>/dev/null || true
+              # L3 完成后重试 .done 校验
+              if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
+                exit 0
+              fi
+            fi
+          fi
+        fi
+        # L2 未完成或 L3 后仍无效 → 继续 deny
+        ;;
+    esac
   fi
 
   phase_name=""

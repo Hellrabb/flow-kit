@@ -39,3 +39,7 @@ Thumbs.db
 # === flow-kit 运行时状态（每会话不同，不入库） ===
 .flow-active
 .flow-active.*
+
+# === 独立审查运行时产物（L2/L3 子进程生成，不入库） ===
+.independent-review-*.done
+.goal-snapshot.json

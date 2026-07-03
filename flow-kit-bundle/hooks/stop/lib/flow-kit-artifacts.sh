@@ -8,7 +8,7 @@
 # NOTE: Does NOT set -euo pipefail — this is a library, sourced by callers.
 # Callers (26-workflow.sh, etc.) are responsible for shell flags.
 
-readonly MIN_MEANINGFUL_LINES=3   # 阈值:<3行的文件视为空壳(常见于仅shebang+空行的空模板/占位文件);≥3行才开始内容检验
+readonly MIN_MEANINGFUL_LINES=6   # 阈值: 6 键 .done (phase/change_id/written_by/L2_verdict/L3_verdict/artifacts) 至少 6 行
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -186,6 +186,18 @@ fk_validate_done_marker() {
   [[ "$k_phase" == "$phase" ]] || return 2
   [[ "$k_cid" == "$change_id" ]] || return 2
   [[ -n "$k_wby" ]] || return 2
+
+  # T5 Tier1 补 L2_verdict / L3_verdict / artifacts 存在性 + 值合法性检查 (pipeline-fallback-fix P2-1/P2-2)
+  local k_l2v k_l3v k_artifacts
+  k_l2v=$(_fk_done_kvp "$done_path" "L2_verdict")
+  k_l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
+  k_artifacts=$(_fk_done_kvp "$done_path" "artifacts")
+  [[ -n "$k_l2v" ]] || return 2          # 缺 L2_verdict → deny
+  [[ "$k_l2v" =~ ^(pass|fail)$ ]] || return 2  # L2_verdict 值域校验
+  [[ -n "$k_l3v" ]] || return 2          # 缺 L3_verdict → deny
+  [[ "$k_l3v" =~ ^(pass|fail|timeout|error)$ ]] || return 2  # L3_verdict 值域校验 (含 timeout/error 降级)
+  [[ -n "$k_artifacts" ]] || return 2     # 缺 artifacts → deny
+  [[ "$k_artifacts" =~ , ]] || return 2   # artifacts 至少含 1 个逗号分隔文件名 (最低: "x,y")
 
   [[ "$tier" == "transition" ]] || return 0                # tier=write 到此为止
 
