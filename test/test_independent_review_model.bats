@@ -55,14 +55,14 @@ teardown() {
 
 # ── AC-4: API 直连 ────────────────────────────────────────────────────
 
-@test "AC-4: 29-independent-review.sh uses ANTHROPIC_BASE_URL for direct API" {
-  run grep -c 'ANTHROPIC_BASE_URL' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "AC-4: l3-review.sh uses ANTHROPIC_BASE_URL for direct API (pipeline-fallback-fix: 迁移到共享lib)" {
+  run grep -c 'ANTHROPIC_BASE_URL' "$HOME/.claude/hooks/stop/lib/l3-review.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 }
 
-@test "AC-4: 29-independent-review.sh uses ANTHROPIC_AUTH_TOKEN for auth header" {
-  run grep -c 'ANTHROPIC_AUTH_TOKEN' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "AC-4: l3-review.sh uses ANTHROPIC_AUTH_TOKEN for auth header (pipeline-fallback-fix: 迁移到共享lib)" {
+  run grep -c 'ANTHROPIC_AUTH_TOKEN' "$HOME/.claude/hooks/stop/lib/l3-review.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 }
@@ -81,14 +81,14 @@ teardown() {
 
 # ── API 路径优先级 smoke test ─────────────────────────────────────────
 
-@test "API path: direct curl before onecli in 29 script" {
-  # 直连代码块应该在 onecli 之前出现
-  script="$HOME/.claude/hooks/stop/29-independent-review.sh"
-  direct_line=$(grep -n 'Path 1.*Direct API' "$script" | head -1 | cut -d: -f1)
-  onecli_line=$(grep -n 'Path 2.*onecli' "$script" | head -1 | cut -d: -f1)
+@test "API path: direct curl before legacy key in l3-review.sh (pipeline-fallback-fix: 迁移到共享lib)" {
+  # 直连代码块应该在 legacy API key 之前出现
+  script="$HOME/.claude/hooks/stop/lib/l3-review.sh"
+  direct_line=$(grep -n 'env-var-first 直连' "$script" | head -1 | cut -d: -f1)
+  legacy_line=$(grep -n 'Path 2.*Legacy' "$script" | head -1 | cut -d: -f1)
   [ -n "$direct_line" ]
-  [ -n "$onecli_line" ]
-  [ "$direct_line" -lt "$onecli_line" ]
+  [ -n "$legacy_line" ]
+  [ "$direct_line" -lt "$legacy_line" ]
 }
 
 @test "API path: direct curl before onecli in 30 script" {
@@ -102,8 +102,8 @@ teardown() {
 
 # ── onecli 保留为 fallback ────────────────────────────────────────────
 
-@test "onecli fallback: 29 script still references onecli" {
-  run grep -c 'onecli' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "API fallback: 29 script sources l3-review.sh shared lib (pipeline-fallback-fix: 迁移到共享lib)" {
+  run grep -c 'l3-review.sh' "$HOME/.claude/hooks/stop/29-independent-review.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 }

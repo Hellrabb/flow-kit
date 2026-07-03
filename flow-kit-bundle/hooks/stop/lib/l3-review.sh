@@ -233,14 +233,17 @@ l3_review_with_timeout() {
   local l2_verdict="$4"
   local timeout_secs="${5:-30}"
 
+  # Phase 值域已在上游校验（${phase} ∈ {1..7}, ${l2_verdict} ∈ {pass,fail}），
+  # 仍通过环境变量传参避免 shell 插值注入风险
+
   echo "[l3-review] L3 review starting (phase=${phase}, timeout=${timeout_secs}s)..." >&2
 
   # 尝试同步调用
   local ret=0
-  timeout "${timeout_secs}s" bash -c "
-    source '${BASH_SOURCE[0]}'
-    l3_review_run '${phase}' '${change_id}' '${artifacts_dir}' '${l2_verdict}'
-  " 2>/dev/null || ret=$?
+  timeout "${timeout_secs}s" bash -c '
+    source "$0"
+    l3_review_run "$1" "$2" "$3" "$4"
+  ' "${BASH_SOURCE[0]}" "${phase}" "${change_id}" "${artifacts_dir}" "${l2_verdict}" 2>/dev/null || ret=$?
 
   if [ $ret -eq 124 ] || [ $ret -eq 137 ]; then
     # timeout 命令返回 124 (GNU timeout) 或进程被 kill (137=128+9)

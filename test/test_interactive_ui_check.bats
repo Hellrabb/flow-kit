@@ -10,7 +10,9 @@ setup() {
   export CORRECTION_FILE="${TEST_TMPDIR}/.flow-active.interactive-ui-fix"
 
   # Determine library path relative to this test file
-  LIB_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../flow-kit-bundle/hooks/stop/lib/interactive-ui-check.sh"
+  LIB_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../flow-kit-bundle/hooks/stop/lib"
+  export HOOK_BASE_DIR="${LIB_DIR}/.."  # correction-file.sh 依赖 HOOK_BASE_DIR 定位 lib/
+  LIB_PATH="${LIB_DIR}/interactive-ui-check.sh"
   if [[ -f "$LIB_PATH" ]]; then
     source "$LIB_PATH"
   fi
