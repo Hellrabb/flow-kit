@@ -28,7 +28,7 @@ teardown() {
 @test "T02: 基线 SKILL↔bats 预设名一致 → gate-config 段报告一致（9 预设）" {
   run bash "$SCRIPT"
   [ "$status" -ne 2 ]                                  # 非脚本错误（exit 2）
-  [[ "$output" == *"预设名集合一致 (9 个预设)"* ]]     # gate-config 段 MATCH
+  [[ "$output" == *"预设名集合一致 (17 个预设)"* ]]     # gate-config 段 MATCH
   [[ "$output" != *"gate-config 预设名集合不一致"* ]]  # 无 gate-config 漂移
 }
 
