@@ -116,6 +116,7 @@
 | 4 | v1 / v2 / out 三类均已切分 | 人工确认 | ✅ / ❌ |
 | 5 | 非功能性需求已显式列出（含"无"） | 人工确认 | ✅ / ❌ |
 | 6 | 每条 AC 都能用一条命令或一次操作验证 | 人工确认 | ✅ / ❌ |
+| 7 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 

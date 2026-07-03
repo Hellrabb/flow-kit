@@ -101,6 +101,7 @@
    | 5 | 沿用既有抽象 grep 已跑（1.4 段），结果在 SUMMARY 中 | 人工确认 | ✅ / ❌ |
    | 6 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
 | 7 | **1.8 触发时 bats 已跑且 0 fail**（L-010） | `grep "0 failures"` 1.8.4 输出 | ✅ / ❌ |
+| 8 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
    ### auto_advance 分支
 

@@ -226,5 +226,5 @@ declare -a HOOK_MODULE_NAMES=(
   00-gate 01-transcript-parse
   20-claude-md 21-memory 22-git 23-quality 24-session 25-project
   26-workflow 27-interactive-ui-check 28-weak-model-compliance
-  29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 99-report
+  29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 33-flow-active-integrity 99-report
 )

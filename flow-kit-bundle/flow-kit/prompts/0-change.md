@@ -174,6 +174,7 @@ CHANGE.md 经用户确认后，根据路径建议进入：
 | 4 | 影响面已判定（checkbox 至少勾 1 项） | 人工确认 | ✅ / ❌ |
 | 5 | 范围排除已写（至少 1 条"本次不做"） | 人工确认 | ✅ / ❌ |
 | 6 | 验收线已写（粗粒度，1~3 条） | 人工确认 | ✅ / ❌ |
+| 7 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 

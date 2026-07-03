@@ -132,6 +132,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | fallback hook 兜底 | `32-fallback-guard.sh` Stop hook 模块：检测 `mode=fallback` + pipeline 完成条件满足 → 自动更新 `goal.status=done`。补充原先纯 prompt 驱动的 fallback 机制（F5） |
 | 31-auto-advance.sh | 新增 Stop hook 第 31 号模块：auto_advance hook 兜底——Stop 时若 `auto_advance=true` 且当前阶段 PCSC 全✅，自动执行 transition jq 推进到下一阶段 |
 | 32-fallback-guard.sh | 新增 Stop hook 第 32 号模块：fallback hook 兜底——Stop 时若 `mode=fallback` 且 pipeline 到达终点（phase 7 PCSC 全✅），自动标记 `goal.status=done` |
+| .flow-active 状态完整性（.flow-active state integrity） | `.flow-active` 各字段（phase / task_id / change_id / goal / token_spent / updated_at）与实际磁盘产物和操作历史的一致性。完整性违规 = 状态漂移（state drift），分为四类：字段漏写、pipeline goal 字段漂移、change_id 不一致、token_spent 未维护 |
+| 状态漂移（state drift） | `.flow-active` 字段值与实际情况的偏差。来源包括：AI 跳过 jq 写入（L2 漏检）、pipeline transition 执行不完整、change 归档后 change_id 未清理。当前无自动化检测，靠人工发现 |
+| 交叉验证（cross-validation） | L3 hook 层对 `.flow-active` 字段与磁盘产物的一致性校验。例：`phases_done` 中的 phase N → 对应 `.specs/<id>/` 下产物必须存在；`change_id` → `.specs/<id>/` 目录必须存在；`gates` 与 `phases_done` 双向对齐 |
+| 时效性检测（staleness detection） | L3 hook 对 `.flow-active.updated_at` 的时间窗口检查。若距当前时间超过阈值（默认 24h）→ 报告 "stale .flow-active" 警告，提示可能漏维护 |
 
 ## 已锁决策
 

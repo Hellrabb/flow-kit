@@ -82,6 +82,10 @@
         "W3"
       ]
     },
+    "flow_active_integrity": {
+      "enabled": true,
+      "description": ".flow-active state integrity cross-validation (L3)"
+    },
     "independent_review": {
       "enabled": true,
       "checks": [

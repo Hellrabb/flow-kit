@@ -17,6 +17,8 @@
 | L-016 | 🟢 | `flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh`（501 行） | 单体文件偏大，含 artifact-check / auto-phase / done-validation / stale-check / boundary-check / snapshot / progress / token 共 8 个职责 | 可按职责拆为 `artifact-check.sh` / `auto-phase.sh` / `done-validation.sh` 三个子库（当前可维护性尚可，非紧急） | observed | `M-health 2026-07-02` |
 | L-017 | 🟢 | `package-flow-kit.sh`（594 行） | 打包主脚本偏大，`validate_staging_coverage()` 函数 ~100 行独立于主流程 | 可拆出 `validate_staging_coverage()` 为独立 lib（当前可维护性尚可，非紧急） | observed | `M-health 2026-07-02` |
 | L-018 | 🟢 | `flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:498` | `fk_accumulate_tokens` 中 `updated_at` 被双重赋值（第一个 `\| .updated_at = now` 被第二个 `\| .updated_at = (now \| strftime(...))` 覆盖），无实际效果但潦草 | 删掉第一个 `\| .updated_at = now`（下次改到该函数时顺手修） | observed | `M-health 2026-07-02` |
+| L-019 | 🟡 | `flow-kit-bundle/hooks/stop/lib/correction-file.sh:41` | `correction_file_write()` 使用 overwrite 策略——直接覆写矫正文件。当多个 hook 模块（28 / 33）共用同一矫正文件（`.flow-active.correction`）时，后写入者会销毁先写入者的记录。本次 33 号模块实现了 read-merge-write（先读现有 violations → 追加 → 写回），但 `correction-file.sh` 的 `correction_file_write()` 仍只有 overwrite 策略 | 升级 `correction_file_write()` 支持 `merge` 策略（第二个参数传 `merge` 时 read-merge-write）或默认改为 merge。所有调用者（28/33）统一受益 | active | `flow-active-integrity` phase 2/3 L2 review R1 |
+| L-020 | 🟡 | Stop hook 模块执行链 | **新增 Stop hook 模块需要三处接线才能实际执行**：① `00-gate.sh` 添加 `run_module` 调用 ② `common.sh` 的 `HOOK_MODULE_NAMES` 数组追加编号 ③ `hooks/config/stop-hook.json` 注册模块条目。漏掉任何一处 = 模块永不执行。`pipeline-fallback-fix` 新增的 31/32 号模块遗漏了 00-gate.sh 接线（至今 dead code），本次 33 号在 L2 review 发现并及时补齐 | **强制**：新增 hook 模块的 task 必须同时写入三处；TASK.md 的 verify 必须 grep 三处均含模块名。或将三处合并为单一注册源，`00-gate.sh` 从 `stop-hook.json` 动态加载 | active | `flow-active-integrity` phase 3 L2 review R2 |
 
 ---
 

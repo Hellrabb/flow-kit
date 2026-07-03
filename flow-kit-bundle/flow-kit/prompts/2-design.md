@@ -273,6 +273,7 @@
 | 7 | ADR 已记录（如有不可逆决策） | `test -f .specs/adr/*.md`（如适用） | ✅ / ❌ |
 | 8 | § 9 架构沉淀建议已写（或整段写"无建议"） | 人工确认 | ✅ / ❌ |
 | 9 | 不含完整代码实现（R3.1 — 伪代码/函数签名可，完整函数体不可） | 人工确认 | ✅ / ❌ |
+| 10 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 

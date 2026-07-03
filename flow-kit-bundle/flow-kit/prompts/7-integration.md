@@ -99,6 +99,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 | 8a | **CHANGELOG LESSONS 列已同步**：若步骤 4 产出了新 L-NNN → CHANGELOG 该行列明 `L-NNN`；若步骤 4 无提名 → CHANGELOG 该行写 `—`。禁止步骤 4 有提名但 CHANGELOG 写 `—` | `grep -c "L-NNN" .specs/CHANGELOG.md` 与 `grep -c "L-NNN" .specs/LESSONS.md` 一致 | ✅ / ❌ |
 | 9 | Sub-goal 汇总已完成（AC-12，若 `phase_sub_goals` 非空） | 人工确认 | ✅ / ❌ |
 | 10 | PR 已提交（如适用） | 人工确认 | ✅ / N/A |
+| 11 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
 
 ### auto_advance 分支
 
