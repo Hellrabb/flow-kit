@@ -4,7 +4,8 @@
 
 | 日期 | Change ID | 摘要 | LESSONS |
 |---|---|---|---|
-| 2026-07-02 | `gate-integrity` | 加固 toll-gate 不可绕过性 + 扩展 L2 独立审查到 3/5/7：fk_validate_done_marker 两层 4 层校验（T1-T4）+ D7 path-guard is_handshake_write 拦 Write/Edit/Bash + D8 gate_config 篡改检测 .goal-snapshot.json + D10 phases_done 写入拦 + 29号 L3 l3_token sha256 握手 + AC 1~6 全覆盖（6 类威胁 7 demo UAT 全过）· 23 tests 全过 + 216 bats 不回归（12 预存）· 打包验证通过 · full pipeline 0→6 dogfood（L2 盲审 pass / D7 gate 实时拦实证成功） | L-015 |
+| 2026-07-03 | `pipeline-fallback-fix` | **修复阶段**：完整修复 DIAGNOSIS.md 全部 6 发现（P0×3 + P1×3 + P2×2 = 9 项）。L3 前置 PreToolUse hook (l3-review.sh 共享lib) + gate_config 快照同步 + 三向 gate 方向判定 + auto_advance/fallback hook 兜底 (31/32 号模块) + .done 6键统一 + Tier1 verdict 检查 + GO.md fallback 路由 | L-016 |
+| 2026-07-03 | `pipeline-fallback-fix` | 诊断 pipeline 自动推进 + 回退模式：0→7 全链路 dogfood 诊断，发现 6 个 🔴 → DIAGNOSIS.md 18K + 9 条修复建议 | L-016 |
 | 2026-07-01 | `health-fix-2026-07` | 修复 `package-flow-kit.sh` 末尾孤儿 `fi`（581-587 残留碎片）导致 `bash -n` 失败 + 正常打包退出码非 0 · 新增 5 回归测试（AC-1~4：package 专项 + 全量 `bash -n` 门禁 smoke）· flow-health SKILL 增补步骤 2.6 全量语法门禁（AC-5，堵 2026-06-30 巡检盲区）· 181 bats 全绿 | — |
 | 2026-06-29 | `robustness-hook-hardening` | 弱模型鲁棒性 Hook 化升级：Stop hook 28 号模块 L1+L2+L3 系统级事后验证 + 统一矫正文件 `.flow-active.correction` + SessionStart 矫正注入 · 283 行净逻辑代码 · 14 个新增 bats 测试 · 176 tests 全绿 | L-014 |
 | 2026-06-29 | `lessons-cleanup` | 消除 LESSONS.md 三条活跃技术债：L-013 归档双向校验（清理工作目录+扫描孤儿change）+ L-012 打包完整性校验（--validate）+ L-010 1.8 破坏性变更自动 bats 验证 · 16 bats tests 全绿 | L-010/L-012/L-013 |

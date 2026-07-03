@@ -124,6 +124,14 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | gate-config 3-5-7 扩展 | gate-config 预设/数字映射从 {1,2,6} 扩展到 {1,2,3,5,6,7}。3→`3-task`、5→`5-test`、7→`7-integration`。默认 off：`full` 预设仍只含 1/2/6，用户显式开 3/5/7 |
 | independent-review-gap | 本次 change：补齐 gate-integrity 未完成的 prompt 层 + PRESET_MAP 层 + L2 checklist 层。修复四层差异使 `all` 预设端到端可用 |
 | 独立审查四层架构 | L2/L3 独立审查由四层组成：① PRESET_MAP（定义哪些阶段可开）② Prompt 模板（告知主 agent 如何调度 L2）③ Hook 层（L3 自动执行 + done 真实性校验）④ L2-blind-review.md（固化盲审指令含各阶段 checklist）。四层全对齐 = 端到端可用；任一层缺失 = pipeline 死锁 |
+| L3 前置（L3 front-loading） | 将 L3 外部模型 API 调用从 Stop hook（会话结束触发）移到 PreToolUse hook（transition jq 拦截点）同步执行。解决 L2+L3 异步死锁（F1）：L3 原需等会话结束，但 pipeline transition 需 L3 完成后才放行 → 单 session 内无法闭环。前置后 transition 时同步完成 L2+L3，Stop hook 保留作兜底 |
+| l3-review.sh | 共享 lib（`hooks/stop/lib/l3-review.sh`），抽取 L3 API 调用逻辑（模型选择、prompt 构建、API 请求、30s 超时处理、结果解析）为单一函数，供 `independent-review-gate.sh`（PreToolUse）和 `29-independent-review.sh`（Stop hook）两处复用 |
+| transition 方向检测（transition direction detection） | `independent-review-gate.sh` 在 `is_phase_write` 时比较目标 phase 与当前 phase：目标 < 当前 → 回退（放行，不要求 .done）；目标 > 当前 → 前进（正常 gate 检查）。解决 F3：pipeline 卡住后无法后退恢复 |
+| gate_config 快照同步（gate_config snapshot sync） | `/flow gate-config` 和 `/flow goal --gate-config` 同时写入 `.flow-active.goal.gate_config` 和 `.specs/<id>/.goal-snapshot.json`，保持两处一致。解决 F2：hook D8 ⑥ 快照不一致导致篡改检测死锁 |
+| auto_advance hook 兜底 | `31-auto-advance.sh` Stop hook 模块：检测 `auto_advance=true` + PCSC 全✅ → 自动执行 transition jq。补充原先纯 prompt 驱动的 auto_advance 机制（F4），确保弱模型跳过指令时 hook 层仍执行 |
+| fallback hook 兜底 | `32-fallback-guard.sh` Stop hook 模块：检测 `mode=fallback` + pipeline 完成条件满足 → 自动更新 `goal.status=done`。补充原先纯 prompt 驱动的 fallback 机制（F5） |
+| 31-auto-advance.sh | 新增 Stop hook 第 31 号模块：auto_advance hook 兜底——Stop 时若 `auto_advance=true` 且当前阶段 PCSC 全✅，自动执行 transition jq 推进到下一阶段 |
+| 32-fallback-guard.sh | 新增 Stop hook 第 32 号模块：fallback hook 兜底——Stop 时若 `mode=fallback` 且 pipeline 到达终点（phase 7 PCSC 全✅），自动标记 `goal.status=done` |
 
 ## 已锁决策
 
@@ -143,6 +151,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-01]` Q1 防线定在 hook 层（非 prompt 层）—— agent 无法绕过 hook。PCSC/PCG 现有防线只查"存在性"被 touch 骗过，本次升级为查"真实性"。来自 `gate-integrity`
 - `[2026-07-01]` 3/5/7 L2 默认 off —— gate-config `full` 预设仍只含 1/2/6，3/5/7 由用户显式开（数字简写 `1,2,3,5,6,7` 或新预设）。理由：避免 pipeline token 成本爆炸。来自 `gate-integrity`
 - `[2026-07-02]` 独立审查四层架构确认 —— L2/L3 独立审查的完整性依赖四层同步：① PRESET_MAP ② Prompt 模板 ③ Hook 层 ④ L2-blind-review.md。gate-integrity 仅完成了 Hook 层 + PRESET_MAP `all` 预设；本次 independent-review-gap 补齐剩余三层。来自 `independent-review-gap`
+- `[2026-07-03]` L3 同步调用策略（修复 F1 死锁）—— L3 API 调用从 Stop hook 移到 PreToolUse hook transition 拦截点作为主路径；Stop hook `29-independent-review.sh` 保留为兜底（处理 transition 前 session 异常终止的补跑场景）。抽取共享 lib `l3-review.sh` 消除两处重复。超时 30s + 降级为 `L3_verdict=timeout`（不阻塞 pipeline）。来自 `pipeline-fallback-fix`
+- `[2026-07-03]` gate_config 快照一致性策略（修复 F2 死锁）—— `/flow gate-config` 和 `/flow goal --gate-config` 必须同时更新 `.flow-active.goal.gate_config` 和 `.specs/<id>/.goal-snapshot.json`。单一写入点原则：skill 层负责同步，hook 层 D8 ⑥ 只做检测不做修复。来自 `pipeline-fallback-fix`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

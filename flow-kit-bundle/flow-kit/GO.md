@@ -211,6 +211,18 @@ Preflight 失败时，路由声明必须写明：
 >
 > **AI 的额外职责**：路由到 0-change / 2-design 时，路由声明的「第一动作」一栏应明确写"按 0.4 / 0₋ 先做架构级预检"，避免遗漏。
 
+### Fallback 路由（mode=fallback · P1-3/F5 修复）
+
+若 `.flow-active.goal.mode == "fallback"`，AI 在阶段 4/5/6/7 执行时启用内置迭代循环：
+
+1. **每 turn 结束时自检**：当前阶段条件是否满足（如 PCSC 全✅）
+2. **条件满足** → `goal.status = "done"`（32-fallback-guard.sh Stop hook 兜底）
+3. **条件不满足** → `goal.turns += 1`，继续下一 turn
+4. **上限**：最多 20 turns；超限后输出 `⛔ 回退模式已执行 20 turns，暂停等待人工介入`
+5. **Hook 兜底**：Stop hook `32-fallback-guard.sh` 在 phase 7 PCSC 全✅ 时自动标记 done
+
+> 与 native 模式差异：native 由 CC `/goal` 系统接管；fallback 由 prompt 自检循环 + hook 兜底。Toll-gate 暂停点、transition jq 格式两者完全一致。
+
 ## 第三步 · 老项目入场检测（brownfield 必跑）
 
 **触发**：进入 0-change 之前必跑。

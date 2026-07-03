@@ -72,7 +72,7 @@
 
 5. **Goal 迭代模式**（进入后）：
    - 原生模式（mode=native）："🚀 启动自主迭代（CC 原生 /goal 已接管），Ctrl+C 可中断"
-   - 回退模式（mode=fallback）：内置循环——每个 turn 结束时自检条件是否满足，满足则 goal.status=done 停止，不满足则 goal.turns++ 继续；最多 20 turns。检查方法：用工具实际验证条件（如跑测试、查退出码），而非读日志文本推断。
+   - 回退模式（mode=fallback）：@see GO.md § Fallback 路由（迭代循环 + 每 turn 自检 + 20 turns 上限 + 32-fallback-guard.sh hook 兜底）
 
 6. **Pipeline Goal 模式**（仅当 `.flow-active.goal.scope` = `"pipeline"` 且 `current_phase` = `start_phase` 或 `current_phase` = `"4"`（start_phase 缺失时默认））：
 
