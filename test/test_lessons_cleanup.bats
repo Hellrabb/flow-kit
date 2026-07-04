@@ -213,9 +213,11 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "边界: --validate 函数在脚本中只定义一次" {
-  run bash -c 'grep -c "^validate_staging_coverage()" package-flow-kit.sh'
-  [ "$output" = "1" ]
+@test "边界: --validate 函数在脚本中定义且被 source（已拆至 lib/validate_staging.sh）" {
+  # validate_staging_coverage() 已从 package-flow-kit.sh 拆到 lib/validate_staging.sh
+  # package-flow-kit.sh 应 source 该 lib 而非直接定义
+  run grep -c 'source.*validate_staging' package-flow-kit.sh
+  [ "$output" -ge 1 ]
 }
 
 @test "边界: 7-integration prompt §5.0 段存在" {

@@ -16,11 +16,8 @@
 
 ## Pipeline Goal 入场检测 + 门禁
 
-进入 6-review 后，检测 `.flow-active` 的 `goal` 字段：
-
-```bash
-jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // .start_phase // "4")|\(.phases_done // [] | join(","))|\(.auto_advance // false)"' .flow-active
-```
+进入 6-review 后，检测 `.flow-active` 的 `goal` 字段。
+解析逻辑见 `@flow-kit/reference/pipeline-goal-parser.md`。
 
 若 `scope` = `"pipeline"` 且 `current_phase` = `"6"`：
 - 展示 pipeline 横幅：4✅ → 5✅ → 6🔄 → 7⏸

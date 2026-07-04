@@ -168,14 +168,12 @@ PHASE_PROMPTS=(
   grep -q 'current_phase // .start_phase // "4"' "$PROMPTS_DIR/5-test.md"
 }
 
-@test "AC-6: 6-review entry jq includes start_phase fallback" {
-  grep -q 'start_phase // "4"' "$PROMPTS_DIR/6-review.md"
-  grep -q 'current_phase // .start_phase // "4"' "$PROMPTS_DIR/6-review.md"
+@test "AC-6: 6-review entry references shared pipeline-goal-parser" {
+  grep -q 'pipeline-goal-parser' "$PROMPTS_DIR/6-review.md"
 }
 
-@test "AC-6: 7-integration entry jq includes start_phase fallback" {
-  grep -q 'start_phase // "4"' "$PROMPTS_DIR/7-integration.md"
-  grep -q 'current_phase // .start_phase // "4"' "$PROMPTS_DIR/7-integration.md"
+@test "AC-6: 7-integration entry references shared pipeline-goal-parser" {
+  grep -q 'pipeline-goal-parser' "$PROMPTS_DIR/7-integration.md"
 }
 
 # ── 结构完整性 ──────────────────────────────────────────────────────────

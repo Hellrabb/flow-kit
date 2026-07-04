@@ -102,6 +102,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 交互式 UI 触发护栏（interactive UI guard） | 确保弱模型实际调用交互式 UI 工具（而非幻觉已调用）的 prompt 结构化加固。三层：① 结构化自检句（"如果你还没调用 X，现在停下来调用"）② 工具调用模板（写出参数骨架）③ L3 证据链（"确认：你上一条消息是否包含工具调用？"）。每点 ≥2 层 |
 | interactive-ui-guard.md | flow-kit/reference/ 下新增的共享护栏模板片段，供各 prompt 通过 `@see` 引用，统一交互式 UI 触发加固格式 |
 | weak-model-interactive-ui | 2026-06-29 change：全链路扫描 + 加固 flow-kit 所有交互 gate，确保弱模型实际触发 `AskUserQuestion` / `EnterPlanMode` |
+| 双向依赖环（bidirectional dependency cycle） | lib 模块间 A→B 且 B→A 的相互引用关系，违反 ADP（Acyclic Dependencies Principle）。症状：改任一模块可级联破坏另一个；单元测试隔离困难。修复方式：提取共享接口/常量到第三方轻量文件，双方依赖接口而非彼此 |
+| 聚合入口模式（aggregate entry pattern） | Bash 项目的向后兼容拆分模式：主文件（如 `flow-kit-artifacts.sh`）拆为多个子库后，自身改为仅 source 子库 + re-export 函数，外部调用方无需修改 source 路径。用于 L-016 大文件拆分 |
+| 共享 reference 片段（shared reference fragment） | 多个 prompt 文件引用的单一源片段（位于 `flow-kit/reference/` 下），避免同一代码块在多个 prompt 中逐字重复。用于 TD-005 jq goal 解析逻辑消除 |
+| health-fix-2026-07 | 2026-07-04 健康巡检的修复 change，一次性消除 1🔴 + 1🟡 + 2🟢 共 4 项技术债（L-021 循环依赖 / TD-005 jq 重复 / L-016 artifacts 拆分 / L-017 package 拆分） |
 | 27-interactive-ui-check.sh | Stop hook 第 27 号模块：每次会话停止时 grep transcript 检测弱模型是否跳过了交互 gate（prompt 含"反问用户"等关键词但回复中无 AskUserQuestion/EnterPlanMode 工具调用），跳过则写入矫正文件 `.flow-active.interactive-ui-fix` |
 | 矫正文件（correction file） | `.flow-active.interactive-ui-fix`（JSON，不入库）：Stop hook 检测到交互 gate 跳过时写入，含 gate_type / required_tool / retry_count。SessionStart flow-kit-resume.sh 检测到后注入矫正 banner 强制模型补调工具，retry_count ≥ 2 时停止矫正提示人工介入 |
 | weak-model-compliance | Stop hook 第 28 号模块：每次会话停止时对模型回复做三层事后合规验证——L1 规则合规（禁动清单+通用规则）、L2 自检完整性（自检表无空白/跳过）、L3 证据链真实性（引用路径在工具调用历史中出现过）。检测到违规 → 写入统一矫正文件 `.flow-active.correction` |
@@ -245,6 +249,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | TD-003 | ✅ | `flow-kit-bundle/flow-kit/prompts/{5-test,6-review,7-integration}.md` 入场 jq | `--from 0` pipeline 扩展时，4-dev.md + GO.md 已加 `start_phase` 读取，但这三个 prompt 仍是 `current_phase // "4"`（漏改）。实际影响低（current_phase 字段在 transition 时已正确更新，fallback 不触发），但一致性应补齐 | 统一三个 prompt 入场 jq 为 `current_phase // .start_phase // "4"` | `M-health 2026-06-20`（goal-pipeline-phase0 遗留）· **已修复 `0601dda`** · bats 77/78/79 验证（`M-health 2026-06-24` 复核）|
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 共享函数 < 3 阈值，`lib/utils.sh` 保持推迟 | 等新增 ≥ 2 个共享辅助函数时再建 | `init-git-repo` T03 · 保持 deferred |
 | TD-004 | 🟡 | `flow-kit-bundle/flow-kit/prompts/*.md`（15+ 文件） | Markdown prompt 样板重复率 22%——toll-gate 流程、独立 review 调度、Pipeline 规则等共享段在多文件中逐字重复，规则变更时须手动同步 N 处 | 抽取 `_shared/` 引用片段；下次 prompt 规则变更时一并重构 | `M-health 2026-07-02` |
+| TD-005 | 🟡 | `flow-kit-bundle/flow-kit/prompts/6-review.md` + `7-integration.md` | jq pipeline goal 解析逻辑（68 行）在 6-review 和 7-integration 两个 prompt 中逐字重复——提取 goal.scope / start_phase / current_phase / phases_done / gates | 抽取到 `flow-kit/reference/` 共享片段；下次改 pipeline goal 解析时一并重构 | `M-health 2026-07-04` |
 
 ---
 
