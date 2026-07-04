@@ -4,6 +4,7 @@
 
 | 日期 | Change ID | 摘要 | LESSONS |
 |---|---|---|---|
+| 2026-07-05 | `health-fix-2026-07` (2nd) | 健康巡检修复：correction-file merge 策略 + jq goal 解析去重（pipeline-goal-parser.md）+ done-validation.sh 拆分 + validate_staging.sh 拆分 · 净 −223 行 · 309 bats 全绿 · full pipeline 0→7 | L-021, TD-005 |
 | 2026-07-03 | `pipeline-fallback-fix` | **修复阶段**：完整修复 DIAGNOSIS.md 全部 6 发现（P0×3 + P1×3 + P2×2 = 9 项）。L3 前置 PreToolUse hook (l3-review.sh 共享lib) + gate_config 快照同步 + 三向 gate 方向判定 + auto_advance/fallback hook 兜底 (31/32 号模块) + .done 6键统一 + Tier1 verdict 检查 + GO.md fallback 路由 | L-016 |
 | 2026-07-03 | `pipeline-fallback-fix` | 诊断 pipeline 自动推进 + 回退模式：0→7 全链路 dogfood 诊断，发现 6 个 🔴 → DIAGNOSIS.md 18K + 9 条修复建议 | L-016 |
 | 2026-07-01 | `health-fix-2026-07` | 修复 `package-flow-kit.sh` 末尾孤儿 `fi`（581-587 残留碎片）导致 `bash -n` 失败 + 正常打包退出码非 0 · 新增 5 回归测试（AC-1~4：package 专项 + 全量 `bash -n` 门禁 smoke）· flow-health SKILL 增补步骤 2.6 全量语法门禁（AC-5，堵 2026-06-30 巡检盲区）· 181 bats 全绿 | — |
