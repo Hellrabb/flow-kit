@@ -97,14 +97,14 @@ write_compliance_correction() {
     --argjson new "$new_violations" \
     '[($existing[]?), ($new[]?)] | unique_by({layer, rule, location})' 2>/dev/null) || merged_violations="$new_violations"
 
-  # Write wrapper object atomically (correction_file_write with overwrite)
+  # Write wrapper object atomically (correction_file_write with merge strategy)
   local wrapper_json
   wrapper_json=$(jq -n \
     --arg type "compliance" \
     --argjson violations "$merged_violations" \
     --arg timestamp "$timestamp" \
     '{type: $type, violations: $violations, written_at: $timestamp}')
-  correction_file_write "$COMPLIANCE_CORRECTION_FILE" "$wrapper_json" "overwrite" || return 1
+  correction_file_write "$COMPLIANCE_CORRECTION_FILE" "$wrapper_json" "merge" || return 1
 
   local count
   count=$(echo "$merged_violations" | jq 'length' 2>/dev/null || echo "?")

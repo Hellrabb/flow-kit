@@ -22,9 +22,9 @@ setup() {
   [ "$output" -eq 0 ]
 }
 
-@test "AC-2: 假「校验通过：所有文件均被 Part A~G」仅命中 1 次（顶部函数内，非文件尾残留）" {
-  # 修复前：顶部函数体 + 文件尾残留 = 2 处；修复后：只剩顶部函数体内 1 处
-  run grep -c '✅ 校验通过：所有文件均被 Part A~G' "$PKG_SCRIPT"
+@test "AC-2: 假「校验通过：所有文件均被 Part A~G」仅命中 1 次（lib/validate_staging.sh 函数内）" {
+  # validate_staging_coverage() 已拆到 flow-kit-bundle/lib/validate_staging.sh
+  run grep -c '✅ 校验通过：所有文件均被 Part A~G' flow-kit-bundle/lib/validate_staging.sh
   [ "$output" -eq 1 ]
 }
 

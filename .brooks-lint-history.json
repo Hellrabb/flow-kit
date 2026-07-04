@@ -19,7 +19,7 @@
       "warning": 1,
       "suggestion": 3
     },
-    "scope": "flow-kit-bundle/ + package-flow-kit.sh + test/ (PR dimension skipped — no review diff; weights redistributed to Arch 0.40 / Debt 0.33 / Test 0.27)",
+    "scope": "flow-kit-bundle/ + package-flow-kit.sh + test/ (PR dimension skipped \u2014 no review diff; weights redistributed to Arch 0.40 / Debt 0.33 / Test 0.27)",
     "note": "First brooks-health run. Parallel to internal-score (92/100) in 2026-06-24-HEALTH.md Appendix B. Cross-mode reference: 2026-06-16 Full Sweep = 62 (different mode, not directly comparable). Two scoring series coexist from 2026-07-24 onward."
   },
   {
@@ -42,6 +42,17 @@
       "warning": 1,
       "suggestion": 1
     },
-    "scope": "flow-kit 全量 (post sweep-fix)"
+    "scope": "flow-kit \u5168\u91cf (post sweep-fix)"
+  },
+  {
+    "date": "2026-07-04T00:00:00Z",
+    "mode": "Health Dashboard",
+    "score": 92,
+    "findings": {
+      "critical": 1,
+      "warning": 1,
+      "suggestion": 0
+    },
+    "scope": "flow-kit \u5206\u53d1\u5305\u4ed3\u5e93 (full project)"
   }
 ]

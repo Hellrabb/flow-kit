@@ -175,15 +175,21 @@ write_correction_file() {
     retry_count=$((retry_count + 1))
   fi
 
-  # Build JSON and delegate write to correction-file.sh (overwrite strategy)
+  # Build JSON with backward-compatible top-level fields + violations for merge
   local json
   json=$(jq -n \
     --arg gate_type "$gate_type" \
     --arg required_tool "$required_tool" \
     --arg timestamp "$timestamp" \
     --argjson retry_count "$retry_count" \
-    '{gate_type: $gate_type, required_tool: $required_tool, retry_count: $retry_count, timestamp: $timestamp}')
-  correction_file_write "$CORRECTION_FILE" "$json" "overwrite" || return 1
+    '{
+      gate_type: $gate_type,
+      required_tool: $required_tool,
+      retry_count: $retry_count,
+      timestamp: $timestamp,
+      violations: [{gate_type: $gate_type, tool: $required_tool, retry_count: $retry_count, timestamp: $timestamp}]
+    }')
+  correction_file_write "$CORRECTION_FILE" "$json" "merge" || return 1
 
   echo "[interactive-ui-check] Correction file written: gate=${gate_type} tool=${required_tool} retry=${retry_count}"
   return 0
