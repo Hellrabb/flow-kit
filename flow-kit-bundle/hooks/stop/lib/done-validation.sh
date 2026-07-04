@@ -30,6 +30,8 @@ fk_independent_review_gate_active() {
   local change_id
   change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
   [[ "$change_id" != "none" && "$change_id" != "null" ]] || return 1
+  # Security: reject change_ids with path traversal chars (only kebab-case allowed)
+  [[ "$change_id" =~ ^[a-z0-9][-a-z0-9]+$ ]] || return 1
 
   local phase_name
   case "$phase" in
