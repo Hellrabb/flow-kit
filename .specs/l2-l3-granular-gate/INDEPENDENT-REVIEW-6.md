@@ -82,3 +82,56 @@
 Two MAJOR issues were also found: `l3-review.sh` rejects the `"skipped"` verdict value that `done-validation.sh` now accepts (internal inconsistency), and the "skipped" verdict tests are false positives (phases_done shortcut bypasses the actual validation logic being tested).
 
 All findings must be resolved before this diff can pass review.
+
+---
+
+## L3 盲审（外部模型 · 2026-07-06）
+
+### 审查结论
+
+```json
+{"verdict":"fail","summary":"L2-only 模式存在架构级完成路径缺失：无组件可生成 .done 标志，导致 L2-only 模式无法推进阶段或执行 git commit/PR create。PreToolUse hook 的 L3 同步路径忽略 tier 参数，即使配置为 L2-only 仍强制调用 L3 API 并写入 .done 标志，使独立 L2 模式无法实现。向后兼容映射（independent/true → both）正确但不够完备；32-fallback-guard.sh 正则将 L2 排除在外。L3-only 模式下 L2_verdict 错误地默认设为 fail 而非 skipped。否定消息在所有 tier 配置下固定显示 'L2 + L3'，在 L2-only 或 L3-only 模式下产生误导。"}
+```
+
+### 发现
+
+- **严重度**: Critical
+- **发现**: L2-only 模式缺少 .done 标志完成路径。当 `gate_config[phase] = "L2"` 时：29-independent-review.sh 调用 `fk_independent_review_gate_active "$phase" "L3"` 返回 1（不活跃）并跳过执行；无其他组件写入 `.independent-review-{phase}.done`。PreToolUse hook (`independent-review-gate.sh:151`) 调用 `fk_independent_review_gate_active "$phase"`（无 tier 参数），对于 L2 返回 0，然后尝试验证 .done——因不存在而失败。对于 git commit / gh pr create（非阶段写入命令），流程直接进入第 239 行的 deny 段，不可能完成。对于阶段向前推进，第 207 行的 L3 同步路径调用 `l3_review_with_timeout`，该函数调用外部模型 API 并写入包含真正 L3_verdict 的 .done——但这与 L2-only 语义完全矛盾。结果是 L2-only 模式要么永久死锁（commit/PR），要么在用户不知情或未同意的情况下静默运行 L3（阶段推进）。
+- **建议**: 引入替代完成路径。选项 A：在 `29-independent-review.sh` 的 L3 gate 检查失败时，回退写入 L3_verdict=skipped 的 .done 标志。选项 B：创建专用的 `28-independent-review-l2.sh` stop hook，在 L2-only 模式下运行并写入 .done。在任何一种情况下，PreToolUse hook 阶段推进 L3 同步路径都必须检查 `fk_independent_review_gate_active "$phase" "L3"`，并仅在 L3 或 both 模式下调用 `l3_review_with_timeout`。
+
+- **严重度**: Critical
+- **发现**: PreToolUse hook 第 207 行的 L3 同步路径忽略 gate_config tier。在 `independent-review-gate.sh` 第 193-213 行，当 L2 审查存在且 agent 尝试阶段向前推进时，代码无条件调用 `l3_review_with_timeout`。仅在调用后才重试 `.done` 校验。这意味着即使 `gate_config[phase] = "L2"`，PreToolUse hook 仍会针对阶段向前推进触发 L3 API 调用。`l3_review_run` 随后写入包含真正（已运行）L3_verdict 的 .done 标志，而该标志随后通过 Tier 2 校验——结果实际上如同配置为 both 一样。"L2-only" 模式无法通过阶段推进代码路径实现。
+- **建议**: 在第 193 行之前增加一次专门检查：`if fk_independent_review_gate_active "$phase" "L3"; then`，仅在该条件成立时才执行 L3 同步。若仅启用 L2，则改为写入 L3_verdict=skipped 的 .done 标志，或直接放行阶段推进（因为 L2-only 模式下 L2 即满足条件）。
+
+- **严重度**: Major
+- **发现**: 32-fallback-guard.sh 第 57 行的正则表达式 `^(both|L3|independent|true)$` 排除了 `"L2"`。当 gate_config["7-integration"] = "L2" 时，if 条件为 false，`.independent-review-7.done` 检查被跳过。这实际上是 L2-only 管道不产生 .done 标志这一 bug 的权宜绕过，但它意味着对于 L2-only 模式，fallback guard 完全不执行独立审查——管道可直接到达 goal.status="done"，而无需检查 L2 审查是否完成。这与 L2-only 语义（L2 审查应作为 gate 条件）相矛盾。
+- **建议**: 将 `L2` 加入正则表达式：`^(both|L3|L2|independent|true)$`，同时确保在 L2-only 模式下有完成路径（见 #1 修复）。或者，改用 `fk_independent_review_gate_active` 函数来复用集中式 tier 逻辑，而非在 hook 内重复值检查。
+
+- **严重度**: Major
+- **发现**: L3-only 模式下存在 L2_verdict 语义错误。在 `29-independent-review.sh` 第 78-82 行，l2_verdict 默认设为 `"fail"`，随后仅在从 INDEPENDENT-REVIEW-<N>.md 成功提取 L2 审查 verdict 时才更新。在 L3-only 模式下（gate_config = "L3"），L2 dispatch 段被跳过（prompt 检查 {L2,both}，不包括 "L3"），因此不存在 `## L2 盲审` 段，grep 失败，l2_verdict 保持为 `"fail"`。输出的 .done 文件包含 `L2_verdict=fail`，这在语义上不正确——L2 审查被跳过，而非失败。diff 在 done-validation.sh 第 137 行确实增加了 `"skipped"` 作为 L2_verdict 的合法值，但未引入任何实际写入它的机制。
+- **建议**: 在默认设为 fail 之前，增加 L2 活跃度检测。在第 78 行之前调用 `fk_independent_review_gate_active "$phase" "L2"`。若返回 1（L2 不活跃），则设 `l2_verdict="skipped"`。若 L2 活跃但缺少 L2 段，才保留 `"fail"`（本应存在 L2 审查时缺失属于真正的失败）。
+
+- **严重度**: Major
+- **发现**: PreToolUse hook 的 deny 消息（第 242-243 行）硬编码为"L2 + L3"，忽略了实际 tier 配置：
+  ```
+  需先完成 L2（盲审子 agent → INDEPENDENT-REVIEW-${phase}.md）+ L3（Stop hook 调外部模型）
+  ```
+  在 L2-only 模式下，此消息错误地告知用户需要 L3 审查。在 L3-only 模式下，它错误地告知需要 L2 审查。这会误导用户尝试完成实际不存在的审查步骤。
+  - **建议**: 在生成 deny 消息之前，检查 `fk_independent_review_gate_active "$phase" "L2"` 和 `fk_independent_review_gate_active "$phase" "L3"`，并根据活跃的 tier 动态调整消息：
+    - L2-only："需先完成 L2（盲审子 agent → INDEPENDENT-REVIEW-${phase}.md）"
+    - L3-only："需先完成 L3（Stop hook 调外部模型 → INDEPENDENT-REVIEW-${phase}.md）"
+    - both："需先完成 L2（盲审子 agent）+ L3（Stop hook 调外部模型）"
+
+- **严重度**: Major
+- **发现**: L3 审查 lib 与 done 标志验证之间存在值域不一致问题。`l3-review.sh` 第 47 行验证 L2_verdict 参数时使用 `[[ "$l2_verdict" =~ ^(pass|fail)$ ]]`——该检查拒绝 `"skipped"`。但 diff 下的 `done-validation.sh` 第 137 行现已接受 `"skipped"` 作为合法 L2_verdict。这种不一致意味着 `l3-review.sh` 无法产出包含 `L2_verdict=skipped` 的 .done 文件，即使 L3-only 模式下需要该值。此问题与 #4 相关（29-independent-review.sh 默认设为 fail 而非 skipped），使得 `"skipped"` 值在当前变更集中仅存在于验证侧，全程无法实际流通。
+- **建议**: 将 `l3-review.sh` 第 47 行的正则扩展为 `[[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]]`，并与 #4 的修复同步，确保 L3-only 模式传入 `l2_verdict="skipped"`。
+
+- **严重度**: Minor
+- **发现**: 6 个 prompt 文件将检测模式从 `{independent,true}` 更新为 `{L2,both}`，并附有向后兼容说明。这些更新在 6 个文件中保持一致。但 prompt 说 "检测：`.flow-active.goal.gate_config["1-requirement"]` ∈ {L2,both}"——未提及 `"L3"`。代码（`done-validation.sh` 第 67 行）也将 `L3` 视为合法 gate_config 值。若用户查看 stop-hook.json 文档或阅读代码后发现 `L3` 值并尝试使用，prompt 会给出误导性的检测标准描述。此问题影响所有 6 个已更新的 prompt。
+- **建议**: 确认 `"L3"` 是否为预期的用户可设置值。若为内部值，在 prompt 注释中加以说明。若为用户可设置值，将 prompt 更新为 `{L2,L3,both}`。
+
+- **严重度**: Minor
+- **发现**: `l3-review.sh` 第 182 行将 `written_by` 硬编码为 `"pre-tool-use-gate"`。当从 `29-independent-review.sh`（stop hook）调用时，该值在审计跟踪中具有误导性——stop hook 产生的 .done 标志却被标记为 pre-tool-use-gate。此外，`done-validation.sh` 第 152 行的 Tier 2 握手验证检查 `hs_wby == "stop-hook-29"`，而非检查 .done 文件的 written_by——因此不构成功能性问题。但 .done 文件并非由 pre-tool-use hook 写入（pipeline 中实际是由 stop hook 或 PreToolUse 同步路径写入），这会引发审计困惑。
+- **建议**: 从调用者处传递 `written_by` 参数，或自动检测：当 sourced 到 `29-independent-review.sh` 的调用链时使用 `"stop-hook-29"`，当 sourced 到 `independent-review-gate.sh` 时使用 `"pre-tool-use-gate"`。或者，在 l3_review_run 中增加第二个参数。
+
+`L3_verdict=fail`

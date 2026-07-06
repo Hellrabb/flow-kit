@@ -170,9 +170,9 @@ Wave 3:            T05 (depends on T03, T04)
 - 若 L2 返回 verdict=fail → 输出 `⛔ L2 审查 verdict: fail，pipeline 暂停`，**不写 .done**
 - 若 L2 返回 verdict=pass → 输出 `✅ L2 审查通过`，继续
 
-### 写 done（L2 + L3 都完成后）
+### 写 done（活跃 tier 都完成后）
 
-确认 `INDEPENDENT-REVIEW-3.md` 同时含 L2 段 + L3 段后执行：
+确认 `INDEPENDENT-REVIEW-3.md` 含所需 tier 段后执行：
 
     touch .specs/<change-id>/.independent-review-3.done
 

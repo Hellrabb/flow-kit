@@ -247,9 +247,9 @@
 
 你本轮结束后，Stop hook 的 `29-independent-review.sh` 自动用外部模型盲审 DESIGN.md + ADR，写 `INDEPENDENT-REVIEW-2.md` 的 L3 段 + `.flow-active.independent-review` 握手。下一轮 SessionStart 会注入报告摘要。
 
-### 写 done（L2 + L3 都完成后）
+### 写 done（活跃 tier 都完成后）
 
-确认 `INDEPENDENT-REVIEW-2.md` 同时含 L2 段 + L3 段后执行：
+确认 `INDEPENDENT-REVIEW-2.md` 含所需 tier 段后执行：
 
     touch .specs/<change-id>/.independent-review-2.done
 
