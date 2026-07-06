@@ -1,6 +1,7 @@
 # CHANGELOG
 
 > 按日期倒序。每行：日期 / change-id / 摘要 / LESSONS 新增。
+| 2026-07-06 | `l2-l3-granular-gate` | L2/L3 独立审查开关拆分：gate_config 支持 L2/L3/both 三值 + fk_independent_review_gate_active tier 参数 + 29号 hook L3 跳过 + 6 prompts 适配 + flow skill --l2-only/--l3-only · 12 bats · 321 全绿 | — |
 
 | 日期 | Change ID | 摘要 | LESSONS |
 |---|---|---|---|
