@@ -53,8 +53,8 @@ for f in "CHANGE.md" "REQUIREMENT.md" "DESIGN.md" "TASK.md" "TEST.md" "REVIEW.md
     break
   fi
 done
-# .independent-review-7.done (若 gate_config 对 phase 7 开启)
-if jq -e '.goal.gate_config["7-integration"] // "" | . == "independent"' "$flow_file" >/dev/null 2>&1; then
+# .independent-review-7.done (若 gate_config 对 phase 7 开启 L3/both/independent)
+if jq -e '.goal.gate_config["7-integration"] // "" | test("^(both|L3|independent|true)$")' "$flow_file" >/dev/null 2>&1; then
   [ -f "${spec_dir}/.independent-review-7.done" ] || pcsc_ok=false
 fi
 

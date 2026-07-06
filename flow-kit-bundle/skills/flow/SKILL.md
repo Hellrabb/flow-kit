@@ -135,33 +135,45 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 
      **第一段：解析 gate_config 值**（`resolve_gate_config()`）：
      ```bash
-     # 预设名映射表（PRESET_MAP）
-     # full               → {"1-requirement":"independent","2-design":"independent","6-review":"independent"}
-     # all                → {"1-requirement":"independent","2-design":"independent","3-task":"independent","5-test":"independent","6-review":"independent","7-integration":"independent"}  ⚠️ 预计增加 30k-75k tokens/pipeline run
-     # code-only          → {"6-review":"independent"}
-     # review             → {"6-review":"independent"}   (code-only 别名)
-     # design             → {"2-design":"independent"}
-     # requirement        → {"1-requirement":"independent"}
-     # plan               → {"1-requirement":"independent","2-design":"independent"}
-     # design-review      → {"2-design":"independent","6-review":"independent"}
-     # requirement-review → {"1-requirement":"independent","6-review":"independent"}
-     # task               → {"3-task":"independent"}
-     # test               → {"5-test":"independent"}
-     # integration        → {"7-integration":"independent"}
-     # task-review        → {"3-task":"independent","6-review":"independent"}
-     # test-review        → {"5-test":"independent","6-review":"independent"}
-     # task-test          → {"3-task":"independent","5-test":"independent"}
-     # task-test-review   → {"3-task":"independent","5-test":"independent","6-review":"independent"}
-     # spec-test          → {"1-requirement":"independent","2-design":"independent","5-test":"independent"}
+     # 预设名映射表（PRESET_MAP）— 值统一为 "both"（L2+L3 双层，等价于旧 "independent"）
+     # full               → {"1-requirement":"both","2-design":"both","6-review":"both"}
+     # all                → {"1-requirement":"both","2-design":"both","3-task":"both","5-test":"both","6-review":"both","7-integration":"both"}  ⚠️ 预计增加 30k-75k tokens/pipeline run
+     # code-only          → {"6-review":"both"}
+     # review             → {"6-review":"both"}   (code-only 别名)
+     # design             → {"2-design":"both"}
+     # requirement        → {"1-requirement":"both"}
+     # plan               → {"1-requirement":"both","2-design":"both"}
+     # design-review      → {"2-design":"both","6-review":"both"}
+     # requirement-review → {"1-requirement":"both","6-review":"both"}
+     # task               → {"3-task":"both"}
+     # test               → {"5-test":"both"}
+     # integration        → {"7-integration":"both"}
+     # task-review        → {"3-task":"both","6-review":"both"}
+     # test-review        → {"5-test":"both","6-review":"both"}
+     # task-test          → {"3-task":"both","5-test":"both"}
+     # task-test-review   → {"3-task":"both","5-test":"both","6-review":"both"}
+     # spec-test          → {"1-requirement":"both","2-design":"both","5-test":"both"}
      #
      # 数字映射：1→"1-requirement"  2→"2-design"  3→"3-task"  5→"5-test"  6→"6-review"  7→"7-integration"
+     #
+     # ── L2/L3 独立开关（l2-l3-granular-gate）──
+     # gate_config 值规范: "both"(L2+L3) | "L2"(仅子agent) | "L3"(仅外部模型)
+     # "independent" / "true" → 自动映射为 "both"（向后兼容）
+     # 额外 flag（可选，解析 VALUE 后整体覆盖所有 phase 的值）：
+     #   --l2-only → gate_config 所有 key 的 value 覆写为 "L2"
+     #   --l3-only → gate_config 所有 key 的 value 覆写为 "L3"
+     #   同时传入 → 后者覆盖 + 输出 warning
 
      # 三段式 auto-detect：
      # a. echo "$VALUE" | jq -e 'type == "object"' 成功 → 合法 JSON 对象 → 直接使用（向后兼容）
      #    （注意：必须是 object 类型——"6"/"1" 等裸数字也是合法 JSON，会被误拦截，需 type check）
      # b. VALUE 匹配预设名 → 查 PRESET_MAP 映射为 JSON
-     # c. VALUE 匹配 /^[0-9](,[0-9])*$/ → 拆分逗号，逐数字映射，合成 JSON（如 "1,2"→{"1-requirement":"independent","2-design":"independent"}）
+     # c. VALUE 匹配 /^[0-9](,[0-9])*$/ → 拆分逗号，逐数字映射，合成 JSON（如 "1,2"→{"1-requirement":"both","2-design":"both"}）
      # d. 以上都不匹配 → ❌ 报错并列出可用预设名
+     #
+     # 额外 flag 覆写（在 GATE_JSON 解析完成后执行）：
+     #   --l2-only → jq 'with_entries(.value = "L2")'  # 仅顶层 key → "L2"，不触碰嵌套值
+     #   --l3-only → jq 'with_entries(.value = "L3")'  # 仅顶层 key → "L3"，不触碰嵌套值
      ```
 
      **第二段：写入 goal**（与原逻辑一致，`$GATE_JSON` 替换为解析结果）：

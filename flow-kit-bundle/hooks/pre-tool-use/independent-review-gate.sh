@@ -43,7 +43,7 @@ is_handshake_write() {
 # diff .flow-active.goal.gate_config 与 .goal-snapshot.json 的 gate_config
 # 返回 0 = 无篡改（放行）; 1 = 有篡改（deny · fail-close）
 # 文件不存在 → 兼容历史，不挡（return 0）；文件存在但 jq 解析失败 → fail-close deny（return 1 · G1 D7 · agent 不能靠制造 hook 错误放行）
-# 只查快照中标记为 independent/true 的 key，由开到关/删除 → 篡改；新增 key 不触发
+# 只查快照中标记为有效 gate_config 值的 key，由开到关/删除 → 篡改；新增 key 不触发
 fk_check_gate_config_tamper() {
   local flow_file="$1" snapshot_file="$2"
   [[ -f "$flow_file" && -f "$snapshot_file" ]] || return 0
@@ -51,10 +51,13 @@ fk_check_gate_config_tamper() {
   jq empty "$snapshot_file" 2>/dev/null || return 1
   local changed="" k cur
   local keys
-  keys=$(jq -r '.gate_config | to_entries[]? | select(.value == "independent" or .value == "true") | .key' "$snapshot_file" 2>/dev/null)
+  keys=$(jq -r '.gate_config | to_entries[]? | select(.value == "independent" or .value == "true" or .value == "both" or .value == "L2" or .value == "L3") | .key' "$snapshot_file" 2>/dev/null)
   for k in $keys; do
     cur=$(jq -r --arg k "$k" '.goal.gate_config[$k] // "missing"' "$flow_file" 2>/dev/null)
-    [[ "$cur" != "independent" && "$cur" != "true" ]] && { changed=1; break; }
+    case "$cur" in
+      independent|true|both|L2|L3) ;;  # 合法值，未篡改
+      *) changed=1; break ;;
+    esac
   done
   [[ -z "$changed" ]]
 }
@@ -161,7 +164,7 @@ EOF
     cat >&2 <<EOF
 ⛔ 独立 review gate（D8 ⑥）：检测到 gate_config 篡改。
    .flow-active.goal.gate_config 与 .goal-snapshot.json（入库快照）不一致——
-   快照 phase key 由 independent/true → false/缺失。
+   快照 phase key 值被篡改（合法值: L2/L3/both/independent/true）。
    如确需调整 gate-config：用 /flow gate-config 重设（同时更新快照），或手动更新 .goal-snapshot.json 并 commit。
 EOF
     exit 2
