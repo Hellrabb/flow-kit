@@ -1,10 +1,9 @@
 #!/bin/bash
 # 29-independent-review.sh — 独立 review L3（外部模型强制审查）
 #
-# 当某 change 在阶段 1/2/3/5/6/7 开启了独立 review（gate_config 或 stop-hook.json），
-# 用外部模型（默认 deepseek-v4-flash）对该阶段产物做盲审，产出
-# .specs/<id>/INDEPENDENT-REVIEW-<phase>.md，并写 .flow-active.independent-review
-# 握手文件供 SessionStart 注入 + 主 agent 判 done。
+# 当 gate_config[phase] ∈ {L3, both} 时，用外部模型盲审阶段产物。
+# 若仅开启 L2（gate_config = "L2"），本 hook 跳过不跑。
+# 产出 .specs/<id>/INDEPENDENT-REVIEW-<phase>.md 的 L3 段 + 握手文件。
 #
 # 与 30-ai-analyze.sh 的区别：
 #   - 不走频率门控（独立质量门不能被随机跳过），用幂等（本阶段已成功跑过则跳过）防重复。
@@ -29,9 +28,12 @@ phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
 { [ "$change_id" != "none" ] && [ "$change_id" != "null" ]; } || exit 0
 
-# ── Gate 3: 阶段 ∈ {1,2,3,5,6,7} 且独立 review gate 开启 ──
+# ── Gate 3: 阶段 ∈ {1,2,3,5,6,7} 且 L3 独立 review 开启 ──
 [[ "$phase" =~ ^(1|2|3|5|6|7)$ ]] || exit 0
-fk_independent_review_gate_active "$phase" || exit 0
+if ! fk_independent_review_gate_active "$phase" "L3"; then
+  echo "[independent-review] L3 skipped (gate_config L3 not active for phase $phase)" >&2
+  exit 0
+fi
 
 # ── 数值配置 sanitize（防 set -u/-e 下非数字炸）──
 max_chars=$(config_get '.independent_review.max_artifact_chars' "20000")

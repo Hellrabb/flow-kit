@@ -33,7 +33,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
 ## 独立 review 调度（仅当本阶段 gate 开启时执行）
 
-> **检测**：`.flow-active.goal.gate_config["5-test"]` ∈ {`independent`,`true`}，或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"5-test"`。未开启 → 跳过本段，直接进「阶段完成自检」。
+> **检测**：`.flow-active.goal.gate_config["5-test"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"5-test"`。未开启 → 跳过本段，直接进「阶段完成自检」。
 
 本阶段产物必须通过两层独立 review 才能切阶段 / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
 

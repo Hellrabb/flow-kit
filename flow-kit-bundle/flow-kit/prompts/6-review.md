@@ -92,7 +92,7 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 
 ### 独立 review 调度（仅当本阶段 gate 开启时执行）
 
-> **检测**：`.flow-active.goal.gate_config["6-review"]` ∈ {`independent`,`true`}，或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"6-review"`。未开启 → 跳过本段，直接进「阶段完成自检」。
+> **检测**：`.flow-active.goal.gate_config["6-review"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"6-review"`。未开启 → 跳过本段，直接进「阶段完成自检」。
 
 本阶段产物必须通过两层独立 review 才能切到 7-integration / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
 
