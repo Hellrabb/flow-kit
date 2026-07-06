@@ -16,13 +16,18 @@
 # Independent review gate check
 # ═══════════════════════════════════════════════════════════════════════
 
-# Usage: fk_independent_review_gate_active <phase>
+# Usage: fk_independent_review_gate_active <phase> [tier]
+#   tier ∈ {""(default), "L2", "L3"}
+#   tier="" → returns 0 if any tier is active (backward compat)
+#   tier="L2" → returns 0 only if L2 (sub-agent blind review) is active
+#   tier="L3" → returns 0 only if L3 (external model review) is active
 # Returns: 0 (true) = gate 生效（应阻止阶段推进）；1 (false) = 放行
 # gate 生效当且仅当：phase∈{1,2,3,5,6,7} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
-# gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {independent,true} 优先，
-#                 回退 .claude/stop-hook.json 的 independent_review.phases 数组含该阶段名。
+# gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {L2,L3,both} 优先，
+#                 回退 .claude/stop-hook.json 的 independent_review.phases 数组含该阶段名（视为 both）。
+# 向后兼容：gate_config 值 "independent" / "true" 自动映射为 "both"。
 fk_independent_review_gate_active() {
-  local phase="$1"
+  local phase="$1" tier="${2:-}"
   local flow_file="${PROJECT_ROOT}/.flow-active"
   [[ -f "$flow_file" ]] || return 1
   [[ "$phase" =~ ^(1|2|3|5|6|7)$ ]] || return 1
@@ -44,18 +49,33 @@ fk_independent_review_gate_active() {
     *) return 1 ;;
   esac
 
-  # 双源读 gate
-  local gate_on=""
-  gate_on=$(jq -r --arg pn "$phase_name" \
+  # 双源读 gate_config 原始值
+  local gate_val=""
+  gate_val=$(jq -r --arg pn "$phase_name" \
     '.goal.gate_config[$pn] // empty' "$flow_file" 2>/dev/null || echo "")
-  if [[ "$gate_on" != "independent" && "$gate_on" != "true" ]]; then
+  if [[ -z "$gate_val" ]]; then
     local cfg="${PROJECT_ROOT}/.claude/stop-hook.json"
     if [[ -f "$cfg" ]] && jq -e --arg pn "$phase_name" \
         '.independent_review.phases // [] | index($pn)' "$cfg" >/dev/null 2>&1; then
-      gate_on="independent"
+      gate_val="both"  # stop-hook.json 配置视为 both（向后兼容）
     fi
   fi
-  [[ "$gate_on" == "independent" || "$gate_on" == "true" ]] || return 1
+
+  # 值标准化映射（向后兼容）
+  case "$gate_val" in
+    independent|true) gate_val="both" ;;
+    L2|L3|both) ;;  # 合法值保持
+    *) gate_val="" ;;  # 未知值视为未开启
+  esac
+
+  [[ -n "$gate_val" ]] || return 1
+
+  # Tier 判定
+  case "$tier" in
+    L2) [[ "$gate_val" == "L2" || "$gate_val" == "both" ]] || return 1 ;;
+    L3) [[ "$gate_val" == "L3" || "$gate_val" == "both" ]] || return 1 ;;
+    *) ;;  # tier="" → 任一层开启即通过
+  esac
 
   # gate 开启：done 标志存在则放行（return 1），不存在则 gate 生效（return 0）
   local done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
@@ -114,9 +134,9 @@ fk_validate_done_marker() {
   k_l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
   k_artifacts=$(_fk_done_kvp "$done_path" "artifacts")
   [[ -n "$k_l2v" ]] || return 2          # 缺 L2_verdict → deny
-  [[ "$k_l2v" =~ ^(pass|fail)$ ]] || return 2  # L2_verdict 值域校验
+  [[ "$k_l2v" =~ ^(pass|fail|skipped)$ ]] || return 2  # L2_verdict 值域校验 (含 skipped 用于 L3-only 模式)
   [[ -n "$k_l3v" ]] || return 2          # 缺 L3_verdict → deny
-  [[ "$k_l3v" =~ ^(pass|fail|timeout|error)$ ]] || return 2  # L3_verdict 值域校验 (含 timeout/error 降级)
+  [[ "$k_l3v" =~ ^(pass|fail|timeout|error|skipped)$ ]] || return 2  # L3_verdict 值域校验 (含 skipped 用于 L2-only 模式)
   [[ -n "$k_artifacts" ]] || return 2     # 缺 artifacts → deny
   [[ "$k_artifacts" =~ , ]] || return 2   # artifacts 至少含 1 个逗号分隔文件名 (最低: "x,y")
 

@@ -106,6 +106,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 聚合入口模式（aggregate entry pattern） | Bash 项目的向后兼容拆分模式：主文件（如 `flow-kit-artifacts.sh`）拆为多个子库后，自身改为仅 source 子库 + re-export 函数，外部调用方无需修改 source 路径。用于 L-016 大文件拆分 |
 | 共享 reference 片段（shared reference fragment） | 多个 prompt 文件引用的单一源片段（位于 `flow-kit/reference/` 下），避免同一代码块在多个 prompt 中逐字重复。用于 TD-005 jq goal 解析逻辑消除 |
 | health-fix-2026-07 | 2026-07-04 健康巡检的修复 change，一次性消除 1🔴 + 1🟡 + 2🟢 共 4 项技术债（L-021 循环依赖 / TD-005 jq 重复 / L-016 artifacts 拆分 / L-017 package 拆分） |
+| L2-only | gate_config 值，仅开启同会话子 agent 盲审（L2），跳过外部模型审查（L3）。零额外网络延迟，适合慢系统快速迭代 |
+| L3-only | gate_config 值，仅开启外部模型盲审（L3），跳过子 agent 调度。节省子 agent token 消耗，依赖不同模型的独立视角 |
+| both | gate_config 值，同时开启 L2 + L3 双层审查。"independent" 和 "true" 作为向后兼容别名自动映射为 both |
+| l2-l3-granular-gate | 2026-07-06 change：将 gate_config 的独立审查开关从单一 "independent" 拆分为 L2/L3/both 三值，支持按需选择审查层级 |
 | 27-interactive-ui-check.sh | Stop hook 第 27 号模块：每次会话停止时 grep transcript 检测弱模型是否跳过了交互 gate（prompt 含"反问用户"等关键词但回复中无 AskUserQuestion/EnterPlanMode 工具调用），跳过则写入矫正文件 `.flow-active.interactive-ui-fix` |
 | 矫正文件（correction file） | `.flow-active.interactive-ui-fix`（JSON，不入库）：Stop hook 检测到交互 gate 跳过时写入，含 gate_type / required_tool / retry_count。SessionStart flow-kit-resume.sh 检测到后注入矫正 banner 强制模型补调工具，retry_count ≥ 2 时停止矫正提示人工介入 |
 | weak-model-compliance | Stop hook 第 28 号模块：每次会话停止时对模型回复做三层事后合规验证——L1 规则合规（禁动清单+通用规则）、L2 自检完整性（自检表无空白/跳过）、L3 证据链真实性（引用路径在工具调用历史中出现过）。检测到违规 → 写入统一矫正文件 `.flow-active.correction` |
