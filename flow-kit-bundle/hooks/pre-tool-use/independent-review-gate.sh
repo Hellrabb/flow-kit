@@ -189,22 +189,114 @@ EOF
       forward)
         # 前进 → 尝试 L3 前置
 
+        # 读 gate_config 当前阶段值（D1: both 模式 L2-wait）
+        phase_name=""
+        case "$phase" in
+          1) phase_name="1-requirement" ;;
+          2) phase_name="2-design" ;;
+          3) phase_name="3-task" ;;
+          5) phase_name="5-test" ;;
+          6) phase_name="6-review" ;;
+          7) phase_name="7-integration" ;;
+        esac
+        gate_val=$(jq -r --arg pn "$phase_name" \
+          '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+        case "$gate_val" in independent|true) gate_val="both" ;; L2|L3|both) ;; *) gate_val="" ;; esac
+
         # 检查 L2 是否已完成
         review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+        if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
+          cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=both 但 L2 尚未完成（${review_md} 缺少 L2 段）。
+   请先派 L2 子 agent 完成盲审，再尝试切阶段。
+EOF
+          exit 2
+        fi
         if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
-          # L2 已完成，尝试同步 L3
+          # L2 已完成（或 L3-only 模式无需 L2），尝试同步 L3
+          # 仅在 gate_val 含 L3 (both 或 L3-only) 时运行 L3
+          if [[ "$gate_val" != "L3" && "$gate_val" != "both" ]]; then
+            # L2-only 模式：L2 已完成，不跑 L3，直接放行
+            exit 0
+          fi
+
           l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
           if [ -f "$l3_lib" ]; then
             source "$l3_lib" 2>/dev/null || true
             if type l3_review_with_timeout >/dev/null 2>&1; then
-              # 从 INDEPENDENT-REVIEW-<N>.md 提取 L2 verdict
-              l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
-              [ -n "$l2v" ] || l2v="fail"  # 无法提取时默认 fail
+              # 从 INDEPENDENT-REVIEW-<N>.md 提取 L2 verdict（L3-only 模式时 L2 不存在，默认 skipped）
+              l2v="skipped"
+              if [[ "$gate_val" == "both" ]]; then
+                l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+                [ -n "$l2v" ] || l2v="fail"
+              fi
               spec_dir="${cwd}/.specs/${change_id}"
               cat >&2 <<EOF
 ⏳ L3 独立审查中（外部模型 · phase ${phase}）...
 EOF
-              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 2>/dev/null || true
+              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 "${gate_val:-both}" || true
+              # R1 fix: 写入握手文件供 fk_validate_done_marker "transition" tier 校验
+              hs_file="${flow_file}.independent-review"
+              if [ -f "$done_marker" ]; then
+                l3v_done=$(grep -E '^L3_verdict=' "$done_marker" 2>/dev/null | cut -d= -f2 || echo "unknown")
+                jq -n --arg p "$phase" --arg v "${l3v_done:-unknown}" --arg w "pre-tool-use-gate" \
+                  '{($p): {written_by: $w, verdict: $v}}' > "$hs_file" 2>/dev/null || true
+              fi
+              # F1: 输出 L3_RESULT 到 stdout（agent 可见通道）
+              done_validation_lib="${HOOK_BASE_DIR}/../stop/lib/done-validation.sh"
+              if [ -f "$done_validation_lib" ]; then
+                source "$done_validation_lib" 2>/dev/null || true
+              fi
+              if type _fk_done_kvp >/dev/null 2>&1 && type _l3_format_result >/dev/null 2>&1 && [ -f "$done_marker" ]; then
+                set +e
+                l3v=$(_fk_done_kvp "$done_marker" "L3_verdict")
+                l3v="${l3v:-unknown}"
+                l3s=$(_fk_done_kvp "$done_marker" "L3_summary")
+                l3s="${l3s:-}"
+                set -e
+                report=".specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+                _l3_format_result "$l3v" "$l3s" "$report"
+              fi
+              # L3 完成后重试 .done 校验
+              if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
+                exit 0
+              fi
+            fi
+          fi
+        elif [[ "$gate_val" == "L3" ]]; then
+          # L3-only 模式 + 无 L2 review 文件：仍需跑 L3（不需要 L2 前置）
+          l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
+          if [ -f "$l3_lib" ]; then
+            source "$l3_lib" 2>/dev/null || true
+            if type l3_review_with_timeout >/dev/null 2>&1; then
+              l2v="skipped"
+              spec_dir="${cwd}/.specs/${change_id}"
+              cat >&2 <<EOF
+⏳ L3 独立审查中（外部模型 · phase ${phase} · L3-only 模式）...
+EOF
+              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 "${gate_val:-both}" || true
+              # R1 fix: 写入握手文件
+              hs_file="${flow_file}.independent-review"
+              if [ -f "$done_marker" ]; then
+                l3v_done=$(grep -E '^L3_verdict=' "$done_marker" 2>/dev/null | cut -d= -f2 || echo "unknown")
+                jq -n --arg p "$phase" --arg v "${l3v_done:-unknown}" --arg w "pre-tool-use-gate" \
+                  '{($p): {written_by: $w, verdict: $v}}' > "$hs_file" 2>/dev/null || true
+              fi
+              # F1: 输出 L3_RESULT 到 stdout
+              done_validation_lib="${HOOK_BASE_DIR}/../stop/lib/done-validation.sh"
+              if [ -f "$done_validation_lib" ]; then
+                source "$done_validation_lib" 2>/dev/null || true
+              fi
+              if type _fk_done_kvp >/dev/null 2>&1 && type _l3_format_result >/dev/null 2>&1 && [ -f "$done_marker" ]; then
+                set +e
+                l3v=$(_fk_done_kvp "$done_marker" "L3_verdict")
+                l3v="${l3v:-unknown}"
+                l3s=$(_fk_done_kvp "$done_marker" "L3_summary")
+                l3s="${l3s:-}"
+                set -e
+                report=".specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+                _l3_format_result "$l3v" "$l3s" "$report"
+              fi
               # L3 完成后重试 .done 校验
               if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
                 exit 0

@@ -9,6 +9,8 @@
 
 | # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
 |---|---|---|---|---|---|---|
+| L-022 | 🟡 | Bash hook stderr 安全 | 移除 `2>/dev/null` 后 curl/jq 错误信息（含 endpoint URL、部分 API 响应）会通过 `>&2` 日志泄露到 agent 可见 stderr。`_l3_format_result` 的白名单输出天然安全，但真实 stderr 泄露只能在集成环境验证。建议 v2 将敏感诊断日志重定向到专用 debug 文件而非 stderr | active | `l3-feedback-visibility` 6-review L2 R2 |
+
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 辅助函数 `install_file()` 已从 install.sh 抽出到 lib/，但独立工具库 `lib/utils.sh` 尚不必要（当前 1 个共享函数，阈值 ≥ 3）。debt-cleanup 确认保持推迟。 | 等新增 ≥ 2 个共享辅助函数时再建 `lib/utils.sh`，避免只有一个函数的过度抽象 | deferred | `init-git-repo` T03 手动基线 |
 | L-005 | 🟡 | `package-flow-kit.sh` L20 | STAGING 前置校验已添加（debt-cleanup） | `[[ -n "$STAGING" && "$STAGING" != "/" ]]` guard 已生效 | resolved | `init-git-repo` T03 手动基线 |
 | L-014 | 🟢 | Bash `grep -E` 字符类中 `\]` 的转义 | 在双引号字符串内使用 `grep -E` 的字符类 `[...\]` 时，bash 将 `\]` 展开为 `]`，导致字符类提前关闭、匹配静默失败。典型症状：grep 在 shell 中直接执行正常，但在 bats 测试的 sourced function 中返回空。修复：用 `[^[:space:]]*` 替代复杂字符类 + sed 后处理剥离尾随标点；或使用单引号字符串避免 bash 转义。影响：所有在双引号内使用 `grep -E` + 含 `]` 字符类的 Bash 脚本。来自 `robustness-hook-hardening` T04 L3 测试调试 | 写 Bash regex 优先单引号字符串；必须双引号时用 `[^...] 替代字面排除字符类 | active | `robustness-hook-hardening` T04 调试 |
@@ -87,3 +89,23 @@
 **预防**: 任何 pipeline 关键行为（auto_advance、fallback 迭代、gate 检查）必须有 hook 层兜底验证。Prompt 指令是"提示"，hook 是"强制执行"。
 
 **状态**: 🔴 待修复 — 详见 `.specs/pipeline-fallback-fix/DIAGNOSIS.md` P0/P1/P2 修复建议
+
+---
+
+## L-new-1 · gate_config 5th parameter 传递链完整性
+
+- **严重度**: 🟡 Major
+- **位置**: `29-independent-review.sh:117` / `independent-review-gate.sh:228` / `l3-review.sh:291`
+- **问题**: `l3_review_run()` 新增第 5 参数 `gate_config_value`，但 3 处调用点均漏传，导致 D3 gate 默认 "both"，L3-only 模式 .done 被错误延迟
+- **建议**: 新增参数时用 grep 扫全部调用点确认参数数目一致；或使用命名参数（key=value）替代位置参数
+- **状态**: ✅ 已修复（`dual-review-merge-fix` phase 6 L2 审查发现，`${gate_val:-both}` 已传）
+- **来源**: `dual-review-merge-fix` phase 6 L2 review R1
+
+## L-new-2 · phase_name 映射三处重复
+
+- **严重度**: 🟢 Minor
+- **位置**: `29-independent-review.sh` / `independent-review-gate.sh` / `done-validation.sh`
+- **问题**: phase number → phase_name 的 case 映射（{1→"1-requirement", 2→"2-design", ...}）在 3 个文件中逐字重复。新增/修改阶段名时需同步 3 处
+- **建议**: 抽取为共享函数（如 `fk_phase_name()`），放在 `flow-kit-artifacts.sh` 或 `common.sh`，3 处调用点改为 `phase_name=$(fk_phase_name "$phase")`
+- **状态**: 🟢 待 v2 抽取（`dual-review-merge-fix` REVIEW.md Q1 已记录）
+- **来源**: `dual-review-merge-fix` phase 6 L2 review R5
