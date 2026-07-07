@@ -1219,6 +1219,238 @@ flow-kit 的核心规则（RULES.md）：
 
 ---
 
+<a id="sec-interrupt-checkpoint"></a>
+## interrupt/checkpoint 完整指南
+
+> **最后同步日期**: 2026-07-06
+
+### 概述
+
+interrupt 是 `.flow-active` 中的一个字段，用于在会话意外中断时保存恢复上下文。checkpoint 是写入 interrupt 的操作——可以是 AI 在关键操作后**自动写入**（auto-checkpoint），也可以是用户/AI **手动调用** `/flow checkpoint`。
+
+### interrupt 字段结构
+
+```json
+"interrupt": {
+  "active_file": "src/foo.ts",                          // 当前正在编辑的文件（项目根相对路径）
+  "last_action": "修复类型错误",                          // 最后一次操作描述（≤200字符）
+  "failing_check": "pnpm test foo.test.ts",             // 失败时正在执行的命令（可选）
+  "checkpoint_at": "2026-06-02T15:30:00+08:00"          // 写入时间戳（ISO8601 本地时区）
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `active_file` | string | 是 | 项目根相对路径，如 `src/main.sh` |
+| `last_action` | string | 是 | ≤200 字符的自然语言描述，超长自动截断 |
+| `failing_check` | string | 否 | 测试失败时的命令，编辑/切换场景为空串 |
+| `checkpoint_at` | string | 是 | ISO8601 时间戳（`date -Iseconds` 格式） |
+
+### 手动 checkpoint 用法
+
+```bash
+# 基本用法：/flow checkpoint <文件> <描述>
+/flow checkpoint src/main.sh "修复类型错误"
+
+# 带失败检查的用法（测试失败时）
+/flow checkpoint src/main.sh "test_foo 第3条失败" "npx bats test/test_foo.bats"
+```
+
+执行后 `.flow-active.interrupt` 立即更新。`/flow` 无参数时也会展示 interrupt 字段。
+
+### 手动 checkpoint 推荐时机
+
+| 场景 | 命令示例 | 为什么 |
+|------|---------|--------|
+| 开始编辑文件前 | `/flow checkpoint src/foo.sh "修复类型错误"` | 中断后能知道上次在改哪个文件 |
+| 测试失败时 | `/flow checkpoint src/foo.sh "test_foo失败" "npx bats test/test_foo.bats"` | 恢复后立即知道哪个测试挂了 |
+| 阶段切换前 | `/flow checkpoint .flow-active "phase transition 3→4"` | 中断后知道卡在哪个阶段过渡 |
+| toll-gate 暂停时 | `/flow checkpoint "" "toll-gate 暂停，等待用户决定"` | 中断后知道在等什么决策 |
+
+### auto-checkpoint 自动触发
+
+flow-kit 在以下 4 种关键操作后**自动写入** checkpoint（无需手动调用）：
+
+| 触发条件 | active_file | last_action | 触发层 |
+|---------|------------|-------------|--------|
+| Write/Edit 工具调用 | 编辑的文件路径 | `"edit <文件名>"` | prompt 层指令 |
+| 测试命令返回非零 | 空串 | `"test failed: <命令>"` | prompt 层指令 |
+| 阶段切换 (phase transition) | `.flow-active` | `"phase transition to <N>"` | prompt 层指令 |
+| toll-gate 用户暂停 | 空串 | `"toll-gate paused at phase <N>"` | prompt 层指令 |
+
+**双层防护**：
+- **prompt 层**：AI 在每个阶段 PCSC 末尾执行 auto-checkpoint（写入 `.flow-active.interrupt`）
+- **hook 层**：PreToolUse hook 在 Write/Edit/Bash 工具调用后兜底写入（30s 去重窗口，同文件+同操作类型不重复）
+
+写入策略：
+- 原子写入（jq → .tmp → mv），JSON 合法性校验（`jq empty`）
+- 校验失败 → 保留旧值 + stderr 警告
+- 手动 `/flow checkpoint` 覆盖自动写入的值
+
+### 中断恢复流程
+
+```
+会话意外中断（crash / timeout / compaction）
+       │
+       ▼
+新会话启动 → SessionStart hook 检测 .flow-active.interrupt 非空
+       │
+       ▼
+/flow-go 继续 → GO.md 路由表命中最优先的 "继续" 条目
+       │
+       ▼
+路由声明注入 interrupt 上下文:
+  "📍 上次中断: active_file=src/foo.sh, last_action=修复类型错误, at 2026-07-06T15:30:00+08:00"
+       │
+       ▼
+加载对应 phase prompt 的「入场恢复」段 → AI 从上次中断点继续
+```
+
+**关键**：中断恢复的优先级最高——只要 `.flow-active.interrupt` 非空，GO.md 就会优先走恢复路径，不会重新解析用户意图。
+
+---
+
+<a id="sec-gate-config"></a>
+## gate_config 完整参考
+
+### 三种独立审查层级：L2 / L3 / both
+
+flow-kit 的独立审查分为两层：
+- **L2（同会话子 agent 盲审）**：主 agent 派一个固化指令的子 agent，盲审当前阶段产物，零网络延迟
+- **L3（外部模型盲审）**：PreToolUse/Stop hook 调用外部模型 API 盲审，提供不同模型的独立视角
+
+`gate_config` 控制每个阶段开启哪几层审查：
+
+| 值 | 含义 | 延迟 | 适用场景 |
+|----|------|------|---------|
+| `"both"` | L2 + L3 双层审查（推荐） | L2 同步 + L3 同 session | 正式 change，需最严格审查 |
+| `"L2"` | 仅子 agent 盲审 | 零额外延迟 | 快速迭代，模型稳定性高 |
+| `"L3"` | 仅外部模型盲审 | 同 session API 调用 | 节省子 agent token 消耗 |
+| `"off"` | 关闭该阶段审查 | — | 跳过不需要审查的阶段 |
+
+> **向后兼容**：旧的 `"independent"` / `"true"` 值自动映射为 `"both"`。
+
+### /flow gate-config 子命令
+
+```bash
+# 查看当前 gate_config
+/flow gate-config
+# 输出: {"1-requirement":"both","2-design":"both","6-review":"both"}
+
+# 单独 patch 某个阶段
+/flow gate-config 6-review=L2        # 仅开启 L2
+/flow gate-config 3-task=both        # 同时开启 L2+L3
+/flow gate-config 5-test=off         # 关闭
+```
+
+### gate_config 阶段 key 参考
+
+| Key | 阶段 | 默认 |
+|-----|------|------|
+| `1-requirement` | 需求分析 | off（需显式开） |
+| `2-design` | 技术设计 | off（需显式开） |
+| `3-task` | 任务拆解 | off（需显式开） |
+| `5-test` | 测试执行 | off（需显式开） |
+| `6-review` | 代码审查 | off（需显式开） |
+| `7-integration` | 集成归档 | off（需显式开） |
+
+### gate_config 预设名（--gate-config 参数）
+
+| 预设名 | 包含的阶段 | 预计额外 token |
+|--------|-----------|---------------|
+| `full` | 1-requirement + 2-design + 6-review | +15k-30k |
+| `all` | 1 + 2 + 3 + 5 + 6 + 7（全部阶段） | +30k-75k |
+| `code-only` / `review` | 6-review | +5k-10k |
+| `design` | 2-design | +5k-10k |
+| `requirement` | 1-requirement | +5k-10k |
+| `plan` | 1-requirement + 2-design | +10k-20k |
+| `design-review` | 2-design + 6-review | +10k-20k |
+| `task-test-review` | 3-task + 5-test + 6-review | +15k-35k |
+
+### 数字简写
+
+```bash
+# 等价写法：
+/flow goal "..." --pipeline --gate-config 6          # → {"6-review":"both"}
+/flow goal "..." --pipeline --gate-config 1,2,6       # → {"1-requirement":"both","2-design":"both","6-review":"both"}
+/flow goal "..." --pipeline --gate-config 1,2,3,5,6,7 # → 全阶段（同 all 预设）
+```
+
+**数字映射**：1→`1-requirement` | 2→`2-design` | 3→`3-task` | 5→`5-test` | 6→`6-review` | 7→`7-integration`
+
+---
+
+<a id="sec-independent-review"></a>
+## 独立审查四层架构
+
+flow-kit 的 L2/L3 独立审查依赖四层同步才能端到端可用。任一层缺失会导致 pipeline 死锁。
+
+```
+① PRESET_MAP        — 定义哪些阶段可开独立审查（/flow goal --gate-config 预设表）
+        │
+        ▼
+② Prompt 模板       — 告知主 agent 如何派 L2 子 agent（各阶段 prompt 的「独立 review 调度」段）
+        │
+        ▼
+③ Hook 层           — L3 外部模型自动执行 + .done 真实性校验（PreToolUse/Stop hook）
+        │
+        ▼
+④ L2-blind-review.md — 固化盲审指令 + 各阶段 checklist（子 agent 的执行规范）
+```
+
+### .done 真实性校验
+
+flow-kit 防三种 agent 绕过方式：
+
+| 威胁 | 攻击方式 | 防护 |
+|------|---------|------|
+| 空 .done | `touch .independent-review-N.done` | 空文件被拒（要求 > 0 字节 + 含合法内容） |
+| 假内容 .done | AI 写"审查已完成"但未派子 agent | Hook 校验 .done 写入来源（必须来自 review 子进程） |
+| 跳过子进程 | AI 不派 L2 直接 transition | PreToolUse hook 在 transition 前置查 gate = passed |
+
+**Transition 前置 gate 查**：pipeline phase N→N+1 的 transition jq 执行前，hook 强制检查 `goal.gates["N→N+1"]` 是否为 `"passed"`。passed 依赖合法 `.done`（通过真实性校验），未 passed 拒绝推进。
+
+### gate_config 快照同步
+
+每次 `/flow goal --gate-config` 或 `/flow gate-config` 修改时，同时写入两处：
+- `.flow-active.goal.gate_config`（运行时状态）
+- `.specs/<id>/.goal-snapshot.json`（受 git 跟踪的静态快照）
+
+hook 层 D8 ⑥ 检测两处不一致时报告篡改风险。
+
+### L3 前置（front-loading）
+
+L3 API 调用从 Stop hook（会话结束才触发）前移到 PreToolUse hook（transition jq 拦截点）**同步执行**。这解决了 L2+L3 异步死锁：原 L3 需等会话结束，但 pipeline transition 需 L3 完成后才放行 → 单 session 内无法闭环。
+
+- **主路径**：PreToolUse hook transition 拦截时同步跑 L3（30s 超时）
+- **兜底**：Stop hook `29-independent-review.sh` 保留补跑逻辑
+- **共享 lib**：`l3-review.sh` 被两处复用
+
+### transition 方向检测
+
+PreToolUse hook 比较 transition 的目标 phase 与当前 phase：
+- **前进**（目标 > 当前）→ 正常 gate 检查（要求 .done 通过真实性校验）
+- **回退**（目标 < 当前）→ 放行（不要求 .done，允许从失败中恢复）
+
+---
+
+<a id="sec-hook-modules"></a>
+## Hook 模块扩展（31/32 号）
+
+### 31-auto-advance.sh
+
+当 `auto_advance=true` 时，Stop hook 自动检测当前阶段 PCSC 全 ✅ → 自动执行 transition jq 推进到下一阶段。这是 prompt 层 auto_advance 指令的 hook 层兜底——确保弱模型跳过指令时 hook 层仍执行。
+
+### 32-fallback-guard.sh
+
+当 `mode=fallback` 时，Stop hook 检测 pipeline 到达终点（phase 7 PCSC 全 ✅）→ 自动标记 `goal.status=done`。这是 prompt 层 fallback 的 hook 层兜底。
+
+### 启用方式
+
+两个模块在 `stop-hook.json` 的 `modules` 中默认开启（`"31-auto-advance": true`, `"32-fallback-guard": true`）。无需手动配置。
+
+---
+
 ## 附录：Token 预算参考
 
 flow-kit 对 token 成本透明。GO.md 要求 AI 在进入阶段前输出预算估算，并提供三个挡位：

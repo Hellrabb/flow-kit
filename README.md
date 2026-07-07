@@ -74,7 +74,18 @@ flow-kit/
 
 ### 技术债跟踪
 
-技术债记录在 `.specs/LESSONS.md`，由 brooks-lint 扫猫 + 手动补充维护。
+技术债记录在 `.specs/LESSONS.md`，由 brooks-lint 扫描 + 手动补充维护。
+
+## 近期功能
+
+- **gate_config L2/L3/both**：独立审查三层级开关（L2 子agent / L3 外部模型 / both 双层），支持预设名和数字简写
+- **Pipeline Goal 0→7**：跨阶段全链执行，toll-gate + 门禁条件 + auto_advance/fallback
+- **interrupt/checkpoint**：中断恢复机制，支持手动 `/flow checkpoint` + auto-checkpoint 自动写入（4种触发）
+- **独立审查四层架构**：PRESET_MAP → Prompt → Hook → L2-blind-review 端到端
+- **.done 真实性校验**：防 AI 伪造审查通过标记（三层威胁模型防护）
+- **Hook 模块 31/32**：auto_advance + fallback hook 层兜底
+
+详见 [FLOW-KIT-用户指南.md](./FLOW-KIT-用户指南.md) 的 gate_config、interrupt/checkpoint、独立审查章节。
 
 ## 快速开始
 
