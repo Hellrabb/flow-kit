@@ -207,9 +207,9 @@ EOF
         review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
         skip_marker="${cwd}/.specs/${change_id}/.skip-L2-${phase}"
 
-        if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
+        if [[ "$gate_val" == "both" || "$gate_val" == "L2" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
           # AC-5 option ②: FLOW_KIT_SKIP_L2 env var → write skip marker + allow
-          if [[ "${FLOW_KIT_SKIP_L2:-}" == "1" ]]; then
+          if [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "both" ]]; then
             touch "$skip_marker" 2>/dev/null || true
             cat >&2 <<EOF
 ⚠️ 独立 review gate：L2 已跳过（FLOW_KIT_SKIP_L2=1）。
@@ -217,6 +217,13 @@ EOF
    L3 继续执行（若 gate_config 含 L3）。
 EOF
             # Continue to L3 below (don't exit)
+          elif [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "L2" ]]; then
+            cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底），不允许跳过 L2。
+   FLOW_KIT_SKIP_L2=1 仅在 gate_config=both 时可用（跳过 L2 后仍有 L3）。
+   请完成 L2 审查后重试。
+EOF
+            exit 2
           elif [ -f "$skip_marker" ]; then
             # Skip marker from previous attempt → allow
             cat >&2 <<EOF
@@ -233,7 +240,18 @@ EOF
                 l2_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" >&2 2>/dev/null || true
               fi
             fi
-            cat >&2 <<EOF
+            if [[ "$gate_val" == "L2" ]]; then
+              cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底）但 L2 尚未完成。
+
+   选项：
+   ① 复制上方 Agent 命令派 L2 子 agent（推荐）
+   ② 回退等待：完成 L2 后重新执行 transition 即可
+
+   注意：L2-only 模式没有 L3 外部模型兜底，L2 审查必须完成。
+EOF
+            else
+              cat >&2 <<EOF
 ⛔ 独立 review gate：gate_config=both 但 L2 尚未完成。
 
    选项：
@@ -243,6 +261,7 @@ EOF
 
    AC-5: L2 独立审查为质量门禁。跳过 L2 将仅依赖 L3 外部模型审查。
 EOF
+            fi
             exit 2
           fi
         fi
