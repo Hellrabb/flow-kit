@@ -9,7 +9,7 @@
 
 | # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
 |---|---|---|---|---|---|---|
-| L-022 | 🟡 | Bash hook stderr 安全 | 移除 `2>/dev/null` 后 curl/jq 错误信息（含 endpoint URL、部分 API 响应）会通过 `>&2` 日志泄露到 agent 可见 stderr。`_l3_format_result` 的白名单输出天然安全，但真实 stderr 泄露只能在集成环境验证。建议 v2 将敏感诊断日志重定向到专用 debug 文件而非 stderr | active | `l3-feedback-visibility` 6-review L2 R2 |
+| L-022 | 🟡 | Bash hook stderr 安全 | 移除 `2>/dev/null` 后 curl/jq 错误信息（含 endpoint URL、部分 API 响应）会通过 `>&2` 日志泄露到 agent 可见 stderr。`_l3_format_result` 的白名单输出天然安全，但真实 stderr 泄露只能在集成环境验证。建议 v2 将敏感诊断日志重定向到专用 debug 文件而非 stderr | active | `l3-feedback-visibility` 2026-07-07 |
 
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 辅助函数 `install_file()` 已从 install.sh 抽出到 lib/，但独立工具库 `lib/utils.sh` 尚不必要（当前 1 个共享函数，阈值 ≥ 3）。debt-cleanup 确认保持推迟。 | 等新增 ≥ 2 个共享辅助函数时再建 `lib/utils.sh`，避免只有一个函数的过度抽象 | deferred | `init-git-repo` T03 手动基线 |
 | L-005 | 🟡 | `package-flow-kit.sh` L20 | STAGING 前置校验已添加（debt-cleanup） | `[[ -n "$STAGING" && "$STAGING" != "/" ]]` guard 已生效 | resolved | `init-git-repo` T03 手动基线 |
