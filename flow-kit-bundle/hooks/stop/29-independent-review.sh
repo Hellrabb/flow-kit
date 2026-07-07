@@ -24,7 +24,8 @@ flow_file="${PROJECT_ROOT}/.flow-active"
 [ -f "$flow_file" ] || exit 0
 jq empty "$flow_file" 2>/dev/null || exit 0
 
-phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
+# D3 fix: pipeline-aware phase resolution (was: jq -r '.phase')
+phase=$(fk_resolve_phase 2>/dev/null || jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
 { [ "$change_id" != "none" ] && [ "$change_id" != "null" ]; } || exit 0
 
@@ -60,8 +61,43 @@ spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 # ── Gate 5: done 标志已写（主 agent 收齐了）→ 清理握手文件 ──
 done_marker="${spec_dir}/.independent-review-${phase}.done"
 if [ -f "$done_marker" ]; then
+  module_output "info" "IR" "skipped: ${done_marker} — L3 already completed for phase ${phase}"
   rm -f "$state_file"
   exit 0
+fi
+
+# ── D4 fix: L2 检测 — both 模式 L2 未完成时输出派发提示 ──
+phase_name=""
+case "$phase" in
+  1) phase_name="1-requirement" ;;
+  2) phase_name="2-design" ;;
+  3) phase_name="3-task" ;;
+  5) phase_name="5-test" ;;
+  6) phase_name="6-review" ;;
+  7) phase_name="7-integration" ;;
+esac
+gate_val=$(jq -r --arg pn "$phase_name" \
+  '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+case "$gate_val" in
+  independent|true) gate_val="both" ;;
+  L2|L3|both) ;;
+  *) gate_val="" ;;
+esac
+
+if [[ "$gate_val" == "both" ]]; then
+  l2_lib="${HOOK_BASE_DIR}/lib/l2-detect.sh"
+  if [ -f "$l2_lib" ]; then
+    source "$l2_lib" 2>/dev/null || true
+    if type l2_detect_missing >/dev/null 2>&1; then
+      if l2_detect_missing "$phase" "$change_id" "$spec_dir" 2>/dev/null; then
+        : # L2 已完成，继续 L3
+      else
+        l2_dispatch_prompt "$phase" "$change_id" "$spec_dir" 2>/dev/null || true
+        module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both）——等待主 agent 派 L2 子 agent"
+        exit 0
+      fi
+    fi
+  fi
 fi
 
 # ── 防线 2：pipeline 模式强制 auto_advance=false ──
@@ -75,10 +111,38 @@ fi
 # ── 收集工件 + 提取 L2_verdict ──
 spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 review_md="${spec_dir}/INDEPENDENT-REVIEW-${phase}.md"
-l2_verdict="fail"  # 默认 fail（保守）
+
+# 读 gate_config 当前阶段值（用于 D1 L2-wait + D2 L3-only skipped）
+phase_name=""
+case "$phase" in
+  1) phase_name="1-requirement" ;;
+  2) phase_name="2-design" ;;
+  3) phase_name="3-task" ;;
+  5) phase_name="5-test" ;;
+  6) phase_name="6-review" ;;
+  7) phase_name="7-integration" ;;
+esac
+gate_val=$(jq -r --arg pn "$phase_name" \
+  '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+# 值标准化映射（与 done-validation.sh 保持一致）
+case "$gate_val" in
+  independent|true) gate_val="both" ;;
+  L2|L3|both) ;;  # 合法值保持
+  *) gate_val="" ;;  # 未知值视为未开启
+esac
+
+l2_verdict="fail"  # 默认 fail（保守，both 模式 L2 未完成时）
 if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
   l2v_extracted=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
   [ -n "$l2v_extracted" ] && l2_verdict="$l2v_extracted"
+elif [[ "$gate_val" == "L3" ]]; then
+  l2_verdict="skipped"  # L3-only: L2 是刻意不跑，非失败
+fi
+
+# ── D1: gate_config="both" 时 L2 未完成 → 跳过 L3，不写 .done ──
+if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
+  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both）——等待主 agent 派 L2 子 agent"
+  exit 0
 fi
 
 # ── 调用共享 lib l3-review.sh 执行 L3（P0-1/F1 修复）──
@@ -86,7 +150,7 @@ l3_lib="${HOOK_BASE_DIR}/lib/l3-review.sh"
 if [ -f "$l3_lib" ]; then
   source "$l3_lib" 2>/dev/null || true
   if type l3_review_run >/dev/null 2>&1; then
-    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" 2>/dev/null && rc=0 || rc=$?
+    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" "${gate_val:-both}" 2>/dev/null && rc=0 || rc=$?
     # l3_review_run 内部完成: L3 API 调用 → 写 L3 段 → 写 6 键 .done
     case $rc in
       0) module_output "info" "IR" "L3 独立 review 完成（阶段 ${phase}, verdict=pass, L2_verdict=${l2_verdict}）→ INDEPENDENT-REVIEW-${phase}.md + .done";;

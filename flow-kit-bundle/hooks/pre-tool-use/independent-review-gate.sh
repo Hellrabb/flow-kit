@@ -205,12 +205,46 @@ EOF
 
         # 检查 L2 是否已完成
         review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+        skip_marker="${cwd}/.specs/${change_id}/.skip-L2-${phase}"
+
         if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
-          cat >&2 <<EOF
-⛔ 独立 review gate：gate_config=both 但 L2 尚未完成（${review_md} 缺少 L2 段）。
-   请先派 L2 子 agent 完成盲审，再尝试切阶段。
+          # AC-5 option ②: FLOW_KIT_SKIP_L2 env var → write skip marker + allow
+          if [[ "${FLOW_KIT_SKIP_L2:-}" == "1" ]]; then
+            touch "$skip_marker" 2>/dev/null || true
+            cat >&2 <<EOF
+⚠️ 独立 review gate：L2 已跳过（FLOW_KIT_SKIP_L2=1）。
+   标记文件: ${skip_marker}
+   L3 继续执行（若 gate_config 含 L3）。
 EOF
-          exit 2
+            # Continue to L3 below (don't exit)
+          elif [ -f "$skip_marker" ]; then
+            # Skip marker from previous attempt → allow
+            cat >&2 <<EOF
+⚠️ 独立 review gate：L2 已跳过（${skip_marker} 存在）。
+   L3 继续执行（若 gate_config 含 L3）。
+EOF
+            # Continue to L3 below
+          else
+            # AC-5 option ①: output dispatch prompt + option ②③ hints
+            l2_lib="${HOOK_BASE_DIR}/../stop/lib/l2-detect.sh"
+            if [ -f "$l2_lib" ]; then
+              source "$l2_lib" 2>/dev/null || true
+              if type l2_dispatch_prompt >/dev/null 2>&1; then
+                l2_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" >&2 2>/dev/null || true
+              fi
+            fi
+            cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=both 但 L2 尚未完成。
+
+   选项：
+   ① 复制上方 Agent 命令派 L2 子 agent（推荐）
+   ② 跳过 L2：设置 FLOW_KIT_SKIP_L2=1 后重试（需显式确认风险）
+   ③ 回退等待：完成 L2 后重新执行 transition 即可
+
+   AC-5: L2 独立审查为质量门禁。跳过 L2 将仅依赖 L3 外部模型审查。
+EOF
+            exit 2
+          fi
         fi
         if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
           # L2 已完成（或 L3-only 模式无需 L2），尝试同步 L3

@@ -42,6 +42,120 @@ _l3_format_result() {
   echo "L3_RESULT: verdict=${verdict} summary=${summary} report=${report}"
 }
 
+# ── smart_truncate() · 智能截断（保留标题 + AC）──
+# 用法: smart_truncate <text> <max_chars>
+# 输出: truncated_text + truncation_meta 到 stdout
+# 硬约束: (a) 所有 ##/### 标题行保留; (b) 所有 Given/When/Then AC 行完整保留
+# 算法: 两遍扫描——① 索引收集标题+AC位置; ② 按标题段填充至上限
+smart_truncate() {
+  local text="$1"
+  local max_chars="${2:-20000}"
+  local original_size=${#text}
+
+  # 不需要截断
+  if [ "$original_size" -le "$max_chars" ]; then
+    echo "$text"
+    echo ""
+    echo "[截断] 原始: ${original_size} chars，未超限（上限 ${max_chars} chars），完整保留"
+    return 0
+  fi
+
+  # 第 1 遍: 索引收集 (header_line_numbers + AC line_numbers)
+  local header_nums=""   # 仅行号，换行分隔
+  local ac_nums=""       # 仅行号，换行分隔
+
+  local lineno=0
+  while IFS= read -r line; do
+    lineno=$((lineno + 1))
+    # 捕获 ##/### 标题行 → 仅存行号
+    if [[ "$line" =~ ^###?\  ]]; then
+      header_nums="${header_nums}${lineno}"$'\n'
+    fi
+    # 捕获 Given/When/Then AC 行 → 仅存行号
+    if [[ "$line" =~ ^\*\*Given\*\*|^\*\*When\*\*|^\*\*Then\*\* ]]; then
+      ac_nums="${ac_nums}${lineno}"$'\n'
+    fi
+  done <<< "$text"
+
+  # 构建强制保留行号集合（仅数字键）
+  declare -A keep_line
+  while IFS= read -r num; do
+    [ -n "$num" ] && keep_line["$num"]=1
+  done <<< "$header_nums"
+  while IFS= read -r num; do
+    [ -n "$num" ] && keep_line["$num"]=1
+  done <<< "$ac_nums"
+
+  # 第 2 遍: 按标题段填充
+  local output=""
+  local remaining=$max_chars
+  local removed_sections=""
+  local current_section=""
+  local in_section=0
+
+  lineno=0
+  while IFS= read -r line; do
+    lineno=$((lineno + 1))
+    local is_header=0
+    local line_len=${#line}
+
+    if [[ "$line" =~ ^###?\  ]]; then
+      is_header=1
+      # R2 fix: always output header line even if remaining exhausted
+      # (AC-2 hard constraint (a): all headers must be preserved)
+      if [ "$in_section" -eq 1 ] && [ -n "$current_section" ] && [ "$remaining" -le 0 ]; then
+        removed_sections="${removed_sections}${current_section}, "
+      fi
+      current_section=$(echo "$line" | sed 's/^#\+ //' | cut -c1-60)
+      in_section=1
+    fi
+
+    # R2 fix: headers always output regardless of remaining budget
+    if [ "$is_header" -eq 1 ]; then
+      output="${output}${line}"$'\n'
+      remaining=$((remaining - line_len - 1))
+      continue
+    fi
+
+    if [ "$remaining" -le 0 ]; then
+      continue
+    fi
+
+    # 强制保留: AC 行 (R3 fix: keep_line key is now numeric, matching $lineno)
+    if [ "${keep_line[$lineno]:-0}" -eq 1 ]; then
+      if [ "$line_len" -le "$remaining" ]; then
+        output="${output}${line}"$'\n'
+        remaining=$((remaining - line_len - 1))
+      else
+        output="${output}${line:0:$remaining}"$'\n'
+        remaining=0
+      fi
+    elif [ "$in_section" -eq 1 ]; then
+      # 标题段内的普通行，按剩余空间填充
+      if [ "$line_len" -le "$remaining" ]; then
+        output="${output}${line}"$'\n'
+        remaining=$((remaining - line_len - 1))
+      fi
+    fi
+  done <<< "$text"
+
+  # 构造截断元信息
+  local truncated_size=${#output}
+  local meta="[截断] 原始: ${original_size} chars → 截断后: ${truncated_size} chars（上限 ${max_chars}）"
+  if [ -n "$removed_sections" ]; then
+    removed_sections="${removed_sections%, }"
+    meta="${meta} | 被截去的章节: ${removed_sections}"
+  else
+    meta="${meta} | 所有章节已保留（内容被压缩）"
+  fi
+  meta="${meta}"$'\n'"[提示] 以上为截断摘要，信息不完整。请优先标记确定性问题，减少不确定环境下的武断 critical。"
+
+  echo "$output"
+  echo ""
+  echo "$meta"
+  return 0
+}
+
 # ── l3_review_run() · 主函数 ──
 l3_review_run() {
   local phase="$1"
@@ -357,10 +471,18 @@ l3_write_timeout_done() {
     echo "> 后续 session 可通过 Stop hook 29 号模块补跑 L3。"
   } >> "$review_md"
 
-  # 写入 timeout .done (6 键)
+  # 写入 timeout .done (6 键 · R9 fix: per-phase artifacts)
   local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
   local done_tmp="${done_marker}.tmp"
-  local artifacts_list="REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md"
+  local artifacts_list=""
+  case "$phase" in
+    1) artifacts_list="REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    2) artifacts_list="DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    3) artifacts_list="TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    5) artifacts_list="TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    6) artifacts_list="REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    7) artifacts_list="REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+  esac
 
   cat > "$done_tmp" <<DONE_EOF
 phase=${phase}
