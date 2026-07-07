@@ -247,118 +247,87 @@ EOF
           fi
         fi
         if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
-          # L2 已完成（或 L3-only 模式无需 L2），尝试同步 L3
-          # 仅在 gate_val 含 L3 (both 或 L3-only) 时运行 L3
+          # L2 已完成 — 检查是否需要 L3
           if [[ "$gate_val" != "L3" && "$gate_val" != "both" ]]; then
             # L2-only 模式：L2 已完成，不跑 L3，直接放行
             exit 0
           fi
+          # L3 needed (both mode with L2 done) — fall through to async dispatch below
+        elif [[ "$gate_val" == "L3" ]]; then
+          # L3-only 模式，无需 L2 前置 — fall through to async dispatch below
+          :
+        else
+          # 无 L3 需求 — 继续 deny（L2 未完成且非 L3-only）
+          exit 2
+        fi
 
-          l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
-          if [ -f "$l3_lib" ]; then
-            source "$l3_lib" 2>/dev/null || true
-            if type l3_review_with_timeout >/dev/null 2>&1; then
-              # 从 INDEPENDENT-REVIEW-<N>.md 提取 L2 verdict（L3-only 模式时 L2 不存在，默认 skipped）
-              l2v="skipped"
-              if [[ "$gate_val" == "both" ]]; then
-                l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
-                [ -n "$l2v" ] || l2v="fail"
-              fi
-              spec_dir="${cwd}/.specs/${change_id}"
-              cat >&2 <<EOF
-⏳ L3 独立审查中（外部模型 · phase ${phase}）...
-EOF
-              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 "${gate_val:-both}" || true
-              # R1 fix: 写入握手文件供 fk_validate_done_marker "transition" tier 校验
-              hs_file="${flow_file}.independent-review"
-              if [ -f "$done_marker" ]; then
-                l3v_done=$(grep -E '^L3_verdict=' "$done_marker" 2>/dev/null | cut -d= -f2 || echo "unknown")
-                jq -n --arg p "$phase" --arg v "${l3v_done:-unknown}" --arg w "pre-tool-use-gate" \
-                  '{($p): {written_by: $w, verdict: $v}}' > "$hs_file" 2>/dev/null || true
-              fi
-              # F1: 输出 L3_RESULT 到 stdout（agent 可见通道）
-              done_validation_lib="${HOOK_BASE_DIR}/../stop/lib/done-validation.sh"
-              if [ -f "$done_validation_lib" ]; then
-                source "$done_validation_lib" 2>/dev/null || true
-              fi
-              if type _fk_done_kvp >/dev/null 2>&1 && type _l3_format_result >/dev/null 2>&1 && [ -f "$done_marker" ]; then
-                set +e
-                l3v=$(_fk_done_kvp "$done_marker" "L3_verdict")
-                l3v="${l3v:-unknown}"
-                l3s=$(_fk_done_kvp "$done_marker" "L3_summary")
-                l3s="${l3s:-}"
-                set -e
-                report=".specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
-                _l3_format_result "$l3v" "$l3s" "$report"
-              fi
-              # L3 完成后重试 .done 校验
-              if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
-                # ── 实效性校验（l2-l3-fix-compliance · 仅 phase 5/6/7）──
-                if [[ "$phase" =~ ^(5|6|7)$ ]]; then
-                  fix_compliance_lib="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
-                  if [ -f "$fix_compliance_lib" ]; then
-                    source "$fix_compliance_lib" 2>/dev/null || true
-                    if type fk_fix_compliance_check >/dev/null 2>&1; then
-                      fk_fix_compliance_check "$phase" "$change_id" "${cwd}/.specs/${change_id}" "$cwd" || exit 2
-                    fi
-                  fi
-                fi
-                exit 0
+        # ══ L3 异步派发（共享 both+L3-only 路径）════
+        # 不再同步调 l3_review_with_timeout(30s)——外部模型 API 响应远超 30s，
+        # 超时写 verdict=timeout 假放行等于 L3 没跑。
+        # 改为 L2 同款异步模式：检查 .done → 派发提示 → 拦截 → agent 异步跑 L3 → 重试放行
+
+        # 先检查 L3 是否已由 Stop hook 或手动派发完成
+        if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
+          # L3 已完成 → 实效性校验（仅 phase 5/6/7）+ 放行
+          if [[ "$phase" =~ ^(5|6|7)$ ]]; then
+            fix_compliance_lib="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
+            if [ -f "$fix_compliance_lib" ]; then
+              source "$fix_compliance_lib" 2>/dev/null || true
+              if type fk_fix_compliance_check >/dev/null 2>&1; then
+                fk_fix_compliance_check "$phase" "$change_id" "${cwd}/.specs/${change_id}" "$cwd" || exit 2
               fi
             fi
           fi
-        elif [[ "$gate_val" == "L3" ]]; then
-          # L3-only 模式 + 无 L2 review 文件：仍需跑 L3（不需要 L2 前置）
+
+          # F1: 输出 L3_RESULT 到 stdout（agent 可见）
+          done_validation_lib="${HOOK_BASE_DIR}/../stop/lib/done-validation.sh"
           l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
-          if [ -f "$l3_lib" ]; then
+          if [ -f "$done_validation_lib" ] && [ -f "$l3_lib" ]; then
+            source "$done_validation_lib" 2>/dev/null || true
             source "$l3_lib" 2>/dev/null || true
-            if type l3_review_with_timeout >/dev/null 2>&1; then
-              l2v="skipped"
-              spec_dir="${cwd}/.specs/${change_id}"
-              cat >&2 <<EOF
-⏳ L3 独立审查中（外部模型 · phase ${phase} · L3-only 模式）...
-EOF
-              l3_review_with_timeout "$phase" "$change_id" "$spec_dir" "$l2v" 30 "${gate_val:-both}" || true
-              # R1 fix: 写入握手文件
-              hs_file="${flow_file}.independent-review"
-              if [ -f "$done_marker" ]; then
-                l3v_done=$(grep -E '^L3_verdict=' "$done_marker" 2>/dev/null | cut -d= -f2 || echo "unknown")
-                jq -n --arg p "$phase" --arg v "${l3v_done:-unknown}" --arg w "pre-tool-use-gate" \
-                  '{($p): {written_by: $w, verdict: $v}}' > "$hs_file" 2>/dev/null || true
-              fi
-              # F1: 输出 L3_RESULT 到 stdout
-              done_validation_lib="${HOOK_BASE_DIR}/../stop/lib/done-validation.sh"
-              if [ -f "$done_validation_lib" ]; then
-                source "$done_validation_lib" 2>/dev/null || true
-              fi
-              if type _fk_done_kvp >/dev/null 2>&1 && type _l3_format_result >/dev/null 2>&1 && [ -f "$done_marker" ]; then
-                set +e
-                l3v=$(_fk_done_kvp "$done_marker" "L3_verdict")
-                l3v="${l3v:-unknown}"
-                l3s=$(_fk_done_kvp "$done_marker" "L3_summary")
-                l3s="${l3s:-}"
-                set -e
-                report=".specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
-                _l3_format_result "$l3v" "$l3s" "$report"
-              fi
-              # L3 完成后重试 .done 校验
-              if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
-                # ── 实效性校验（l2-l3-fix-compliance · 仅 phase 5/6/7）──
-                if [[ "$phase" =~ ^(5|6|7)$ ]]; then
-                  fix_compliance_lib="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
-                  if [ -f "$fix_compliance_lib" ]; then
-                    source "$fix_compliance_lib" 2>/dev/null || true
-                    if type fk_fix_compliance_check >/dev/null 2>&1; then
-                      fk_fix_compliance_check "$phase" "$change_id" "${cwd}/.specs/${change_id}" "$cwd" || exit 2
-                    fi
-                  fi
-                fi
-                exit 0
-              fi
+            if type _fk_done_kvp >/dev/null 2>&1 && type _l3_format_result >/dev/null 2>&1 && [ -f "$done_marker" ]; then
+              set +e
+              l3v=$(_fk_done_kvp "$done_marker" "L3_verdict")
+              l3v="${l3v:-unknown}"
+              l3s=$(_fk_done_kvp "$done_marker" "L3_summary")
+              l3s="${l3s:-}"
+              set -e
+              report=".specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+              _l3_format_result "$l3v" "$l3s" "$report"
             fi
+          fi
+          exit 0
+        fi
+
+        # L3 未完成 → 输出派发提示 + 拦截（异步模式）
+        l3_lib="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
+        if [ -f "$l3_lib" ]; then
+          source "$l3_lib" 2>/dev/null || true
+          if type l3_dispatch_prompt >/dev/null 2>&1; then
+            l3_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" "${gate_val:-both}" >&2
           fi
         fi
-        # L2 未完成或 L3 后仍无效 → 继续 deny
+
+        # 确定 L2_verdict 用于派发提示中的参数
+        l2v="skipped"
+        if [[ "$gate_val" == "both" ]]; then
+          l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+          [ -n "$l2v" ] || l2v="fail"
+        fi
+
+        cat >&2 <<EOF
+⛔ 独立 review gate：L3 外部模型审查未完成（phase ${phase}）。
+
+   选项：
+   ① 复制上方 L3 派发命令异步执行（推荐——外部模型需足够响应时间）
+   ② 结束当前 session，Stop hook 会自动跑 L3（无 30s 超时压力）
+   ③ 手动运行:
+      source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \\
+      l3_review_run ${phase} ${change_id} .specs/${change_id} ${l2v} ${gate_val:-both}
+
+   L3 完成后重新执行 phase transition / commit 即可放行。
+EOF
+        exit 2
         ;;
     esac
   fi
