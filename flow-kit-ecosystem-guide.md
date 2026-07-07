@@ -103,7 +103,12 @@ Claude Code 的 **Stop 事件钩子链**——每次会话结束自动触发，1
 | `24-session` | E: 会话分析 | 工具统计、RTK 优化、子代理分析、时长、context-mode 趋势 |
 | `25-project` | F: 项目级门禁 | 容器构建缓存、pnpm 供应链、迁移检测、hook 冲突、worktree 残留 |
 | `26-workflow` | G: 工作流状态 | flow-kit 状态、产物验证、自动推进、stale 检测、diff 边界 |
+| `27-interactive-ui-check` | 交互 UI 检测 | 检测弱模型是否跳过交互 gate（AskUserQuestion/EnterPlanMode），写入矫正文件 |
+| `28-weak-model-compliance` | 弱模型合规 | L1/L2/L3 三层事后验证 + 矫正注入（规则合规/自检完整性/证据链真实性） |
+| `29-independent-review` | L3 独立审查兜底 | 会话结束时补跑 L3 外部模型盲审（主路径为 PreToolUse hook 前置执行） |
 | `30-ai-analyze` | AI 深度分析 | 每 N 次触发一次，用小模型分析转录 + 建议 CLAUDE.md 更新 |
+| `31-auto-advance` | Auto-advance 兜底 | auto_advance=true 时，Stop hook 自动执行 PCSC 通过后的 transition |
+| `32-fallback-guard` | Fallback 兜底 | mode=fallback 时，pipeline 终点自动标记 goal.status=done |
 | `99-report` | 报告汇总 | 聚合所有模块输出 → 终端摘要 + `stop-hook-report.md` 文件 |
 
 ### 库文件（`lib/`）
@@ -113,6 +118,9 @@ Claude Code 的 **Stop 事件钩子链**——每次会话结束自动触发，1
 | `common.sh` | 共享函数库 |
 | `flow-kit-artifacts.sh` | flow-kit 产物验证函数 |
 | `transcript-parser.sh` | 转录解析库 |
+| `correction-file.sh` | 通用 JSON 矫正文件管理（27/28 号模块共用） |
+| `l3-review.sh` | L3 API 调用共享 lib（29 号 + PreToolUse hook 复用） |
+| `checkpoint-lib.sh` | auto-checkpoint 写入+去重+校验共享函数（PreToolUse hook 调用） |
 
 ---
 
@@ -192,7 +200,7 @@ brooks-lint 依赖 4 个 npm 工具（depcheck / jscpd / knip / ts-prune），�
        ▼  会话结束
 ┌──────────────────────────────────────┐
 │  Stop Hook 链 (层3)                  │
-│  00→01→20→21→22→23→24→25→26→30→99  │
+│  00→01→20→21→22→23→24→25→26→27→28→29→30→31→32→99  │
 │  → 检查代码质量、git 卫生、内存同步    │
 │  → 验证 flow-kit 产物完整性           │
 │  → 生成 stop-hook-report.md          │

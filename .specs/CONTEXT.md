@@ -280,6 +280,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 共享函数 < 3 阈值，`lib/utils.sh` 保持推迟 | 等新增 ≥ 2 个共享辅助函数时再建 | `init-git-repo` T03 · 保持 deferred |
 | TD-004 | 🟡 | `flow-kit-bundle/flow-kit/prompts/*.md`（15+ 文件） | Markdown prompt 样板重复率 22%——toll-gate 流程、独立 review 调度、Pipeline 规则等共享段在多文件中逐字重复，规则变更时须手动同步 N 处 | 抽取 `_shared/` 引用片段；下次 prompt 规则变更时一并重构 | `M-health 2026-07-02` |
 | TD-005 | 🟡 | `flow-kit-bundle/flow-kit/prompts/6-review.md` + `7-integration.md` | jq pipeline goal 解析逻辑（68 行）在 6-review 和 7-integration 两个 prompt 中逐字重复——提取 goal.scope / start_phase / current_phase / phases_done / gates | 抽取到 `flow-kit/reference/` 共享片段；下次改 pipeline goal 解析时一并重构 | `M-health 2026-07-04` |
+| TD-006 | 🟡 | `.specs/l2-l3-fix-compliance/` + `.specs/independent-review-gap/` | 代码已合入但 spec 工件缺失（仅剩 PROGRESS.md）。共涉及 3 个新 lib + 858 行测试代码无对应 CHANGE/REQUIREMENT/DESIGN | 立即归档 + 补 CHANGE.md（1 段简述 + 指向对应 commit）| `M-health 2026-07-07` |
+| TD-007 | 🟡 | `test/` 根目录 | 7 个 untracked bats 文件 + fixtures/ — 与 flow-kit-bundle/test/ 内容一致但未被 git 跟踪，打包和 CI 可能不一致 | 确认意图后 `git add` 或清理 | `M-health 2026-07-07` |
 
 ---
 

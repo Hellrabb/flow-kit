@@ -3,7 +3,7 @@
 - **Change ID**: gate-integrity
 - **创建日期**: 2026-07-01
 - **路径建议**: 完整（REQUIREMENT → DESIGN → TASK → DEV → TEST → REVIEW → INTEGRATION · 非前端无 2a）
-- **状态**: draft
+- **状态: done（2026-07-07 · 3C+5I 修复 · 14 tasks · 全量 gate integrity 加固）
 
 ---
 
@@ -25,7 +25,7 @@
 
 **Q1（防规避）· hook 层强制**：把"靠 agent 自觉"改成"靠 hook 兜底，agent 无法绕过"。
 - 校验 `.independent-review-<phase>.done` / 阶段 `.done` 的**真实性**（不是"存在性"）：防空文件、防内容伪造、防跳过 review 子进程直接 transition。
-- pipeline transition（phase N→N+1）前**强制查 gate 状态**，gate 未合法 passed 则 hook 拦截。
+- pipeline transition（phase N→N+1）前**强制查 gate 状态: done（2026-07-07 · 3C+5I 修复 · 14 tasks · 全量 gate integrity 加固）
 
 **Q2（扩展覆盖）· 给 3/5/7 加 L2**：把 1/2/6 既有的 independent review gate 机制复制到 3-task / 5-test / 7-integration，进/出阶段时拦 transition 直到主 agent 写出合法的 `.independent-review-3/5/7.done`。
 
@@ -36,7 +36,7 @@
 - [x] 影响 `REQUIREMENT.md`（新增 gate 校验 + 3/5/7 L2 的 Given/When/Then AC）
 - [x] 影响 `DESIGN.md` / 引入新 ADR（.done 真实性校验的分层方案：存在性 / 内容真实性 / transition 前置查 gate；可能新增 ADR 记 .done 信任机制决策）
 - [x] 影响现有 AC（pipeline goal 的 toll-gate 行为 AC 需对齐"hook 强制"语义；1/2/6 现有 L2 AC 不改）
-- [x] 影响数据模型 / 迁移（`.done` 文件结构可能扩展——加签名/哈希/进程凭证元数据；`.flow-active.goal` schema 若需承载 gate 校验状态可能扩展，**未硬排除**，DESIGN 定）
+- [x] 影响数据模型 / 迁移（`.done` 文件结构可能扩展——加签名/哈希/进程凭证元数据；`.flow-active.goal` schema 若需承载 gate 校验状态: done（2026-07-07 · 3C+5I 修复 · 14 tasks · 全量 gate integrity 加固）
 - [ ] 影响外部 API 兼容性（无外部 API）
 - [ ] 仅修复 bug（是机制加固 + 功能扩展，非 bugfix）
 

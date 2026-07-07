@@ -241,3 +241,22 @@
 ---
 
 > 本文件不含完整代码实现。函数签名 / 伪代码可，函数体不可。
+
+## Known Limitations
+
+### Token Visibility in Process List
+
+`ANTHROPIC_AUTH_TOKEN` is passed to `curl` via `-H "Authorization: Bearer ..."` flag,
+making the token temporarily visible in `/proc/*/cmdline` and `ps aux` output during
+the brief window when curl is executing. This is an inherent limitation of
+shell-script-based API calls (29-independent-review.sh, 30-ai-analyze.sh).
+
+Mitigations in place:
+- Token is NOT echoed, logged, or passed to `module_output` (verified by AC-9 in test suite)
+- The window of visibility is limited to the duration of the curl HTTP request (typically <5s)
+- On systems with `hidepid=2` procfs mount option, `/proc/*/cmdline` is not readable by other users
+- Token originates from an environment variable already present in the session
+
+Future hardening (not planned for v1): pass token via `--header @-` heredoc or
+environment-variable-based auth (`ANTHROPIC_API_KEY`) for the API path, avoiding
+the command-line argument entirely.
