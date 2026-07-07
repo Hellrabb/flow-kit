@@ -1,7 +1,39 @@
 # STATE — 项目状态
 
 - **last_intel_scan**: `2026-06-17`
+- **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
+- **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
 - **last_change_archived**: `2026-07-07` (`l3-comprehensive-fix`)
+- **last_evolve_promoted**:
+  - 2026-06-08-init-git-repo
+  - 2026-06-08-offline-brooks-bundle
+  - 2026-06-09-user-scope-install
+  - 2026-06-16-health-fix
+  - 2026-06-18-integrate-goal-command
+  - 2026-06-22-bundle-packaging
+  - 2026-06-25-weak-model-robustness
+  - 2026-06-29-lessons-cleanup
+  - 2026-06-29-quality-baseline
+  - 2026-06-29-robustness-hook-hardening
+  - 2026-07-01-health-fix-2026-07
+  - 2026-07-01-improve-independent-review
+  - 2026-07-01-independent-review
+  - 2026-07-01-sweep-fix-2026-07
+  - 2026-07-02-independent-review-gap
+  - dual-review-merge-fix
+  - flow-active-integrity
+  - gate-integrity
+  - goal-pipeline-phase0
+  - l2-l3-fix-compliance
+  - l2-l3-granular-gate
+  - l3-comprehensive-fix
+  - l3-feedback-visibility
+  - phase-skip-fix
+  - pipeline-fallback-fix
+  - pipeline-goal
+  - pipeline-rollback-phase0
+  - user-guide-update
+  - weak-model-interactive-ui
 - **context_file**: `.specs/CONTEXT.md`
 - **detected_stack**: `Bash 脚本项目（flow-kit 分发包仓库）— 无传统技术栈（无框架/无 DB/无前端/无后端）`
 - **project_type**: `meta / distribution`
