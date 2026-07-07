@@ -92,3 +92,26 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 | 2026-07-02 | independent-review-gap | 补齐 L2/L3 独立审查 3/5/7 缺失：prompt 段 + PRESET_MAP + L2 checklist + 全链路同步 | L-016, L-017 |
 | 2026-07-03 | flow-active-integrity | L2+L3 .flow-active 状态完整性检查：8 prompt PCSC + 33 号 hook 模块 + 19 bats tests | L-019, L-020 |
 | 2026-07-03 | l3-review-hardening | l3-review.sh 6 项修复：F1 新文件/F2 全产物/F3 幂等/B1-B4 DeepSeek 兼容 | — |
+
+## 2026-07-07 — l3-comprehensive-fix
+
+### 修复 (fix)
+- **L3 header 不匹配**: `flow-kit-resume.sh` grep `## L3 外部模型审查` → `## L3 盲审`（+ 旧 header 兼容）
+- **L3 截断假阳性**: `l3-review.sh` 新增 `smart_truncate()` 智能截断（保留标题 + AC 行 + 截断上下文告知）
+- **.done 重复触发**: `29-independent-review.sh` Gate 5 增加 "skipped" 日志 + pipeline-aware phase 检测
+- **L2 自动拉起断裂**: 新建 `l2-detect.sh` lib，PreToolUse gate + Stop hook 双层 L2 检测 + AC-5 三选项交互
+
+### 新增 (feat)
+- `fk_resolve_phase()` — pipeline-aware 统一 phase 解析（`common.sh`）
+- `l2-detect.sh` — L2 检测 + 一键派发命令生成 lib
+- `smart_truncate()` — 智能截断算法（两遍扫描，保留标题 + AC 行）
+- AC-5 交互：`FLOW_KIT_SKIP_L2` 环境变量 + `.skip-L2-<phase>` 标记文件
+
+### 测试
+- 25 new bats tests (phase-resolution / l2-detect / done-skip / done-validation / l3-header-detect / l3-truncation)
+- 30KB L3 截断测试夹具 (`test/fixtures/l3-truncation-30k.md`)
+- 全量回归 384 tests / 0 failures
+
+### Prompt 加固
+- 6 个阶段 prompt 的「独立 review 调度」段增加 L2 醒目标注
+

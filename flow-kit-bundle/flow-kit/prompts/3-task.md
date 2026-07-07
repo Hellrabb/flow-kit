@@ -138,6 +138,8 @@ Wave 3:            T05 (depends on T03, T04)
 
 ## 独立 review 调度（仅当本阶段 gate 开启时执行）
 
+> ⚠️ L2 盲审必须在本阶段产物完成后、toll-gate 前完成。跳过 L2 = gate deny transition。
+
 > **检测**：`.flow-active.goal.gate_config["3-task"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"3-task"`。未开启 → 跳过本段，直接进「阶段完成自检」。
 
 本阶段产物必须通过两层独立 review 才能切阶段 / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
@@ -158,7 +160,7 @@ Wave 3:            T05 (depends on T03, T04)
         - 阶段：3
         - change-id：<change-id>
         - 工件：读 .specs/<change-id>/TASK.md（参考 .specs/<change-id>/REQUIREMENT.md、.specs/<change-id>/DESIGN.md）
-        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-3.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 3`）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-3.md 的「## L2 盲审」段（若文件已存在含 L3 段，先读全文，将 L2 段追加到末尾再 Write——禁止直接覆写；若文件不存在则新建，首行加 `# 独立审查 · 阶段 3`）
 
 ### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
 
@@ -174,9 +176,20 @@ Wave 3:            T05 (depends on T03, T04)
 
 确认 `INDEPENDENT-REVIEW-3.md` 含所需 tier 段后执行：
 
-    touch .specs/<change-id>/.independent-review-3.done
+    - gate_config="both" 或 "L3"：`.done` 由 l3-review.sh / Stop hook 29 写入（无需主 agent 操作）
+    - gate_config="L2"（仅 L2）：主 agent 写 6 键 KVP `.done`：
+      ```bash
+      cat > .specs/<change-id>/.independent-review-3.done <<'DONE_EOF'
+      phase=3
+      change_id=<change-id>
+      written_by=main-agent
+      L2_verdict=<pass|fail，从 INDEPENDENT-REVIEW-3.md 提取>
+      L3_verdict=skipped
+      artifacts=TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-3.md
+      DONE_EOF
+      ```
 
-写完才能切阶段 / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+写完才能切阶段
 
 ---
 

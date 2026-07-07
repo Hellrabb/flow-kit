@@ -218,6 +218,36 @@ GOTCHA_PATTERNS=(
 : "${SUGGESTIONS_FILE:=}"
 : "${STATE_FILE:=}"
 
+# ── fk_resolve_phase() · Pipeline-aware phase resolution ──────────────
+# Resolve the active phase from .flow-active.
+# Pipeline mode (goal.scope="pipeline"): use goal.current_phase
+# Single-phase mode: fall back to .phase
+# Outputs the resolved phase string to stdout.
+# Returns 0 on success, 1 if .flow-active missing or unreadable.
+fk_resolve_phase() {
+  local flow_file="${PROJECT_ROOT}/.flow-active"
+  [[ -f "$flow_file" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  local scope phase
+  scope=$(jq -r '.goal.scope // ""' "$flow_file" 2>/dev/null || echo "")
+
+  if [[ "$scope" == "pipeline" ]]; then
+    phase=$(jq -r '.goal.current_phase // ""' "$flow_file" 2>/dev/null || echo "")
+    # Validate: must be a non-empty phase number (0-7)
+    if [[ "$phase" =~ ^[0-7]$ ]]; then
+      echo "$phase"
+      return 0
+    fi
+    # Pipeline but current_phase invalid/empty → fall through to .phase
+  fi
+
+  # Fallback: single-phase mode or pipeline with invalid current_phase
+  phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
+  echo "$phase"
+  return 0
+}
+
 # ── Hook module registry (single source of truth) ────────────────────
 # All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
 # Single source for install_hooks.sh, package-flow-kit.sh, and any

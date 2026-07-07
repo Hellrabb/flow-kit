@@ -44,7 +44,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 术语 | 定义 |
 |---|---|
 | flow-kit | Claude Code 的开发工作流引擎，管理 0-change → 7-integration 全阶段 |
-| Stop Hook | Claude Code Stop 事件触发的钩子链（11 模块），在每次会话结束时自动执行 |
+| Stop Hook | Claude Code 的 `Stop` 事件钩子链（11 模块），在**每轮对话结束时**（模型 stop generating，非 session close）自动执行。用于 L3 独立审查触发、auto_advance 检查、合规验证等 |
 | SessionStart Hook | 会话启动时触发的钩子（resume + report-reminder） |
 | brooks-lint | 代码审查插件，基于 12 本经典工程书籍，提供 review/audit/debt/test/health/sweep |
 | intel-scan | flow-kit 入场扫描命令，首次使用 flow-kit 时自动生成 CONTEXT.md |
@@ -119,6 +119,13 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | HOOK_MODULE_NAMES | `common.sh` 中定义的共享 hook 模块名数组（`declare -a HOOK_MODULE_NAMES=(00-gate 01-transcript-parse ... 99-report)`）。`install_hooks.sh` 和 `package-flow-kit.sh` 均引用此数组，消除两处重复维护 |
 | PHASE_ARTIFACTS | `flow-kit-artifacts.sh` 中定义的关联数组（`declare -A`），将 phase 映射到其必须产物列表。`fk_artifact_check()` 据此查表驱动，替代硬编码分支判断 |
 | correction-file.sh | 新建的通用 JSON correction file 管理 lib（`hooks/stop/lib/correction-file.sh`），提供 `correction_file_write()` / `correction_file_read()` / `correction_file_clear()` / `correction_file_exists()` 四个函数。`interactive-ui-check.sh` 和 `weak-model-compliance.sh` 均调用此 lib，消除结构重复 |
+| L3 header 不匹配（L3 header mismatch） | `flow-kit-resume.sh:138` 的 L3 检测 grep 字符串 `"## L3 外部模型审查"` 与 `l3-review.sh:200` 实际写入的 header `"## L3 盲审"` 不一致，导致 SessionStart 无法识别已完成的 L3 审查，L3 结果不注入 session context |
+| phase 字段二义性（phase field ambiguity） | `.flow-active` 同时存在 `.phase`（单阶段模式用）和 `.goal.current_phase`（pipeline 模式用）两个 phase 字段。Stop hook `29-independent-review.sh` 仅读 `.phase`，pipeline 模式下可能读到过期值导致跳过或误触发 L3 |
+| L3 工件截断（L3 artifact truncation） | `l3-review.sh` 使用 `head -c $max_chars`（默认 20000）硬截断阶段产物作为 L3 prompt。大产物（如 phase 6 的 git diff + REVIEW.md）被截断后 L3 模型基于不完整信息审查，增加假阳性风险 |
+| .done 6 键 KVP | `.independent-review-<N>.done` 的标准键值对格式：`phase` / `change_id` / `written_by` / `L2_verdict` / `L3_verdict` / `artifacts`（6 键）。PreToolUse gate 和 SessionStart hook 依赖此格式校验 done 有效性 |
+| L2 被动触发（L2 passive trigger） | 让 L2 子 agent 审查像 L3 一样由 hook 系统（Stop/PreToolUse）自动检测并触发/提示，不依赖主 agent 主动读 prompt 并手动派 agent。当前 L2 仅靠 prompt 中的「独立 review 调度」段指令主 agent 派发，易被跳过导致断裂 |
+| L3_RESULT 格式 | L3 审查结果的标准单行格式：`L3_RESULT: verdict=<pass\|fail\|timeout\|error> summary=<一句话> report=<报告相对路径>`。由 `_l3_format_result()` 生成，供 PreToolUse stdout（F1）和 SessionStart banner（F2）共用 |
+| l3-comprehensive-fix | 2026-07-07 change：全面审计并修复 L2/L3 独立审查的 4 个运行时 bug——L3 结果注入 gap、L3 长度限制假阳性、.done 重复触发、Phase 5/6/7 L2 自动拉起断裂 |
 | sweep-fix-2026-07 | 2026-07 全量健康扫描（68/100）的修复 change，消除 1🔴 + 3🟡 + 2🟢 共 6 项技术债 |
 | gate-config preset | `/flow goal --gate-config` 的预设名快捷方式（`full`/`code-only`/`design`/`requirement`/`review`/`plan`/`design-review`/`requirement-review`），替代手写完整 JSON |
 | gate-config shorthand | gate-config 的数字简写方式（`1`/`2`/`6`/`1,2`/`1,6`/`2,6`/`1,2,6`），数字自动映射到对应阶段 key（1→"1-requirement"，2→"2-design"，6→"6-review"） |

@@ -131,11 +131,13 @@ fi
 
 # ── Independent review report injection (L3 feedback · F2) ──────────
 ir_change=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null)
-ir_phase=$(jq -r '.goal.current_phase // .phase // "?"' "$flow_file" 2>/dev/null)
+# D3 fix: pipeline-aware phase resolution
+ir_phase=$(fk_resolve_phase 2>/dev/null || jq -r '.goal.current_phase // .phase // "?"' "$flow_file" 2>/dev/null || echo "?")
 ir_done="${PROJECT_ROOT}/.specs/${ir_change}/.independent-review-${ir_phase}.done"
 ir_review_md="${PROJECT_ROOT}/.specs/${ir_change}/INDEPENDENT-REVIEW-${ir_phase}.md"
 
-if [[ "$ir_change" != "none" && -f "$ir_done" ]] && grep -q "## L3 外部模型审查" "$ir_review_md" 2>/dev/null; then
+# D1 fix: match L3 header "## L3 盲审" (primary) with backward compat for "## L3 外部模型审查"
+if [[ "$ir_change" != "none" && -f "$ir_done" ]] && { grep -q "## L3 盲审" "$ir_review_md" 2>/dev/null || grep -q "## L3 外部模型审查" "$ir_review_md" 2>/dev/null; }; then
   # Source shared libs for _l3_format_result() and _fk_done_kvp()
   script_dir="$(cd "$(dirname "$0")" && pwd)"
   l3_lib="${script_dir}/../stop/lib/l3-review.sh"
