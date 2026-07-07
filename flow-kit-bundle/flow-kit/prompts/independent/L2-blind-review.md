@@ -63,6 +63,7 @@
 - 代码质量 6 维衰退风险：R1 认知过载 / R2 变更传播 / R3 知识重复 / R4 偶然复杂 / R5 依赖混乱 / R6 领域扭曲
 - 对照主 agent 的 REVIEW.md，指出它**漏判或误判**的 🔴 项（明确标注「主 agent 漏判：…」/「主 agent 误判：…」）
 - 若主 agent REVIEW.md 与你的判断一致，也要说明你是独立得出该结论（不是抄它）
+- **修代码优先**：主 agent 对 L2/L3 发现的回应是否有代码变更（`Fixed in:` 声明对应的文件在 diff 中）？禁止仅「在 REVIEW.md 中补充说明」或「标注为已知限制」而无代码修复。
 
 ### 阶段 3 · 任务拆解审查（3-task）
 工件：`.specs/<id>/TASK.md`（参考：`.specs/<id>/REQUIREMENT.md`、`.specs/<id>/DESIGN.md`）
@@ -81,6 +82,7 @@
 - **覆盖率达标**：功能轮是否 100% AC 覆盖？
 - **UAT 可执行**：Given/When/Then 是否可脚本化（非手工步骤描述）？
 - **回归安全**：全量 bats 是否不退化？
+- **修代码优先**：主 agent 响应段是否对每条 🔴/🟡 发现输出了分类标记（`Fixed in:` / `Tech-debt:` / `Not-applicable:`）？纯文档敷衍（仅写「已知限制」「未覆盖」「暂不处理」无代码变更的回应）视为不合格。
 
 ### 阶段 7 · 集成审查（7-integration）
 工件：`.specs/<id>/` 下全部产物（参考：`.specs/<id>/REVIEW.md`、`.specs/LESSONS.md`、`.specs/CHANGELOG.md`）
@@ -90,6 +92,7 @@
 - **CHANGELOG 更新**：本次 change 条目是否已追加到 CHANGELOG.md？
 - **归档清洁**：`.specs/<id>/` 目录是否有残留临时文件未清理？
 - **done 标记**：`.independent-review-7.done` 是否存在且由合法 review 子进程写入（非 touch 空文件）？
+- **修代码优先**：归档前最后一道审查——主 agent 对 L2/L3 发现的回应必须有代码变更或显式技术债登记（含理由），不可推迟到"下一轮 change"。纯文档敷衍视为不合格。
 
 ## 与主 agent 的关系
 
@@ -97,3 +100,16 @@
 - 你的报告由主 agent 贴进 `.specs/<id>/INDEPENDENT-REVIEW-<phase>.md` 的「L2 盲审」段。
 - 主 agent **无权修改你的原文判断**；它若反驳，必须在你的报告之后另起段标注「主 agent 反驳：<…>」，不能改写你的四要素。
 - 你的 Verdict=fail 会与 L3（外部模型）的 verdict 一起，决定主 agent 是否写 `.independent-review-<phase>.done`（写 done 才能切阶段 / commit）。
+- **修代码优先**：主 agent 的响应必须对每条 🔴/🟡 发现给出具体行动（`Fixed in:` 或 `Tech-debt:` 或 `Not-applicable:`）。禁止仅回复「已知」「待后续处理」「已记录」「未覆盖」等无代码变更的敷衍回应。
+
+## 文件写入约束（强制 · 防 L3 覆写）
+
+1. **若 `INDEPENDENT-REVIEW-<N>.md` 已存在**：
+   a. 先用 Read 工具读取全文
+   b. 检查是否已有 `## L3 盲审` 段（由外部模型通过 Stop hook 预先写入）
+   c. 将你的 L2 段追加到文件末尾（**追加**，不是覆写），保留已有内容
+   d. 在 L2 段开头加 `---` 分隔符与上文区分
+
+2. **若文件不存在**：新建，首行加 `# 独立审查 · 阶段 <N>`
+
+3. **禁止**：不要用 Write 工具直接覆写已有文件——必须先读、后追加。覆写已有文件会销毁 L3 审查内容。

@@ -53,7 +53,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
         - 阶段：5
         - change-id：<change-id>
         - 工件：读 .specs/<change-id>/TEST.md（参考 .specs/<change-id>/REQUIREMENT.md、.specs/<change-id>/TASK.md）
-        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-5.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 5`）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-5.md 的「## L2 盲审」段（若文件已存在含 L3 段，先读全文，将 L2 段追加到末尾再 Write——禁止直接覆写；若文件不存在则新建，首行加 `# 独立审查 · 阶段 5`）
 
 ### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
 
@@ -69,9 +69,35 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
 确认 `INDEPENDENT-REVIEW-5.md` 含所需 tier 段后执行：
 
-    touch .specs/<change-id>/.independent-review-5.done
+    - gate_config="both" 或 "L3"：`.done` 由 l3-review.sh / Stop hook 29 写入（无需主 agent 操作）
+    - gate_config="L2"（仅 L2）：主 agent 写 6 键 KVP `.done`：
+      ```bash
+      cat > .specs/<change-id>/.independent-review-5.done <<'DONE_EOF'
+      phase=5
+      change_id=<change-id>
+      written_by=main-agent
+      L2_verdict=<pass|fail，从 INDEPENDENT-REVIEW-5.md 提取>
+      L3_verdict=skipped
+      artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md
+      DONE_EOF
+      ```
 
-写完才能切阶段 / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+写完才能切阶段
+
+### 修代码优先协议（l2-l3-fix-compliance）
+
+> 处理 L2/L3 审查发现时，必须遵守以下规则。纯文档敷衍 = 过不了实效性 gate。
+
+1. **读取 INDEPENDENT-REVIEW-5.md**，逐条审视所有 🔴/🟡 发现
+2. 对每条发现输出分类标记（DESIGN §3.2 统一格式）：
+   - `Fixed in: <filepath>` — 已在代码中修复，标注修改的文件路径
+   - `Tech-debt: <reason>` — 无法本次修复，登记为技术债（含严重度评估 + 计划修复版本）
+   - `Not-applicable: <reason>` — 不适用（如纯文档发现或误判）
+3. **禁止**：仅写「已知限制」「未覆盖」「暂不处理」「已记录」等无代码变更的敷衍回应
+4. **AC-4 技术债滥用防护**：若 ≥50% 的源码级发现被标记为 `Tech-debt:`，需在响应末尾输出一段显式说明——为何半数以上问题不能本次修复
+5. 写回 INDEPENDENT-REVIEW-5.md 的 agent 响应段（追加，非覆写）
+
+PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `Not-applicable:` 分类完成）
 
 ---
 

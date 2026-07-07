@@ -112,7 +112,7 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
         - 阶段：6
         - change-id：<change-id>
         - 工件：git diff（参考 .specs/<change-id>/REVIEW.md —— 注意它是主 agent 的结论，是待复核对象而非权威）
-        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-6.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 6`）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-6.md 的「## L2 盲审」段（若文件已存在含 L3 段，先读全文，将 L2 段追加到末尾再 Write——禁止直接覆写；若文件不存在则新建，首行加 `# 独立审查 · 阶段 6`）
 
 #### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
 
@@ -122,9 +122,35 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 
 确认 `INDEPENDENT-REVIEW-6.md` 含所需 tier 段后执行：
 
-    touch .specs/<change-id>/.independent-review-6.done
+    - gate_config="both" 或 "L3"：`.done` 由 l3-review.sh / Stop hook 29 写入（无需主 agent 操作）
+    - gate_config="L2"（仅 L2）：主 agent 写 6 键 KVP `.done`：
+      ```bash
+      cat > .specs/<change-id>/.independent-review-6.done <<'DONE_EOF'
+      phase=6
+      change_id=<change-id>
+      written_by=main-agent
+      L2_verdict=<pass|fail，从 INDEPENDENT-REVIEW-6.md 提取>
+      L3_verdict=skipped
+      artifacts=REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-6.md
+      DONE_EOF
+      ```
 
 写完才能切到 7-integration / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+
+### 修代码优先协议（l2-l3-fix-compliance）
+
+> 处理 L2/L3 审查发现时，必须遵守以下规则。6-review 特殊点：主 agent 自身也是 reviewer（产 REVIEW.md），L2/L3 是对 REVIEW.md 的二次审查。L2/L3 发现的问题必须在**代码中修复**后重新验证，不可仅在 REVIEW.md 中「补充说明」或「标注为已知限制」。
+
+1. **读取 INDEPENDENT-REVIEW-6.md**，逐条审视所有 🔴/🟡 发现
+2. 对每条发现输出分类标记（DESIGN §3.2 统一格式）：
+   - `Fixed in: <filepath>` — 代码已修复，标注修改的文件路径
+   - `Tech-debt: <reason>` — 无法本次修复，登记为技术债（含严重度评估 + 计划修复版本）
+   - `Not-applicable: <reason>` — 不适用（如纯文档发现或误判）
+3. **禁止**：仅写「已知限制」「已记录」「待后续优化」等无代码变更的敷衍回应。6-review 的核心产出是**代码质量提升**，不是文档增量。
+4. **AC-4 技术债滥用防护**：若 ≥50% 的源码级发现被标记为 `Tech-debt:`，需在响应末尾输出一段显式说明。
+5. 写回 INDEPENDENT-REVIEW-6.md 的 agent 响应段（追加，非覆写）
+
+PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `Not-applicable:` 分类完成）
 
 ### 阶段完成自检（Phase Completion Self-Check）
 

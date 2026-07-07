@@ -259,6 +259,16 @@ EOF
               fi
               # L3 完成后重试 .done 校验
               if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
+                # ── 实效性校验（l2-l3-fix-compliance · 仅 phase 5/6/7）──
+                if [[ "$phase" =~ ^(5|6|7)$ ]]; then
+                  fix_compliance_lib="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
+                  if [ -f "$fix_compliance_lib" ]; then
+                    source "$fix_compliance_lib" 2>/dev/null || true
+                    if type fk_fix_compliance_check >/dev/null 2>&1; then
+                      fk_fix_compliance_check "$phase" "$change_id" "${cwd}/.specs/${change_id}" "$cwd" || exit 2
+                    fi
+                  fi
+                fi
                 exit 0
               fi
             fi
@@ -299,6 +309,16 @@ EOF
               fi
               # L3 完成后重试 .done 校验
               if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
+                # ── 实效性校验（l2-l3-fix-compliance · 仅 phase 5/6/7）──
+                if [[ "$phase" =~ ^(5|6|7)$ ]]; then
+                  fix_compliance_lib="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
+                  if [ -f "$fix_compliance_lib" ]; then
+                    source "$fix_compliance_lib" 2>/dev/null || true
+                    if type fk_fix_compliance_check >/dev/null 2>&1; then
+                      fk_fix_compliance_check "$phase" "$change_id" "${cwd}/.specs/${change_id}" "$cwd" || exit 2
+                    fi
+                  fi
+                fi
                 exit 0
               fi
             fi

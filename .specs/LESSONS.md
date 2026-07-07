@@ -109,3 +109,21 @@
 - **建议**: 抽取为共享函数（如 `fk_phase_name()`），放在 `flow-kit-artifacts.sh` 或 `common.sh`，3 处调用点改为 `phase_name=$(fk_phase_name "$phase")`
 - **状态**: 🟢 待 v2 抽取（`dual-review-merge-fix` REVIEW.md Q1 已记录）
 - **来源**: `dual-review-merge-fix` phase 6 L2 review R5
+
+### L-023 · Claude Code 环境 grep → ugrep wrapper 不兼容 `-P` 正则 + `-c` 返回值语义差异
+
+- **位置**: `fix-compliance.sh`（新增 lib）
+- **问题**: Claude Code 环境将 `grep` 替换为 ugrep wrapper 函数。`grep -oP` 中 `\b` 在 ugrep 报 "empty (sub)expression"；`grep -c` 匹配数为 0 时输出 "0" 但 exit=1，与 `|| echo "0"` 组合输出 "0\n0"。
+- **修复**: 定义 `_grep() { command grep "$@"; }` 兼容层。正则 `\b` → `(\s|:|$)`。
+- **教训**: hook/lib 脚本须在顶部声明 grep 兼容层；CI 应 `type grep` 检查 wrapper。
+- **状态**: ✅ 已修复（26 bats 全绿）
+- **来源**: `l2-l3-fix-compliance` phase 4 T07
+
+### L-024 · 实效性校验的"零声明"漏洞模式
+
+- **位置**: `fix-compliance.sh` `fk_fix_compliance_check()` 步骤 ②b
+- **问题**: review 有源码级发现但 agent 未输出任何 `Fixed in:`/`Tech-debt:` → `fk_verify_finding_files` grep 空→return 0（静默放行）。阈值计算 bug：`total/2` 整数截断（3 条 1 MISSING=33% 被误判为 ≥50%）；`total>1` 使 1/1=100% MISSING 不被阻断。
+- **修复**: ②b 检测 `fixed_count==0 && techdebt_count==0`→阻断。`missing*2>=total` 替代整数除法；`total>0` 替代 `total>1`。
+- **教训**: 检测异常→阻断的逻辑须显式处理"输入为空"（空≠安全）。默认值应为 deny（fail-closed）。
+- **状态**: ✅ 已修复（26 bats）
+- **来源**: `l2-l3-fix-compliance` phase 2 L3 CRITICAL + phase 6 L2 R1/R2
