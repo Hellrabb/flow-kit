@@ -497,3 +497,78 @@ DONE_EOF
   mv "$done_tmp" "$done_marker" 2>/dev/null || true
   echo "[l3-review] timeout .done written: ${done_marker}" >&2
 }
+
+# ── l3_dispatch_prompt() · L3 异步派发提示（对标 l2_dispatch_prompt）──
+# 用法: l3_dispatch_prompt <phase> <change_id> [specs_dir] [gate_val]
+# 输出: 一键 Agent 派发模板到 stdout（调用方重定向到 >&2）
+# 返回: 0
+l3_dispatch_prompt() {
+  local phase="$1"
+  local change_id="$2"
+  local specs_dir="${3:-${PROJECT_ROOT}/.specs/${change_id}}"
+  local gate_val="${4:-both}"
+
+  [[ "$phase" =~ ^[1-7]$ ]] || { echo "[l3-dispatch] invalid phase: $phase" >&2; return 2; }
+  [ -n "$change_id" ] || { echo "[l3-dispatch] missing change_id" >&2; return 2; }
+
+  # 确定 L2_verdict（用于 l3_review_run 参数）
+  local l2v="skipped"
+  if [[ "$gate_val" == "both" ]]; then
+    local review_md="${specs_dir}/INDEPENDENT-REVIEW-${phase}.md"
+    if [ -f "$review_md" ]; then
+      l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+      [ -n "$l2v" ] || l2v="fail"
+    else
+      l2v="fail"
+    fi
+  fi
+
+  # 按阶段描述工件（与 l3_review_run case 一致）
+  local artifact_desc=""
+  case "$phase" in
+    1) artifact_desc="REQUIREMENT.md（+ CHANGE.md）" ;;
+    2) artifact_desc="DESIGN.md（+ REQUIREMENT.md + ADR）" ;;
+    3) artifact_desc="TASK.md（+ REQUIREMENT.md + DESIGN.md）" ;;
+    5) artifact_desc="TEST.md（+ REQUIREMENT.md + TASK.md + 各 SUMMARY）" ;;
+    6) artifact_desc="REVIEW.md + git diff（+ REQUIREMENT + TASK + TEST）" ;;
+    7) artifact_desc=".specs/${change_id}/ 全量产物（含 REVIEW/TEST/TASK/DESIGN/REQUIREMENT/CHANGE）" ;;
+  esac
+
+  # 生成派发提示
+  cat <<DISPATCH_EOF
+╔══════════════════════════════════════════════════════════════╗
+║  ⚠️ L3 外部模型审查未完成（阶段 ${phase} · gate_config=${gate_val}） ║
+║                                                              ║
+║  L3 不走同步超时（30s 不够外部模型响应）。                     ║
+║  请异步派发 L3 审查：                                          ║
+║                                                              ║
+║  方式 1 — 子 agent（推荐，非阻塞）：                            ║
+║    Agent({                                                    ║
+║      subagent_type: "general-purpose",                        ║
+║      description: "L3 external review phase ${phase}",                 ║
+║      prompt: "运行 L3 独立审查:                                 ║
+║        source flow-kit-bundle/hooks/stop/lib/l3-review.sh      ║
+║        l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}   ║
+║        返回 verdict 和 summary"                                ║
+║    })                                                         ║
+║                                                              ║
+║  方式 2 — 直接 bash（阻塞但可控）：                              ║
+║    source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \     ║
+║    l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}        ║
+║                                                              ║
+║  参数说明:                                                     ║
+║    phase=${phase}  change_id=${change_id}                          ║
+║    specs_dir=${specs_dir}             ║
+║    L2_verdict=${l2v}  gate_config=${gate_val}                            ║
+║    artifacts: ${artifact_desc}        ║
+║                                                              ║
+║  完成后写入:                                                   ║
+║    .specs/${change_id}/.independent-review-${phase}.done             ║
+║    .specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md (追加 L3 段)   ║
+║                                                              ║
+║  重试: L3 完成后重新执行 phase transition 即可放行。            ║
+╚══════════════════════════════════════════════════════════════╝
+DISPATCH_EOF
+
+  return 0
+}
