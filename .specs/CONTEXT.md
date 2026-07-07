@@ -191,6 +191,33 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-07]` L2/L3 双层审查合并写入策略 —— 修复 L2/L3 因时序错位（L3 先于 L2 写 .done）+ 文件覆写（L2 Write 销毁 L3 段）导致审查信号丢失。三处修复点：① 29 号 hook gate_config="both" 时 L3 等待 L2 完成后才写 .done ② L2 prompt 改为追加写入（保留已有 L3 段）③ .done 仅在双方均完成时写入。来自 `dual-review-merge-fix`
 - `[2026-07-07]` L3 反馈可见性策略 —— L3 审查结果必须在两条路径上对 agent 可见：PreToolUse transition 时同步展示 verdict+summary，SessionStart resume 时注入报告摘要。两条路径展示字段一致（verdict + summary + report path），格式差异仅限上下文适配。不改动 L3 内容生成逻辑、不新增 hook 模块。来自 `l3-feedback-visibility`
 - `[2026-07-07]` review 发现→代码修复强制策略 — L2/L3 独立审查发现的源码级问题不能仅靠写文档解决。双层防线：① prompt 层「修代码优先」协议（每条发现→代码修复或技术债登记+理由）② hook 层实效性校验（纯文档 diff 阻断 gate transition）。仅对 5/6/7 阶段触发，不影响 1/2 阶段文档型产物。复用现有 gate-integrity + independent-review-gate 框架，不新增 hook 模块。来自 `l2-l3-fix-compliance`
+<!-- A-evolve 2026-07-08 第1轮追加 ↓ -->
+- `[2026-06-16]` 所有 shell 脚本常量命名规范 — `readonly UPPER_SNAKE_CASE`。来自 `health-fix`
+- `[2026-06-29]` 归档完成自动清理工作目录 — 7-integration 归档后 rm -rf .specs/<id>/。来自 `lessons-cleanup`
+- `[2026-06-29]` 1.8 恢复验证协议 — 4-dev 触发破坏性变更协议后自动执行 npx bats test/，0 fail 才放行。来自 `lessons-cleanup`
+- `[2026-06-29]` 质量基础设施 — 协议共享机制（reference/pipeline-gates.md + check-gate-sync.sh）+ GNU Makefile（test/lint/check/all）+ shellcheck 静态分析（error 级别，-e SC1091）。来自 `quality-baseline`
+- `[2026-07-01]` 独立 review 架构 — L2（prompt 固化子 agent 盲审）+ L3（PreToolUse + Stop hook 双层）的独立审查体系。功能默认关闭，bundle 源控制。来自 `independent-review`
+- `[2026-07-01]` 阶段切换三道防线 — PreToolUse（硬拦截）+ fk_auto_phase（gate 判定）+ auto_advance（自动推进）。来自 `independent-review`
+- `[2026-07-01]` user-scope hooks 统一 — hooks 只装 user scope（~/.claude/），项目级不接线。install.sh 仍支持两种模式。来自 `independent-review`
+- `[2026-07-01]` Correction file 管理统一 — lib/correction-file.sh 作为唯一 correction file 读写入口（write/read/clear/exists 四函数）。来自 `sweep-fix-2026-07`
+- `[2026-07-01]` 产物规则查表驱动 — declare -A PHASE_ARTIFACTS 关联数组替代硬编码分支。来自 `sweep-fix-2026-07`
+- `[2026-07-01]` 所有生产 .sh 必须通过 bash -n 语法检查。来自 `health-fix-2026-07`
+- `[2026-07-02]` 独立审查 prompt 段结构标准化 — gate 检测 → L2 模板 → L3 说明 → done 指令。新增阶段的独立审查段按此模板复制。来自 `independent-review-gap`
+- `[2026-07-02]` PRESET_MAP 命名约定 — 单阶段=阶段名，组合=连字符。新增预设只能追加不能重命名。来自 `independent-review-gap`
+<!-- A-evolve 2026-07-08 第2轮追加 ↓ -->
+- `[2026-07-01]` .flow-active 完整性检测归属独立 33 号模块（非 28 号扩展）— token_spent v1 仅检测"是否维护"，不验证准确性。来自 `flow-active-integrity`
+- `[2026-07-01]` .done KVP 强制格式 + gate 阶段判定动态读 gate_config + 校验 fail-close / path-guard fail-open。来自 `gate-integrity`
+- `[2026-07-01]` PreToolUse matcher 覆盖 Bash+Write+Edit 三种工具调用（D7 path-guard）。来自 `gate-integrity`
+- `[2026-07-01]` gate_config 值规范 — `L2` / `L3` / `both`（三值字符串），废弃 `independent`（保留读取兼容）。来自 `l2-l3-granular-gate`
+- `[2026-07-01]` phase 检测统一入口 — `fk_resolve_phase()` 为唯一 phase 读取点，所有 hook 禁止直接 `jq -r '.phase'`。来自 `l3-comprehensive-fix`
+- `[2026-07-01]` L2 检测共享 lib — `l2-detect.sh` 为 L2 状态检测唯一入口，禁止在 hook 中硬编码 L2 Agent 派发命令。来自 `l3-comprehensive-fix`
+- `[2026-07-01]` L3 反馈统一格式 — `L3_RESULT: verdict=<v> summary=<s> report=<p>`，.done 序列化格式为 key=value（非 JSON）。来自 `l3-feedback-visibility`
+- `[2026-07-03]` 阶段产物验证策略 — 双层防护（prompt PCSC 自检 + GO.md PCG 门禁），任一 ❌ 禁止进入 toll-gate。来自 `phase-skip-fix`
+- `[2026-07-03]` L3 调用策略 — PreToolUse hook 为主路径，Stop hook 为兜底；gate 方向三向判定（回退放行/no-op放行/前进查 gate）。来自 `pipeline-fallback-fix`
+- `[2026-07-03]` pipeline 回退下界动态 = start_phase（默认 4 兼容）；回退语义：退到 N 后移除 N 之后所有已完成阶段。来自 `pipeline-rollback-phase0`
+- `[2026-07-04]` auto-checkpoint 双层防护 — prompt 指令 + PreToolUse hook 兜底，去重窗口 30s（同 file+同 type）。checkpoint 写入必须通过 `checkpoint_write()` 函数。来自 `user-guide-update`
+<!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
+<!-- A-evolve 2026-07-08 第1轮追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -234,6 +261,44 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 > 注：`package-flow-kit.sh` 内含内联辅助函数（`install_file()`、`check_command()` 等），但未抽取为独立工具库。
 
+### flow-kit 核心抽象（来自 A-evolve 2026-07-08 第1轮）
+
+| 路径 | 能力 | 来源 |
+|---|---|---|
+| `flow-kit-bundle/install.sh --user` 模式 | user-scope 安装 + symlink 创建 | user-scope-install |
+| `flow-kit-bundle/lib/install_core.sh` | flow-kit 核心安装逻辑 | health-fix |
+| `flow-kit-bundle/lib/install_brooks_tools.sh` | npm 工具离线安装通用函数 | bundle-packaging |
+| `.flow-active` goal 字段 + `/flow goal` 子命令 | session 级完成条件持久化与生命周期管理 | integrate-goal-command |
+| `package-flow-kit.sh::validate_staging_coverage()` | 打包 staging 目录完整性校验 | lessons-cleanup |
+| `flow-kit/reference/pipeline-gates.md` + `check-gate-sync.sh` | toll-gate 协议共享片段 + 漂移检测 | quality-baseline |
+| `Makefile` | 一键质量检查（test/lint/check/all） | quality-baseline |
+| `hooks/stop/lib/weak-model-compliance.sh` | L1/L2/L3 合规扫描函数库 | robustness-hook-hardening |
+| `.flow-active.correction` JSON 格式 | 统一矫正文件（type+layer+violations） | robustness-hook-hardening |
+| `hooks/stop/lib/correction-file.sh` | 通用 JSON correction file 管理（write/read/clear/exists） | sweep-fix-2026-07 |
+| `common.sh::HOOK_MODULE_NAMES` | hook 模块名单一来源数组（14 元素） | sweep-fix-2026-07 |
+| `prompts/*` 自检 gate 填空模板范式 | 强制填空才能产出的刚性结构 | weak-model-robustness |
+| `regression-demos/<scenario>/check.sh` 范式 | 可重复执行的行为验收脚本 | weak-model-robustness |
+| `test/` bats-core 测试目录结构 | Bash 脚本测试标准目录 | health-fix |
+| `fk_independent_review_gate_active()` + `write_failed_state()` | 独立 review gate 判定 + L3 失败降级 | independent-review |
+<!-- A-evolve 2026-07-08 第2轮追加 ↓ -->
+| `hooks/stop/33-flow-active-integrity.sh` | .flow-active 字段与磁盘产物交叉验证 | flow-active-integrity |
+| `fk_validate_done_marker` | .done 真实性校验（两层） | gate-integrity |
+| `is_handshake_write` + `fk_check_gate_config_tamper` | Bash 写保护路径检测 + gate_config 篡改检测 | gate-integrity |
+| `hooks/stop/lib/fix-compliance.sh` | 实效性校验（源码分类+纯文档diff检测+逐发现校验） | l2-l3-fix-compliance |
+| `fk_independent_review_gate_active <phase> [tier]` | 按 tier 判定独立审查开关（L2/L3/any） | l2-l3-granular-gate |
+| `hooks/stop/lib/l2-detect.sh` | L2 审查完成状态检测 + 一键派发命令生成 | l3-comprehensive-fix |
+| `lib/common.sh::fk_resolve_phase()` | pipeline-aware phase 解析（统一 .phase vs .goal.current_phase） | l3-comprehensive-fix |
+| `l3-review.sh::_l3_format_result()` | 统一格式化 L3 反馈输出行 | l3-feedback-visibility |
+| `flow-kit-bundle/skills/flow/SKILL.md generate_gates()` | 根据 start_phase 动态生成 pipeline gates | goal-pipeline-phase0 |
+| `l3-review.sh::l3_review_run()` | L3 外部模型 API 调用封装 | pipeline-fallback-fix |
+| `checkpoint-lib.sh` | auto-checkpoint 写入 + 去重 + 校验 | user-guide-update |
+| `27-interactive-ui-check.sh` + `interactive-ui-check.sh` | Stop hook 交互 UI 检测 + 矫正 | weak-model-interactive-ui |
+| `flow-kit/reference/interactive-ui-guard.md` | Prompt 层护栏模板（≤3 行/点） | weak-model-interactive-ui |
+| 5/6/7 prompt「失败分类→回退目标」映射表 | 按失败类型智能建议回退阶段 | pipeline-rollback-phase0 |
+| `.flow-active.goal` 扩展 schema（7 新字段） | Pipeline 状态管理（scope/current_phase/phases_done/gates/gate_config/auto_advance/phase_sub_goals） | pipeline-goal |
+| Toll-gate 暂停协议 | Prompt 级指令控制 AI 在特定节点停止等待用户确认 | pipeline-goal |
+<!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
+
 ### 自定义 hooks（前端）
 
 不适用（非前端项目）。
@@ -264,6 +329,37 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `package-flow-kit.sh`（打包脚本核心逻辑，改动影响分发流程）
 - `flow-kit-bundle.tar.gz`（已生成的分发包，`.gitignore` 排除，不应手动修改或 git add）
 - `.gitignore`（手动维护；禁 AI "顺手重写"或增删排除规则）
+<!-- A-evolve 2026-07-08 第1轮追加 ↓ -->
+- `package-flow-kit.sh` Part F L504-530（brooks-lint 打包段）— 仅 Part F 可改；Part A-E/G 禁顺手改
+- `flow-kit-bundle/lib/install_*.sh` — 不允许外部直接 source（仅 install.sh 主脚本可 source）
+- `test/` 目录 — 不允许放入非 .bats 文件
+- `.flow-active.goal` 字段 — 不允许手动编辑，必须通过 /flow goal 子命令操作
+- `~/.claude/tools/brooks-lint/node_modules/` — 不允许手动修改（install --reinstall 会覆盖）
+- `~/.local/bin/{depcheck,jscpd,knip,ts-prune}` shim — 不允许手动编辑（由 install.sh 管理）
+- `package-flow-kit.sh` Part G 工具版本号 — 不允许单方面改动（需和 brooks-lint 版本绑动）
+- RULES.md R6/R3/R7「弱模型加固子段」— 标注「勿删」，移除前需评估对弱模型的影响
+- `regression-demos/*/check.sh` — 勿在未同步更新预期的情况下修改
+- `fk_auto_phase()` gate 检查段 — 修改需理解三道防线覆盖的推进路径
+- `hooks/stop/lib/correction-file.sh` 4 函数签名 — 修改需同步更新 interactive-ui-check.sh + weak-model-compliance.sh
+- `common.sh::HOOK_MODULE_NAMES` 数组 — 修改需同步 install_hooks.sh + package-flow-kit.sh
+- `L2-blind-review.md` checklist 条目 — 禁止降级为纯文本段落（保持四要素+严重度结构）
+- PRESET_MAP 预设名 — 一旦发布禁止改名，只能追加新预设
+<!-- A-evolve 2026-07-08 第2轮追加 ↓ -->
+- `33-flow-active-integrity.sh` — 后续不应被无关 change 修改（.flow-active 完整性检测模块）
+- `independent-review-gate.sh` + `29-independent-review.sh` + `fk_validate_done_marker` — gate 校验核心链
+- `install_hooks.sh` PreToolUse matcher — 改回仅 Bash = D7 path-guard 失效
+- `.specs/<id>/.goal-snapshot.json` — ⑥ 检测载体，改坏 = gate_config 篡改检测失效
+- `check-gate-sync.sh` set-diff 逻辑 — 改回文本段 diff = PRESET_MAP 漂移无兜底
+- `independent-review-gate.sh` 校验顺序 — 真实性→实效性→放行，不允许在中间插入其他逻辑
+- gate_config 值 — 不允许写入 `independent`（已废弃），新代码必须写 `both`
+- 禁止直接 `jq -r '.phase'` 读取阶段 — 用 `fk_resolve_phase()` 替代
+- 禁止在 hook 中硬编码 L2 Agent 派发命令 — 用 `l2-detect.sh` 生成
+- `l3-review.sh` — 不允许绕过直接调 curl API（必须走 `l3_review_run()` 封装）
+- `.independent-review-<N>.done` — 仅 `l3_review_run()`（PreToolUse/Stop hook）有写权限
+- `checkpoint-lib.sh` — 不允许绕过直接 jq write `.flow-active.interrupt`（必须通过 `checkpoint_write()`）
+- `interactive-ui-check.sh` — 不允许绕过直接修改 GATE_MAP 以外的矫正逻辑
+<!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
+<!-- A-evolve 2026-07-08 第1轮追加 ↑ -->
 
 **清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
 
