@@ -56,7 +56,7 @@
         - 阶段：7
         - change-id：<change-id>
         - 工件：读 .specs/<change-id>/ 下全部产物（参考 .specs/<change-id>/REVIEW.md、.specs/LESSONS.md、.specs/CHANGELOG.md）
-        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-7.md 的「## L2 盲审」段（若文件不存在则新建，首行加 `# 独立审查 · 阶段 7`）
+        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-7.md 的「## L2 盲审」段（若文件已存在含 L3 段，先读全文，将 L2 段追加到末尾再 Write——禁止直接覆写；若文件不存在则新建，首行加 `# 独立审查 · 阶段 7`）
 
 ### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
 
@@ -72,9 +72,35 @@
 
 确认 `INDEPENDENT-REVIEW-7.md` 含所需 tier 段后执行：
 
-    touch .specs/<change-id>/.independent-review-7.done
+    - gate_config="both" 或 "L3"：`.done` 由 l3-review.sh / Stop hook 29 写入（无需主 agent 操作）
+    - gate_config="L2"（仅 L2）：主 agent 写 6 键 KVP `.done`：
+      ```bash
+      cat > .specs/<change-id>/.independent-review-7.done <<'DONE_EOF'
+      phase=7
+      change_id=<change-id>
+      written_by=main-agent
+      L2_verdict=<pass|fail，从 INDEPENDENT-REVIEW-7.md 提取>
+      L3_verdict=skipped
+      artifacts=REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-7.md
+      DONE_EOF
+      ```
 
 写完才能 commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+
+### 修代码优先协议（l2-l3-fix-compliance）
+
+> 处理 L2/L3 审查发现时，必须遵守以下规则。7-integration 特殊点：归档前最后一道审查，L2/L3 发现的问题**必须在归档前修复**，不可推迟到"下一轮 change"。
+
+1. **读取 INDEPENDENT-REVIEW-7.md**，逐条审视所有 🔴/🟡 发现
+2. 对每条发现输出分类标记（DESIGN §3.2 统一格式）：
+   - `Fixed in: <filepath>` — 代码已修复，标注修改的文件路径
+   - `Tech-debt: <reason>` — 登记为技术债（仅限严重度🟢 Minor 或已有独立 change 跟踪的🟡项）
+   - `Not-applicable: <reason>` — 不适用（如纯文档发现或误判）
+3. **禁止**：将 🔴 Critical 或 🟡 Major 发现推迟到"下一轮 change"。归档前必须修复或在 LESSONS.md 中显式记录 + 开新的 change 跟踪
+4. **AC-4 技术债滥用防护**：若 ≥50% 的源码级发现被标记为 `Tech-debt:`，需在响应末尾输出显式说明
+5. 写回 INDEPENDENT-REVIEW-7.md 的 agent 响应段（追加，非覆写）
+
+PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `Not-applicable:` 分类完成），且无推迟到下一轮 change 的 🔴/🟡 项
 
 ---
 

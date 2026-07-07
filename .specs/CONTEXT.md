@@ -154,6 +154,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | PreToolUse agent 上下文通道 | PreToolUse hook 执行期间，将 hook 脚本的产出（如 L3 verdict）传递到 agent 对话上下文的技术机制。区别于 hook 日志（`>> "$hook_log"` 仅开发者可见） |
 | `L3_RESULT:` 输出格式 | L3 反馈的统一输出契约行格式：`L3_RESULT: verdict=<PASS\|FAIL\|WAIVER\|TIMEOUT\|error> summary=<text> report=<path>`。PreToolUse 路径以 hook stdout 单行输出，SessionStart 路径以 resume banner 内嵌行输出。report 字段使用相对路径（不暴露文件系统绝对路径） |
 | L3 summary 提取（F3） | `l3-review.sh` 新增的 summary 字段提取逻辑——与 verdict 提取并列，从 L3 API 响应 JSON 中解析 `summary` 字段并写入 `.done` 文件的 `L3_summary` 键，供两条反馈路径统一读取 |
+| 修代码优先协议（fix-code-first protocol） | prompt 层强制规则：L2/L3 独立审查发现的源码级问题必须对应代码修复（git diff 可见）或显式技术债登记（含理由），禁止仅写文档了事。仅对 5/6/7 阶段触发 |
+| 纯文档响应（doc-only response） | agent 对 review 发现的敷衍模式：diff 中仅有 `.md` 文件变更，无任何源码文件修改。hook 层检测到此模式时阻断 gate transition |
+| 实效性校验（efficacy check） | gate 层新增的第三校验维度（在存在性校验 PCG、真实性校验 gate-integrity 之上）：验证 review 发现确实导致了代码变更，而非仅文档修改。在 `independent-review-gate.sh` transition 拦截点执行 |
+| 源码级发现（source-level finding） | INDEPENDENT-REVIEW-<N>.md 中指向源码文件（非 .md 文档）问题的发现条目。区分于文档级发现（如"README 缺少使用说明"），后者不触发代码修复强制 |
+| 技术债登记滥用（tech-debt registration abuse） | agent 将所有 review 发现标记为"技术债"以绕过代码修复的反模式。防护方式：≥50% 发现被登记为技术债时，prompt 要求 agent 输出显式说明 |
+| l2-l3-fix-compliance | 2026-07-07 change：在 prompt 层 + hook 层加固 review 发现→代码修复的强制链路，杜绝"文档敷衍"。双层：prompt 修代码优先协议 + hook 实效性校验 |
 
 ## 已锁决策
 
@@ -177,6 +183,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-03]` gate_config 快照一致性策略（修复 F2 死锁）—— `/flow gate-config` 和 `/flow goal --gate-config` 必须同时更新 `.flow-active.goal.gate_config` 和 `.specs/<id>/.goal-snapshot.json`。单一写入点原则：skill 层负责同步，hook 层 D8 ⑥ 只做检测不做修复。来自 `pipeline-fallback-fix`
 - `[2026-07-07]` L2/L3 双层审查合并写入策略 —— 修复 L2/L3 因时序错位（L3 先于 L2 写 .done）+ 文件覆写（L2 Write 销毁 L3 段）导致审查信号丢失。三处修复点：① 29 号 hook gate_config="both" 时 L3 等待 L2 完成后才写 .done ② L2 prompt 改为追加写入（保留已有 L3 段）③ .done 仅在双方均完成时写入。来自 `dual-review-merge-fix`
 - `[2026-07-07]` L3 反馈可见性策略 —— L3 审查结果必须在两条路径上对 agent 可见：PreToolUse transition 时同步展示 verdict+summary，SessionStart resume 时注入报告摘要。两条路径展示字段一致（verdict + summary + report path），格式差异仅限上下文适配。不改动 L3 内容生成逻辑、不新增 hook 模块。来自 `l3-feedback-visibility`
+- `[2026-07-07]` review 发现→代码修复强制策略 — L2/L3 独立审查发现的源码级问题不能仅靠写文档解决。双层防线：① prompt 层「修代码优先」协议（每条发现→代码修复或技术债登记+理由）② hook 层实效性校验（纯文档 diff 阻断 gate transition）。仅对 5/6/7 阶段触发，不影响 1/2 阶段文档型产物。复用现有 gate-integrity + independent-review-gate 框架，不新增 hook 模块。来自 `l2-l3-fix-compliance`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

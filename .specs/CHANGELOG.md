@@ -1,6 +1,7 @@
 # CHANGELOG
 
 > 按日期倒序。每行：日期 / change-id / 摘要 / LESSONS 新增。
+| 2026-07-07 | `l2-l3-fix-compliance` | L2/L3 review 发现强制代码修复：双层防线杜绝 agent "文档敷衍"——Prompt 层修代码优先协议（5/6/7+L2-blind-review 含 `Fixed in:` 分类标记）+ Hook 层实效性校验（fix-compliance.sh lib · 纯文档 diff 检测 + 逐发现文件校验 · fail-closed · 仅 5/6/7 触发）+ CRITICAL fix（无声明绕过修复 · `missing*2>=total` 整数除法修复 · 单声明豁免修复 · 路径归一化）· 26 new bats · 34 gate tests 0 regressions | L-023 |
 | 2026-07-07 | `l3-feedback-visibility` | L3 审查结果反馈可见性修复：F1 PreToolUse 路径 L3_RESULT stdout 输出（移除 2>/dev/null + 握手文件自动创建）+ F2 SessionStart 路径替换旧握手文件检测为 .done + L3 段检测（per-field banner 显示）+ F3 l3-review.sh summary 三层提取 + 第四层故障降级（verdict=error）+ _l3_format_result() 共享格式化函数 + gate_config 参数正确传播（6 参数 timeout wrapper）+ verdict 值域校验 · R1/R2/R3/R6 gate 逻辑修复（L3-only 独立分支/L2-only exit 0/L2-wait gate/类型守卫）· 38 bats 全绿 · 384 全量回归 0 regressions | L-022 |
 | 2026-07-07 | `dual-review-merge-fix` | L2/L3 双层审查合并写入修复：D1 both L2-wait gating（29 hook + PreToolUse 双路径）+ D2 L3-only L2_verdict=skipped + D3 both .done defer + D4 append-first + L2-only KVP .done + done-validation skipped 值域 · 14 new bats · 346 全绿 | L-new-1 (5th param 传递链完整性), L-new-2 (phase_name 三处重复) |
 | 2026-07-06 | `l2-l3-granular-gate` | L2/L3 独立审查开关拆分：gate_config 支持 L2/L3/both 三值 + fk_independent_review_gate_active tier 参数 + 29号 hook L3 跳过 + 6 prompts 适配 + flow skill --l2-only/--l3-only · 12 bats · 321 全绿 | — |
