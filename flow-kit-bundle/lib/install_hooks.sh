@@ -52,9 +52,10 @@ install_hooks() {
   unset HOOK_MODULE_NAMES
 
   # Stop hook 库文件
-  for lib in common flow-kit-artifacts transcript-parser; do
-    install_file "$SCRIPT_DIR/hooks/stop/lib/${lib}.sh" "$hook_dst/stop/lib/${lib}.sh"
-  done
+	  # Stop hook 库文件（通配符自动包含全部 .sh，防止新增 lib 时漏加）
+	  for lib_sh in "$SCRIPT_DIR/hooks/stop/lib/"*.sh; do
+	    install_file "$lib_sh" "$hook_dst/stop/lib/$(basename "$lib_sh")"
+	  done
 
   # SessionStart hooks
   for script in flow-kit-resume stop-report-reminder; do

@@ -111,15 +111,9 @@ fi
 HOOK_COUNT=${HOOK_COUNT:-14}
 echo "   ✅ ${HOOK_COUNT} 个 stop hook 模块已打包"
 
-# Stop hook 库文件
-mkdir -p "$STAGING/hooks/stop/lib"
-cp "$HOOK_SRC/stop/lib/common.sh"              "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/flow-kit-artifacts.sh"   "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/transcript-parser.sh"    "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/interactive-ui-check.sh" "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/weak-model-compliance.sh" "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/correction-file.sh"      "$STAGING/hooks/stop/lib/"
-cp "$HOOK_SRC/stop/lib/done-validation.sh"      "$STAGING/hooks/stop/lib/"
+	# Stop hook 库文件（通配符自动包含全部 .sh，防止新增 lib 时漏加）
+	mkdir -p "$STAGING/hooks/stop/lib"
+	cp "$HOOK_SRC/stop/lib/"*.sh "$STAGING/hooks/stop/lib/"
 
 # SessionStart hook 脚本
 cp "$HOOK_SRC/session-start/flow-kit-resume.sh"       "$STAGING/hooks/session-start/"
