@@ -144,6 +144,16 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 状态漂移（state drift） | `.flow-active` 字段值与实际情况的偏差。来源包括：AI 跳过 jq 写入（L2 漏检）、pipeline transition 执行不完整、change 归档后 change_id 未清理。当前无自动化检测，靠人工发现 |
 | 交叉验证（cross-validation） | L3 hook 层对 `.flow-active` 字段与磁盘产物的一致性校验。例：`phases_done` 中的 phase N → 对应 `.specs/<id>/` 下产物必须存在；`change_id` → `.specs/<id>/` 目录必须存在；`gates` 与 `phases_done` 双向对齐 |
 | 时效性检测（staleness detection） | L3 hook 对 `.flow-active.updated_at` 的时间窗口检查。若距当前时间超过阈值（默认 24h）→ 报告 "stale .flow-active" 警告，提示可能漏维护 |
+| auto-checkpoint | flow-kit 在关键操作（编辑文件、测试失败、阶段切换、toll-gate 暂停）时自动调用 `/flow checkpoint` 更新 `.flow-active.interrupt` 的机制。双层实现：prompt 层指令（AI 自觉执行）+ hook 层兜底（PreToolUse/Stop hook 检测关键操作后自动写 checkpoint）。与手动 `/flow checkpoint` 不冲突——最后写入者覆盖 |
+| checkpoint 触发事件 | auto-checkpoint 的四种触发条件：① Write/Edit 工具调用（编辑文件前）② 测试命令返回非零退出码 ③ phase transition jq 执行（阶段切换）④ toll-gate 用户选择"暂停"。每次触发写入 active_file + last_action + checkpoint_at |
+| L2-first gating（L2 优先门控） | gate_config="both" 时的时序约束：L3（外部模型审查）必须在 L2（子 agent 盲审）完成后才写入 `.done` 文件。L3 可先产出审查内容（追加到 review md），但 `.done` 标记的写入被推迟到 L2 也完成后。防止 L3 提前写 `.done` 导致主 agent 误判为"双层审查已完成" |
+| append-write semantics（追加写入语义） | L2 子 agent 写入 `INDEPENDENT-REVIEW-<N>.md` 时的文件操作约束：必须追加（`>>`）而非覆写（`Write` 全量）。若文件已有 L3 段，L2 段追加到文件末尾并标注顺序。解决 L2 子 agent 用 Write 工具覆写文件时销毁已有 L3 内容的问题 |
+| dual-review-merge-fix | 本次 change：修复 L2/L3 双层审查因时序错位（L3 先于 L2 完成）+ 文件覆写（L2 Write 销毁 L3 段）导致审查建议丢失的问题。三处修复：① 29 号 hook L3 等待 L2 ② L2 prompt 改为追加写入 ③ .done 仅在双方完成后写入 |
+| L3 反馈可见性（L3 feedback visibility） | L3 外部模型审查的结果（verdict + summary）在 agent 对话上下文中的可感知性。区别于静默写入磁盘文件（当前行为）。本次 change 修复两条路径上 L3 反馈不可见的问题 |
+| L3 反馈通道（L3 feedback channel） | L3 审查结果到达 agent 上下文的两条路径：① PreToolUse 同步路径（transition 时 hook 输出）② SessionStart 恢复路径（resume banner 注入）。两条路径展示字段一致（verdict + summary + report path） |
+| PreToolUse agent 上下文通道 | PreToolUse hook 执行期间，将 hook 脚本的产出（如 L3 verdict）传递到 agent 对话上下文的技术机制。区别于 hook 日志（`>> "$hook_log"` 仅开发者可见） |
+| `L3_RESULT:` 输出格式 | L3 反馈的统一输出契约行格式：`L3_RESULT: verdict=<PASS\|FAIL\|WAIVER\|TIMEOUT\|error> summary=<text> report=<path>`。PreToolUse 路径以 hook stdout 单行输出，SessionStart 路径以 resume banner 内嵌行输出。report 字段使用相对路径（不暴露文件系统绝对路径） |
+| L3 summary 提取（F3） | `l3-review.sh` 新增的 summary 字段提取逻辑——与 verdict 提取并列，从 L3 API 响应 JSON 中解析 `summary` 字段并写入 `.done` 文件的 `L3_summary` 键，供两条反馈路径统一读取 |
 
 ## 已锁决策
 
@@ -165,6 +175,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-02]` 独立审查四层架构确认 —— L2/L3 独立审查的完整性依赖四层同步：① PRESET_MAP ② Prompt 模板 ③ Hook 层 ④ L2-blind-review.md。gate-integrity 仅完成了 Hook 层 + PRESET_MAP `all` 预设；本次 independent-review-gap 补齐剩余三层。来自 `independent-review-gap`
 - `[2026-07-03]` L3 同步调用策略（修复 F1 死锁）—— L3 API 调用从 Stop hook 移到 PreToolUse hook transition 拦截点作为主路径；Stop hook `29-independent-review.sh` 保留为兜底（处理 transition 前 session 异常终止的补跑场景）。抽取共享 lib `l3-review.sh` 消除两处重复。超时 30s + 降级为 `L3_verdict=timeout`（不阻塞 pipeline）。来自 `pipeline-fallback-fix`
 - `[2026-07-03]` gate_config 快照一致性策略（修复 F2 死锁）—— `/flow gate-config` 和 `/flow goal --gate-config` 必须同时更新 `.flow-active.goal.gate_config` 和 `.specs/<id>/.goal-snapshot.json`。单一写入点原则：skill 层负责同步，hook 层 D8 ⑥ 只做检测不做修复。来自 `pipeline-fallback-fix`
+- `[2026-07-07]` L2/L3 双层审查合并写入策略 —— 修复 L2/L3 因时序错位（L3 先于 L2 写 .done）+ 文件覆写（L2 Write 销毁 L3 段）导致审查信号丢失。三处修复点：① 29 号 hook gate_config="both" 时 L3 等待 L2 完成后才写 .done ② L2 prompt 改为追加写入（保留已有 L3 段）③ .done 仅在双方均完成时写入。来自 `dual-review-merge-fix`
+- `[2026-07-07]` L3 反馈可见性策略 —— L3 审查结果必须在两条路径上对 agent 可见：PreToolUse transition 时同步展示 verdict+summary，SessionStart resume 时注入报告摘要。两条路径展示字段一致（verdict + summary + report path），格式差异仅限上下文适配。不改动 L3 内容生成逻辑、不新增 hook 模块。来自 `l3-feedback-visibility`
 
 ## 默认偏好（AI 在缺省时按此决策）
 

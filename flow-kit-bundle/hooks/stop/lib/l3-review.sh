@@ -32,19 +32,30 @@
 
 set -euo pipefail
 
+# ── _l3_format_result() · L3 反馈统一格式化 ──
+# 用法: _l3_format_result <verdict> <summary> <report_relative_path>
+# 输出: 单行 L3_RESULT: 格式，供 F1(PreToolUse stdout) 和 F2(SessionStart banner) 共用
+_l3_format_result() {
+  local verdict="$1" summary="$2" report="$3"
+  # 值域校验：仅允许已知 verdict 值，非法值降级为 unknown
+  case "$verdict" in pass|fail|timeout|error) ;; *) verdict="unknown" ;; esac
+  echo "L3_RESULT: verdict=${verdict} summary=${summary} report=${report}"
+}
+
 # ── l3_review_run() · 主函数 ──
 l3_review_run() {
   local phase="$1"
   local change_id="$2"
   local artifacts_dir="$3"
   local l2_verdict="$4"
+  local gate_config_value="${5:-both}"  # D3: gate_config 值，默认 "both"（保守）
   local max_chars="${L3_MAX_ARTIFACT_CHARS:-20000}"
 
   # 参数校验
   [[ "$phase" =~ ^[1-7]$ ]] || { echo "[l3-review] invalid phase: $phase" >&2; return 3; }
   [ -n "$change_id" ] || { echo "[l3-review] missing change_id" >&2; return 3; }
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
-  [[ "$l2_verdict" =~ ^(pass|fail)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
+  [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
 
   # ── 模型选择 (env var > hardcoded default) ──
   local model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-deepseek-v4-flash}"
@@ -215,12 +226,43 @@ l3_review_run() {
   fi
   [ -n "$l3_verdict" ] || l3_verdict="unknown"
 
+  # ── 提取 summary（三层提取：代码块 → 纯 JSON → grep 正则 · 与 verdict 提取并列）──
+  local l3_summary=""
+  # Layer 1: code block extraction
+  if [ -n "$extracted" ]; then
+    l3_summary=$(echo "$extracted" | jq -r '.summary // ""' 2>/dev/null || echo "")
+  fi
+  # Layer 2: direct JSON
+  if [ -z "$l3_summary" ]; then
+    l3_summary=$(echo "$content" | jq -r '.summary // ""' 2>/dev/null || echo "")
+  fi
+  # Layer 3: regex fallback
+  if [ -z "$l3_summary" ]; then
+    l3_summary=$(echo "$content" | grep -oP '"summary"\s*:\s*"\K[^"]+' 2>/dev/null | tail -1 || echo "")
+  fi
+  [ -n "$l3_summary" ] || l3_summary=""
+
+  # ── 第四层故障降级：三层提取全失败 → verdict=error ──
+  if [ -z "$l3_verdict" ] || [ "$l3_verdict" = "unknown" ]; then
+    l3_verdict="error"
+    l3_summary="L3 结果解析失败（verdict 不可用）"
+  fi
+
   # Verdict 值域校验 (非法值降级)
-  case "$l3_verdict" in pass|fail) ;; *)
+  case "$l3_verdict" in pass|fail|error) ;; *)
     echo "[l3-review] invalid L3 verdict: $l3_verdict, defaulting to fail" >&2
     l3_verdict="fail"
     ;;
   esac
+
+  # ── D3: gate_config="both" 且 L2 段不存在 → 跳过 .done 写入 ──
+  if [[ "$gate_config_value" == "both" ]]; then
+    review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
+    if [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
+      echo "[l3-review] L3 content appended but .done deferred (L2 not yet complete, gate_config=both)" >&2
+      return 0
+    fi
+  fi
 
   # ── 写入完整 6 键 .done 文件 (原子写入: tmp → mv) ──
   local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
@@ -243,6 +285,7 @@ change_id=${change_id}
 written_by=${written_by}
 L2_verdict=${l2_verdict}
 L3_verdict=${l3_verdict}
+L3_summary=${l3_summary}
 artifacts=${artifacts_list}
 DONE_EOF
 
@@ -268,8 +311,9 @@ l3_review_with_timeout() {
   local artifacts_dir="$3"
   local l2_verdict="$4"
   local timeout_secs="${5:-30}"
+  local gate_config_value="${6:-both}"
 
-  # Phase 值域已在上游校验（${phase} ∈ {1..7}, ${l2_verdict} ∈ {pass,fail}），
+  # Phase 值域已在上游校验（${phase} ∈ {1..7}, ${l2_verdict} ∈ {pass,fail,skipped}），
   # 仍通过环境变量传参避免 shell 插值注入风险
 
   echo "[l3-review] L3 review starting (phase=${phase}, timeout=${timeout_secs}s)..." >&2
@@ -278,8 +322,8 @@ l3_review_with_timeout() {
   local ret=0
   timeout "${timeout_secs}s" bash -c '
     source "$0"
-    l3_review_run "$1" "$2" "$3" "$4"
-  ' "${BASH_SOURCE[0]}" "${phase}" "${change_id}" "${artifacts_dir}" "${l2_verdict}" 2>/dev/null || ret=$?
+    l3_review_run "$1" "$2" "$3" "$4" "${5:-both}"
+  ' "${BASH_SOURCE[0]}" "${phase}" "${change_id}" "${artifacts_dir}" "${l2_verdict}" "${gate_config_value:-both}" 2>/dev/null || ret=$?
 
   if [ $ret -eq 124 ] || [ $ret -eq 137 ]; then
     # timeout 命令返回 124 (GNU timeout) 或进程被 kill (137=128+9)
@@ -324,6 +368,7 @@ change_id=${change_id}
 written_by=pre-tool-use-gate
 L2_verdict=${l2_verdict}
 L3_verdict=timeout
+L3_summary=L3 API 调用超时（30s）
 artifacts=${artifacts_list}
 DONE_EOF
 
