@@ -195,13 +195,6 @@ write_correction_file() {
   return 0
 }
 
-# Read correction file, return JSON (delegates to correction-file.sh)
-read_correction_file() {
-  if [[ -z "${CORRECTION_FILE:-}" ]]; then
-    return 1
-  fi
-  correction_file_read "$CORRECTION_FILE"
-}
 
 # Clear correction file (delegates to correction-file.sh)
 clear_correction_file() {

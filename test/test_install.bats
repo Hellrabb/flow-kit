@@ -4,7 +4,7 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  INSTALL_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit-bundle/install.sh"
+  INSTALL_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/install.sh"
 }
 
 teardown() {

@@ -8,7 +8,7 @@ setup() {
   export PROJECT_ROOT
   mkdir -p "${PROJECT_ROOT}/.specs"
 
-  RESUME_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../flow-kit-bundle/hooks/session-start" && pwd)/flow-kit-resume.sh"
+  RESUME_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/session-start" && pwd)/flow-kit-resume.sh"
   [[ -f "$RESUME_SCRIPT" ]] || skip "flow-kit-resume.sh not found"
 }
 

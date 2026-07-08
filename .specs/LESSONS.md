@@ -47,8 +47,8 @@
 
 ## 元数据
 
-- **最近更新**: 2026-06-16（health-fix 归档）
-- **下次复查**: 2026-07-16（建议每月一次 M-health）
+- **最近更新**: 2026-07-08（M-health 巡检：TD-006/007 标 resolved + 新增 L-025）
+- **下次复查**: 2026-08-08（建议每月一次 M-health）
 
 ## L-016 · 独立审查四层架构必须全对齐
 
@@ -127,3 +127,20 @@
 - **教训**: 检测异常→阻断的逻辑须显式处理"输入为空"（空≠安全）。默认值应为 deny（fail-closed）。
 - **状态**: ✅ 已修复（26 bats）
 - **来源**: `l2-l3-fix-compliance` phase 2 L3 CRITICAL + phase 6 L2 R1/R2
+
+## L-025 · 测试 setup 的 `2>/dev/null || true` 静默吞 source 失败 — 让 169 测试"假失败"
+
+**日期**: 2026-07-08 | **来源**: M-health 2026-07-08（bats 实跑发现 169/414 失败）
+
+**教训**: 多个 bats 测试文件的 setup 用 `source "${BATS_TEST_DIRNAME}/../flow-kit-bundle/hooks/.../<lib>.sh" 2>/dev/null || true` 加载被测 lib。两个问题叠加形成"系统性假失败"：
+1. **路径双重前缀**：测试文件位于 `<repo>/flow-kit-bundle/test/`，但 setup 写 `../flow-kit-bundle/...` → 解析成 `flow-kit-bundle/flow-kit-bundle/...`（路径不存在）。
+2. **`|| true` 静默吞错**：source 失败被 `2>/dev/null || true` 完全吞掉，setup 不报错，但被测函数未定义 → 后续 `run <func>` 返回 127（command not found）→ 断言失败。
+
+结果：169 个测试因"函数未定义"失败，但失败原因被 setup 的 `|| true` 隐藏在深处，表面看像 169 个独立回归，实际是 1 个系统性路径 bug。更糟的是：上次（07-07）健康报告只统计了测试数量增长（72→414），**没跑通过率**，完全漏检这 169 失败。
+
+**预防**:
+- **路径必须正确（核心）**：测试路径基于 test/ 在 flow-kit-bundle/ 下的真实结构用 `${BATS_TEST_DIRNAME}/../hooks/...`（去掉多余 `flow-kit-bundle/`）；用 `$REPO_ROOT` 时注意 test 在 `flow-kit-bundle/test`，到 repo 根要 `../..` 而非 `..`。
+- **`|| true` 在 source lib 场景是合理容错，不盲目移除**：lib（common.sh 等）source 时顶层 `set -e` 副作用命令可能 exit 非0，但函数已定义可用；`|| true` 吸收 exit code 让 setup 继续。health-fix 实测移除 `|| true` 破坏 27 测试（gate_integrity 23 + phase-resolution 4）。真正要防的是"函数未定义"，改用 **AC-4 函数定义断言**（`test_setup_integrity.bats`：source 后 `type <fn>` 检查）兜底。
+- **M-health 巡检必须实跑 bats 通过率**，不能只数 `@test` 数量。本次新增"bats 实跑"步骤永久纳入巡检 SOP。
+
+**状态**: ✅ 已修复（health-fix-2026-07-08）— 169 失败→0（25 处双重路径修复 + AC-4 setup smoke）。`|| true` 经实测保留为合理容错（预防措施已据此修正）。

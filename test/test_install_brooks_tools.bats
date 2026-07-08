@@ -14,7 +14,7 @@ TOOLEOF
     chmod +x "$TEST_TMPDIR/brooks-tools/bin/$tool"
   done
 
-  LIB_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit-bundle/lib/install_brooks_tools.sh"
+  LIB_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/lib/install_brooks_tools.sh"
 }
 
 teardown() {

@@ -4,7 +4,7 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  COMMON_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit-bundle/hooks/stop/lib/common.sh"
+  COMMON_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/common.sh"
 
   # 先 source common.sh（会设 CONFIG_FILE=""），之后再用实际值覆盖
   source "$COMMON_SH" 2>/dev/null || true

@@ -5,7 +5,7 @@ setup() {
   TEST_TMPDIR=$(mktemp -d)
   PROJECT_ROOT="$TEST_TMPDIR"
   mkdir -p "$TEST_TMPDIR/.specs/test-change"
-  source "${BATS_TEST_DIRNAME}/../flow-kit-bundle/hooks/stop/lib/l2-detect.sh" 2>/dev/null || true
+  source "${BATS_TEST_DIRNAME}/../hooks/stop/lib/l2-detect.sh" 2>/dev/null || true
 }
 
 teardown() {

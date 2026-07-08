@@ -7,7 +7,7 @@
 #         correction file management (write/merge/clear).
 
 # Source the library once at file level (bats runs tests in the same shell)
-LIB_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../flow-kit-bundle/hooks/stop/lib"
+LIB_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../hooks/stop/lib"
 export HOOK_BASE_DIR="${LIB_DIR}/.."  # correction-file.sh 依赖 HOOK_BASE_DIR 定位 lib/
 LIB_PATH="${LIB_DIR}/weak-model-compliance.sh"
 if [[ -f "$LIB_PATH" ]]; then

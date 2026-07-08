@@ -5,7 +5,7 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  ARTIFACTS_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh"
+  ARTIFACTS_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/flow-kit-artifacts.sh"
 
   # fk_flow_field / fk_validate_flow 依赖 PROJECT_ROOT
   export PROJECT_ROOT="$TEST_TMPDIR"

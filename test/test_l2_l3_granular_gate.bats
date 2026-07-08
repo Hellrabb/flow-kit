@@ -3,7 +3,7 @@
 
 setup() {
   TEST_TMP=$(mktemp -d)
-  DONE_VALIDATION_LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit-bundle/hooks/stop/lib/done-validation.sh"
+  DONE_VALIDATION_LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/done-validation.sh"
 
   PROJECT_ROOT="$TEST_TMP"
   mkdir -p "$TEST_TMP/.specs/test-change"

@@ -3,7 +3,7 @@
 
 setup() {
   TEST_TMP=$(mktemp -d)
-  L3_LIB="${BATS_TEST_DIRNAME}/../flow-kit-bundle/hooks/stop/lib/l3-review.sh"
+  L3_LIB="${BATS_TEST_DIRNAME}/../hooks/stop/lib/l3-review.sh"
   ARTIFACTS_DIR="${TEST_TMP}/.specs/test-change"
   mkdir -p "$ARTIFACTS_DIR"
 }

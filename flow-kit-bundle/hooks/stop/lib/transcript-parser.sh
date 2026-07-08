@@ -126,9 +126,3 @@ get_tool_summary() {
   echo
 }
 
-# Estimate token usage (rough: 1 token ≈ 4 chars)
-estimate_tokens() {
-  local chars
-  chars=$(wc -c < "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
-  echo $((chars / 4))
-}

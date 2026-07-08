@@ -4,7 +4,7 @@
 
 setup() {
   TEST_TMP=$(mktemp -d)
-  HOOK_BASE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../flow-kit-bundle/hooks/stop" && pwd)"
+  HOOK_BASE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/stop" && pwd)"
 
   # Create minimal .flow-active fixture
   FLOW_ACTIVE="${TEST_TMP}/.flow-active"
