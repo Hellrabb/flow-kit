@@ -5,7 +5,7 @@ setup() {
   TEST_TMP=$(mktemp -d)
   CORRECTION_FILE="${TEST_TMP}/test-correction.json"
   # Source the lib
-  HOOK_BASE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../flow-kit-bundle/hooks/stop" && pwd)"
+  HOOK_BASE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/stop" && pwd)"
   source "${HOOK_BASE_DIR}/lib/correction-file.sh"
 }
 

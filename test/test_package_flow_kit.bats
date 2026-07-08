@@ -7,7 +7,7 @@
 #       导致 bash -n 失败、正常打包退出码非 0。本测试永久防止此类回归。
 
 setup() {
-  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
   PKG_SCRIPT="$REPO_ROOT/package-flow-kit.sh"
 }
 

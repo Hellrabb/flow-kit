@@ -9,7 +9,7 @@
 # 排除第三方目录（非本仓库维护）：brooks-lint/brooks-tools/plugins/node_modules/.git
 
 setup() {
-  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 }
 
 @test "AC-4: 所有生产 .sh 脚本通过 bash -n 语法检查" {
@@ -37,6 +37,6 @@ $(printf '%s\n' "$err" | sed 's/^/      /')"
   if [ "$failures" -ne 0 ]; then
     echo "bash -n 失败的脚本（$failures / $total）：" >&3
     echo -e "$failed_files" >&3
-    fail "存在语法错误的生产脚本（见上方清单）"
+    return 1
   fi
 }

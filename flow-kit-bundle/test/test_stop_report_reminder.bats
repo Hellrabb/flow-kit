@@ -8,7 +8,7 @@ setup() {
   export PROJECT_ROOT
   mkdir -p "${PROJECT_ROOT}/.claude"
 
-  REMINDER_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../flow-kit-bundle/hooks/session-start" && pwd)/stop-report-reminder.sh"
+  REMINDER_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/session-start" && pwd)/stop-report-reminder.sh"
   [[ -f "$REMINDER_SCRIPT" ]] || skip "stop-report-reminder.sh not found"
 }
 

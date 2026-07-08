@@ -5,7 +5,7 @@ setup() {
   TEST_TMPDIR=$(mktemp -d)
   PROJECT_ROOT="$TEST_TMPDIR"
   cp "${BATS_TEST_DIRNAME}/../.flow-active" "$TEST_TMPDIR/.flow-active" 2>/dev/null || true
-  source "${BATS_TEST_DIRNAME}/../flow-kit-bundle/hooks/stop/lib/common.sh" 2>/dev/null || true
+  source "${BATS_TEST_DIRNAME}/../hooks/stop/lib/common.sh" 2>/dev/null || true
 }
 
 teardown() {

@@ -363,7 +363,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 **清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
 
-- _暂无_（TD-001 已通过 health-fix 修复）
+- `estimate_tokens()` — `hooks/stop/lib/transcript-parser.sh:130`（全仓零引用·真死代码·可直接删）
+- `read_correction_file()` — `hooks/stop/lib/interactive-ui-check.sh:199`（生产无调用·疑似废弃·确认后删）
+- `file_not_empty()` — `hooks/stop/lib/common.sh:163`（生产无调用·仅测试用·确认是否保留为公共 API，否则删）
 
 ### 技术债（来自 M-health · 给 AI 在 2-design / 4-dev 时参考，别再加同类债）
 
@@ -376,8 +378,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 共享函数 < 3 阈值，`lib/utils.sh` 保持推迟 | 等新增 ≥ 2 个共享辅助函数时再建 | `init-git-repo` T03 · 保持 deferred |
 | TD-004 | 🟡 | `flow-kit-bundle/flow-kit/prompts/*.md`（15+ 文件） | Markdown prompt 样板重复率 22%——toll-gate 流程、独立 review 调度、Pipeline 规则等共享段在多文件中逐字重复，规则变更时须手动同步 N 处 | 抽取 `_shared/` 引用片段；下次 prompt 规则变更时一并重构 | `M-health 2026-07-02` |
 | TD-005 | 🟡 | `flow-kit-bundle/flow-kit/prompts/6-review.md` + `7-integration.md` | jq pipeline goal 解析逻辑（68 行）在 6-review 和 7-integration 两个 prompt 中逐字重复——提取 goal.scope / start_phase / current_phase / phases_done / gates | 抽取到 `flow-kit/reference/` 共享片段；下次改 pipeline goal 解析时一并重构 | `M-health 2026-07-04` |
-| TD-006 | 🟡 | `.specs/l2-l3-fix-compliance/` + `.specs/independent-review-gap/` | 代码已合入但 spec 工件缺失（仅剩 PROGRESS.md）。共涉及 3 个新 lib + 858 行测试代码无对应 CHANGE/REQUIREMENT/DESIGN | 立即归档 + 补 CHANGE.md（1 段简述 + 指向对应 commit）| `M-health 2026-07-07` |
-| TD-007 | 🟡 | `test/` 根目录 | 7 个 untracked bats 文件 + fixtures/ — 与 flow-kit-bundle/test/ 内容一致但未被 git 跟踪，打包和 CI 可能不一致 | 确认意图后 `git add` 或清理 | `M-health 2026-07-07` |
+| TD-006 | ✅ | `.specs/l2-l3-fix-compliance/` + `.specs/independent-review-gap/` | 代码已合入但 spec 工件缺失 | 已归档（archive/ 下）· **`M-health 2026-07-08` 复核：active 目录为空，工件已补齐** | `M-health 2026-07-07` · resolved 2026-07-08 |
+| TD-007 | ✅ | `test/` 根目录 | 7 个 untracked bats 文件 | 已清理（`e2a8bf2`）· **`M-health 2026-07-08` 复核：test/ 仅剩 .bats + fixtures/regression-demos/weak-model-robustness，根目录无散落非测试文件** | `M-health 2026-07-07` · resolved 2026-07-08 |
+| TD-008 | 🟡 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh`（574 行 / 6 函数） | 当前最大 lib，承担 L3 审查的**检测 + 派发 + 截断**多职责；复杂度偏高（R5） | 按职责拆为 `l3-detect.sh` / `l3-dispatch.sh` / `l3-truncate.sh` 三子库；下次改 L3 审查逻辑时一并重构 | `M-health 2026-07-08` |
+| TD-009 | 🟡 | `transcript-parser.sh:130` + `interactive-ui-check.sh:199` + `common.sh:163` | 3 个未引用函数：`estimate_tokens`（全仓零引用·真死代码）/ `read_correction_file`（生产无调用·疑似废弃）/ `file_not_empty`（仅测试用·待确认公共 API） | `estimate_tokens` 直接删；`read_correction_file` 确认废弃后删；`file_not_empty` 确认是否保留 common.sh API（R6） | `M-health 2026-07-08` |
+| TD-010 | 🟢 | jscpd 扫描约定 | flow-kit-bundle/ 含打包进来的第三方 brooks-lint/brooks-tools，jscpd 默认会扫到 → 重复率虚高（0.91%）；排除后才反映自有代码（0.58%） | jscpd 命令固定带 `--ignore '**/brooks-lint/**,**/brooks-tools/**,**/test/**,**/regression-demos/**'`；已纳入巡检 SOP | `M-health 2026-07-08` |
 
 ---
 
