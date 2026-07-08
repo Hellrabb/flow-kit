@@ -144,3 +144,21 @@
 - **M-health 巡检必须实跑 bats 通过率**，不能只数 `@test` 数量。本次新增"bats 实跑"步骤永久纳入巡检 SOP。
 
 **状态**: ✅ 已修复（health-fix-2026-07-08）— 169 失败→0（25 处双重路径修复 + AC-4 setup smoke）。`|| true` 经实测保留为合理容错（预防措施已据此修正）。
+
+## L-026 · 架构统一后旧 wrapper 易成死代码 —— 删除前必须 grep 引用确认（不能批量删）
+
+**日期**: 2026-07-08 | **来源**: M-health 2026-07-08 死代码清理 + health-fix-2026-07-08 git 考古
+
+**教训**: 架构统一（提取公共 lib / 统一入口）change 完成后，原有的 wrapper 函数处理不一致，易留死代码。两个实测案例：
+
+**案例 1 · `read_correction_file`（interactive-ui-check.sh）**：`sweep-fix-2026-07` 把 correction file 读写统一到 `lib/correction-file.sh`（`correction_file_write/read/clear/exists` 4 函数）。原 `interactive-ui-check.sh` 的 3 个 wrapper（read/clear/has）处理不一致：
+- `read_correction_file` — **零调用方** → 死代码（已删）。调用方（flow-kit-resume.sh 等）直接用 `correction_file_read`，不经 wrapper。
+- `clear_correction_file` / `has_correction_file` — **被 `27-interactive-ui-check.sh:70-71` 真实调用**（检测矫正文件存在 → 清除）→ 有效，**不能删**。
+
+**案例 2 · `estimate_tokens`（transcript-parser.sh）**：token 预算的早期方案（`chars/4` 粗糙估算），后被 `token-estimate.txt`（01-transcript-parse 生成）+ `fk_accumulate_tokens`（26-workflow 累加到 `.flow-active.token_spent`）链路取代，**从未接线** → 死代码（已删）。
+
+**预防**:
+- 架构统一 change 的 TASK 必须含一步：`grep -r <旧_wrapper>` 全仓（含 `.sh`/`.bats`/`.md`），对每个旧 wrapper 标注「有调用方→保留 / 无调用方→删除」。sweep-fix 漏了这步，导致 `read_correction_file` 残留 1 个月才被 M-health 揪出。
+- M-health 死代码扫描（步骤 2.5）发现候选后**不能批量删**，必须逐个 grep 确认「零调用」再删。本次 `clear/has_correction_file` 有调用方，**差点被误删**（最初推测「同批漏清」是错的）。
+
+**状态**: ✅ `read_correction_file` + `estimate_tokens` 已删（health-fix-2026-07-08）；`clear/has_correction_file` 经 grep 确认有效，保留。
