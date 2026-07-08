@@ -8,7 +8,14 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  BUNDLE_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 都对 · L-025）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  BUNDLE_ROOT="$FK_ROOT/flow-kit-bundle"
   ARTIFACTS_LIB="$BUNDLE_ROOT/hooks/stop/lib/flow-kit-artifacts.sh"
   GATE_SH="$BUNDLE_ROOT/hooks/pre-tool-use/independent-review-gate.sh"
   export PROJECT_ROOT="$TEST_TMPDIR"

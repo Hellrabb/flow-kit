@@ -2,10 +2,18 @@
 # test_correction_file.bats — Unit tests for lib/correction-file.sh
 
 setup() {
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks/stop" ]; do
+    d="$(dirname "$d")"
+  done
+  HOOK_BASE_DIR="$d/flow-kit-bundle/hooks/stop"
+
   TEST_TMP=$(mktemp -d)
   CORRECTION_FILE="${TEST_TMP}/test-correction.json"
   # Source the lib
-  HOOK_BASE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/stop" && pwd)"
   source "${HOOK_BASE_DIR}/lib/correction-file.sh"
 }
 

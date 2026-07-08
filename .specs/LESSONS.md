@@ -175,4 +175,19 @@
 - Makefile test target 的判定行必须直接用 bats exit（本仓 Makefile line 13 `@npx bats test/ > /dev/null 2>&1 && echo ✅ || exit 1` 已正确；line 12 `| tail -3` 仅展示不影响判定 —— `test-setup-path-fix-2026-07` 会复核）
 - M-health 巡检"bats 实跑"步骤必须检查 **exit code**，不能只看输出尾部或测试数量增长（health-fix 正是只数了 72→414 增长，没验通过率）
 
-**状态**: 📝 已记 TD-012（`test-setup-path-fix-2026-07` 将修 10+ 测试路径 + Makefile test target 复核 + 让 30+ 测试真绿）
+**状态**: ✅ 已修复（`test-setup-path-fix-2026-07` 修 18 文件路径 + Makefile 复核，30+ 测试真绿，make test 407 pass 0 BW01）
+
+## L-028 · `grep -c "pattern" || echo 0` 重复打印致断言假失败 —— grep -c 无匹配已打印 0 + exit 1，不需 `|| echo 0`
+
+**日期**: 2026-07-08 | **来源**: test-setup-path-fix-2026-07（test_quality_baseline AC-6 修复）
+
+**教训**: `grep -c "pattern" file || echo 0` 是常见反模式。`grep -c` 无匹配时**已打印 0** 并 exit 1，`|| echo 0` 再打印一个 0 → `$output` = `"0\n0"`，断言 `[ "$output" = "0" ]` 假失败。开发者以为 `grep -c` 失败要 fallback 打印 0，但 grep -c 本身就打印 0（只是 exit 1）。
+
+**案例**: `test_quality_baseline.bats` AC-6 shellcheck 测试 `ERRS=$(shellcheck ... | grep -ci "error" || echo 0)` + `[ "$output" = "0" ]`。shellcheck 0 error 时 grep -c 打印 `0` exit 1，`|| echo 0` 再打印 `0` → `"0\n0"` ≠ `"0"` → 永远 fail（假失败，之前被 TD-012 假绿掩盖，修路径后才暴露）。
+
+**预防**:
+- `grep -c` 无匹配已打印 0，**不要加 `|| echo 0`**（会重复打印）
+- 若要确保 exit 0：`grep -c "pattern" file || true`（`true` 不打印，保留 grep -c 的 0）
+- 测试断言前 `echo "$output" | cat -A` 检查实际值（避免 `"0\n0"` 假匹配）
+
+**状态**: ✅ test_quality_baseline 已修（`echo 0`→`true`）

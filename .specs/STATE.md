@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-08` (`health-cleanup-2026-07-08` · 注：`health-fix-2026-07-08` 07-08 已归档但未单独记入 STATE，git log `45e83af` 可查)
+- **last_change_archived**: `2026-07-08` (`test-setup-path-fix-2026-07` · 修 18 文件测试 setup 路径·make test 407 pass 0 BW01·TD-012 根治)
 - **last_evolve_promoted**:
   - 2026-06-08-init-git-repo
   - 2026-06-08-offline-brooks-bundle
@@ -40,5 +40,5 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 213 tests (test/ 实测 @ 2026-07-01)`
+- **test_framework**: `bats-core 1.13.0 (npx) · 407 tests (test/ 实测 @ 2026-07-08 · 全绿 0 fail 0 BW01 · TD-012 修复后真绿)`
 - **ci_cd**: `未检测到`

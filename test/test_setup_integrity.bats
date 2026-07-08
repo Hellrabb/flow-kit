@@ -14,7 +14,14 @@
 #       必须定义 —— 这才是「setup 成功」的真实判据。
 
 setup() {
-  BUNDLE_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks/stop" ]; do
+    d="$(dirname "$d")"
+  done
+  BUNDLE_DIR="$d/flow-kit-bundle"
   export CONFIG_FILE="$(mktemp)"
   export PROJECT_ROOT="$(mktemp -d)"
   printf '{"modules":{}}' > "$CONFIG_FILE"

@@ -8,9 +8,14 @@ setup() {
   PROJECT_ROOT="$TEST_TMPDIR"
   mkdir -p "$TEST_TMPDIR/.specs/test-change"
 
-  # 路径
-  L3_LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/l3-review.sh"
-  DONE_VAL_LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/done-validation.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  L3_LIB="$d/flow-kit-bundle/hooks/stop/lib/l3-review.sh"
+  DONE_VAL_LIB="$d/flow-kit-bundle/hooks/stop/lib/done-validation.sh"
 
   # Source done-validation lib（提供 fk_validate_done_marker 等）
   if [ -f "$DONE_VAL_LIB" ]; then
@@ -151,15 +156,18 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-1: 29-independent-review.sh contains L2-wait gating for both mode" {
-  hook29="$TEST_TMPDIR/../flow-kit-bundle/hooks/stop/29-independent-review.sh"
-  hook29="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/29-independent-review.sh"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  hook29="$fk_root/hooks/stop/29-independent-review.sh"
 
   run grep -q "L2 not yet complete" "$hook29" 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
 @test "AC-1: independent-review-gate.sh contains L2-wait gating for PreToolUse path" {
-  gate_script="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/pre-tool-use/independent-review-gate.sh"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  gate_script="$fk_root/hooks/pre-tool-use/independent-review-gate.sh"
 
   run grep -q "L2 尚未完成" "$gate_script" 2>/dev/null
   [ "$status" -eq 0 ]
@@ -170,7 +178,9 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-7: 29-independent-review.sh defaults L2_verdict=skipped for L3-only mode" {
-  hook29="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/29-independent-review.sh"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  hook29="$fk_root/hooks/stop/29-independent-review.sh"
 
   run grep -q 'l2_verdict="skipped"' "$hook29" 2>/dev/null
   [ "$status" -eq 0 ]
@@ -181,7 +191,9 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-2: L2-blind-review.md contains append-first constraints" {
-  l2_blind="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit/prompts/independent/L2-blind-review.md"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  l2_blind="$fk_root/flow-kit/prompts/independent/L2-blind-review.md"
 
   run grep -q "文件写入约束" "$l2_blind" 2>/dev/null
   [ "$status" -eq 0 ]
@@ -198,7 +210,9 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-6: all 6 phase prompts contain L3_verdict=skipped for L2-only" {
-  prompts_dir="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit/prompts"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  prompts_dir="$fk_root/flow-kit/prompts"
 
   for phase in 1-requirement 2-design 3-task 5-test 6-review 7-integration; do
     run grep -q "L3_verdict=skipped" "$prompts_dir/$phase.md" 2>/dev/null
@@ -210,7 +224,9 @@ EOF
 }
 
 @test "AC-6: all 6 phase prompts contain append instruction for L2 output" {
-  prompts_dir="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/flow-kit/prompts"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  prompts_dir="$fk_root/flow-kit/prompts"
 
   for phase in 1-requirement 2-design 3-task 5-test 6-review 7-integration; do
     run grep -q "追加" "$prompts_dir/$phase.md" 2>/dev/null
@@ -235,7 +251,9 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-5: done-validation.sh phase_name mapping covers {1,2,3,5,6,7}" {
-  done_val="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/done-validation.sh"
+  local fk_root
+  fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
+  done_val="$fk_root/hooks/stop/lib/done-validation.sh"
 
   for phase_name in "1-requirement" "2-design" "3-task" "5-test" "6-review" "7-integration"; do
     run grep -q "\"$phase_name\"" "$done_val" 2>/dev/null
