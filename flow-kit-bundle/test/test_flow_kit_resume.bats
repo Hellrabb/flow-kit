@@ -8,7 +8,14 @@ setup() {
   export PROJECT_ROOT
   mkdir -p "${PROJECT_ROOT}/.specs"
 
-  RESUME_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/session-start" && pwd)/flow-kit-resume.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  RESUME_SCRIPT="$FK_ROOT/flow-kit-bundle/hooks/session-start/flow-kit-resume.sh"
   [[ -f "$RESUME_SCRIPT" ]] || skip "flow-kit-resume.sh not found"
 }
 

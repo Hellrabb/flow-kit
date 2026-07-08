@@ -9,7 +9,14 @@
 # 排除第三方目录（非本仓库维护）：brooks-lint/brooks-tools/plugins/node_modules/.git
 
 setup() {
-  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+  # 位置无关：向上查找含 flow-kit-bundle/ 的目录（repo 根）
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · TD-012 路径根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle" ]; do
+    d="$(dirname "$d")"
+  done
+  REPO_ROOT="$d"
 }
 
 @test "AC-4: 所有生产 .sh 脚本通过 bash -n 语法检查" {

@@ -104,7 +104,7 @@
 
 @test "AC-6: shellcheck 无 error 级别问题" {
   if which shellcheck > /dev/null 2>&1; then
-    run bash -c 'shellcheck -e SC1091 *.sh flow-kit-bundle/lib/*.sh 2>&1 | grep -ci "error" || echo 0'
+    run bash -c 'shellcheck -e SC1091 *.sh flow-kit-bundle/lib/*.sh 2>&1 | grep -ci "error" || true'
     [ "$output" = "0" ]
   else
     skip "shellcheck 未安装"

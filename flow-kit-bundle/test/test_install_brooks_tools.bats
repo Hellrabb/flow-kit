@@ -14,7 +14,14 @@ TOOLEOF
     chmod +x "$TEST_TMPDIR/brooks-tools/bin/$tool"
   done
 
-  LIB_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/lib/install_brooks_tools.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  LIB_FILE="$FK_ROOT/flow-kit-bundle/lib/install_brooks_tools.sh"
 }
 
 teardown() {

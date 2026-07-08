@@ -7,7 +7,13 @@
 #         correction file management (write/merge/clear).
 
 # Source the library once at file level (bats runs tests in the same shell)
-LIB_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../hooks/stop/lib"
+# 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 都对 · L-025）
+_fk_d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+while [ "$_fk_d" != "/" ] && [ ! -d "$_fk_d/flow-kit-bundle/hooks" ]; do
+  _fk_d="$(dirname "$_fk_d")"
+done
+FK_ROOT="$_fk_d"
+LIB_DIR="$FK_ROOT/flow-kit-bundle/hooks/stop/lib"
 export HOOK_BASE_DIR="${LIB_DIR}/.."  # correction-file.sh 依赖 HOOK_BASE_DIR 定位 lib/
 LIB_PATH="${LIB_DIR}/weak-model-compliance.sh"
 if [[ -f "$LIB_PATH" ]]; then

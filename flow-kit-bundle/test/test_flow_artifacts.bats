@@ -5,7 +5,14 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  ARTIFACTS_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/flow-kit-artifacts.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  ARTIFACTS_SH="$FK_ROOT/flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh"
 
   # fk_flow_field / fk_validate_flow 依赖 PROJECT_ROOT
   export PROJECT_ROOT="$TEST_TMPDIR"

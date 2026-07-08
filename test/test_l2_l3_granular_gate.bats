@@ -3,7 +3,14 @@
 
 setup() {
   TEST_TMP=$(mktemp -d)
-  DONE_VALIDATION_LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/done-validation.sh"
+
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  DONE_VALIDATION_LIB="$d/flow-kit-bundle/hooks/stop/lib/done-validation.sh"
 
   PROJECT_ROOT="$TEST_TMP"
   mkdir -p "$TEST_TMP/.specs/test-change"

@@ -4,7 +4,14 @@
 # 覆盖 AC-2/AC-3/AC-4
 
 setup() {
-  TEST_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/.."
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks/stop" ]; do
+    d="$(dirname "$d")"
+  done
+  TEST_ROOT="$d/flow-kit-bundle"
   L3_LIB="${TEST_ROOT}/hooks/stop/lib/l3-review.sh"
 
   if [ ! -f "$L3_LIB" ]; then

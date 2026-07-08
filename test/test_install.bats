@@ -4,7 +4,14 @@
 
 setup() {
   TEST_TMPDIR=$(mktemp -d)
-  INSTALL_SH="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/install.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  INSTALL_SH="$FK_ROOT/flow-kit-bundle/install.sh"
 }
 
 teardown() {

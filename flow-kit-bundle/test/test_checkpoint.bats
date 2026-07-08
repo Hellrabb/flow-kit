@@ -5,7 +5,14 @@
 setup() {
   # 在临时目录运行，避免污染真实 .flow-active
   TEST_DIR=$(mktemp -d)
-  cp "$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/hooks/stop/lib/checkpoint-lib.sh" "$TEST_DIR/"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks/stop/lib/checkpoint-lib.sh 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · TD-012 路径根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -f "$d/flow-kit-bundle/hooks/stop/lib/checkpoint-lib.sh" ]; do
+    d="$(dirname "$d")"
+  done
+  cp "$d/flow-kit-bundle/hooks/stop/lib/checkpoint-lib.sh" "$TEST_DIR/"
   cd "$TEST_DIR"
   # 创建测试用 .flow-active
   jq -n '{change_id:"test",phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active

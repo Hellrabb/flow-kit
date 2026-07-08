@@ -3,7 +3,14 @@
 
 setup() {
   TEST_TMP=$(mktemp -d)
-  L3_LIB="${BATS_TEST_DIRNAME}/../hooks/stop/lib/l3-review.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（双源 test/ 与 flow-kit-bundle/test/ 都对 · L-025）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  local FK_ROOT="$d"
+  L3_LIB="$FK_ROOT/flow-kit-bundle/hooks/stop/lib/l3-review.sh"
   ARTIFACTS_DIR="${TEST_TMP}/.specs/test-change"
   mkdir -p "$ARTIFACTS_DIR"
 }

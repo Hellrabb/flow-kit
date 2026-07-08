@@ -8,7 +8,14 @@ setup() {
   export PROJECT_ROOT
   mkdir -p "${PROJECT_ROOT}/.claude"
 
-  REMINDER_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks/session-start" && pwd)/stop-report-reminder.sh"
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  REMINDER_SCRIPT="$d/flow-kit-bundle/hooks/session-start/stop-report-reminder.sh"
   [[ -f "$REMINDER_SCRIPT" ]] || skip "stop-report-reminder.sh not found"
 }
 
