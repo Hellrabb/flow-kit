@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-07` (`l3-comprehensive-fix`)
+- **last_change_archived**: `2026-07-08` (`health-cleanup-2026-07-08` · 注：`health-fix-2026-07-08` 07-08 已归档但未单独记入 STATE，git log `45e83af` 可查)
 - **last_evolve_promoted**:
   - 2026-06-08-init-git-repo
   - 2026-06-08-offline-brooks-bundle

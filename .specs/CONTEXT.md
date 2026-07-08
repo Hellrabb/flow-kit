@@ -231,24 +231,6 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 > intel-scan 自动 grep 出来的项目级抽象。每个 change 4-dev 1.4 步骤会查这里。
 
-### HTTP 客户端
-
-- **路径**：`未发现`
-- **入口符号**：无
-- **使用方式**：无
-
-### 数据库访问
-
-- **模式**：未发现
-- **路径**：未发现
-- **示例**：无
-
-### 状态管理
-
-- **库**：未发现
-- **路径**：未发现
-- **示例**：无
-
 ### 工具函数（utils / helpers）
 
 | 工具类型 | 路径 | 入口符号 |
@@ -299,21 +281,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | Toll-gate 暂停协议 | Prompt 级指令控制 AI 在特定节点停止等待用户确认 | pipeline-goal |
 <!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
 
-### 自定义 hooks（前端）
-
-不适用（非前端项目）。
-
 ### 错误处理
 
 - **前端**：不适用
 - **后端**：不适用
 - **Shell**：`set -euo pipefail`（`package-flow-kit.sh:3`）— 遇错即停，无自定义 error handler
-
-### Schema / 迁移
-
-- **工具**：未引入
-- **路径**：未发现
-- **建议**：不适用（非数据库项目）
 
 ### 命名约定
 
@@ -383,6 +355,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | TD-008 | 🟡 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh`（574 行 / 6 函数） | 当前最大 lib，承担 L3 审查的**检测 + 派发 + 截断**多职责；复杂度偏高（R5） | 按职责拆为 `l3-detect.sh` / `l3-dispatch.sh` / `l3-truncate.sh` 三子库；下次改 L3 审查逻辑时一并重构 | `M-health 2026-07-08` |
 | TD-009 | 🟡 | `transcript-parser.sh:130` + `interactive-ui-check.sh:199` + `common.sh:163` | 3 个未引用函数：`estimate_tokens`（全仓零引用·真死代码）/ `read_correction_file`（生产无调用·疑似废弃）/ `file_not_empty`（仅测试用·待确认公共 API） | `estimate_tokens` 直接删；`read_correction_file` 确认废弃后删；`file_not_empty` 确认是否保留 common.sh API（R6） | `M-health 2026-07-08` |
 | TD-010 | 🟢 | jscpd 扫描约定 | flow-kit-bundle/ 含打包进来的第三方 brooks-lint/brooks-tools，jscpd 默认会扫到 → 重复率虚高（0.91%）；排除后才反映自有代码（0.58%） | jscpd 命令固定带 `--ignore '**/brooks-lint/**,**/brooks-tools/**,**/test/**,**/regression-demos/**'`；已纳入巡检 SOP | `M-health 2026-07-08` |
+| TD-011 | 🔴 | `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh:68` | `is_phase_write` 的 `[[ "$c" =~ \.tmp...&&...mv ]]` 里 `&&` 被 bash `[[ ]]` 当**逻辑与**，正则劈两半 → 实际仅匹配 `.tmp+空格`，`&&`/`mv` 检测失效（SC1026/2203/2157 always true）。gate 核心链（禁动清单 line 349/353）。本次加 `# shellcheck disable` + TODO 标注，未改逻辑 | 改用变量存 regex（`local re='...'; [[ "$c" =~ $re ]]`）+ 重跑 gate 测试验证行为；独立 change `refactor-independent-review-gate` 处理 | `health-cleanup-2026-07-08` 发现 · 禁动清单 |
+| TD-012 | 🔴 | `test/` 10+ 测试文件 setup 路径 | setup 路径缺 `flow-kit-bundle/` 层（如 `$(dirname "$BATS_TEST_FILENAME")/../hooks/...` 指向不存在的 `<repo>/hooks/`）→ `source ... 2>/dev/null \|\| true` 静默吞错 → `fk_validate_done_marker` 等函数未定义 → 30+ 测试 BW01 127 fail（假绿）。L-025 同源不同变种。**health-fix-2026-07-08 的"169→0"验证疑用 `bats\|tail`（管道吃 exit code）误判全绿** | 修 10+ 文件 setup 路径 + 修 Makefile test target 管道 exit code 漏洞（`bats\|tail`→bats 直接判 exit）+ 让 30+ 测试真绿；独立 change `test-setup-path-fix-2026-07` 处理 | `health-cleanup-2026-07-08` 发现 |
 
 ---
 

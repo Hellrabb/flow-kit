@@ -1,4 +1,5 @@
 # lib/install_hooks.sh — Stop Hook + SessionStart 安装 + .specs 模板
+# shellcheck shell=bash
 # 由 install.sh source，不可独立执行
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────

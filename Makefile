@@ -4,8 +4,6 @@
 # ============================================================================
 .PHONY: test lint check check-validate check-test-sync all
 
-SHELLCHECK := $(shell which shellcheck 2>/dev/null)
-
 # ── test: 跑全量 bats 测试 ──
 test:
 	@echo "🧪 make test: running bats..."
@@ -13,30 +11,32 @@ test:
 	@npx bats test/ > /dev/null 2>&1 && echo "✅ bats: all tests passed" || { echo "❌ bats: some tests failed"; exit 1; }
 
 # ── lint: shellcheck 静态分析（仅 error 级别）──
+# 检测改为 recipe 内 command -v（原 $(shell which) 在 RTK proxy 等环境下不稳定，会误报 not installed）
+# 覆盖补 pre-tool-use/（原漏扫 independent-review-gate.sh）
 lint:
 	@echo "🔍 make lint: shellcheck (error level only)..."
-ifndef SHELLCHECK
-	@echo "⚠️  WARNING: shellcheck not installed. Run: sudo apt-get install -y shellcheck"
-	@echo "   Skipping lint (non-blocking)."
-else
-	@ERR=0; \
-	for f in *.sh flow-kit-bundle/lib/*.sh flow-kit-bundle/hooks/stop/*.sh flow-kit-bundle/hooks/session-start/*.sh; do \
-		[ -f "$$f" ] || continue; \
-		OUT=$$(shellcheck -e SC1091 "$$f" 2>&1) || true; \
-		ERRS=$$(echo "$$OUT" | grep -ci "error" || true); \
-		if [ "$$ERRS" -gt 0 ]; then \
-			echo "❌ $$f: $$ERRS error(s)"; \
-			echo "$$OUT" | grep -i "error"; \
-			ERR=1; \
-		fi; \
-	done; \
-	if [ "$$ERR" -eq 0 ]; then \
-		echo "✅ shellcheck: no errors found"; \
+	@if ! command -v shellcheck >/dev/null 2>&1; then \
+		echo "⚠️  WARNING: shellcheck not installed. Run: sudo apt-get install -y shellcheck"; \
+		echo "   Skipping lint (non-blocking)."; \
 	else \
-		echo "❌ shellcheck: errors found (see above)"; \
-		exit 1; \
+		ERR=0; \
+		for f in *.sh flow-kit-bundle/lib/*.sh flow-kit-bundle/hooks/stop/*.sh flow-kit-bundle/hooks/session-start/*.sh flow-kit-bundle/hooks/pre-tool-use/*.sh; do \
+			[ -f "$$f" ] || continue; \
+			OUT=$$(shellcheck -e SC1091 "$$f" 2>&1) || true; \
+			ERRS=$$(echo "$$OUT" | grep -ci "error" || true); \
+			if [ "$$ERRS" -gt 0 ]; then \
+				echo "❌ $$f: $$ERRS error(s)"; \
+				echo "$$OUT" | grep -i "error"; \
+				ERR=1; \
+			fi; \
+		done; \
+		if [ "$$ERR" -eq 0 ]; then \
+			echo "✅ shellcheck: no errors found"; \
+		else \
+			echo "❌ shellcheck: errors found (see above)"; \
+			exit 1; \
+		fi; \
 	fi
-endif
 
 # ── check-validate: 打包完整性校验 ──
 check-validate:
