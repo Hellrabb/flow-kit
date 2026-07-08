@@ -1,4 +1,5 @@
 # lib/install_brooks_tools.sh — brooks-lint npm 工具离线安装
+# shellcheck shell=bash
 # 由 install.sh source，不可独立执行
 
 install_brooks_tools() {

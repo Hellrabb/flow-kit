@@ -162,3 +162,17 @@
 - M-health 死代码扫描（步骤 2.5）发现候选后**不能批量删**，必须逐个 grep 确认「零调用」再删。本次 `clear/has_correction_file` 有调用方，**差点被误删**（最初推测「同批漏清」是错的）。
 
 **状态**: ✅ `read_correction_file` + `estimate_tokens` 已删（health-fix-2026-07-08）；`clear/has_correction_file` 经 grep 确认有效，保留。
+
+## L-027 · 验证测试 pass 必须用 bats 直接 exit code —— 禁止 `bats | tail` 管道（exit code 被管道末命令吃掉 → 假绿）
+
+**日期**: 2026-07-08 | **来源**: health-cleanup-2026-07-08（make check 暴露 30+ 既有 fail · TD-012）
+
+**教训**: 用 `npx bats test/ 2>&1 | tail -N` 验证测试套件时，管道 exit code 是**最后一个命令（tail）**的（0），不是 bats 的。bats 实际 exit 1（有测试 fail）被完全掩盖 → 误判"全绿"。`health-fix-2026-07-08` 的"169→0 全绿"很可能因此误判 —— 实际 30+ 测试因 setup 路径 bug（TD-012）一直 BW01 127 fail，从未真绿。同类陷阱：`bats | grep`、`bats > /dev/null 2>&1 | something`、`make test 2>&1 | tail`（make 的 exit 也被吃）。本对话开头的"bats exit 0 全绿"判断也犯了这个错。
+
+**预防**:
+- 验证测试 pass 必须用 bats **直接** exit code：`npx bats test/ && echo pass || echo fail`（无管道吞 exit）
+- 必须用管道时加 `set -o pipefail`（管道任一命令失败则整体失败）或检查 `${PIPESTATUS[0]}`
+- Makefile test target 的判定行必须直接用 bats exit（本仓 Makefile line 13 `@npx bats test/ > /dev/null 2>&1 && echo ✅ || exit 1` 已正确；line 12 `| tail -3` 仅展示不影响判定 —— `test-setup-path-fix-2026-07` 会复核）
+- M-health 巡检"bats 实跑"步骤必须检查 **exit code**，不能只看输出尾部或测试数量增长（health-fix 正是只数了 72→414 增长，没验通过率）
+
+**状态**: 📝 已记 TD-012（`test-setup-path-fix-2026-07` 将修 10+ 测试路径 + Makefile test target 复核 + 让 30+ 测试真绿）

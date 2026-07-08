@@ -7,7 +7,14 @@
 #       导致 bash -n 失败、正常打包退出码非 0。本测试永久防止此类回归。
 
 setup() {
-  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+  # 位置无关：向上查找含 package-flow-kit.sh 的目录
+  # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -f "$d/package-flow-kit.sh" ]; do
+    d="$(dirname "$d")"
+  done
+  REPO_ROOT="$d"
   PKG_SCRIPT="$REPO_ROOT/package-flow-kit.sh"
 }
 

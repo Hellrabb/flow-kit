@@ -1,4 +1,5 @@
 # lib/install_skills.sh — flow-* 技能包装器安装
+# shellcheck shell=bash
 # 由 install.sh source，不可独立执行
 
 install_skills() {

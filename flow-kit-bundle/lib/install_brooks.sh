@@ -1,4 +1,5 @@
 # lib/install_brooks.sh — brooks-lint 代码审查插件安装
+# shellcheck shell=bash
 # 由 install.sh source，不可独立执行
 
 install_brooks_lint() {

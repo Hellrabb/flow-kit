@@ -1,4 +1,5 @@
 # lib/install_core.sh — flow-kit 核心引擎安装
+# shellcheck shell=bash
 # 由 install.sh source，不可独立执行
 
 install_flow_kit_core() {

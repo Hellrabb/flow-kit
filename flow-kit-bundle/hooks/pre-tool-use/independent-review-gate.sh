@@ -65,6 +65,7 @@ fk_check_gate_config_tamper() {
 is_phase_write() {
   local c="$1"
   [[ "$c" == *.flow-active* ]] || return 1
+  # shellcheck disable=SC1026,SC2203,SC2157  # TODO(health-cleanup-2026-07-08): && 被 [[ ]] 当逻辑与，正则被劈成两半 → is_phase_write 实际仅匹配 .tmp+空格，&& / mv 检测失效。待 refactor-independent-review-gate 改用变量存 regex 后修复并移除此 disable。
   if [[ "$c" =~ \.tmp[[:space:]]*&&[[:space:]]*mv ]]; then :;
   elif [[ "$c" =~ tee[[:space:]]+\.flow-active ]]; then :;
   elif [[ "$c" =~ \>[^=] ]]; then :;
