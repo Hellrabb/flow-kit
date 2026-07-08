@@ -133,6 +133,22 @@ TOOLS=$(get_tool_summary 2>/dev/null || echo "?")
 START_TS=$(cat "$HOOK_TMP_DIR/session-start-time" 2>/dev/null || echo "")
 END_TS=$(cat "$HOOK_TMP_DIR/session-end-time" 2>/dev/null || echo "")
 
+# Token usage (本次 session + 累计)
+# token-estimate.txt 由 01-transcript-parse/26-workflow 写入; token_spent 由 26-workflow 累加
+TOKEN_EST=$(cat "$HOOK_TMP_DIR/token-estimate.txt" 2>/dev/null || echo "?")
+_FLOW_ACTIVE="${PROJECT_ROOT:-$(pwd)}/.flow-active"
+TOTAL_TOKENS=$(jq -r '.token_spent // 0' "$_FLOW_ACTIVE" 2>/dev/null || echo "0")
+TOKEN_DISPLAY=""
+if [[ "$TOKEN_EST" =~ ^[0-9]+$ ]]; then
+  TOKEN_DISPLAY="本次 ~${TOKEN_EST} tokens"
+fi
+if [[ "$TOTAL_TOKENS" =~ ^[0-9]+$ ]] && [[ "$TOTAL_TOKENS" -gt 0 ]]; then
+  if [[ -n "$TOKEN_DISPLAY" ]]; then
+    TOKEN_DISPLAY+=" | "
+  fi
+  TOKEN_DISPLAY+="累计 ~$((TOTAL_TOKENS / 1000))k tokens"
+fi
+
 # ── Build terminal summary ─────────────────────────────────────────
 MAX_LINES=$(config_get '.output.max_summary_lines' "40")
 SHOW_TERMINAL=$(config_get '.output.terminal_summary' "true")
@@ -175,6 +191,11 @@ build_summary() {
   echo "╠═══════════════════════════════════════════════════╣"
   printf "║  📊 Session: %s 轮 | 工具: %s\n" "$ROUNDS" "$TOOLS"
 
+  # Token usage (本次 + 累计，数据可用时)
+  if [[ -n "$TOKEN_DISPLAY" ]]; then
+    printf "║  🪙 Token: %s\n" "$TOKEN_DISPLAY"
+  fi
+
   # Show git branch if available
   local branch
   branch=$(git_safe branch --show-current 2>/dev/null || echo "?")
@@ -199,6 +220,9 @@ build_file_report() {
     echo "**轮次**: $ROUNDS"
     echo "**分支**: $(git_safe branch --show-current 2>/dev/null || echo '?')"
     echo "**工具使用**: $TOOLS"
+    if [[ -n "$TOKEN_DISPLAY" ]]; then
+      echo "**Token**: $TOKEN_DISPLAY"
+    fi
     echo ""
     echo "---"
     echo ""
