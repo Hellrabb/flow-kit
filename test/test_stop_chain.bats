@@ -86,3 +86,105 @@ STOP_DIR="flow-kit-bundle/hooks/stop"
   [ "$status" -eq 0 ]
   [ "$output" -ge 3 ]
 }
+
+# ── 23-quality.sh（Module D · TD-002 AC-3 补 smoke）──────────────────────
+
+@test "smoke: 23-quality.sh 语法正确" {
+  run bash -n "$STOP_DIR/23-quality.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 23-quality.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/23-quality.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 23-quality.sh 含代码质量检查函数" {
+  run grep -q "src_touched\|cmd_ran\|count_changed_lines" "$STOP_DIR/23-quality.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 27-interactive-ui-check.sh（Module I）─────────────────────────────────
+
+@test "smoke: 27-interactive-ui-check.sh 语法正确" {
+  run bash -n "$STOP_DIR/27-interactive-ui-check.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 27-interactive-ui-check.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/27-interactive-ui-check.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 27-interactive-ui-check.sh 含交互 UI 检查函数" {
+  run grep -q "check_i1\|interactive.ui" "$STOP_DIR/27-interactive-ui-check.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 28-weak-model-compliance.sh（Module 28）───────────────────────────────
+
+@test "smoke: 28-weak-model-compliance.sh 语法正确" {
+  run bash -n "$STOP_DIR/28-weak-model-compliance.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 28-weak-model-compliance.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/28-weak-model-compliance.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 28-weak-model-compliance.sh 含合规检查函数" {
+  run grep -q "check_compliance\|compliance" "$STOP_DIR/28-weak-model-compliance.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 29-independent-review.sh（L3 审查入口）───────────────────────────────
+
+@test "smoke: 29-independent-review.sh 语法正确" {
+  run bash -n "$STOP_DIR/29-independent-review.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 29-independent-review.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/29-independent-review.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 29-independent-review.sh 含 L3 审查调度" {
+  run grep -q "l3.review\|l3_review\|independent.review" "$STOP_DIR/29-independent-review.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 30-ai-analyze.sh（AI 分析）────────────────────────────────────────────
+
+@test "smoke: 30-ai-analyze.sh 语法正确" {
+  run bash -n "$STOP_DIR/30-ai-analyze.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 30-ai-analyze.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/30-ai-analyze.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 30-ai-analyze.sh 含分析/API 模式" {
+  run grep -q "analyze\|API\|onecli" "$STOP_DIR/30-ai-analyze.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 33-flow-active-integrity.sh ───────────────────────────────────────────
+
+@test "smoke: 33-flow-active-integrity.sh 语法正确" {
+  run bash -n "$STOP_DIR/33-flow-active-integrity.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 33-flow-active-integrity.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/33-flow-active-integrity.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 33-flow-active-integrity.sh 含完整性检查函数" {
+  run grep -q "_flow_active_integrity_main\|_fai_check" "$STOP_DIR/33-flow-active-integrity.sh"
+  [ "$status" -eq 0 ]
+}

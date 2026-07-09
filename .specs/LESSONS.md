@@ -9,6 +9,8 @@
 
 | # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
 |---|---|---|---|---|---|---|
+| L-030 | 🔴 | `flow-kit-bundle/hooks/stop/29-independent-review.sh` + `independent-review-gate.sh` | **L3 盲审 gate 机制三连异常**（pipeline 模式下连续 2 阶段 1-requirement/2-design 重复）：(1) L3 fail 后 `l3-review.sh` **不重审**已审阶段——主 agent 修了工件也得不到 L3 重新确认 → verdict 死结；(2) `.independent-review-N.done` 被 `pre-tool-use-gate` **异常写入**（`L3_verdict=fail` 却写 .done 放行 transition，违背"L3 fail 不该写 .done"设计）；(3) transition 后顶层 `phase` 与 `goal.current_phase` **不同步**（hook 只改顶层 phase） | 修 `l3-review.sh` 支持重审（工件变更后重跑）+ 修 .done 写逻辑（L3 fail 不写）+ transition 同步 `goal.current_phase` 与顶层 `phase`。**本次绕过**：td-test-infra 已将 `gate_config` 全改 `L2`（去 L3，仅留 L2 subagent）| active | `td-test-infra` 2026-07-10 · pipeline gate 异常 |
+
 | L-022 | 🟡 | Bash hook stderr 安全 | 移除 `2>/dev/null` 后 curl/jq 错误信息（含 endpoint URL、部分 API 响应）会通过 `>&2` 日志泄露到 agent 可见 stderr。`_l3_format_result` 的白名单输出天然安全，但真实 stderr 泄露只能在集成环境验证。建议 v2 将敏感诊断日志重定向到专用 debug 文件而非 stderr | active | `l3-feedback-visibility` 2026-07-07 |
 
 | L-004 | 🟢 | `flow-kit-bundle/lib/install_hooks.sh` | 辅助函数 `install_file()` 已从 install.sh 抽出到 lib/，但独立工具库 `lib/utils.sh` 尚不必要（当前 1 个共享函数，阈值 ≥ 3）。debt-cleanup 确认保持推迟。 | 等新增 ≥ 2 个共享辅助函数时再建 `lib/utils.sh`，避免只有一个函数的过度抽象 | deferred | `init-git-repo` T03 手动基线 |

@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync all
+.PHONY: test lint check check-validate check-test-sync dup all
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -58,6 +58,15 @@ check: test lint check-validate check-test-sync
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
 	@echo "╚════════════════════════════════════════════════════╝"
+
+# ── dup: jscpd 重复率扫描（独立 · 不进 check · jscpd 未装 graceful skip · TD-010）──
+dup:
+	@echo "📊 make dup: jscpd 重复率扫描（排除第三方 brooks-lint/brooks-tools/test/regression-demos）..."
+	@if ! command -v jscpd >/dev/null 2>&1; then \
+		echo "⚠️  jscpd 未装（非必需）。跳过 dup（exit 0）。" >&2; \
+	else \
+		jscpd flow-kit-bundle/ --ignore '**/brooks-lint/**,**/brooks-tools/**,**/test/**,**/regression-demos/**'; \
+	fi
 
 # ── all: alias for check ──
 all: check
