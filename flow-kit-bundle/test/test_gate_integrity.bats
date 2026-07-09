@@ -161,20 +161,9 @@ EOF
   [ "$cnt" -ge 3 ]
 }
 
-@test "AC-3 · 5 站点: artifacts.sh 正则含 3/5/7" {
-  # TD-016 测试断言债：断言 artifacts.sh 含 ^(1|2|3|5|6|7)$，实测不含（仅 GATE_SH 含）。待独立 change 裁定断言真值。
-  skip "TD-016 测试断言债：artifacts.sh 实测不含 ^(1|2|3|5|6|7)$ 正则"
-  run grep -cE '\^\(1\|2\|3\|5\|6\|7\)\$' "$ARTIFACTS_LIB"
-  [ "$status" -eq 0 ]
-  [ "$output" -ge 1 ]
-}
-
-@test "AC-3 · 5 站点: artifacts.sh case 含 3-task/5-test/7-integration" {
-  # TD-016 测试断言债：断言 artifacts.sh 含 "3-task" 等 case 串，实测不含。
-  skip "TD-016 测试断言债：artifacts.sh 实测不含 3-task/5-test/7-integration case 串"
-  cnt=$(grep -cE '"3-task"|"5-test"|"7-integration"' "$ARTIFACTS_LIB" || echo "0")
-  [ "$cnt" -ge 3 ]
-}
+# TD-016 fixed（fix-gate-phase-detection · 2026-07-09）：删除 artifacts.sh 正则/case 断言。
+# flow-kit-artifacts.sh 已改 PHASE_ARTIFACTS 查表驱动（L-016），不再用 ^(1|2|3|5|6|7)$ 正则或 "3-task" case；
+# gate.sh #9/#10 已覆盖 phase 检测，artifacts 重复断言且过时。
 
 # ═══════════════════════════════════════════════════════════════════════
 # D7 · path-guard is_handshake_write（run + $status）
@@ -244,10 +233,6 @@ EOF
   [ "$output" = "0" ]
 }
 
-@test "AC-6 · 29号 l3_token sha256 实现" {
-  # TD-016 测试断言债：断言 F29 含 sha256sum，实测不含。待独立 change 裁定（修实现补 sha256 / 修断言 / 删过时测试）。
-  skip "TD-016 测试断言债：F29 实测不含 sha256sum"
-  F29="$BUNDLE_ROOT/hooks/stop/29-independent-review.sh"
-  run grep -c 'sha256sum' "$F29"
-  [ "$output" -ge 1 ]
-}
+# TD-016 fixed（fix-gate-phase-detection · 2026-07-09）：删除 F29 sha256sum 断言。
+# l3_token/sha256 设计全仓未实现（grep 无落地），断言基于未实现设计 → 过时。
+# AC-6 #22（不 dump 原始 API JSON）仍覆盖 F29 行为。

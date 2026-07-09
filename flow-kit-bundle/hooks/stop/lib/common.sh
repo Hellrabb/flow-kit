@@ -159,9 +159,6 @@ write_failed_state() {
 }
 
 # ── File helpers ────────────────────────────────────────────────────
-# Check if file exists and is non-empty
-file_not_empty() { [[ -f "$1" && -s "$1" ]]; }
-
 # Count lines in file, 0 if missing
 line_count() { wc -l < "$1" 2>/dev/null || echo "0"; }
 
