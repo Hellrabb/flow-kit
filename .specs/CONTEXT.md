@@ -167,6 +167,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 源码级发现（source-level finding） | INDEPENDENT-REVIEW-<N>.md 中指向源码文件（非 .md 文档）问题的发现条目。区分于文档级发现（如"README 缺少使用说明"），后者不触发代码修复强制 |
 | 技术债登记滥用（tech-debt registration abuse） | agent 将所有 review 发现标记为"技术债"以绕过代码修复的反模式。防护方式：≥50% 发现被登记为技术债时，prompt 要求 agent 输出显式说明 |
 | l2-l3-fix-compliance | 2026-07-07 change：在 prompt 层 + hook 层加固 review 发现→代码修复的强制链路，杜绝"文档敷衍"。双层：prompt 修代码优先协议 + hook 实效性校验 |
+| regex-in-variable（变量存 regex） | bash `[[ string =~ regex ]]` 的安全模式：regex 先存入变量（`local re='...'; [[ "$x" =~ $re ]]`）再匹配，使 regex 内的 `&&`/裸空格不被 bash 当源码层逻辑与/词法拆分。TD-011 根因即内联 regex 的 `&&` 被当逻辑与致 SC2157 恒真。来自 `refactor-independent-review-gate` |
 
 ## 已锁决策
 
@@ -218,6 +219,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-04]` auto-checkpoint 双层防护 — prompt 指令 + PreToolUse hook 兜底，去重窗口 30s（同 file+同 type）。checkpoint 写入必须通过 `checkpoint_write()` 函数。来自 `user-guide-update`
 <!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
 <!-- A-evolve 2026-07-08 第1轮追加 ↑ -->
+<!-- refactor-independent-review-gate 追加 ↓ -->
+- `[2026-07-08]` gate regex 统一"变量存 regex"风格（**本次 change 实施中 · 待 7-integration 标 ✅**）— independent-review-gate.sh 所有 `[[ =~ ]]` 将改用 `local re='...'; [[ "$x" =~ $re ]]`，杜绝 regex 内 `&&`/裸空格被 bash 当逻辑与/词法拆分（TD-011 根因 SC2157）。来自 `refactor-independent-review-gate`
+<!-- refactor-independent-review-gate 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -226,6 +230,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - 状态管理：无（非前端/后端项目）
 - 测试策略：bats-core 1.13.0（npx）· 94 个测试（截至 2026-06-25）。weak-model-robustness change 将追加弱模型护栏结构测试（见该 change REQUIREMENT AC-1/3/5）
 - 提交格式：Conventional Commits — `feat:` / `fix:` / `docs:` / `chore:` / `refactor:`；禁止 force push 到 main
+- gate regex 风格：新增 `[[ =~ ]]` 检测默认用"变量存 regex"（`local re='...'; [[ "$x" =~ $re ]]`），禁止内联含 `&&`/裸空格的 regex（TD-011 教训）
 
 ## 既有抽象索引（来自 I-intel-scan · 防 AI 重复实现 · B5 老项目护栏）
 
@@ -355,8 +360,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | TD-008 | 🟡 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh`（574 行 / 6 函数） | 当前最大 lib，承担 L3 审查的**检测 + 派发 + 截断**多职责；复杂度偏高（R5） | 按职责拆为 `l3-detect.sh` / `l3-dispatch.sh` / `l3-truncate.sh` 三子库；下次改 L3 审查逻辑时一并重构 | `M-health 2026-07-08` |
 | TD-009 | 🟡 | `transcript-parser.sh:130` + `interactive-ui-check.sh:199` + `common.sh:163` | 3 个未引用函数：`estimate_tokens`（全仓零引用·真死代码）/ `read_correction_file`（生产无调用·疑似废弃）/ `file_not_empty`（仅测试用·待确认公共 API） | `estimate_tokens` 直接删；`read_correction_file` 确认废弃后删；`file_not_empty` 确认是否保留 common.sh API（R6） | `M-health 2026-07-08` |
 | TD-010 | 🟢 | jscpd 扫描约定 | flow-kit-bundle/ 含打包进来的第三方 brooks-lint/brooks-tools，jscpd 默认会扫到 → 重复率虚高（0.91%）；排除后才反映自有代码（0.58%） | jscpd 命令固定带 `--ignore '**/brooks-lint/**,**/brooks-tools/**,**/test/**,**/regression-demos/**'`；已纳入巡检 SOP | `M-health 2026-07-08` |
-| TD-011 | 🔴 | `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh:68` | `is_phase_write` 的 `[[ "$c" =~ \.tmp...&&...mv ]]` 里 `&&` 被 bash `[[ ]]` 当**逻辑与**，正则劈两半 → 实际仅匹配 `.tmp+空格`，`&&`/`mv` 检测失效（SC1026/2203/2157 always true）。gate 核心链（禁动清单 line 349/353）。本次加 `# shellcheck disable` + TODO 标注，未改逻辑 | 改用变量存 regex（`local re='...'; [[ "$c" =~ $re ]]`）+ 重跑 gate 测试验证行为；独立 change `refactor-independent-review-gate` 处理 | `health-cleanup-2026-07-08` 发现 · 禁动清单 |
+| TD-011 | 🔴 | `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh:68` | `is_phase_write` 的 `[[ "$c" =~ \.tmp...&&...mv ]]` 里 `&&` 被 bash `[[ ]]` 当**逻辑与**，正则劈两半 → 实际仅匹配 `.tmp+空格`，`&&`/`mv` 检测失效（SC1026/2203/2157 always true）。gate 核心链（禁动清单 · independent-review-gate.sh 核心链 + 校验顺序条目 · 内容锚定）。本次加 `# shellcheck disable` + TODO 标注，未改逻辑 | **复核降级 🔴→🟡**：`refactor-independent-review-gate` 经 4 轮 L2（INDEPENDENT-REVIEW-2）实测 L69 单独**无 gate 行为后果**（完整函数 L73-75 决定返回值），仅 SC2157 lint + 意图损坏。L69 修复由 TD-014 对应 change 顺手清。**原 change 重新分层**为 discovery，拆为 TD-013/014/015 | `health-cleanup-2026-07-08` 发现 · `refactor-independent-review-gate` discovery 复核降级 |
 | TD-012 | 🔴 | `test/` 10+ 测试文件 setup 路径 | setup 路径缺 `flow-kit-bundle/` 层（如 `$(dirname "$BATS_TEST_FILENAME")/../hooks/...` 指向不存在的 `<repo>/hooks/`）→ `source ... 2>/dev/null \|\| true` 静默吞错 → `fk_validate_done_marker` 等函数未定义 → 30+ 测试 BW01 127 fail（假绿）。L-025 同源不同变种。**health-fix-2026-07-08 的"169→0"验证疑用 `bats\|tail`（管道吃 exit code）误判全绿** | 修 10+ 文件 setup 路径 + 修 Makefile test target 管道 exit code 漏洞（`bats\|tail`→bats 直接判 exit）+ 让 30+ 测试真绿；独立 change `test-setup-path-fix-2026-07` 处理 | `health-cleanup-2026-07-08` 发现 |
+| TD-013 | 🔴 | `test/test_gate_integrity.bats` setup | setup line 30 `set +e` 关闭 bats errexit → 全文件 23 测试断言失效（false/`[ 1 -eq 0 ]`/fn(rc≠0) 全报 ok 假绿）。揭示 TD-012 未真正闭合（修路径让函数加载，但 set+e 让断言失效，假绿性质未变）| 去 set+e + 9 条期望非零测试体改 `if ! fn; then rc=$?; [ $rc -eq N ]; fi` 或 `run`+`$status`；AC-5 增反向断言（注入 false→make test non-zero）。独立 change `fix-gate-test-setup`（②）| `refactor-independent-review-gate` discovery · INDEPENDENT-REVIEW-2 F2 |
+| TD-014 | 🔴🔴 | `independent-review-gate.sh:73-75` | is_phase_write L73-75 regex `\.flow-active.*\.phase=` 要求 .flow-active 在字段名前，但典型 jq 命令 `jq '.phase=5' .flow-active` 字段名在前 → **L73-75 从不匹配 → is_phase_write 对所有真实 jq phase-write 漏检（rc=1）→ gate phase-transition 检测对 jq 完全失效**（仅 git commit/gh pr create 兜底）。**严重安全隐患**（phase 可绕过 independent review）。sandbox 修复版（去 `.flow-active.*` 前缀）验证恢复检测 | 去 `.flow-active.*` 前缀（L67 已保证 .flow-active 涉及，L73-75 只测字段名）+ D10 测试修正 + 全量回归。专注独立 change `fix-gate-phase-detection`（③ · 配完整闭环）。**设计依据**：归档 `refactor-independent-review-gate/DESIGN.md` v5 D6 + sandbox 验证 | `refactor-independent-review-gate` discovery · INDEPENDENT-REVIEW-2 F2(轮2) |
+| TD-015 | 🟡 | `independent-review-gate.sh:30,71` | `\>[^=]` 在 is_handshake_write L30 + is_phase_write L71。**内联 `\>[^=]` 是字面 >**（正常），但**变量化 `re='\>[^=]'` 触发 GNU 单词边界**（任何含字母命令误判 redirect）→ 纯读误判。D2 全文件治理（变量化）必触发。bash 转义差异 | 变量化时用 `[>][^=]` 字符类。TD-014 change ③ 顺手修（L30+L71）。**LESSONS 必记**：内联 vs 变量 regex 行为差异（`\<`/`\>` 类） | `refactor-independent-review-gate` discovery · INDEPENDENT-REVIEW-2 第三轮 Critical1 |
+| TD-016 | 🟡 | `test/test_gate_integrity.bats` AC-3 #11/#12 + AC-6 #23 | 测试断言实现含某些内容（artifacts.sh 含 `^(1\|2\|3\|5\|6\|7)$` 正则 + `"3-task"` case 串 / F29 含 `sha256sum`），**实测实现均不含** → 测试断言与实现长期不符，set+e 假绿掩盖（断言了不存在的东西）。属测试断言债 | 重新裁定断言真值：修实现补内容 / 修测试断言匹配实现 / 删过时测试。独立 change 处理 | `fix-gate-test-setup` discovery · L2 phase1 第二轮 F1 |
 
 ---
 
