@@ -27,7 +27,8 @@ HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 is_handshake_write() {
   local c="$1"
   [[ "$c" == *.flow-active.independent-review* ]] || return 1
-  [[ "$c" =~ \>[^=] ]] && return 0                      # > / >> 重定向（排除 >=）
+  local re_redirect='[>][^=]'  # TD-015：变量化 \>[^=] 须用字符类（内联 \> 是字面 > 正常，但变量 re='\>[^=]' 触发 GNU 单词边界 → 误判）
+  [[ "$c" =~ $re_redirect ]] && return 0                # > / >> 重定向（排除 >=）
   [[ "$c" =~ (^|[[:space:]])tee[[:space:]] ]] && return 0
   [[ "$c" =~ (cp|mv)[[:space:]] ]] && return 0
   [[ "$c" =~ sed[[:space:]].*(-i|--in-place) ]] && return 0
@@ -65,10 +66,13 @@ fk_check_gate_config_tamper() {
 is_phase_write() {
   local c="$1"
   [[ "$c" == *.flow-active* ]] || return 1
-  # shellcheck disable=SC1026,SC2203,SC2157  # TODO(health-cleanup-2026-07-08): && 被 [[ ]] 当逻辑与，正则被劈成两半 → is_phase_write 实际仅匹配 .tmp+空格，&& / mv 检测失效。待 refactor-independent-review-gate 改用变量存 regex 后修复并移除此 disable。
-  if [[ "$c" =~ \.tmp[[:space:]]*&&[[:space:]]*mv ]]; then :;
+  # TD-011 fix：regex 存变量——内联 [[ "$c" =~ \.tmp...&&...mv ]] 的 && 被 [[ ]] 当逻辑与（SC2157），正则被劈两半 → 仅匹配 .tmp+空格、&&/mv 检测失效。变量化后 && 是 regex 字面，正确匹配 atomic-write 模式。
+  # TD-015 fix：\>[^=] 变量化须用 [>][^=] 字符类（内联 \> 是字面 > 正常，但变量 re='\>[^=]' 触发 GNU 单词边界 → 误判）。
+  local re_tmp_mv='\.tmp[[:space:]]*&&[[:space:]]*mv'
+  local re_redirect='[>][^=]'
+  if [[ "$c" =~ $re_tmp_mv ]]; then :;
   elif [[ "$c" =~ tee[[:space:]]+\.flow-active ]]; then :;
-  elif [[ "$c" =~ \>[^=] ]]; then :;
+  elif [[ "$c" =~ $re_redirect ]]; then :;
   else return 1; fi
   # TD-014 fix：不要求 .flow-active 出现在字段名之前——L67 已保证命令涉及 .flow-active。
   # 真实 jq 写命令字段名在前（jq 表达式里）、.flow-active 是文件名在后；旧 regex `\.flow-active.*\.phase=`

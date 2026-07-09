@@ -129,25 +129,6 @@ skip_if_no_jq() {
   [ "$status" -ne 0 ]
 }
 
-# ── file_not_empty ─────────────────────────────────────────────────────
-
-@test "file_not_empty returns true for non-empty file" {
-  echo "content" > "$TEST_TMPDIR/exists.txt"
-  run file_not_empty "$TEST_TMPDIR/exists.txt"
-  [ "$status" -eq 0 ]
-}
-
-@test "file_not_empty returns false for missing file" {
-  run file_not_empty "$TEST_TMPDIR/nonexistent.txt"
-  [ "$status" -ne 0 ]
-}
-
-@test "file_not_empty returns false for empty file" {
-  touch "$TEST_TMPDIR/empty.txt"
-  run file_not_empty "$TEST_TMPDIR/empty.txt"
-  [ "$status" -ne 0 ]
-}
-
 # ── line_count ─────────────────────────────────────────────────────────
 
 @test "line_count returns correct count for file" {
