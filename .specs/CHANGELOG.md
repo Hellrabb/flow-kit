@@ -115,3 +115,6 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 ### Prompt 加固
 - 6 个阶段 prompt 的「独立 review 调度」段增加 L2 醒目标注
 
+
+## 2026-07-09 · fix-gate-test-setup（修 TD-013 · test_gate_integrity 多重假绿）
+setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 补 artifacts= KVP + 17 条测试体改 run+$status + 范围外 skip 归因（#19/#20 TD-014 · #11/#12/#23 TD-016）。bats 18ok/5skip/0fail · make test 407 全绿 · 反向断言有效。降挡（无 L2/L3）完成。揭示 TD-016（断言债）+ 为 TD-014 提供可信测试基础。
