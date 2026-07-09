@@ -191,3 +191,10 @@
 - 测试断言前 `echo "$output" | cat -A` 检查实际值（避免 `"0\n0"` 假匹配）
 
 **状态**: ✅ test_quality_baseline 已修（`echo 0`→`true`）
+
+## L-029 · test_gate_integrity 多重假绿 + L2 价值 + 降挡止损（fix-gate-test-setup · 2026-07-09）
+- **假绿层级**：test_gate_integrity.bats 是多重假绿灾区——① set+e（TD-013）② helper 缺 artifacts= KVP ③ 测试断言债（断言实现不存在的内容 · TD-016）④ is_phase_write bug（TD-014）。set+e 掩盖全部。
+- **L2 独立审查价值**：phase 1 两轮 L2 发现主 agent REQUIREMENT 的真实疏漏（坏模式 `if ! fn` + HOOK_BASE_DIR 缺失依赖错误 + AC-3 逻辑死结）。L2 在 REQUIREMENT 层拦住实施层灾难。
+- **降挡决策**：gate-config=all/full 在系统性假绿文件上陷入多轮 L2 深挖（refactor 教训同型）。降挡（无 L2/L3，主 agent 基于已查清事实直接实施 + make test 把关）更高效收口。
+- **bash 细节**：`run fn; [ "$status" -eq N ]`（bats 子 shell · status 反映 fn 退出码）禁 `if ! fn; then rc=$?`（`!` 反转 $? 致假阴/假绿）。
+- **How to apply**：测试 setup 禁 set+e（用 run+$status）；断言前 grep 确认实现真含断言内容（防断言债）；gate-config 在复杂/系统性问题上降挡止损。

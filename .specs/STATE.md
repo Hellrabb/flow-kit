@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-08` (`test-setup-path-fix-2026-07` · 修 18 文件测试 setup 路径·make test 407 pass 0 BW01·TD-012 根治)
+- **last_change_archived**: `2026-07-09` (`fix-gate-test-setup` · 修 TD-013 test_gate_integrity 多重假绿 · 降挡 v1内全绿+skip归因)
 - **last_evolve_promoted**:
   - 2026-06-08-init-git-repo
   - 2026-06-08-offline-brooks-bundle
