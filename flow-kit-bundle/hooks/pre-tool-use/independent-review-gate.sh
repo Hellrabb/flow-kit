@@ -70,9 +70,12 @@ is_phase_write() {
   elif [[ "$c" =~ tee[[:space:]]+\.flow-active ]]; then :;
   elif [[ "$c" =~ \>[^=] ]]; then :;
   else return 1; fi
-  [[ "$c" =~ \.flow-active.*\.phase[[:space:]]*= ]] && return 0
-  [[ "$c" =~ \.flow-active.*\.goal\.current_phase[[:space:]]*= ]] && return 0
-  [[ "$c" =~ \.flow-active.*\.goal\.phases_done ]] && return 0
+  # TD-014 fix：不要求 .flow-active 出现在字段名之前——L67 已保证命令涉及 .flow-active。
+  # 真实 jq 写命令字段名在前（jq 表达式里）、.flow-active 是文件名在后；旧 regex `\.flow-active.*\.phase=`
+  # 顺序反了 → 永不匹配 → is_phase_write 对所有真实 jq phase-write 漏检（rc=1）→ gate 可绕过。
+  [[ "$c" =~ \.phase[[:space:]]*= ]] && return 0
+  [[ "$c" =~ \.goal\.current_phase[[:space:]]*= ]] && return 0
+  [[ "$c" =~ \.goal\.phases_done ]] && return 0
   return 1
 }
 

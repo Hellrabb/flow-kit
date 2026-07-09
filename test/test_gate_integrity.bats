@@ -215,16 +215,14 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "D10 phases_done: is_phase_write 拦 .goal.phases_done 写信号 (return 0)" {
-  # TD-014 is_phase_write regex bug：L73-75 regex 顺序反（.flow-active.*.phase 要求 .flow-active 在前），jq 命令字段在前 → 漏检 return 1（期望 0）。待 fix-gate-phase-detection 修。
-  skip "TD-014 is_phase_write L73-75 regex 顺序 bug：实测 return 1（漏检），待 fix-gate-phase-detection"
+  # TD-014 fixed（fix-gate-phase-detection）：去 .flow-active.* 前缀后，字段在前的 jq 写命令正确 return 0。
   cmd='jq ".goal.phases_done += [\"3\"]" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
   run is_phase_write "$cmd"
   [ "$status" -eq 0 ]
 }
 
 @test "D10 phases_done: is_phase_write 仍拦 .phase= 写 (return 0 · 不回归)" {
-  # TD-014 is_phase_write regex bug：同上，.phase= 写也漏检。
-  skip "TD-014 is_phase_write L73-75 regex 顺序 bug：实测 return 1（漏检），待 fix-gate-phase-detection"
+  # TD-014 fixed：顶层 .phase= 写正确 return 0（不回归）。
   cmd='jq ".phase = 5" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
   run is_phase_write "$cmd"
   [ "$status" -eq 0 ]
