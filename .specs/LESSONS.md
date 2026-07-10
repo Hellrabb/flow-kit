@@ -7,7 +7,22 @@
 
 ## 技术债清单
 
-| # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
+> 最后更新: 2026-07-10
+
+### L-032: L2 盲审在每阶段都捕获了主 agent 漏检的 Critical 问题（auto-checkpoint-hook）
+
+**严重程度**: 🟡 Major（流程级）
+**来源**: `auto-checkpoint-hook` change（2026-07-10 · 全 pipeline 0→7 执行）
+**发现**:
+- Phase 2 L2 捕获 `hooks/pre-tool/` vs `hooks/pre-tool-use/` 目录名错误（R1 🔴）——主 agent 在 0.5 段甚至自己写了正确路径 `~/.claude/hooks/pre-tool-use/` 但全文用错
+- Phase 1 L2 捕获 checkpoint-lib.sh 去重逻辑与 REQUIREMENT "不去抖"的矛盾（R1 🔴）——CONTEXT.md 域语言与已锁决策自相矛盾
+- Phase 3 L2 捕获 T02 verify 退出码被 `; echo "exit=$?"` 吞掉（R1 🟡）
+- Phase 5 L2 捕获 TEST.md 性能轮缺失（R1 🔴）
+- Phase 6 L2 捕获 AC-6 只有写入侧测试、缺 resume 读取侧验证（R1 🔴）
+
+**教训**: L2 盲审的"独立性"价值在本次 change 中得到充分验证——5 个阶段中有 4 个阶段的 L2 审查发现了主 agent 漏检的 🔴 Critical 问题。**L2 不是橡皮图章，是真实的安全网**。gate_config=all 全开虽然多了 ~150k tokens（5 次 L2 审查），但阻止了至少 2 个会导致"部署后完全不可用"的路径级 bug（R1 目录名 + R1 去重矛盾）。
+
+**建议**: 对于涉及新文件创建/目录结构变更/库行为修改的 change，**强烈建议** gate_config=all 全开。纯文档/配置类 change 可降为 code-only（仅 6-review）。
 |---|---|---|---|---|---|---|
 | L-031 | 🟡 | 跨文件批量修改 · DESIGN.md 清单驱动 | **DESIGN.md 列出的修改文件清单不完整时，AI 会漏改**：fix-l3-gate 的 AC-4（transition jq `.phase` 同步）涉及 9 处修改点，DESIGN.md §3.4 列出了 7 处（0-change/1-req/2-design/3-task/5-test/6-review prompts + 31-auto-advance.sh），遗漏了 4-dev.md 和 pipeline-gates.md 两处。主 agent 按 DESIGN 清单逐项执行，L2 盲审通过全仓 grep `phases_done.*+=` 才发现遗漏 | 批量修改前必须全仓 grep 确认所有命中点，不能仅依赖 DESIGN.md 清单。在 DESIGN.md 底部加一栏「全仓扫描确认」：grep 命令 + 命中数 + 逐项标注"需改/不适用" | active | `fix-l3-gate` 2026-07-10 · L2 盲审发现 |
 

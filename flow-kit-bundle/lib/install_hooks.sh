@@ -69,6 +69,11 @@ install_hooks() {
     install_file "$SCRIPT_DIR/hooks/pre-tool-use/independent-review-gate.sh" "$hook_dst/pre-tool-use/independent-review-gate.sh"
     chmod +x "$hook_dst/pre-tool-use/independent-review-gate.sh" 2>/dev/null || true
   fi
+  # PreToolUse hooks（auto-checkpoint · Write/Edit 前自动保存中断恢复上下文）
+  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/auto-checkpoint.sh" ]; then
+    install_file "$SCRIPT_DIR/hooks/pre-tool-use/auto-checkpoint.sh" "$hook_dst/pre-tool-use/auto-checkpoint.sh"
+    chmod +x "$hook_dst/pre-tool-use/auto-checkpoint.sh" 2>/dev/null || true
+  fi
 
   # 配置文件
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
@@ -160,6 +165,47 @@ install_hooks() {
       }] } }
     ' > "$settings_target" 2>/dev/null
     echo "   ✅ ${settings_target} 已写入 PreToolUse hook 接线"
+  fi
+
+  # ═══ 自动写入 PreToolUse hook 接线（auto-checkpoint · Write/Edit 前自动更新 interrupt）═══
+  # NOTE: 本段与 gate 注册段（L132-168）结构相似但非简单复制——matcher/命令路径/日志消息均不同。
+  # 若未来新增第三个 PreToolUse hook，考虑抽取 _install_pretool_hook() 公共函数。
+  # 当前两个 hook 的差异化参数 > 共性参数，抽函数不如直写清晰。
+  local ck_cmd="bash \"${settings_hook_path}/pre-tool-use/auto-checkpoint.sh\""
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] 写入 PreToolUse hook 到 ${settings_target}: command=${ck_cmd}"
+  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
+    if jq -e --arg cmd "$ck_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
+      echo "   ✅ PreToolUse hook (auto-checkpoint) 已存在于 ${settings_target}，跳过"
+    else
+      local merged_ck
+      merged_ck=$(jq --arg cmd "$ck_cmd" '
+        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
+          "matcher": "Write|Edit",
+          "hooks": [{
+            "type": "command",
+            "command": $cmd
+          }]
+        }]
+      ' "$settings_target" 2>/dev/null)
+      if [ -n "$merged_ck" ]; then
+        echo "$merged_ck" > "$settings_target"
+        echo "   ✅ ${settings_target} 已追加 PreToolUse hook (auto-checkpoint) 接线"
+      else
+        echo "   ⚠️  ${settings_target} PreToolUse (auto-checkpoint) 合并失败，请手动检查"
+      fi
+    fi
+  else
+    jq -n --arg cmd "$ck_cmd" '
+      { hooks: { PreToolUse: [{
+        "matcher": "Write|Edit",
+        "hooks": [{
+          "type": "command",
+          "command": $cmd
+        }]
+      }] } }
+    ' > "$settings_target" 2>/dev/null
+    echo "   ✅ ${settings_target} 已写入 PreToolUse hook (auto-checkpoint) 接线"
   fi
 
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
