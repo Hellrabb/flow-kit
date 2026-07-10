@@ -14,8 +14,7 @@ module_enabled "claude-md" || exit 0
 # ═══════════════════════════════════════════════════════════════════
 # A1: New command / workflow discovery
 # ═══════════════════════════════════════════════════════════════════
-check_a1() {
-  check_enabled "claude-md" "A1" || return 0
+check_a1_body() {
 
   local cmds_file="$HOOK_TMP_DIR/bash-commands.txt"
   [[ -f "$cmds_file" && -s "$cmds_file" ]] || return 0
@@ -36,12 +35,12 @@ check_a1() {
     fi
   done <<< "$new_cmds"
 }
+check_a1() { run_check "claude-md" "A1" "" check_a1_body; }
 
 # ═══════════════════════════════════════════════════════════════════
 # A2: Gotcha auto-capture
 # ═══════════════════════════════════════════════════════════════════
-check_a2() {
-  check_enabled "claude-md" "A2" || return 0
+check_a2_body() {
 
   local gotcha_file="$HOOK_TMP_DIR/gotcha-matches.txt"
   [[ -f "$gotcha_file" && -s "$gotcha_file" ]] || return 0
@@ -62,12 +61,12 @@ check_a2() {
     module_output "info" "A2" "本 session 检测到 $significant 条 gotcha 信号，建议 review 是否需更新 CLAUDE.md"
   fi
 }
+check_a2() { run_check "claude-md" "A2" "" check_a2_body; }
 
 # ═══════════════════════════════════════════════════════════════════
 # A3: New file tracking — cross-ref with CLAUDE.md Key Files table
 # ═══════════════════════════════════════════════════════════════════
-check_a3() {
-  check_enabled "claude-md" "A3" || return 0
+check_a3_body() {
 
   local touched="$HOOK_TMP_DIR/all-touched-files.txt"
   [[ -f "$touched" && -s "$touched" ]] || return 0
@@ -87,12 +86,12 @@ check_a3() {
     fi
   done <<< "$src_files"
 }
+check_a3() { run_check "claude-md" "A3" "" check_a3_body; }
 
 # ═══════════════════════════════════════════════════════════════════
 # A6: CLAUDE.md staleness check
 # ═══════════════════════════════════════════════════════════════════
-check_a6() {
-  check_enabled "claude-md" "A6" || return 0
+check_a6_body() {
 
   local stale_days
   stale_days=$(config_get '.thresholds.claude_md_stale_days' "7")
@@ -111,6 +110,7 @@ check_a6() {
     fi
   fi
 }
+check_a6() { run_check "claude-md" "A6" "" check_a6_body; }
 
 # ── Run all checks ──────────────────────────────────────────────────
 check_a1

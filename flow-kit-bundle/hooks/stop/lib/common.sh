@@ -39,6 +39,22 @@ check_enabled() {
   jq -e ".modules[\"${mod}\"].checks | index(\"$check\")" "$CONFIG_FILE" >/dev/null 2>&1
 }
 
+# ── run_check() · check 统一包装（DESIGN D3 · sweep-fix-2026-07-10）──
+# 用法: run_check <module> <check_id> [precondition_file] <body_function>
+#   module: 模块名 ("git", "memory", "quality", ...)
+#   check_id: check 代码 ("C1", "B2", ...)
+#   precondition_file: 可选，HOOK_TMP_DIR 下的文件名（跳过检查若文件不存在/为空）
+#   body_function: 实际 check 逻辑的函数名（同文件中已定义）
+# 消除 30 处 check_enabled 模板重复——各模块 check_XX() 改为 1 行调用此函数。
+run_check() {
+  local mod="$1" check_id="$2" precondition_file="$3" body_fn="$4"
+  check_enabled "$mod" "$check_id" || return 0
+  if [[ -n "$precondition_file" ]]; then
+    [[ -f "$HOOK_TMP_DIR/$precondition_file" && -s "$HOOK_TMP_DIR/$precondition_file" ]] || return 0
+  fi
+  "$body_fn"
+}
+
 # ── Environment (set by hook_init, inherited via export for subprocesses) ─
 # Use := to only set defaults, never overwrite values exported from parent
 : "${HOOK_EVENT:=}"
@@ -132,31 +148,6 @@ module_output() {
   echo "${type}|${check}|${message}" >> "$HOOK_TMP_DIR/${mod_name}.txt"
 }
 
-# ── Independent review state helpers ─────────────────────────────────
-# Write/update the L3 independent-review handshake state on failure.
-# Usage: write_failed_state <state_file> <phase>
-# Increments fail_count, sets status:"failed", stamps written_at.
-write_failed_state() {
-  local state_file="$1" phase="$2"
-  local fc="0"
-  if [[ -f "$state_file" ]]; then
-    fc=$(jq -r --arg p "$phase" '.[$p].fail_count // 0' "$state_file" 2>/dev/null || echo "0")
-  fi
-  [[ "$fc" =~ ^[0-9]+$ ]] || fc="0"
-  fc=$((fc + 1))
-  local ts
-  ts=$(date -Iseconds 2>/dev/null || echo "")
-  # Per-phase merge: preserve other phases' state
-  if [[ -f "$state_file" ]]; then
-    jq --arg p "$phase" --argjson fc "$fc" --arg ts "$ts" \
-      '.[$p] = {status:"failed", fail_count:$fc, written_at:$ts}' \
-      "$state_file" > "${state_file}.tmp" 2>/dev/null && mv "${state_file}.tmp" "$state_file" || true
-  else
-    jq -n --arg p "$phase" --argjson fc "$fc" --arg ts "$ts" \
-      '{($p): {status:"failed", fail_count:$fc, written_at:$ts}}' \
-      > "$state_file" 2>/dev/null || true
-  fi
-}
 
 # ── File helpers ────────────────────────────────────────────────────
 # Count lines in file, 0 if missing

@@ -66,5 +66,17 @@
     },
     "scope": "flow-kit-bundle ~174 files",
     "note": "make test fail(TD-012)致Extended-Safe失效·纯诊断·0修复"
+  },
+  {
+    "date": "2026-07-10",
+    "mode": "Full Sweep",
+    "score": 65,
+    "findings": {
+      "critical": 2,
+      "warning": 4,
+      "suggestion": 3
+    },
+    "scope": "62 .sh + 82 .bats + 619 .md (全量) — 462 bats 0 fail — jscpd 0 dup — bash -n 全过",
+    "note": "2 Critical (l3_review_run 307行 / is_gh_pr_create 290行) + 4 Warning (check_* dup / install_hooks 199行 / write_failed_state死代码 / 命名不一致) + 3 Suggestion。0自动修复(全Residual·结构性改进)。测试全绿恢复(vs 07-08 TD-012)"
   }
 ]

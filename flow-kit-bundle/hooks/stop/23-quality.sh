@@ -46,8 +46,7 @@ count_changed_lines() {
 # ═══════════════════════════════════════════════════════════════════════
 # D1: Test discipline — src changed but no test commands ran
 # ═══════════════════════════════════════════════════════════════════════
-check_d1() {
-  check_enabled "quality" "D1" || return 0
+check_d1_body() {
 
   # Only flag if source files changed
   if ! src_touched "src/"; then
@@ -82,8 +81,7 @@ check_d1() {
 # ═══════════════════════════════════════════════════════════════════════
 # D2: Type check reminder — .ts files changed but no typecheck
 # ═══════════════════════════════════════════════════════════════════════
-check_d2() {
-  check_enabled "quality" "D2" || return 0
+check_d2_body() {
 
   # Check if TypeScript files changed
   local ts_changed=false
@@ -113,8 +111,7 @@ check_d2() {
 # ═══════════════════════════════════════════════════════════════════════
 # D3: Build verification — key files changed but no build
 # ═══════════════════════════════════════════════════════════════════════
-check_d3() {
-  check_enabled "quality" "D3" || return 0
+check_d3_body() {
 
   # Key files that warrant a build check
   local key_patterns=(
@@ -156,8 +153,7 @@ check_d3() {
 # ═══════════════════════════════════════════════════════════════════════
 # D4: Lint detection — lots of code changes but no lint
 # ═══════════════════════════════════════════════════════════════════════
-check_d4() {
-  check_enabled "quality" "D4" || return 0
+check_d4_body() {
 
   local changed_lines
   changed_lines=$(count_changed_lines)
@@ -175,6 +171,10 @@ check_d4() {
   module_output "suggestion" "D4" "大量代码变更 (${changed_lines}+ 行) 未运行 lint。建议: \`pnpm exec prettier --check .\` 或 \`pnpm lint\`"
 }
 
+check_d1() { run_check "quality" "D1" "" check_d1_body; }
+check_d2() { run_check "quality" "D2" "" check_d2_body; }
+check_d3() { run_check "quality" "D3" "" check_d3_body; }
+check_d4() { run_check "quality" "D4" "" check_d4_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_d1
 check_d2

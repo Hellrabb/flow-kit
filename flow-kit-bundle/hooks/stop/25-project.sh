@@ -15,8 +15,7 @@ module_enabled "project" || exit 0
 # ═══════════════════════════════════════════════════════════════════════
 # F1: Container build cache reminder
 # ═══════════════════════════════════════════════════════════════════════
-check_f1() {
-  check_enabled "project" "F1" || return 0
+check_f1_body() {
 
   # Check if container/ files were modified
   local container_changed=false
@@ -42,8 +41,7 @@ BuildKit 缓存可能保留过期文件。如需干净构建:
 # ═══════════════════════════════════════════════════════════════════════
 # F2: pnpm supply chain check
 # ═══════════════════════════════════════════════════════════════════════
-check_f2() {
-  check_enabled "project" "F2" || return 0
+check_f2_body() {
 
   # Check if package.json changed
   local pkg_changed=false
@@ -76,8 +74,7 @@ check_f2() {
 # ═══════════════════════════════════════════════════════════════════════
 # F3: Migration detection
 # ═══════════════════════════════════════════════════════════════════════
-check_f3() {
-  check_enabled "project" "F3" || return 0
+check_f3_body() {
 
   # Check for new migration files
   local new_migrations
@@ -107,8 +104,7 @@ check_f3() {
 # ═══════════════════════════════════════════════════════════════════════
 # F4: Hook conflict detection
 # ═══════════════════════════════════════════════════════════════════════
-check_f4() {
-  check_enabled "project" "F4" || return 0
+check_f4_body() {
 
   local settings_file="${PROJECT_ROOT}/.claude/settings.json"
   if [[ ! -f "$settings_file" ]]; then
@@ -144,8 +140,7 @@ check_f4() {
 # ═══════════════════════════════════════════════════════════════════════
 # F5: Worktree residue detection
 # ═══════════════════════════════════════════════════════════════════════
-check_f5() {
-  check_enabled "project" "F5" || return 0
+check_f5_body() {
 
   if ! git_safe rev-parse --git-dir >/dev/null 2>&1; then
     return 0
@@ -185,6 +180,11 @@ check_f5() {
   fi
 }
 
+check_f1() { run_check "project" "F1" "" check_f1_body; }
+check_f2() { run_check "project" "F2" "" check_f2_body; }
+check_f3() { run_check "project" "F3" "" check_f3_body; }
+check_f4() { run_check "project" "F4" "" check_f4_body; }
+check_f5() { run_check "project" "F5" "" check_f5_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_f1
 check_f2
