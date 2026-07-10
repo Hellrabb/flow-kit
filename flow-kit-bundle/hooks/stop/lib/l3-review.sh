@@ -317,6 +317,8 @@ _l3_parse_result() {
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
 
   # 重审检测（委托 _l3_check_rerun）
+  local is_review=false
+  [ -f "$review_md" ] && is_review=true  # 已存在 → 本次为重新审查
   _l3_check_rerun "$phase" "$artifacts_dir" || return 2
 
   # ── 追加写入 L3 段 ──
@@ -331,7 +333,12 @@ _l3_parse_result() {
     fi
   fi
   mkdir -p "$artifacts_dir"
-  local section_title="## L3 盲审（${model} 外部模型 · ${ts}）"
+  local section_title
+  if [ "$is_review" = true ]; then
+    section_title="## L3 重审（${model} 外部模型 · ${ts}）"
+  else
+    section_title="## L3 盲审（${model} 外部模型 · ${ts}）"
+  fi
   {
     echo ""; echo "---"; echo ""; echo "$section_title"; echo ""
     echo "> 自动生成于 ${ts}。由 l3-review.sh 写入。"
