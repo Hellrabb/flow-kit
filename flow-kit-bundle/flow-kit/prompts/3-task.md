@@ -244,7 +244,7 @@ Wave 3:            T05 (depends on T03, T04)
 用户选 1 → 执行 transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "4" | .goal.phases_done += ["3"] | .goal.gates["3→4"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "4" | .phase = "4" | .goal.phases_done += ["3"] | .goal.gates["3→4"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 然后加载 `@flow-kit/prompts/4-dev.md`。

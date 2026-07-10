@@ -199,7 +199,7 @@ PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `N
 用户选 1 → transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "7" | .goal.phases_done += ["6"] | .goal.gates["6→7"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "7" | .phase = "7" | .goal.phases_done += ["6"] | .goal.gates["6→7"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 

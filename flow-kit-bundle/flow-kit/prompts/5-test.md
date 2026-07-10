@@ -148,7 +148,7 @@ PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `N
 用户选 1 → transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "6" | .goal.phases_done += ["5"] | .goal.gates["5→6"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "6" | .phase = "6" | .goal.phases_done += ["5"] | .goal.gates["5→6"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 然后加载 `@flow-kit/prompts/6-review.md`。

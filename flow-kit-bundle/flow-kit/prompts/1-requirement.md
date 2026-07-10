@@ -166,7 +166,7 @@
 用户选 1 → 执行 transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "2" | .goal.phases_done += ["1"] | .goal.gates["1→2"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "2" | .phase = "2" | .goal.phases_done += ["1"] | .goal.gates["1→2"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 然后加载 `@flow-kit/prompts/2-design.md`。

@@ -44,7 +44,7 @@
 用户选 1 → 执行 transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "5" | .goal.phases_done += ["4"] | .goal.gates["4→5"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "5" | .phase = "5" | .goal.phases_done += ["4"] | .goal.gates["4→5"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 

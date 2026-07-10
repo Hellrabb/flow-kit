@@ -168,6 +168,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 技术债登记滥用（tech-debt registration abuse） | agent 将所有 review 发现标记为"技术债"以绕过代码修复的反模式。防护方式：≥50% 发现被登记为技术债时，prompt 要求 agent 输出显式说明 |
 | l2-l3-fix-compliance | 2026-07-07 change：在 prompt 层 + hook 层加固 review 发现→代码修复的强制链路，杜绝"文档敷衍"。双层：prompt 修代码优先协议 + hook 实效性校验 |
 | regex-in-variable（变量存 regex） | bash `[[ string =~ regex ]]` 的安全模式：regex 先存入变量（`local re='...'; [[ "$x" =~ $re ]]`）再匹配，使 regex 内的 `&&`/裸空格不被 bash 当源码层逻辑与/词法拆分。TD-011 根因即内联 regex 的 `&&` 被当逻辑与致 SC2157 恒真。来自 `refactor-independent-review-gate` |
+| L3 重审（L3 re-review） | L3 审查 verdict=fail 后，若对应阶段产物文件 mtime 晚于上次 L3 审查时间戳，下次 hook 触发时自动重新调用 L3 API 审查，在 INDEPENDENT-REVIEW-N.md 末尾追加新的 `## L3 重审` 段（含新 verdict + summary），不覆写旧段。解决 L-030 问题 1（L3 fail 后永久死结）。来自 `fix-l3-gate` |
+| 工件变更检测（artifact change detection） | L3 重审的触发判定机制：用 `stat -c %Y` 比较产物文件 mtime 与上次 L3 审查时间戳（记录在 .done 或 INDEPENDENT-REVIEW-N.md 元数据中）。mtime 更新 → 触发重审。O(1) 无额外延迟。来自 `fix-l3-gate` |
+| .done 安全写逻辑（.done safe-write） | L3 verdict=fail 时**不写** `.independent-review-N.done` 文件，仅 verdict=pass 时写入。消除 L-030 问题 2（L3 fail 却写 .done 放行 transition 的安全漏洞）。不影响回退方向（回退放行不要求 .done）。来自 `fix-l3-gate` |
+| transition 四字段同步（transition four-field sync） | transition jq 执行时原子更新 `.flow-active` 的四个 phase 相关字段：`goal.current_phase`、顶层 `phase`、`goal.phases_done`（追加旧 phase）、`goal.gates["N→N+1"]`（标记 passed）。解决 L-030 问题 3（顶层 phase 与 goal.current_phase 不同步）。来自 `fix-l3-gate` |
 
 ## 已锁决策
 

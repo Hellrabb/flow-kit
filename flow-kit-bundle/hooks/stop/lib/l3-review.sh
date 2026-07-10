@@ -18,7 +18,7 @@
 #       2. 调用外部模型 API 执行 L3 审查
 #       3. L3 结果追加写入 INDEPENDENT-REVIEW-<N>.md 的 L3 段
 #       4. 写入完整 6 键 .independent-review-<N>.done 文件
-#     返回: 0=pass, 1=fail, 2=timeout, 3=API error
+#     返回: 0=pass 或 skip(工件未变更跳过重审), 1=fail/timeout, 3=API error
 #
 #   l3_review_with_timeout <phase> <change_id> <artifacts_dir> <L2_verdict> [timeout_secs]
 #     timeout 降级 wrapper，默认 30s 超时
@@ -295,23 +295,64 @@ l3_review_run() {
     return 3
   fi
 
-  # ── 写入 L3 段到 review 文件 (F3: 先剥离已有 L3 段，再追加，保持幂等) ──
+  # ── 重审检测 + 追加写入 L3 段 (fix-l3-gate AC-1: 工件变更后重新触发) ──
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
+  local is_review=false
+
   if [ -f "$review_md" ]; then
-    local tmp_review="${review_md}.tmp"
-    awk '/^## L3 盲审/{stop=1} !stop{print}' "$review_md" > "$tmp_review" 2>/dev/null
-    mv "$tmp_review" "$review_md" 2>/dev/null || true
+    # 取 review 文件 mtime（跨平台: Linux stat -c %Y / BSD stat -f %m / POSIX date -r）
+    local review_mtime=0
+    review_mtime=$(stat -c %Y "$review_md" 2>/dev/null || stat -f %m "$review_md" 2>/dev/null || date -r "$review_md" +%s 2>/dev/null || echo "0")
+
+    # 取阶段主产物文件的 mtime
+    local artifact_mtime=0
+    case "$phase" in
+      1) artifact_mtime=$(stat -c %Y "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || stat -f %m "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || date -r "${artifacts_dir}/REQUIREMENT.md" +%s 2>/dev/null || echo "0") ;;
+      2) artifact_mtime=$(stat -c %Y "${artifacts_dir}/DESIGN.md" 2>/dev/null || stat -f %m "${artifacts_dir}/DESIGN.md" 2>/dev/null || date -r "${artifacts_dir}/DESIGN.md" +%s 2>/dev/null || echo "0") ;;
+      3) artifact_mtime=$(stat -c %Y "${artifacts_dir}/TASK.md" 2>/dev/null || stat -f %m "${artifacts_dir}/TASK.md" 2>/dev/null || date -r "${artifacts_dir}/TASK.md" +%s 2>/dev/null || echo "0") ;;
+      5) artifact_mtime=$(stat -c %Y "${artifacts_dir}/TEST.md" 2>/dev/null || stat -f %m "${artifacts_dir}/TEST.md" 2>/dev/null || date -r "${artifacts_dir}/TEST.md" +%s 2>/dev/null || echo "0") ;;
+      6|7)
+        if [ -f "${artifacts_dir}/REVIEW.md" ]; then
+          artifact_mtime=$(stat -c %Y "${artifacts_dir}/REVIEW.md" 2>/dev/null || stat -f %m "${artifacts_dir}/REVIEW.md" 2>/dev/null || date -r "${artifacts_dir}/REVIEW.md" +%s 2>/dev/null || echo "0")
+        fi
+        ;;
+    esac
+
+    if [ "$artifact_mtime" -gt "$review_mtime" ] 2>/dev/null; then
+      is_review=true
+      echo "[l3-review] re-review triggered for phase ${phase} (artifact mtime=${artifact_mtime} > review mtime=${review_mtime})" >&2
+    else
+      echo "[l3-review] skipping L3 for phase ${phase} (artifact unchanged since last review, mtime=${review_mtime})" >&2
+      return 0
+    fi
   fi
+
   local ts
   ts=$(date '+%Y-%m-%d %H:%M' 2>/dev/null || echo "")
   local written_by="pre-tool-use-gate"
 
+  # 追加前大小预警（>50KB warn · DESIGN R3 缓解）
+  if [ -f "$review_md" ]; then
+    local review_size
+    review_size=$(stat -c %s "$review_md" 2>/dev/null || stat -f %z "$review_md" 2>/dev/null || echo "0")
+    if [ "$review_size" -gt 51200 ] 2>/dev/null; then
+      echo "[l3-review] WARNING: review file exceeds 50KB (${review_size} bytes), consider manual cleanup" >&2
+    fi
+  fi
+
   mkdir -p "$artifacts_dir"
+  local section_title
+  if [ "$is_review" = true ]; then
+    section_title="## L3 重审（${model} 外部模型 · ${ts}）"
+  else
+    section_title="## L3 盲审（${model} 外部模型 · ${ts}）"
+  fi
+
   {
     echo ""
     echo "---"
     echo ""
-    echo "## L3 盲审（${model} 外部模型 · ${ts}）"
+    echo "$section_title"
     echo ""
     echo "> 自动生成于 ${ts}。由 l3-review.sh 写入。"
     echo ""
@@ -378,22 +419,23 @@ l3_review_run() {
     fi
   fi
 
-  # ── 写入完整 6 键 .done 文件 (原子写入: tmp → mv) ──
-  local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
-  local done_tmp="${done_marker}.tmp"
+  # ── .done 仅 pass 时写入 (fix-l3-gate AC-2/AC-3) ──
+  if [ "$l3_verdict" = "pass" ]; then
+    local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
+    local done_tmp="${done_marker}.tmp"
 
-  # 构造 artifacts 字段 (阶段产物文件列表)
-  local artifacts_list=""
-  case "$phase" in
-    1) artifacts_list="REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    2) artifacts_list="DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    3) artifacts_list="TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    5) artifacts_list="TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    6) artifacts_list="REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    7) artifacts_list="REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-  esac
+    # 构造 artifacts 字段 (阶段产物文件列表)
+    local artifacts_list=""
+    case "$phase" in
+      1) artifacts_list="REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+      2) artifacts_list="DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+      3) artifacts_list="TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+      5) artifacts_list="TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+      6) artifacts_list="REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+      7) artifacts_list="REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
+    esac
 
-  cat > "$done_tmp" <<DONE_EOF
+    cat > "$done_tmp" <<DONE_EOF
 phase=${phase}
 change_id=${change_id}
 written_by=${written_by}
@@ -403,12 +445,15 @@ L3_summary=${l3_summary}
 artifacts=${artifacts_list}
 DONE_EOF
 
-  mv "$done_tmp" "$done_marker" 2>/dev/null || {
-    echo "[l3-review] failed to write .done marker" >&2
-    return 3
-  }
+    mv "$done_tmp" "$done_marker" 2>/dev/null || {
+      echo "[l3-review] failed to write .done marker" >&2
+      return 3
+    }
 
-  echo "[l3-review] L3 complete (phase ${phase}, verdict=${l3_verdict}, L2_verdict=${l2_verdict}) → ${done_marker}" >&2
+    echo "[l3-review] L3 pass — .done written (phase ${phase}, verdict=${l3_verdict})" >&2
+  else
+    echo "[l3-review] L3 verdict=${l3_verdict} — .done NOT written (phase ${phase})" >&2
+  fi
 
   # 返回 verdict 对应的 exit code
   case "$l3_verdict" in
@@ -441,15 +486,16 @@ l3_review_with_timeout() {
 
   if [ $ret -eq 124 ] || [ $ret -eq 137 ]; then
     # timeout 命令返回 124 (GNU timeout) 或进程被 kill (137=128+9)
-    echo "[l3-review] L3 timed out after ${timeout_secs}s — writing timeout .done" >&2
+    echo "[l3-review] L3 timed out after ${timeout_secs}s — .done NOT written (verdict=timeout, phase ${phase})" >&2
+    # fix-l3-gate AC-2: timeout 不写 .done；保留审计痕迹（l3_write_timeout_done 仅追加 notice 不写 .done）
     l3_write_timeout_done "$phase" "$change_id" "$artifacts_dir" "$l2_verdict"
-    return 2
+    return 1
   fi
 
   return $ret
 }
 
-# ── l3_write_timeout_done() · 超时降级: 写 L3_verdict=timeout 的 .done ──
+# ── l3_write_timeout_done() · 超时降级: 追加 timeout 段到 review 文件（不写 .done · fix-l3-gate AC-2）──
 l3_write_timeout_done() {
   local phase="$1"
   local change_id="$2"
@@ -468,34 +514,11 @@ l3_write_timeout_done() {
     echo "## L3 盲审（timeout · ${ts}）"
     echo ""
     echo "> L3 审查超时（30s），降级为 timeout。"
+    echo "> 不写 .done——pipeline 暂停等待人工处理或重试。"
     echo "> 后续 session 可通过 Stop hook 29 号模块补跑 L3。"
   } >> "$review_md"
 
-  # 写入 timeout .done (6 键 · R9 fix: per-phase artifacts)
-  local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
-  local done_tmp="${done_marker}.tmp"
-  local artifacts_list=""
-  case "$phase" in
-    1) artifacts_list="REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    2) artifacts_list="DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    3) artifacts_list="TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    5) artifacts_list="TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    6) artifacts_list="REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-    7) artifacts_list="REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-${phase}.md" ;;
-  esac
-
-  cat > "$done_tmp" <<DONE_EOF
-phase=${phase}
-change_id=${change_id}
-written_by=pre-tool-use-gate
-L2_verdict=${l2_verdict}
-L3_verdict=timeout
-L3_summary=L3 API 调用超时（30s）
-artifacts=${artifacts_list}
-DONE_EOF
-
-  mv "$done_tmp" "$done_marker" 2>/dev/null || true
-  echo "[l3-review] timeout .done written: ${done_marker}" >&2
+  echo "[l3-review] timeout notice appended (phase ${phase}) — .done NOT written" >&2
 }
 
 # ── l3_dispatch_prompt() · L3 异步派发提示（对标 l2_dispatch_prompt）──

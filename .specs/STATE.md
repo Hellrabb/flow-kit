@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-10` (`td-test-infra` · TD-010 make dup + TD-002 stop 链 smoke · pipeline 关 L3 改 L2 · L-030)
+- **last_change_archived**: `2026-07-10` (`fix-l3-gate` · 修 L3 gate 三连异常 L-030 · 全量 441 bats 0 fail · L-030 resolved + L-031)
 - **last_evolve_promoted**:
   - 2026-06-08-init-git-repo
   - 2026-06-08-offline-brooks-bundle
