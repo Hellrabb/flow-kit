@@ -176,6 +176,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | resume banner | SessionStart hook 输出的 ASCII art 状态横幅（`flow-kit-resume.sh` L201-L254），显示活跃 change 的 change_id / phase / task / goal / interrupt / token 信息。来自 `checkpoint-polish` |
 | 双源测试同步（dual-source test sync） | `test/`（开发源）和 `flow-kit-bundle/test/`（打包源）的 bats 测试文件自动保持一致——修改一处后通过 `make test-sync` 或符号链接同步到另一处，替代手动 `cp`。来自 `checkpoint-polish` |
 | CHANGELOG 紧凑单行 pipe 格式 | `.specs/CHANGELOG.md` 的统一条目格式：`| 日期 | change-id | 摘要 | LESSONS |`（无独立表头行），全文件统一使用此格式。来自 `checkpoint-polish` |
+| `run_check()` | check_* 统一包装函数，签名 `run_check(name, enabled_check, condition, message)`。替代各模块手写 `check_enabled` guard → 读状态 → 检查条件 → `module_output` 四段样板模板。来自 `sweep-fix-2026-07-10` |
+| `_grep` 兼容层 | 对 ugrep 的封装兼容层代码。本次 sweep-fix-2026-07-10 评估其去留：若 ugrep 已安装且功能兼容则移除，否则保留并标注 deprecated。决策结论写入 CHANGE.md。来自 `sweep-fix-2026-07-10` |
+| sweep-fix-2026-07-10 | 2026-07-10 Full Sweep（评分 65/100）的修复 change，消除 2🔴（TD-017 函数拆分 + TD-018 函数拆分）+ 4🟡（TD-019 check去重 + TD-020 死代码 + TD-021 命名文档 + TD-022 安装测试）+ 1 评估项（_grep 去留），目标评分 ≥80。来自 `M-health 2026-07-10 Full Sweep` |
 
 ## 已锁决策
 
@@ -236,6 +239,14 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-10]` BW02 CHANGELOG 格式统一方向 — `.specs/CHANGELOG.md` 统一为紧凑单行 pipe 格式（`| 日期 | change-id | 摘要 | LESSONS |`），与顶部新条目格式一致，不保留独立表头行。来自 `checkpoint-polish`
 - `[2026-07-10]` BW03 双源测试同步方案 — 优先 Makefile target（`make test-sync`），备选 install.sh symlink；`make check` 集成不同步检测（非零退出）。来自 `checkpoint-polish`
 <!-- checkpoint-polish 追加 ↑ -->
+<!-- sweep-fix-2026-07-10 追加 ↓ -->
+- `[2026-07-10]` `_grep` 保留决策：`_grep() { command grep "$@"; }`（`fix-compliance.sh:20`）是 Claude Code 运行时环境的防御性 shim。**证据**：宿主机 `ugrep` 未安装，GNU grep 3.11 正常，`grep -P` 可用；但 CC 运行时环境中 `grep` 被 alias 到 ugrep（不支持 `-P` Perl regex），`_grep` 通过 `command grep` 绕过此 alias。非死代码，保留不修改。来自 `sweep-fix-2026-07-10`
+- `[2026-07-10]` `write_failed_state` 移除：全仓 0 调用确认死代码，已从 `common.sh` 移除（21 行定义 + 注释块）。来自 `sweep-fix-2026-07-10`
+- `[2026-07-10]` `is_gh_pr_create()` 不拆分：3 行谓词函数（`independent-review-gate.sh:101-103`），单一职责清晰。TD-018 真实目标是同文件主逻辑体（L106-391，7 gate 检查块）。来自 `sweep-fix-2026-07-10`
+- `[2026-07-10]` `run_check()` API 设计：`run_check MODULE CHECK_ID [PRECONDITION_FILE] BODY_FN`，4 参数回调模式。位于 `common.sh`，紧接 `check_enabled()`。消除 6 模块 30 处 `check_enabled` 模板重复。precondition 仅支持文件存在性检查（YAGNI）。来自 `sweep-fix-2026-07-10`
+- `[2026-07-10]` `check_*_body` 命名约定：每个迁移后的 body 函数命名为 `check_<id>_body`（如 `check_c1_body`），与现有 `check_*` 前缀一致。来自 `sweep-fix-2026-07-10`
+<!-- sweep-fix-2026-07-10 追加 ↑ -->
+<!-- checkpoint-polish 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -280,7 +291,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | `prompts/*` 自检 gate 填空模板范式 | 强制填空才能产出的刚性结构 | weak-model-robustness |
 | `regression-demos/<scenario>/check.sh` 范式 | 可重复执行的行为验收脚本 | weak-model-robustness |
 | `test/` bats-core 测试目录结构 | Bash 脚本测试标准目录 | health-fix |
-| `fk_independent_review_gate_active()` + `write_failed_state()` | 独立 review gate 判定 + L3 失败降级 | independent-review |
+| `fk_independent_review_gate_active()` | 独立 review gate 判定（`write_failed_state()` 已确认死代码 · 2026-07-10 sweep · 待清理） | independent-review |
 <!-- A-evolve 2026-07-08 第2轮追加 ↓ -->
 | `hooks/stop/33-flow-active-integrity.sh` | .flow-active 字段与磁盘产物交叉验证 | flow-active-integrity |
 | `fk_validate_done_marker` | .done 真实性校验（两层） | gate-integrity |
@@ -308,10 +319,25 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 ### 命名约定
 
+#### 文件命名
+
 - 文件命名：`kebab-case`（`package-flow-kit.sh`、`flow-kit-ecosystem-guide.md`）
+
+#### 函数命名前缀（来自 `sweep-fix-2026-07-10`）
+
+| 前缀 | 含义 | 可见性 | 使用场景 |
+|---|---|---|---|
+| `fk_` | flow-kit 公共 API | 跨文件可调用 | 被多个模块/脚本调用的导出函数（如 `fk_resolve_phase`） |
+| `_fk_` | flow-kit 模块私有 | 文件内可见 | 当前文件内部辅助函数（如 `_fk_phase_direction`） |
+| `check_` | hook check 入口 | 模块内 | Stop hook 检查入口，统一通过 `run_check()` 调用（如 `check_c1`） |
+| `l2_` / `_l2_` | L2 审查 | 跨文件 / 文件内 | L2 审查检测/派发函数 |
+| `l3_` / `_l3_` | L3 审查 | 跨文件 / 文件内 | L3 审查 API/派发（`l3_review_run`）+ 子步骤（`_l3_build_prompt`） |
+| `_gate_` | Gate 检查步骤 | `independent-review-gate.sh` 内部 | 独立 gate 检查步骤函数（如 `_gate_path_guard`） |
+| `_fai_` | (遗留，待统一) | 文件内 | 旧 `flow-kit-artifacts.sh` 内部函数，v2 统一为 `_fk_` |
+
 - 函数命名：`snake_case`（`install_file()`、`check_command()`、`install_flow_kit_core()` — 来自 `package-flow-kit.sh`）
 - 组件命名：不适用
-- 测试文件：未发现测试文件
+- 测试文件：`test/` 目录下 `.bats` 文件，命名 `test_<target>.bats`
 
 ### 禁动清单（AI 不许"顺手"碰）
 
@@ -380,6 +406,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | TD-014 | ✅ | `independent-review-gate.sh:73-75` | is_phase_write L73-75 regex `\.flow-active.*\.phase=` 要求 .flow-active 在字段名前，但典型 jq 命令 `jq '.phase=5' .flow-active` 字段名在前 → **L73-75 从不匹配 → is_phase_write 对所有真实 jq phase-write 漏检（rc=1）→ gate phase-transition 检测对 jq 完全失效**（仅 git commit/gh pr create 兜底）。**严重安全隐患**（phase 可绕过 independent review）。sandbox 修复版（去 `.flow-active.*` 前缀）验证恢复检测 | 去 `.flow-active.*` 前缀（L67 已保证 .flow-active 涉及，L73-75 只测字段名）+ D10 测试修正 + 全量回归。专注独立 change `fix-gate-phase-detection`（③）。**✅ 已完成 2026-07-09**：去 `.flow-active.*` 前缀（L73-75）+ D10 两处去 skip（假绿挂起转真跑）+ `bats test/` 407 全绿 / exit 0。**设计依据**：归档 `refactor-independent-review-gate/DESIGN.md` v5 D6 + sandbox 验证 | `refactor-independent-review-gate` discovery · INDEPENDENT-REVIEW-2 F2(轮2) |
 | TD-015 | ✅ | `independent-review-gate.sh:30,71` | `\>[^=]` 在 is_handshake_write L30 + is_phase_write L71。**内联 `\>[^=]` 是字面 >**（正常），但**变量化 `re='\>[^=]'` 触发 GNU 单词边界**（任何含字母命令误判 redirect）→ 纯读误判。D2 全文件治理（变量化）必触发。bash 转义差异 | 变量化时用 `[>][^=]` 字符类。TD-014 change ③ 顺手修（L30+L71）。**LESSONS 必记**：内联 vs 变量 regex 行为差异（`\<`/`\>` 类） | `refactor-independent-review-gate` discovery · INDEPENDENT-REVIEW-2 第三轮 Critical1 |
 | TD-016 | ✅ | `test/test_gate_integrity.bats` AC-3 #11/#12 + AC-6 #23 | 测试断言实现含某些内容（artifacts.sh 含 `^(1\|2\|3\|5\|6\|7)$` 正则 + `"3-task"` case 串 / F29 含 `sha256sum`），**实测实现均不含** → 测试断言与实现长期不符，set+e 假绿掩盖（断言了不存在的东西）。属测试断言债 | 重新裁定断言真值：修实现补内容 / 修测试断言匹配实现 / 删过时测试。独立 change 处理 | `fix-gate-test-setup` discovery · L2 phase1 第二轮 F1 |
+| TD-017 | 🔴 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh::l3_review_run()` | 307 行超长函数，5 项职责混合（prompt 构造 + API 调用 + 结果解析 + .done 写入 + 错误降级）→ 任一环节变更需理解全函数 | 拆为 `_l3_build_prompt` / `_l3_call_api` / `_l3_parse_result` / `_l3_write_done` + `l3_review_run` 编排（~30 行）。需完整回归测试 | `M-health 2026-07-10 Full Sweep` |
+| TD-018 | 🔴 | `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh::is_gh_pr_create()` | 290 行超长函数，7+ 独立 gate 检查混合（变量 regex + 握手写 + gate_config 篡改 + phase 写 + artifact + L2 + L3）→ 函数名不能反映真实职责 | 提取 `_gate_*` 命名函数 + 编排器 + 重命名 `_run_review_gates()`。PreToolUse 关键路径，需全 gate 场景回归 | `M-health 2026-07-10 Full Sweep` |
+| TD-019 | 🟡 | `flow-kit-bundle/hooks/stop/{21,22,23,24,25,26}-*.sh` | check_* 函数模板在 6 模块中逐字重复（`check_enabled` guard → 读状态 → 检查条件 → `module_output`）。20+ 处执行模式相同，仅条件表达式和消息不同 | 引入声明式 check 注册或 `run_check()` 包装函数。跨 6 模块重构，需确认设计决策 | `M-health 2026-07-10 Full Sweep` |
+| TD-020 | 🟡 | `flow-kit-bundle/hooks/stop/lib/common.sh:139-159` | `write_failed_state()` 定义但全仓 0 调用 → 死代码。CONTEXT.md 已标记过时。21 行浪费 + 18 个 source 文件的认知负荷 | 移除函数定义 + 更新 CONTEXT.md 条目。确认无未来使用计划后执行 | `M-health 2026-07-10 Full Sweep` |
+| TD-021 | 🟡 | 全局命名约定 | 5 种命名前缀（`fk_` / `_fk_` / `check_` / `l2_`/`l3_` / `_fai_`）无文档说明各自使用场景 → 新人/AI 无法从函数名推断模块和可见性 | CONTEXT.md 加「命名约定」段，明确公共 API（`fk_`）vs 私有（`_<module>_`）规则。批量重命名延后 | `M-health 2026-07-10 Full Sweep` |
+| TD-022 | 🟢 | `flow-kit-bundle/lib/install_brooks.sh` + `install_hooks.sh` | `install_brooks_lint()` 152 行 + `install_hooks()` 199 行 — 0 直接单元测试（仅集成覆盖）。修改安装逻辑时缺少快速反馈 | 补充 DRY_RUN 模式单元测试（bats）| `M-health 2026-07-10 Full Sweep` |
 
 ---
 

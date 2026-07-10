@@ -15,8 +15,7 @@ git_safe rev-parse --git-dir >/dev/null 2>&1 || exit 0
 # ═══════════════════════════════════════════════════════════════════
 # C1: Git status summary
 # ═══════════════════════════════════════════════════════════════════
-check_c1() {
-  check_enabled "git" "C1" || return 0
+check_c1_body() {
 
   local status
   status=$(git_safe status --porcelain 2>/dev/null || true)
@@ -66,8 +65,7 @@ ${untracked_list}"
 # ═══════════════════════════════════════════════════════════════════
 # C2: Large / suspicious file warnings
 # ═══════════════════════════════════════════════════════════════════
-check_c2() {
-  check_enabled "git" "C2" || return 0
+check_c2_body() {
 
   local max_bytes
   max_bytes=$(config_get '.thresholds.large_file_bytes' "1048576")
@@ -107,8 +105,7 @@ check_c2() {
 # ═══════════════════════════════════════════════════════════════════
 # C3: Auto-generate conventional commit suggestion
 # ═══════════════════════════════════════════════════════════════════
-check_c3() {
-  check_enabled "git" "C3" || return 0
+check_c3_body() {
 
   local status
   status=$(git_safe status --porcelain 2>/dev/null || true)
@@ -166,8 +163,7 @@ check_c3() {
 # ═══════════════════════════════════════════════════════════════════
 # C4: Secrets / sensitive data detection
 # ═══════════════════════════════════════════════════════════════════
-check_c4() {
-  check_enabled "git" "C4" || return 0
+check_c4_body() {
 
   # Check staged + unstaged changes for secret patterns
   local diff_output
@@ -215,6 +211,10 @@ check_c4() {
   fi
 }
 
+check_c1() { run_check "git" "C1" "" check_c1_body; }
+check_c2() { run_check "git" "C2" "" check_c2_body; }
+check_c3() { run_check "git" "C3" "" check_c3_body; }
+check_c4() { run_check "git" "C4" "" check_c4_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_c1
 check_c2

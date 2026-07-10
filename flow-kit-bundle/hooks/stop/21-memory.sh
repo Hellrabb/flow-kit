@@ -13,8 +13,7 @@ module_enabled "memory" || exit 0
 # ═══════════════════════════════════════════════════════════════════
 # B1: New discipline / memory detection
 # ═══════════════════════════════════════════════════════════════════
-check_b1() {
-  check_enabled "memory" "B1" || return 0
+check_b1_body() {
 
   local gotcha_file="$HOOK_TMP_DIR/gotcha-matches.txt"
   [[ -f "$gotcha_file" && -s "$gotcha_file" ]] || return 0
@@ -51,8 +50,7 @@ check_b1() {
 # ═══════════════════════════════════════════════════════════════════
 # B2: Discipline violation detection
 # ═══════════════════════════════════════════════════════════════════
-check_b2() {
-  check_enabled "memory" "B2" || return 0
+check_b2_body() {
 
   # Load known discipline rules from memory files
   local violations=()
@@ -90,8 +88,7 @@ check_b2() {
 # ═══════════════════════════════════════════════════════════════════
 # B4: Duplicate memory detection
 # ═══════════════════════════════════════════════════════════════════
-check_b4() {
-  check_enabled "memory" "B4" || return 0
+check_b4_body() {
 
   # Check for memory files with very similar slugs
   local slugs
@@ -113,6 +110,9 @@ check_b4() {
   done <<< "$(echo "$slugs" | sort)"
 }
 
+check_b1() { run_check "memory" "B1" "gotcha-matches.txt" check_b1_body; }
+check_b2() { run_check "memory" "B2" "" check_b2_body; }
+check_b4() { run_check "memory" "B4" "" check_b4_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_b1
 check_b2

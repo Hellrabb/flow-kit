@@ -38,8 +38,7 @@ format_duration() {
 # ═══════════════════════════════════════════════════════════════════════
 # E1: Tool usage statistics with timing analysis
 # ═══════════════════════════════════════════════════════════════════════
-check_e1() {
-  check_enabled "session" "E1" || return 0
+check_e1_body() {
 
   if [[ ! -f "$HOOK_TMP_DIR/tool-counts.txt" ]]; then
     return 0
@@ -76,8 +75,7 @@ check_e1() {
 # ═══════════════════════════════════════════════════════════════════════
 # E2: rtk optimization opportunities
 # ═══════════════════════════════════════════════════════════════════════
-check_e2() {
-  check_enabled "session" "E2" || return 0
+check_e2_body() {
 
   if [[ ! -f "$HOOK_TMP_DIR/bash-commands.txt" ]]; then
     return 0
@@ -128,8 +126,7 @@ check_e2() {
 # ═══════════════════════════════════════════════════════════════════════
 # E3: Subagent efficiency analysis
 # ═══════════════════════════════════════════════════════════════════════
-check_e3() {
-  check_enabled "session" "E3" || return 0
+check_e3_body() {
 
   if [[ ! -f "$HOOK_TMP_DIR/subagent-usage.txt" || ! -s "$HOOK_TMP_DIR/subagent-usage.txt" ]]; then
     return 0
@@ -156,8 +153,7 @@ check_e3() {
 # ═══════════════════════════════════════════════════════════════════════
 # E4: Session duration and token estimation
 # ═══════════════════════════════════════════════════════════════════════
-check_e4() {
-  check_enabled "session" "E4" || return 0
+check_e4_body() {
 
   local start_ts end_ts
   start_ts=$(cat "$HOOK_TMP_DIR/session-start-time" 2>/dev/null || echo "")
@@ -201,8 +197,7 @@ check_e4() {
 # ═══════════════════════════════════════════════════════════════════════
 # E5: context-mode trend tracking
 # ═══════════════════════════════════════════════════════════════════════
-check_e5() {
-  check_enabled "session" "E5" || return 0
+check_e5_body() {
 
   # Check if context-mode MCP tools are available (non-blocking)
   if ! command -v ctx-stats &>/dev/null; then
@@ -248,6 +243,11 @@ check_e5() {
   fi
 }
 
+check_e1() { run_check "session" "E1" "" check_e1_body; }
+check_e2() { run_check "session" "E2" "" check_e2_body; }
+check_e3() { run_check "session" "E3" "" check_e3_body; }
+check_e4() { run_check "session" "E4" "" check_e4_body; }
+check_e5() { run_check "session" "E5" "" check_e5_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_e1
 check_e2

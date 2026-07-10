@@ -35,8 +35,7 @@ file_age_days() {
 # ═══════════════════════════════════════════════════════════════════════
 # G1: Flow-kit state (enhanced — artifact validation + auto phase + stale)
 # ═══════════════════════════════════════════════════════════════════════
-check_g1() {
-  check_enabled "workflow" "G1" || return 0
+check_g1_body() {
 
   local flow_file="${PROJECT_ROOT}/.flow-active"
   if [[ ! -f "$flow_file" ]]; then
@@ -134,8 +133,7 @@ check_g1() {
 # ═══════════════════════════════════════════════════════════════════════
 # G2: Stash / patch / todo file detection
 # ═══════════════════════════════════════════════════════════════════════
-check_g2() {
-  check_enabled "workflow" "G2" || return 0
+check_g2_body() {
 
   local stash_files=()
   local patterns=("*.patch" "*.diff" "*.todo" "WIP_*" "TODO_*")
@@ -163,8 +161,7 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 # G3: Temp file cleanup reminder
 # ═══════════════════════════════════════════════════════════════════════
-check_g3() {
-  check_enabled "workflow" "G3" || return 0
+check_g3_body() {
 
   # Check for plan/report files older than 3 days
   local old_plans=()
@@ -203,8 +200,7 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 # G4: PUA Loop status
 # ═══════════════════════════════════════════════════════════════════════
-check_g4() {
-  check_enabled "workflow" "G4" || return 0
+check_g4_body() {
 
   local pua_dir="${HOME}/.claude/pua"
   if [[ ! -d "$pua_dir" ]]; then
@@ -244,8 +240,7 @@ check_g4() {
 # ═══════════════════════════════════════════════════════════════════════
 # G5: Interrupt snapshot + PROGRESS log + Token accumulation (NEW)
 # ═══════════════════════════════════════════════════════════════════════
-check_g5() {
-  check_enabled "workflow" "G5" || return 0
+check_g5_body() {
 
   local flow_file="${PROJECT_ROOT}/.flow-active"
   [[ -f "$flow_file" ]] || return 0
@@ -287,6 +282,11 @@ check_g5() {
   fi
 }
 
+check_g1() { run_check "workflow" "G1" "" check_g1_body; }
+check_g2() { run_check "workflow" "G2" "" check_g2_body; }
+check_g3() { run_check "workflow" "G3" "" check_g3_body; }
+check_g4() { run_check "workflow" "G4" "" check_g4_body; }
+check_g5() { run_check "workflow" "G5" "" check_g5_body; }
 # ── Run all checks ──────────────────────────────────────────────────
 check_g1
 check_g2

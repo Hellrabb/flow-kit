@@ -232,3 +232,40 @@
 - **降挡决策**：gate-config=all/full 在系统性假绿文件上陷入多轮 L2 深挖（refactor 教训同型）。降挡（无 L2/L3，主 agent 基于已查清事实直接实施 + make test 把关）更高效收口。
 - **bash 细节**：`run fn; [ "$status" -eq N ]`（bats 子 shell · status 反映 fn 退出码）禁 `if ! fn; then rc=$?`（`!` 反转 $? 致假阴/假绿）。
 - **How to apply**：测试 setup 禁 set+e（用 run+$status）；断言前 grep 确认实现真含断言内容（防断言债）；gate-config 在复杂/系统性问题上降挡止损。
+
+## L-034 · AC 硬编码数字陷阱——基线数字与新增测试自相矛盾（sweep-fix-2026-07-10 · 2026-07-10）
+
+- **发现**：AC-8 原始 Then 子句硬编码 "462 tests"；AC-3 (+≥2) + AC-7 (+≥4) 新增测试后实际 ≥468。Phase 1 L2 🔴 R1 捕获。
+- **根因**：AC 的 Then 子句中写入当前基线的具体数字，忘记 AC 本身是互相关联的——一条 AC 的新增会改变另一条 AC 的预期值
+- **教训**：AC 的 Then 子句**禁止硬编码动态变化的数字**（测试数、文件数、行数）。用定性描述（"全量 bats 0 fail"）或动态断言（`npx bats test/ | grep '0 failures'`）
+- **修复**：AC-8 Then 改为 "全量 bats 测试全绿 0 fail；make test exit 0"，验证方式改为 "输出 0 failures"
+
+## L-035 · Given 条款事实错误污染下游阶段（sweep-fix-2026-07-10 · 2026-07-10）
+
+- **发现**：AC-2 原始 Given 条款称 `is_gh_pr_create()` 为 "290 行、含 7+ 独立 gate 检查混合"；实测该函数仅 **3 行**（regex 谓词）。Phase 2 L2 🔴 R1 捕获。
+- **根因**：CHANGE.md 基于健康报告的函数名描述（未实测行数），REQUIREMENT 继承错误描述，DESIGN 内部纠正但未显式勘误 REQUIREMENT
+- **教训**：AC 的 Given 条款中引用的代码度量（函数行数、文件数）**必须实测验证**，不能从上游文档继承。Given 错误 → L3 外部模型基于虚假前提审查 → 整个审查链失效
+- **How to apply**：写 AC Given 前先 `wc -l` / `grep -c` 实测；DESIGN 发现 REQUIREMENT 错误时必须**显式勘误**（不是悄悄纠正）
+
+## L-036 · heredoc 引用退化——`<<'EOF'` vs `<<EOF` 导致变量插值静默丢失（sweep-fix-2026-07-10 · 2026-07-10）
+
+- **发现**：`independent-review-gate.sh` gate 重构时，path-guard 错误消息从 `<<EOF`（插值 `${tool_name}`）改为 `<<'EOF'`（字面）。Phase 6 L2 W1 捕获：`${tool_name}` 不再展开 → 错误消息显示 `${tool_name}` 字面而非实际工具名
+- **根因**：函数提取时，为使函数独立（不依赖外部变量）将 heredoc 改为单引号定界符——但遗忘了内部引用的变量
+- **教训**：heredoc 定界符引号变更（`<<EOF` → `<<'EOF'`）是**语义变更**，不是纯格式调整。需审计 heredoc 体内所有 `${var}` 引用
+- **状态**：🟡 已识别，本次未修复（错误消息降级为通用消息，不影响 gate 拦截行为）。建议后续 sweep 统一处理
+
+## L-037 · `exit` in sub-function 反模式——gate 函数内直接 exit 绕过调用方清理逻辑（sweep-fix-2026-07-10 · 2026-07-10）
+
+- **发现**：`_gate_phase_transition()` 内部多处直接 `exit 0` / `exit 2`，绕过了 `_run_review_gates()` 编排器的后续 gate 检查
+- **根因**：gate 函数原为主逻辑体的一部分（L106-391 无名块），`exit` 原是正确的（在顶层脚本中）。提取为子函数后，`exit` 应改为 `return` + 编排器检查返回值——但函数提取是机械操作，未审计控制流
+- **教训**：从主逻辑体提取函数时，**`exit` 必须改为 `return`**（除非函数确实是"终止脚本"的语义）——这是机械提取最易遗漏的审计点
+- **影响**：本次场景中 gate 函数的 `exit` 行为等价于原逻辑（原也在顶层 exit），行为正确。但**可读性受损**——阅读 `_run_review_gates()` 时无法从代码推断完整控制流（部分 gate 可能永不返回）
+- **建议**：后续 sweep 将 `_gate_phase_transition` 内的 `exit` 改为 `return <code>`，编排器检查返回值决定 exit
+
+## L-038 · task verify 不覆盖非代码产物——AC-5/AC-6 文档类 AC 的 verify 默认为手工 grep（sweep-fix-2026-07-10 · 2026-07-10）
+
+- **发现**：AC-5（命名约定文档化）和 AC-6（_grep 决策标注）的验证方式为手工 grep，无自动化 bats 覆盖。Phase 3 L2 🔴 R1 捕获 T07 verify=`make test` 无法验证文档变更
+- **根因**：bats 测试框架天然适合验证代码行为，不适合验证 markdown 文档内容。但 AC 要求"可机器验证"，手工 grep 违反此原则
+- **修复**：T07 verify 升级为复合命令：grep 验证 CONTEXT.md 含命名约定段 + _gate_ 前缀 + _grep 保留决策 → 通过后才跑 make test
+- **教训**：文档类 AC 的 verify 应包含**针对文档内容的 grep 断言**（不依赖 bats 框架也可以在 CI 中用 shell 脚本实现）。`make test` 不能覆盖所有 AC 类型
+- **How to apply**：拆 TASK 时，文档类 task 的 verify 必须包含 `grep` / `diff` 等文档内容验证命令，不能仅依赖 `make test`
