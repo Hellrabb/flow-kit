@@ -151,8 +151,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 状态漂移（state drift） | `.flow-active` 字段值与实际情况的偏差。来源包括：AI 跳过 jq 写入（L2 漏检）、pipeline transition 执行不完整、change 归档后 change_id 未清理。当前无自动化检测，靠人工发现 |
 | 交叉验证（cross-validation） | L3 hook 层对 `.flow-active` 字段与磁盘产物的一致性校验。例：`phases_done` 中的 phase N → 对应 `.specs/<id>/` 下产物必须存在；`change_id` → `.specs/<id>/` 目录必须存在；`gates` 与 `phases_done` 双向对齐 |
 | 时效性检测（staleness detection） | L3 hook 对 `.flow-active.updated_at` 的时间窗口检查。若距当前时间超过阈值（默认 24h）→ 报告 "stale .flow-active" 警告，提示可能漏维护 |
-| auto-checkpoint | flow-kit 在关键操作（编辑文件、测试失败、阶段切换、toll-gate 暂停）时自动调用 `/flow checkpoint` 更新 `.flow-active.interrupt` 的机制。双层实现：prompt 层指令（AI 自觉执行）+ hook 层兜底（PreToolUse/Stop hook 检测关键操作后自动写 checkpoint）。与手动 `/flow checkpoint` 不冲突——最后写入者覆盖 |
-| checkpoint 触发事件 | auto-checkpoint 的四种触发条件：① Write/Edit 工具调用（编辑文件前）② 测试命令返回非零退出码 ③ phase transition jq 执行（阶段切换）④ toll-gate 用户选择"暂停"。每次触发写入 active_file + last_action + checkpoint_at |
+| auto-checkpoint | flow-kit 在关键操作时自动更新 `.flow-active.interrupt` 的机制。**三层实现**：① prompt 层指令（AI 在 4-dev 关键节点手动 `/flow checkpoint`）② PreToolUse hook 层兜底（Write/Edit 调用前自动写 interrupt，100% 覆盖，不去抖）③ Stop hook G5 PROGRESS 日志（会话粒度进度记录）。三层互补不冲突——最后写入者覆盖。v1（auto-checkpoint-hook change）只实现第②层 PreToolUse hook；①③ 已存在 |
+| checkpoint 触发事件 | auto-checkpoint 的触发条件。**已实现**：① Write/Edit PreToolUse hook（编辑文件前 · 全阶段 0~7 · 不去抖 · 每次更新 · fail-open）② 测试命令返回非零退出码（prompt 层手动触发）③ phase transition（prompt 层手动触发）④ toll-gate 暂停（prompt 层手动触发）。每次触发写入 active_file + last_action + checkpoint_at。**注意**：v1 去掉了早期设计中的 30s 去重窗口——实测 jq 更新 < 10ms，去重增加的复杂度（比较时间戳 + 同文件判定）不值得 |
+| checkpoint-lib.sh | auto-checkpoint 的共享 lib：提供 `checkpoint_write(file, desc)` 函数封装 jq 写入 + fail-open 容错 + 活跃 change 检测。由 PreToolUse hook 脚本调用。**禁止**绕过直接 jq write `.flow-active.interrupt`（必须通过 `checkpoint_write()`）——此约束在 `@.specs/CONTEXT.md` § 禁动清单 已登记 |
 | L2-first gating（L2 优先门控） | gate_config="both" 时的时序约束：L3（外部模型审查）必须在 L2（子 agent 盲审）完成后才写入 `.done` 文件。L3 可先产出审查内容（追加到 review md），但 `.done` 标记的写入被推迟到 L2 也完成后。防止 L3 提前写 `.done` 导致主 agent 误判为"双层审查已完成" |
 | append-write semantics（追加写入语义） | L2 子 agent 写入 `INDEPENDENT-REVIEW-<N>.md` 时的文件操作约束：必须追加（`>>`）而非覆写（`Write` 全量）。若文件已有 L3 段，L2 段追加到文件末尾并标注顺序。解决 L2 子 agent 用 Write 工具覆写文件时销毁已有 L3 内容的问题 |
 | dual-review-merge-fix | 本次 change：修复 L2/L3 双层审查因时序错位（L3 先于 L2 完成）+ 文件覆写（L2 Write 销毁 L3 段）导致审查建议丢失的问题。三处修复：① 29 号 hook L3 等待 L2 ② L2 prompt 改为追加写入 ③ .done 仅在双方完成后写入 |
@@ -221,7 +222,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-03]` 阶段产物验证策略 — 双层防护（prompt PCSC 自检 + GO.md PCG 门禁），任一 ❌ 禁止进入 toll-gate。来自 `phase-skip-fix`
 - `[2026-07-03]` L3 调用策略 — PreToolUse hook 为主路径，Stop hook 为兜底；gate 方向三向判定（回退放行/no-op放行/前进查 gate）。来自 `pipeline-fallback-fix`
 - `[2026-07-03]` pipeline 回退下界动态 = start_phase（默认 4 兼容）；回退语义：退到 N 后移除 N 之后所有已完成阶段。来自 `pipeline-rollback-phase0`
-- `[2026-07-04]` auto-checkpoint 双层防护 — prompt 指令 + PreToolUse hook 兜底，去重窗口 30s（同 file+同 type）。checkpoint 写入必须通过 `checkpoint_write()` 函数。来自 `user-guide-update`
+- `[2026-07-10]` auto-checkpoint 双层防护 — prompt 指令 + PreToolUse hook 兜底（auto-checkpoint-hook change 实现）。去重策略：不启用（移除去重 · `checkpoint_dedup_check()` 和 `CHECKPOINT_DEDUP_WINDOW` 已删除）。推翻 `[2026-07-04]` 的 30s 去重窗口决定。checkpoint 写入必须通过 `checkpoint_write()` 函数。来自 `auto-checkpoint-hook`
 <!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
 <!-- A-evolve 2026-07-08 第1轮追加 ↑ -->
 <!-- refactor-independent-review-gate 追加 ↓ -->

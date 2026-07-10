@@ -3,8 +3,9 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-10` (`fix-l3-gate` · 修 L3 gate 三连异常 L-030 · 全量 441 bats 0 fail · L-030 resolved + L-031)
+- **last_change_archived**: `2026-07-10` (`auto-checkpoint-hook` · 自动 checkpoint PreToolUse hook · 全量 ~468 bats 0 fail · L-032)
 - **last_evolve_promoted**:
+  - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
   - 2026-06-08-offline-brooks-bundle
   - 2026-06-09-user-scope-install

@@ -59,42 +59,53 @@ teardown() {
   [[ "$failing_check" == "npx bats test/foo.bats" ]]
 }
 
-# ── checkpoint_dedup_check ────────────────────────────────────
+# ── checkpoint_write no-dedup behavior ──────────────────────────
+# auto-checkpoint-hook change: dedup 已移除, 验证每次调用必定更新 interrupt
 
-@test "checkpoint_dedup_check allows first write" {
-  run checkpoint_dedup_check "src/main.sh" "edit src/main.sh"
+@test "checkpoint_write always succeeds for same file (no dedup)" {
+  # checkpoint-lib.sh 已在 setup() 中 source，此处直接使用
+
+  # 第一次写入
+  run checkpoint_write "src/main.sh" "编辑 src/main.sh" ""
   [[ "$status" -eq 0 ]]
+
+  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+
+  # 第二次写入（同文件，同 action type）
+  sleep 1
+  run checkpoint_write "src/main.sh" "编辑 src/main.sh" ""
+  [[ "$status" -eq 0 ]]
+
+  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+  [[ "$ts1" != "$ts2" ]]  # checkpoint_at 每次不同
 }
 
-@test "checkpoint_dedup_check dedup same file+type within 30s window" {
-  # 写入初始 checkpoint
-  jq --arg ts "$(date -Iseconds)" \
-    '.interrupt = {active_file:"src/main.sh",last_action:"edit src/main.sh",checkpoint_at:$ts}' \
-    .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+@test "checkpoint_write always succeeds for different action type (no dedup)" {
+  # checkpoint-lib.sh 已在 setup() 中 source，此处直接使用
 
-  # 同文件+同类型 → 应跳过
-  run checkpoint_dedup_check "src/main.sh" "edit src/main.sh"
-  [[ "$status" -eq 1 ]]
+  run checkpoint_write "src/main.sh" "编辑 src/main.sh" ""
+  [[ "$status" -eq 0 ]]
+
+  # 同文件但不同 action type → 仍然必定更新（不去抖）
+  run checkpoint_write "src/main.sh" "测试失败: npx bats" "npx bats test/foo.bats"
+  [[ "$status" -eq 0 ]]
+
+  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+  [[ "$failing_check" == "npx bats test/foo.bats" ]]
 }
 
-@test "checkpoint_dedup_check allows different file" {
-  jq --arg ts "$(date -Iseconds)" \
-    '.interrupt = {active_file:"src/main.sh",last_action:"edit src/main.sh",checkpoint_at:$ts}' \
-    .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+@test "checkpoint_write updates active_file for different files (no dedup)" {
+  # checkpoint-lib.sh 已在 setup() 中 source，此处直接使用
 
-  # 不同文件 → 应允许
-  run checkpoint_dedup_check "src/other.sh" "edit src/other.sh"
+  run checkpoint_write "src/main.sh" "编辑 src/main.sh" ""
   [[ "$status" -eq 0 ]]
-}
+  f1=$(jq -r '.interrupt.active_file' .flow-active)
+  [[ "$f1" == "src/main.sh" ]]
 
-@test "checkpoint_dedup_check allows different action type" {
-  jq --arg ts "$(date -Iseconds)" \
-    '.interrupt = {active_file:"src/main.sh",last_action:"edit src/main.sh",checkpoint_at:$ts}' \
-    .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
-
-  # 同文件+不同类型 → 应允许
-  run checkpoint_dedup_check "src/main.sh" "test failed: npx bats"
+  run checkpoint_write "src/other.sh" "编辑 src/other.sh" ""
   [[ "$status" -eq 0 ]]
+  f2=$(jq -r '.interrupt.active_file' .flow-active)
+  [[ "$f2" == "src/other.sh" ]]
 }
 
 # ── checkpoint_validate ───────────────────────────────────────

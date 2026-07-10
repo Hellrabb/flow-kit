@@ -6,12 +6,12 @@
 # DESIGN D1: prompt 层 + hook 层双层防护
 # DESIGN D2: PreToolUse hook 为兜底拦截点
 # DESIGN D5: active_file=相对路径, last_action≤200chars, checkpoint_at=ISO8601
-# DESIGN D6: 30s 去重窗口, 同 file+同 type 不重复
+# DESIGN D2: 不启用去重（auto-checkpoint-hook change 移除 · 每次调用必定更新）
+# DESIGN D6: ref → hooks/stop/lib/checkpoint-lib.sh（本文件 · 禁动清单）
 
 set -euo pipefail
 
 # ── 配置 ──
-CHECKPOINT_DEDUP_WINDOW=${CHECKPOINT_DEDUP_WINDOW:-30}  # 秒
 FLOW_ACTIVE="${FLOW_ACTIVE:-.flow-active}"
 
 # ── checkpoint_write ────────────────────────────────────────────
@@ -27,11 +27,6 @@ checkpoint_write() {
   # 截断 action 到 200 字符
   if [[ "${#action}" -gt 200 ]]; then
     action="${action:0:197}..."
-  fi
-
-  # 去重检查（30s 窗口, 同 file + 同 type）
-  if ! checkpoint_dedup_check "$file" "$action"; then
-    return 0  # 去重跳过, 非错误
   fi
 
   # 原子写入
@@ -56,44 +51,6 @@ checkpoint_write() {
   fi
 
   mv "${FLOW_ACTIVE}.tmp" "$FLOW_ACTIVE"
-  return 0
-}
-
-# ── checkpoint_dedup_check ──────────────────────────────────────
-# 参数: $1 = file, $2 = action
-# 返回 0 = 可以写入, 返回 1 = 去重跳过
-checkpoint_dedup_check() {
-  local file="$1"
-  local action="$2"
-  local action_type
-
-  # 提取操作类型（action 的前缀词）
-  action_type=$(echo "$action" | awk '{print $1}')
-
-  local last_file last_type last_ts now_ts diff
-  last_file=$(jq -r '.interrupt.active_file // ""' "$FLOW_ACTIVE" 2>/dev/null || echo "")
-  last_type=$(jq -r '.interrupt.last_action // ""' "$FLOW_ACTIVE" 2>/dev/null | awk '{print $1}' || echo "")
-  last_ts=$(jq -r '.interrupt.checkpoint_at // ""' "$FLOW_ACTIVE" 2>/dev/null || echo "")
-
-  # 首次写入, 不跳过
-  if [[ -z "$last_ts" ]]; then
-    return 0
-  fi
-
-  # 不同文件或不同操作类型, 不跳过
-  if [[ "$file" != "$last_file" ]] || [[ "$action_type" != "$last_type" ]]; then
-    return 0
-  fi
-
-  # 同文件+同类型: 检查时间窗口
-  now_ts=$(date +%s)
-  last_epoch=$(date -d "$last_ts" +%s 2>/dev/null || echo "0")
-  diff=$(( now_ts - last_epoch ))
-
-  if [[ "$diff" -lt "$CHECKPOINT_DEDUP_WINDOW" ]]; then
-    return 1  # 去重跳过
-  fi
-
   return 0
 }
 

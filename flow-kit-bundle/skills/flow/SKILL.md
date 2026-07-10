@@ -233,8 +233,25 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 4. 输出：`✅ gate_config[<phase>] = <value>。` + 当前完整 gate_config 摘要
 5. 副作用提示：开启某阶段后，进入/处于该阶段时，Stop hook `29-independent-review.sh` 会跑 L3，PreToolUse hook `independent-review-gate.sh` 会拦 commit / PR / 切阶段直到主 agent 写 `.specs/<id>/.independent-review-<phase>.done`（机制见 `@flow-kit/prompts/independent/L2-blind-review.md` 与各阶段 prompt 的「独立 review 调度」段）
 
+### 自动 checkpoint（PreToolUse hook）
+
+**无需手动操作**。每当 AI 调用 Write 或 Edit 工具前，`auto-checkpoint.sh` PreToolUse hook 自动更新 `.flow-active` 的 `interrupt` 字段：
+
+- **触发条件**：`.flow-active` 存在且 `change_id` 非 null（有活跃 change）
+- **触发工具**：Write / Edit（Read / Bash 等不触发）
+- **写入字段**：
+  - `active_file` — 正在编辑的文件路径
+  - `last_action` — 动作描述（"编辑 `<filepath>`"）
+  - `failing_check` — 空字符串（PreToolUse 路径不适用）
+  - `checkpoint_at` — ISO8601 时间戳
+- **恢复方式**：
+  - 会话中断后，下一轮 SessionStart 的 `flow-kit-resume.sh` 检测到 `interrupt` 非空，在 banner 中展示"上次编辑: `<active_file>`"
+  - `/flow`（无参数）查看当前状态时也会展示 `interrupt` 信息
+- **与手动 checkpoint 的关系**：互补不冲突。自动 hook 覆盖每次 Write/Edit；手动 `/flow checkpoint` 用于额外标注（测试失败、阶段切换等）。最后写入者覆盖。
+- **安装**：`install.sh` 安装时自动注册到 `.claude/settings.json` 的 `PreToolUse` 数组（matcher: `"Write|Edit"`）
+
 ### `/flow checkpoint <file> <description>`
-保存中断恢复上下文。AI 应在每次关键操作后调用（如开始编辑文件、遇到测试失败）。
+手动保存中断恢复上下文。AI 应在关键操作后调用（如遇到测试失败、切换任务时）。自动 hook 已覆盖 Write/Edit，本命令用于额外标注。
 1. 检查 `.flow-active` 是否存在，不存在 → 提示先 `/flow start`
 2. 用 jq 更新 `interrupt` 字段和 `updated_at`：
    ```bash
