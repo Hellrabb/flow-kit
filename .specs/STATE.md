@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-10` (`auto-checkpoint-hook` · 自动 checkpoint PreToolUse hook · 全量 ~468 bats 0 fail · L-032)
+- **last_change_archived**: `2026-07-10` (`checkpoint-polish` · BW01-BW03 品质提升 · 全量 462 bats 0 fail · L-033)
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo

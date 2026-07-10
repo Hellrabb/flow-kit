@@ -23,6 +23,21 @@
 **教训**: L2 盲审的"独立性"价值在本次 change 中得到充分验证——5 个阶段中有 4 个阶段的 L2 审查发现了主 agent 漏检的 🔴 Critical 问题。**L2 不是橡皮图章，是真实的安全网**。gate_config=all 全开虽然多了 ~150k tokens（5 次 L2 审查），但阻止了至少 2 个会导致"部署后完全不可用"的路径级 bug（R1 目录名 + R1 去重矛盾）。
 
 **建议**: 对于涉及新文件创建/目录结构变更/库行为修改的 change，**强烈建议** gate_config=all 全开。纯文档/配置类 change 可降为 code-only（仅 6-review）。
+
+### L-033: Makefile lint for-loop glob 覆盖不完整——`hooks/stop/lib/` 的 12 个 lib 文件绕过 shellcheck（checkpoint-polish）
+
+**严重程度**: 🟡 Major（流程级）
+**来源**: `checkpoint-polish` change（2026-07-10 · Phase 6 L2 🔴 R1 发现）
+**发现**:
+- `make lint` 的 shellcheck for-loop 覆盖了 `*.sh`、`flow-kit-bundle/lib/*.sh`、`flow-kit-bundle/hooks/stop/*.sh`、`flow-kit-bundle/hooks/session-start/*.sh`、`flow-kit-bundle/hooks/pre-tool-use/*.sh`，但**遗漏了 `flow-kit-bundle/hooks/stop/lib/*.sh`**
+- 后果：`hooks/stop/lib/` 下全部 12 个 lib 文件（common.sh、correction-file.sh、done-validation.sh、fix-compliance.sh、flow-kit-artifacts.sh、interactive-ui-check.sh、l2-detect.sh、l3-review.sh、transcript-parser.sh、weak-model-compliance.sh、checkpoint-lib.sh、banner.sh）从未经过自动化 shellcheck 扫描
+- 本次新增的 banner.sh 也未被扫描——直到 Phase 6 L2 审查时才被发现
+
+**教训**: 当目录结构存在嵌套子目录（如 `hooks/stop/` + `hooks/stop/lib/`）时，shell glob `hooks/stop/*.sh` **不递归**匹配子目录。新增 lib 文件到深层目录时，必须同时检查 Makefile/CI 的静态分析覆盖范围
+
+**修复**: Makefile L23 追加 `flow-kit-bundle/hooks/stop/lib/*.sh` 到 lint for-loop
+**建议**: 后续 change 可在 `make lint` 中使用 `find ... -name '*.sh'` 递归扫描替代显式 glob 枚举，从根本上消除此类遗漏
+
 |---|---|---|---|---|---|---|
 | L-031 | 🟡 | 跨文件批量修改 · DESIGN.md 清单驱动 | **DESIGN.md 列出的修改文件清单不完整时，AI 会漏改**：fix-l3-gate 的 AC-4（transition jq `.phase` 同步）涉及 9 处修改点，DESIGN.md §3.4 列出了 7 处（0-change/1-req/2-design/3-task/5-test/6-review prompts + 31-auto-advance.sh），遗漏了 4-dev.md 和 pipeline-gates.md 两处。主 agent 按 DESIGN 清单逐项执行，L2 盲审通过全仓 grep `phases_done.*+=` 才发现遗漏 | 批量修改前必须全仓 grep 确认所有命中点，不能仅依赖 DESIGN.md 清单。在 DESIGN.md 底部加一栏「全仓扫描确认」：grep 命令 + 命中数 + 逐项标注"需改/不适用" | active | `fix-l3-gate` 2026-07-10 · L2 盲审发现 |
 

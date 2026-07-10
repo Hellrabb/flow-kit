@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync dup all
+.PHONY: test lint check check-validate check-test-sync test-sync dup all
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -20,7 +20,7 @@ lint:
 		echo "   Skipping lint (non-blocking)."; \
 	else \
 		ERR=0; \
-		for f in *.sh flow-kit-bundle/lib/*.sh flow-kit-bundle/hooks/stop/*.sh flow-kit-bundle/hooks/session-start/*.sh flow-kit-bundle/hooks/pre-tool-use/*.sh; do \
+		for f in *.sh flow-kit-bundle/lib/*.sh flow-kit-bundle/hooks/stop/*.sh flow-kit-bundle/hooks/stop/lib/*.sh flow-kit-bundle/hooks/session-start/*.sh flow-kit-bundle/hooks/pre-tool-use/*.sh; do \
 			[ -f "$$f" ] || continue; \
 			OUT=$$(shellcheck -e SC1091 "$$f" 2>&1) || true; \
 			ERRS=$$(echo "$$OUT" | grep -ci "error" || true); \
@@ -43,13 +43,21 @@ check-validate:
 	@echo "📦 make check-validate: package staging coverage..."
 	@bash package-flow-kit.sh --validate 2>&1 | tail -5
 
+# ── test-sync: 同步 test/ → flow-kit-bundle/test/ ──
+test-sync:
+	@echo "🔄 make test-sync: test/ → flow-kit-bundle/test/ ..."
+	@if [ ! -d flow-kit-bundle/test ]; then \
+		echo "❌ flow-kit-bundle/test/ 不存在"; exit 1; \
+	fi
+	@cp test/*.bats flow-kit-bundle/test/ && echo "✅ test 双源已同步" || { echo "❌ 同步失败"; exit 1; }
+
 # ── check-test-sync: test 双源一致性 ──
 check-test-sync:
 	@echo "🔍 make check-test-sync: test/ ↔ flow-kit-bundle/test/ ..."
 	@if [ ! -d flow-kit-bundle/test ]; then \
 		echo "⚠️  flow-kit-bundle/test/ 不存在，跳过"; \
 	else \
-		diff -rq test/ flow-kit-bundle/test/ && echo "✅ test 双源一致" || { echo "❌ test/ 与 flow-kit-bundle/test/ 不一致！请同步。"; exit 1; }; \
+		diff -rq test/ flow-kit-bundle/test/ && echo "✅ test 双源一致" || { echo "❌ test/ 与 flow-kit-bundle/test/ 不一致！请运行 make test-sync"; exit 1; }; \
 	fi
 
 # ── check: 全量质量门禁 ──

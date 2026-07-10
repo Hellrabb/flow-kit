@@ -173,6 +173,9 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 工件变更检测（artifact change detection） | L3 重审的触发判定机制：用 `stat -c %Y` 比较产物文件 mtime 与上次 L3 审查时间戳（记录在 .done 或 INDEPENDENT-REVIEW-N.md 元数据中）。mtime 更新 → 触发重审。O(1) 无额外延迟。来自 `fix-l3-gate` |
 | .done 安全写逻辑（.done safe-write） | L3 verdict=fail 时**不写** `.independent-review-N.done` 文件，仅 verdict=pass 时写入。消除 L-030 问题 2（L3 fail 却写 .done 放行 transition 的安全漏洞）。不影响回退方向（回退放行不要求 .done）。来自 `fix-l3-gate` |
 | transition 四字段同步（transition four-field sync） | transition jq 执行时原子更新 `.flow-active` 的四个 phase 相关字段：`goal.current_phase`、顶层 `phase`、`goal.phases_done`（追加旧 phase）、`goal.gates["N→N+1"]`（标记 passed）。解决 L-030 问题 3（顶层 phase 与 goal.current_phase 不同步）。来自 `fix-l3-gate` |
+| resume banner | SessionStart hook 输出的 ASCII art 状态横幅（`flow-kit-resume.sh` L201-L254），显示活跃 change 的 change_id / phase / task / goal / interrupt / token 信息。来自 `checkpoint-polish` |
+| 双源测试同步（dual-source test sync） | `test/`（开发源）和 `flow-kit-bundle/test/`（打包源）的 bats 测试文件自动保持一致——修改一处后通过 `make test-sync` 或符号链接同步到另一处，替代手动 `cp`。来自 `checkpoint-polish` |
+| CHANGELOG 紧凑单行 pipe 格式 | `.specs/CHANGELOG.md` 的统一条目格式：`| 日期 | change-id | 摘要 | LESSONS |`（无独立表头行），全文件统一使用此格式。来自 `checkpoint-polish` |
 
 ## 已锁决策
 
@@ -228,6 +231,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- refactor-independent-review-gate 追加 ↓ -->
 - `[2026-07-08]` gate regex 统一"变量存 regex"风格（**本次 change 实施中 · 待 7-integration 标 ✅**）— independent-review-gate.sh 所有 `[[ =~ ]]` 将改用 `local re='...'; [[ "$x" =~ $re ]]`，杜绝 regex 内 `&&`/裸空格被 bash 当逻辑与/词法拆分（TD-011 根因 SC2157）。来自 `refactor-independent-review-gate`
 <!-- refactor-independent-review-gate 追加 ↑ -->
+<!-- checkpoint-polish 追加 ↓ -->
+- `[2026-07-10]` BW01 banner 函数抽取目标 — `flow-kit-resume.sh` 的 banner 构建逻辑抽取为 sourceable 函数，放入 `flow-kit-bundle/hooks/session-start/lib/` 或 `flow-kit-bundle/lib/` 下，与现有 lib 组织一致。来自 `checkpoint-polish`
+- `[2026-07-10]` BW02 CHANGELOG 格式统一方向 — `.specs/CHANGELOG.md` 统一为紧凑单行 pipe 格式（`| 日期 | change-id | 摘要 | LESSONS |`），与顶部新条目格式一致，不保留独立表头行。来自 `checkpoint-polish`
+- `[2026-07-10]` BW03 双源测试同步方案 — 优先 Makefile target（`make test-sync`），备选 install.sh symlink；`make check` 集成不同步检测（非零退出）。来自 `checkpoint-polish`
+<!-- checkpoint-polish 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
