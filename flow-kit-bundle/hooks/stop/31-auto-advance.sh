@@ -90,7 +90,7 @@ tmp_flow="${flow_file}.tmp"
 echo "[31-auto-advance] auto-advancing phase ${current_phase} → ${next_phase}" >&2
 
 if jq --arg next "$next_phase" --arg gk "$gate_key" \
-  '.goal.current_phase = $next | .goal.phases_done += [($next|tonumber - 1|tostring)] | .goal.gates[$gk] = "passed" | .updated_at = now' \
+  '.goal.current_phase = $next | .phase = $next | .goal.phases_done += [($next|tonumber - 1|tostring)] | .goal.gates[$gk] = "passed" | .updated_at = now' \
   "$flow_file" > "$tmp_flow" 2>/dev/null; then
   mv "$tmp_flow" "$flow_file" 2>/dev/null || true
 fi

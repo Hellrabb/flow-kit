@@ -128,7 +128,7 @@
    用户选 1/3 → 执行 transition：
    ```bash
    jq --arg next_phase "<5或6>" --arg ts "$(date -Iseconds)" \
-     '.goal.current_phase = $next_phase | .goal.phases_done += ["4"] | .goal.gates["4→5"] = "passed" | .updated_at = $ts' \
+     '.goal.current_phase = $next_phase | .phase = $next_phase | .goal.phases_done += ["4"] | .goal.gates["4→5"] = "passed" | .updated_at = $ts' \
      .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
    ```
    然后加载 `@flow-kit/prompts/<5-test 或 6-review>.md`。

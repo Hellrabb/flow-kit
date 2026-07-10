@@ -322,7 +322,7 @@
 用户选 1 → 执行 transition：
 ```bash
 jq --arg ts "$(date -Iseconds)" \
-  '.goal.current_phase = "3" | .goal.phases_done += ["2"] | .goal.gates["2→3"] = "passed" | .updated_at = $ts' \
+  '.goal.current_phase = "3" | .phase = "3" | .goal.phases_done += ["2"] | .goal.gates["2→3"] = "passed" | .updated_at = $ts' \
   .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
 ```
 然后加载 `@flow-kit/prompts/3-task.md`（或非前端项目时）或 `@flow-kit/prompts/2a-ui-design.md`（前端项目）。

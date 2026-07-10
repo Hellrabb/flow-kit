@@ -9,7 +9,9 @@
 
 | # | 严重程度 | 位置 | 问题 | 建议 | 状态 | 来源 |
 |---|---|---|---|---|---|---|
-| L-030 | 🔴 | `flow-kit-bundle/hooks/stop/29-independent-review.sh` + `independent-review-gate.sh` | **L3 盲审 gate 机制三连异常**（pipeline 模式下连续 2 阶段 1-requirement/2-design 重复）：(1) L3 fail 后 `l3-review.sh` **不重审**已审阶段——主 agent 修了工件也得不到 L3 重新确认 → verdict 死结；(2) `.independent-review-N.done` 被 `pre-tool-use-gate` **异常写入**（`L3_verdict=fail` 却写 .done 放行 transition，违背"L3 fail 不该写 .done"设计）；(3) transition 后顶层 `phase` 与 `goal.current_phase` **不同步**（hook 只改顶层 phase） | 修 `l3-review.sh` 支持重审（工件变更后重跑）+ 修 .done 写逻辑（L3 fail 不写）+ transition 同步 `goal.current_phase` 与顶层 `phase`。**本次绕过**：td-test-infra 已将 `gate_config` 全改 `L2`（去 L3，仅留 L2 subagent）| active | `td-test-infra` 2026-07-10 · pipeline gate 异常 |
+| L-031 | 🟡 | 跨文件批量修改 · DESIGN.md 清单驱动 | **DESIGN.md 列出的修改文件清单不完整时，AI 会漏改**：fix-l3-gate 的 AC-4（transition jq `.phase` 同步）涉及 9 处修改点，DESIGN.md §3.4 列出了 7 处（0-change/1-req/2-design/3-task/5-test/6-review prompts + 31-auto-advance.sh），遗漏了 4-dev.md 和 pipeline-gates.md 两处。主 agent 按 DESIGN 清单逐项执行，L2 盲审通过全仓 grep `phases_done.*+=` 才发现遗漏 | 批量修改前必须全仓 grep 确认所有命中点，不能仅依赖 DESIGN.md 清单。在 DESIGN.md 底部加一栏「全仓扫描确认」：grep 命令 + 命中数 + 逐项标注"需改/不适用" | active | `fix-l3-gate` 2026-07-10 · L2 盲审发现 |
+
+| L-030 | 🔴 | `flow-kit-bundle/hooks/stop/29-independent-review.sh` + `independent-review-gate.sh` | ~~**L3 盲审 gate 机制三连异常**~~ → ✅ resolved by `fix-l3-gate`（2026-07-10）：(1) L3 重审——mtime 检测工件变更后追加 `## L3 重审` 段；(2) .done 条件写入——仅 `L3_verdict=pass` 时写 .done；(3) transition `.phase` 同步——9 处 transition jq 全部加 `.phase` 字段 | resolved | `fix-l3-gate` 2026-07-10 |
 
 | L-022 | 🟡 | Bash hook stderr 安全 | 移除 `2>/dev/null` 后 curl/jq 错误信息（含 endpoint URL、部分 API 响应）会通过 `>&2` 日志泄露到 agent 可见 stderr。`_l3_format_result` 的白名单输出天然安全，但真实 stderr 泄露只能在集成环境验证。建议 v2 将敏感诊断日志重定向到专用 debug 文件而非 stderr | active | `l3-feedback-visibility` 2026-07-07 |
 
