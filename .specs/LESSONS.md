@@ -6,6 +6,7 @@
 <!-- l3-pipeline-fix-2026-07 ↓ -->
 | L-041 | 🟡 | `auto-checkpoint.sh` PreToolUse hook | 自引用竞态：hook 在 Write/Edit `.flow-active` 前触发 `checkpoint_write()` 修改同一文件，导致 harness 检测到文件内容变化后拒绝 Write/Edit | 在 `auto-checkpoint.sh` 中检测 `file_path` 是否为 `.flow-active` 自身——若是则 skip checkpoint 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` |
 | L-042 | 🔴 | `29-independent-review.sh` L3 派发 | `--background` 异步 flag 硬编码激活导致 `.done` 永不写入：fork 子进程后立即返回 `return 0`，`_l3_write_done()` 未执行 → 下次 Stop hook 再次进入积压扫描 → 无限重派循环 | 异步功能默认关闭（opt-in via `L3_BACKGROUND=1`）；默认同步路径确保 `.done` 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` L2 审查 R1 |
+| L-043 | 🟡 | `install.sh` 部署流程 | 改了 bundle 源 hook 文件后，容易忘记重跑 `install.sh --user` 同步到 `~/.claude/hooks/`。install.sh 代码不需要改（`install_file` 自动覆盖），但**必须提醒用户重跑**，否则运行时仍是旧版本 | 每次 change 涉及 hook 文件修改时，在归档阶段显式提醒用户执行 `install.sh --user` | ✅ 流程补记 | `l3-pipeline-fix-2026-07` 事后发现 |
 <!-- l3-pipeline-fix-2026-07 ↑ -->
 
 ---
