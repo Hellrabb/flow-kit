@@ -12,6 +12,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "26" || true
+
 # Source flow-kit artifacts library (provides fk_* helpers)
 FK_LIB="${HOOK_BASE_DIR}/lib/flow-kit-artifacts.sh"
 if [[ -f "$FK_LIB" ]]; then
@@ -293,3 +296,5 @@ check_g2
 check_g3
 check_g4
 check_g5
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "26" || true

@@ -10,6 +10,9 @@ set -euo pipefail
 
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
+
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "28" || true
 source "${HOOK_BASE_DIR}/lib/weak-model-compliance.sh"
 
 module_enabled "weak_model_compliance" || exit 0
@@ -90,3 +93,5 @@ check_compliance() {
 (
   check_compliance
 ) || true
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "28" || true

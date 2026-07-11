@@ -12,6 +12,8 @@
 # when grep -q returns non-zero inside an if-condition (pipefail kills the loop).
 
 # shellcheck source=/dev/null
+source "${HOOK_BASE_DIR}/lib/correction-types.sh" 2>/dev/null || true
+# shellcheck source=/dev/null
 source "${HOOK_BASE_DIR}/lib/correction-file.sh" 2>/dev/null || true
 
 # ── Correction file path ──────────────────────────────────────────────

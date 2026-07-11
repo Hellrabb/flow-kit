@@ -7,6 +7,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "20" || true
+
 # Skip if module disabled
 module_enabled "claude-md" || exit 0
 [[ -f "$CLAWDE_MD" ]] || exit 0
@@ -117,3 +120,5 @@ check_a1
 check_a2
 check_a3
 check_a6
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "20" || true

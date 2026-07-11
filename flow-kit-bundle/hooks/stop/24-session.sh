@@ -19,6 +19,9 @@ readonly WEEKLY_HEAVY_THRESHOLD=20  # 周会话数高频阈值
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "24" || true
+
 module_enabled "session" || exit 0
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -254,3 +257,5 @@ check_e2
 check_e3
 check_e4
 check_e5
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "24" || true

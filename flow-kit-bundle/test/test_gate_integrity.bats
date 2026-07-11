@@ -156,8 +156,9 @@ EOF
   [ "$output" -ge 1 ]
 }
 
-@test "AC-3 · 5 站点: gate.sh case 含 3-task/5-test/7-integration" {
-  cnt=$(grep -cE '"3-task"|"5-test"|"7-integration"' "$GATE_SH" || echo "0")
+@test "AC-3 · 5 站点: PHASE_GATE_KEY_MAP in common.sh 含 3-task/5-test/7-integration" {
+  local common_sh="${HOOK_BASE_DIR}/lib/common.sh"
+  cnt=$(grep -cE '"3-task"|"5-test"|"7-integration"' "$common_sh" || echo "0")
   [ "$cnt" -ge 3 ]
 }
 

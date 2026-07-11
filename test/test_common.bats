@@ -206,3 +206,47 @@ EOF
   CONFIG_FILE="" CWD="$proj" HOME="$fakehome" init_paths
   [[ "$CONFIG_FILE" == "$proj/.claude/stop-hook.json" ]]
 }
+
+# ══ fk_estimate_tokens + fk_perf_timing 测试（l3-pipeline-fix-2026-07） ══
+
+@test "fk_estimate_tokens: normal text (char_count / 4)" {
+  source "$COMMON_SH"
+  local result
+  result=$(fk_estimate_tokens "hello world, this is a test")
+  # "hello world, this is a test" = 27 chars → 27/2 = 13（/2 中文保守估算）
+  [[ "$result" -eq 13 ]]
+}
+
+@test "fk_estimate_tokens: empty text returns 0" {
+  source "$COMMON_SH"
+  local result
+  result=$(fk_estimate_tokens "")
+  [[ "$result" -eq 0 ]]
+}
+
+@test "fk_estimate_tokens: FK_CONTEXT_WINDOW override" {
+  source "$COMMON_SH"
+  local result
+  FK_CONTEXT_WINDOW=50000 result=$(fk_estimate_tokens "test")
+  # "test" = 4 chars → 4/2 = 2 tokens (/2 保守估算)
+  [[ "$result" -eq 2 ]]
+}
+
+@test "fk_perf_timing: start+end pair records elapsed seconds" {
+  source "$COMMON_SH"
+  fk_perf_timing_start "test_label"
+  # _FK_PERF_TIMINGS should have test_label_start key
+  [[ -n "${_FK_PERF_TIMINGS[test_label_start]:-}" ]]
+  fk_perf_timing_end "test_label"
+  # _FK_PERF_TIMINGS should have test_label key after end
+  [[ -n "${_FK_PERF_TIMINGS[test_label]:-}" ]]
+}
+
+@test "fk_perf_timing: end without start warns but does not exit" {
+  source "$COMMON_SH"
+  run fk_perf_timing_end "no_start_label"
+  # Should not fail (return 0, fail-open)
+  [[ "$status" -eq 0 ]]
+  # Should warn to stderr
+  [[ "$output" =~ WARNING ]]
+}

@@ -7,6 +7,9 @@ set -euo pipefail
 HOOK_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "00" || true
+
 # ── Read stdin and initialize ───────────────────────────────────────
 hook_init
 
@@ -124,4 +127,5 @@ if [[ -z "${STOP_HOOK_DEBUG:-}" ]]; then
   rm -rf "$HOOK_TMP_DIR"
 fi
 
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "00" || true
 exit 0

@@ -179,6 +179,17 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | `run_check()` | check_* 统一包装函数，签名 `run_check(name, enabled_check, condition, message)`。替代各模块手写 `check_enabled` guard → 读状态 → 检查条件 → `module_output` 四段样板模板。来自 `sweep-fix-2026-07-10` |
 | `_grep` 兼容层 | 对 ugrep 的封装兼容层代码。本次 sweep-fix-2026-07-10 评估其去留：若 ugrep 已安装且功能兼容则移除，否则保留并标注 deprecated。决策结论写入 CHANGE.md。来自 `sweep-fix-2026-07-10` |
 | sweep-fix-2026-07-10 | 2026-07-10 Full Sweep（评分 65/100）的修复 change，消除 2🔴（TD-017 函数拆分 + TD-018 函数拆分）+ 4🟡（TD-019 check去重 + TD-020 死代码 + TD-021 命名文档 + TD-022 安装测试）+ 1 评估项（_grep 去留），目标评分 ≥80。来自 `M-health 2026-07-10 Full Sweep` |
+| `PHASE_GATE_KEY_MAP` | `common.sh` 中新增的 phase→gate_key 映射关联数组（`declare -A`），替代各 hook/prompt 中硬编码的 `case "$phase" in 1) "1-requirement" ;;` 片段，作为 phase_name 解析的单一源。来自 `health-fix-l3-2026-07` |
+| `correction-types.sh` | 新建的共享常量/类型定义文件，提取 correction-file / interactive-ui-check / weak-model-compliance 三模块的共享接口，消除三向依赖环。遵循"依赖接口而非彼此"的 ADP 原则。来自 `health-fix-l3-2026-07` |
+| `goal-parsing.md` | `flow-kit/reference/` 下新增的共享片段文件，抽取 6-review.md 和 7-integration.md 中重复的 jq goal 解析逻辑（~30 行/处），作为 DRY 单一源。prompt 中通过 `@see` 引用。来自 `health-fix-l3-2026-07` |
+| `health-fix-l3-2026-07` | 2026-07-11 L3 审计健康巡检（72/100）的修复 change，消除 3🔴 + 6🟡 + 3🟢 共 12 项技术债——长函数拆分（6 函数）+ 依赖环解环 + DRY 消除（2 处）+ timeout 测试补齐 + self-sourcing 修复 + 死代码清理。来自 `.specs/health/2026-07-11-L3-AUDIT-HEALTH.md` |
+<!-- l3-pipeline-fix-2026-07 追加 ↓ -->
+| L3 管线 5 项限制（L-040） | `health-fix-l3-2026-07` 暴露的 L3 审查子系统 5 项系统级限制：① git diff 硬限 5000 字符 ② `git diff HEAD` 不含 untracked 文件 ③ `head -c` 逐文件硬截断丢弃尾部 ④ 仅审当前 phase，历史积压不处理 ⑤ 每次审查独立无状态上下文。本次 change 一次性修复全部 5 项。来自 `l3-pipeline-fix-2026-07` |
+| 积压扫描（backlog scan） | Stop hook 29 号模块新增逻辑：检测 `phases_done` 中哪些 phase 的 gate_config 含 L3 但 `.independent-review-{N}.done` 缺失，自动触发 L3 补跑。解决 L-040 限制④。来自 `l3-pipeline-fix-2026-07` |
+| 智能截断头+尾保留（smart truncation head+tail） | `smart_truncate()` 的新截断策略：取文件前 N/2 + 后 N/2 字符（替代纯 `head -c` 头部截断），确保 AC 段 + 风险/决策段均不丢失。解决 L-040 限制③。来自 `l3-pipeline-fix-2026-07` |
+| L3 上下文注入（L3 context injection） | L3 prompt 构建时注入前次审查摘要：前次 verdict + 主 agent 反驳 + L2 verdict。使每次审查基于历史上下文而非独立盲审。解决 L-040 限制⑤。来自 `l3-pipeline-fix-2026-07` |
+| Stop hook 性能基线（Stop hook performance baseline） | 优化前对 Stop hook 链各模块做 wall-clock 耗时测量（`time` 3 次取中位数），作为 ≥30% 性能提升目标的对比基线。优化方向待测量后确定（异步化 / 懒加载 / 并行化）。来自 `l3-pipeline-fix-2026-07` |
+<!-- l3-pipeline-fix-2026-07 追加 ↑ -->
 
 ## 已锁决策
 
@@ -247,6 +258,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-07-10]` `check_*_body` 命名约定：每个迁移后的 body 函数命名为 `check_<id>_body`（如 `check_c1_body`），与现有 `check_*` 前缀一致。来自 `sweep-fix-2026-07-10`
 <!-- sweep-fix-2026-07-10 追加 ↑ -->
 <!-- checkpoint-polish 追加 ↑ -->
+<!-- health-fix-l3-2026-07 追加 ↓ -->
+- `[2026-07-11]` L3 审计子系统健康修复 v1 范围 — 12 项代码质量修复分三批：🔴 Critical 3 项（函数拆分 `_gate_phase_transition`/`fk_fix_compliance_check` + 解环 correction-file↔UI↔compliance）、🟡 Warning 6 项（`smart_truncate`/`_l3_parse_result`/`_l3_build_prompt` 拆分 + DRY phase_name 映射 + DRY jq goal 解析 + timeout 测试补齐）、🟢 Suggestion 3 项（self-sourcing 修复 + 29 号 hook 函数化 + 死代码清理）。`l3_review_run()` 主函数 307 行 v1 不拆（仅拆其调用的子函数），留 v2 与 TD-008 一起处理。来自 `health-fix-l3-2026-07` Phase 1
+<!-- health-fix-l3-2026-07 追加 ↑ -->
+<!-- l3-pipeline-fix-2026-07 追加 ↓ -->
+- `[2026-07-11]` L3 管线 5 项限制修复 v1 范围 — 一次性修复 L-040 的 5 项系统限制：① git diff 上限 5000→50000（或动态 token 估算）② diff 收集覆盖 untracked + staged ③ 智能截断改为头+尾保留 ④ 积压扫描补齐历史 L3 ⑤ L3 prompt 上下文注入。外加 Stop hook 性能优化 ≥30%。不改变 L3 API 调用方式、不新增 hook 模块、不改 gate_config schema。来自 `l3-pipeline-fix-2026-07`
+<!-- l3-pipeline-fix-2026-07 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -378,11 +395,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- A-evolve 2026-07-08 第2轮追加 ↑ -->
 <!-- A-evolve 2026-07-08 第1轮追加 ↑ -->
 
-**清理窗口专列**（来自 `M-health` 步骤 2.5 冗余巡检 · 下次清理窗口一起 remove）：
-
-- `estimate_tokens()` — `hooks/stop/lib/transcript-parser.sh:130`（全仓零引用·真死代码·可直接删）
-- `read_correction_file()` — `hooks/stop/lib/interactive-ui-check.sh:199`（生产无调用·疑似废弃·确认后删）
-- `file_not_empty()` — `hooks/stop/lib/common.sh:163`（生产无调用·仅测试用·确认是否保留为公共 API，否则删）
+**清理窗口专列**（上次清理：`health-fix-l3-2026-07` · 2026-07-11 · 3 条目已移除）：
+（空——无待清理项）
 
 ### 技术债（来自 M-health · 给 AI 在 2-design / 4-dev 时参考，别再加同类债）
 

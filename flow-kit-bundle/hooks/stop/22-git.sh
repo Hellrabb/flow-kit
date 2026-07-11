@@ -7,6 +7,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "22" || true
+
 module_enabled "git" || exit 0
 
 # Ensure we're in a git repo
@@ -220,3 +223,5 @@ check_c1
 check_c2
 check_c3
 check_c4
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "22" || true

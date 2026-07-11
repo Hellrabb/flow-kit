@@ -8,6 +8,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "30" || true
+
 # ── Gate: AI module enabled? ────────────────────────────────────────
 ai_enabled=$(config_get '.ai.enabled' "false")
 [[ "$ai_enabled" == "true" ]] || exit 0
@@ -169,3 +172,5 @@ else
   # AI call failed — not critical, just log
   echo "AI call failed (no response)" >> "$HOOK_TMP_DIR/module-errors.log"
 fi
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "30" || true

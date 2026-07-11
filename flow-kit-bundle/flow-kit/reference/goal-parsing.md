@@ -1,7 +1,10 @@
-# Pipeline Goal jq 解析参考
+# Pipeline Goal jq 解析参考（DRY 单一源）
 
-> 本文件为 6-review.md / 7-integration.md 及后续 prompt 提供 goal 字段的 jq 解析范式。
-> @see 引用方式：`@flow-kit/reference/goal-parsing.md`
+> **DRY 策略**：本文件是 goal 字段结构与 jq 查询的**唯一定义源**。
+> 6-review.md / 7-integration.md 中所有 goal 相关 jq 命令（transition、rollback、字段读取）
+> 均引用本文件定义的字段名和查询模式，不在各 prompt 中重复描述字段含义。
+> 新增 prompt 需要 goal 解析时，通过 `@see flow-kit/reference/goal-parsing.md` 引用此处。
+> 此模式与 `pipeline-gates.md`（toll-gate 协议单一源）一致。
 
 ## goal 字段结构（`.flow-active.goal`）
 

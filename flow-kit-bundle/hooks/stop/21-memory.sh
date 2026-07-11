@@ -7,6 +7,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "21" || true
+
 module_enabled "memory" || exit 0
 [[ -d "$MEMORY_DIR" ]] || exit 0
 
@@ -117,3 +120,5 @@ check_b4() { run_check "memory" "B4" "" check_b4_body; }
 check_b1
 check_b2
 check_b4
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "21" || true
