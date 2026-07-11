@@ -43,3 +43,4 @@ Thumbs.db
 # === 独立审查运行时产物（L2/L3 子进程生成，不入库） ===
 .independent-review-*.done
 .goal-snapshot.json
+.l3-bg-*.json
