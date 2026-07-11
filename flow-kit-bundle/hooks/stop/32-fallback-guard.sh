@@ -14,6 +14,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "32" || true
+
 # ── Gate 1: 模块启用 ──
 module_enabled "fallback_guard" && true  # 默认启用 (无独立开关时 fallback 兜底始终生效)
 # fallback_guard 模块默认不配独立开关——它只在 mode=fallback 时触发，无额外开销
@@ -70,4 +73,5 @@ if jq '.goal.status = "done" | .updated_at = now' "$flow_file" > "$tmp_flow" 2>/
   echo "[32-fallback-guard] fallback pipeline complete → goal.status=done" >&2
 fi
 
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "32" || true
 exit 0

@@ -179,88 +179,69 @@ EOF
   return 0
 }
 
-# _gate_phase_transition — phase-write direction detection + L2/L3 dispatch (largest gate ~175 lines)
-# Handles rollback/noop/forward; may exit 0 (allow) or 2 (deny) internally
-_gate_phase_transition() {
-  local cmd="$1" phase="$2" change_id="$3" cwd="$4" flow_file="$5"
+# _gate_check_l2 — L2 blind review completion gate (~50 lines)
+# Called by _gate_phase_transition during forward transitions.
+# May exit 2 on missing L2 review, or touch skip_marker and continue.
+_gate_check_l2() {
+  local gate_val="$1" review_md="$2" skip_marker="$3" phase="$4" change_id="$5" cwd="$6"
 
-  if ! is_phase_write "$cmd"; then return 1; fi  # not a phase write → continue to deny-reason
+  if [[ "$gate_val" != "both" && "$gate_val" != "L2" ]]; then return 0; fi  # L2 not required
+  if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then return 0; fi  # L2 already done
 
-  local cur_phase
-  cur_phase=$(jq -r '.goal.current_phase // ""' "$flow_file" 2>/dev/null || echo "")
-  local dir
-  dir=$(_fk_phase_direction "$cmd" "$cur_phase")
-  case "$dir" in
-    rollback)
-      cat >&2 <<'EOF'
-⏎ 独立 review gate：检测到回退操作（phase → 更早阶段），放行不要求 .done。
-EOF
-      exit 0 ;;
-    noop) exit 0 ;;
-  esac
-
-  # ── forward transition → resolve gate_config ──
-  local phase_name=""
-  case "$phase" in
-    1) phase_name="1-requirement" ;; 2) phase_name="2-design" ;; 3) phase_name="3-task" ;;
-    5) phase_name="5-test" ;; 6) phase_name="6-review" ;; 7) phase_name="7-integration" ;;
-  esac
-  local gate_val
-  gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
-  case "$gate_val" in independent|true) gate_val="both" ;; L2|L3|both) ;; *) gate_val="" ;; esac
-
-  local review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
-  local done_marker="${cwd}/.specs/${change_id}/.independent-review-${phase}.done"
-  local skip_marker="${cwd}/.specs/${change_id}/.skip-L2-${phase}"
-
-  # ── L2 completion check ──
-  if [[ "$gate_val" == "both" || "$gate_val" == "L2" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
-    if [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "both" ]]; then
-      touch "$skip_marker" 2>/dev/null || true
-      cat >&2 <<EOF
+  if [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "both" ]]; then
+    touch "$skip_marker" 2>/dev/null || true
+    cat >&2 <<EOF
 ⚠️ 独立 review gate：L2 已跳过（FLOW_KIT_SKIP_L2=1）。标记文件: ${skip_marker}。L3 继续执行。
 EOF
-    elif [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "L2" ]]; then
-      cat >&2 <<'EOF'
+    return 0
+  elif [[ "${FLOW_KIT_SKIP_L2:-}" == "1" && "$gate_val" == "L2" ]]; then
+    cat >&2 <<'EOF'
 ⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底），不允许跳过 L2。
    FLOW_KIT_SKIP_L2=1 仅在 gate_config=both 时可用（跳过 L2 后仍有 L3）。请完成 L2 审查后重试。
 EOF
-      exit 2
-    elif [ -f "$skip_marker" ]; then
-      cat >&2 <<EOF
+    exit 2
+  elif [ -f "$skip_marker" ]; then
+    cat >&2 <<EOF
 ⚠️ 独立 review gate：L2 已跳过（${skip_marker} 存在）。L3 继续执行（若 gate_config 含 L3）。
 EOF
-    else
-      local l2_lib="${HOOK_BASE_DIR}/../stop/lib/l2-detect.sh"
-      if [ -f "$l2_lib" ]; then
-        source "$l2_lib" 2>/dev/null || true
-        type l2_dispatch_prompt >/dev/null 2>&1 && l2_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" >&2 2>/dev/null || true
-      fi
-      if [[ "$gate_val" == "L2" ]]; then
-        cat >&2 <<EOF
+    return 0
+  fi
+
+  # L2 not done, no skip — dispatch prompt + block
+  local l2_lib="${HOOK_BASE_DIR}/../stop/lib/l2-detect.sh"
+  if [ -f "$l2_lib" ]; then
+    source "$l2_lib" 2>/dev/null || true
+    type l2_dispatch_prompt >/dev/null 2>&1 && l2_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" >&2 2>/dev/null || true
+  fi
+  if [[ "$gate_val" == "L2" ]]; then
+    cat >&2 <<EOF
 ⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底）但 L2 尚未完成。
    选项：① 复制上方 Agent 命令派 L2 子 agent（推荐）② 回退等待：完成 L2 后重新执行 transition 即可
 EOF
-      else
-        cat >&2 <<EOF
+  else
+    cat >&2 <<EOF
 ⛔ 独立 review gate：gate_config=both 但 L2 尚未完成。
    选项：① 复制上方 Agent 命令派 L2 子 agent（推荐）② 跳过 L2：设置 FLOW_KIT_SKIP_L2=1 后重试 ③ 回退等待
    AC-5: L2 独立审查为质量门禁。跳过 L2 将仅依赖 L3 外部模型审查。
 EOF
-      fi
-      exit 2
-    fi
   fi
+  exit 2
+}
+
+# _gate_check_l3 — L3 external review completion gate (~30 lines)
+# Checks L3 done status, runs fix-compliance for phases 5/6/7, formats result.
+# Returns 1 if L3 not done (caller should then call _gate_do_transition to block).
+# Exits 0 if L3 not required or L3 done. Exits 2 on fix-compliance failure.
+_gate_check_l3() {
+  local gate_val="$1" review_md="$2" done_marker="$3" phase="$4" change_id="$5" cwd="$6"
 
   # ── L2 done or L3-only → determine if L3 needed ──
   if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
-    if [[ "$gate_val" != "L3" && "$gate_val" != "both" ]]; then exit 0; fi  # L2-only done
-  elif [[ "$gate_val" == "L3" ]]; then :;  # L3-only, no L2 needed
-  else exit 2; fi
+    if [[ "$gate_val" != "L3" && "$gate_val" != "both" ]]; then exit 0; fi
+  elif [[ "$gate_val" == "L3" ]]; then :; else exit 2; fi
 
-  # ── L3 async dispatch (shared both+L3-only path) ──
+  # ── L3 done → fix-compliance + format result ──
   if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
-    # L3 done → fix-compliance check (phases 5/6/7 only) + format result
     if [[ "$phase" =~ ^(5|6|7)$ ]]; then
       local fcl="${HOOK_BASE_DIR}/../stop/lib/fix-compliance.sh"
       if [ -f "$fcl" ]; then
@@ -283,10 +264,17 @@ EOF
     exit 0
   fi
 
-  # L3 not done → dispatch prompt + block
-  local l3l2="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
-  if [ -f "$l3l2" ]; then
-    source "$l3l2" 2>/dev/null || true
+  return 1  # L3 not done → caller invokes _gate_do_transition
+}
+
+# _gate_do_transition — L3 dispatch + block (~25 lines)
+# Called when _gate_check_l3 returns 1 (L3 not done). Dispatches L3 prompt and exits 2.
+_gate_do_transition() {
+  local gate_val="$1" review_md="$2" phase="$3" change_id="$4" cwd="$5"
+
+  local l3l="${HOOK_BASE_DIR}/../stop/lib/l3-review.sh"
+  if [ -f "$l3l" ]; then
+    source "$l3l" 2>/dev/null || true
     type l3_dispatch_prompt >/dev/null 2>&1 && l3_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" "${gate_val:-both}" >&2
   fi
   local l2v="skipped"
@@ -302,15 +290,46 @@ EOF
   exit 2
 }
 
+# _gate_phase_transition — phase-write direction detection + L2/L3 dispatch orchestrator (~45 lines)
+# Detects rollback/noop/forward; delegates to _gate_check_l2 and _gate_check_l3 for forward transitions.
+_gate_phase_transition() {
+  local cmd="$1" phase="$2" change_id="$3" cwd="$4" flow_file="$5"
+
+  if ! is_phase_write "$cmd"; then return 1; fi
+
+  local cur_phase
+  cur_phase=$(jq -r '.goal.current_phase // ""' "$flow_file" 2>/dev/null || echo "")
+  local dir
+  dir=$(_fk_phase_direction "$cmd" "$cur_phase")
+  case "$dir" in
+    rollback)
+      cat >&2 <<'EOF'
+⏎ 独立 review gate：检测到回退操作（phase → 更早阶段），放行不要求 .done。
+EOF
+      exit 0 ;;
+    noop) exit 0 ;;
+  esac
+
+  # ── forward transition → resolve gate_config ──
+  local phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
+  local gate_val
+  gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+  case "$gate_val" in independent|true) gate_val="both" ;; L2|L3|both) ;; *) gate_val="" ;; esac
+
+  local review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+  local done_marker="${cwd}/.specs/${change_id}/.independent-review-${phase}.done"
+  local skip_marker="${cwd}/.specs/${change_id}/.skip-L2-${phase}"
+
+  _gate_check_l2 "$gate_val" "$review_md" "$skip_marker" "$phase" "$change_id" "$cwd"
+  _gate_check_l3 "$gate_val" "$review_md" "$done_marker" "$phase" "$change_id" "$cwd" \
+    || _gate_do_transition "$gate_val" "$review_md" "$phase" "$change_id" "$cwd"
+}
+
 # _gate_deny_reason — final deny for commit/PR/phase write without valid .done
 _gate_deny_reason() {
   local cmd="$1" phase="$2" change_id="$3" cwd="$4"
 
-  local phase_name=""
-  case "$phase" in
-    1) phase_name="1-requirement" ;; 2) phase_name="2-design" ;; 3) phase_name="3-task" ;;
-    5) phase_name="5-test" ;; 6) phase_name="6-review" ;; 7) phase_name="7-integration" ;;
-  esac
+  local phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
 
   local deny_reason=""
   if is_phase_write "$cmd"; then deny_reason="阶段 ${phase} (${phase_name}) 切换"

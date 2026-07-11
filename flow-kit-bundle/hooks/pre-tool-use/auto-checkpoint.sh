@@ -82,6 +82,15 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # 空路径守卫：file_path 为空时仍写 checkpoint（active_file=""），不阻断工具
   # 极端情况：CC 协议变更导致 file_path 字段消失 → stderr 日志 + fail-open
 
+  # 自引用守卫：跳过对 .flow-active 自身的 checkpoint 写入
+  # 理由：Write/Edit .flow-active 是 agent 管理 flow 状态的合法操作，
+  # checkpoint hook 不应在此期间修改同一文件（会导致竞态：hook 改 interrupt →
+  # harness 检测到文件内容已变 → 拒绝 agent 的 Write/Edit）
+  case "$file_path" in
+    */.flow-active|.flow-active)
+      exit 0 ;;
+  esac
+
   # 加载 checkpoint-lib.sh
   CK_LIB=$(_auto_ck_resolve_lib)
   if [[ -z "$CK_LIB" ]]; then

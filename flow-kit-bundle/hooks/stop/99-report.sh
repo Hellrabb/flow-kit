@@ -7,6 +7,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "99" || true
+
 # ── Collect all findings ────────────────────────────────────────────
 FINDINGS_FILE="$HOOK_TMP_DIR/all-findings.txt"
 true > "$FINDINGS_FILE"
@@ -283,3 +286,14 @@ fi
 
 # Always output minimal status to stderr so Claude Code shows it
 echo "stop-hook: ${ICON} E:${ERRORS} W:${WARNINGS} S:${SUGGESTIONS} I:${INFOS}" >&2
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "99" || true
+
+# l3-pipeline-fix-2026-07 D5: output perf timing summary
+if declare -f fk_perf_timing_end >/dev/null 2>&1 && [ ${#_FK_PERF_TIMINGS[@]} -gt 0 ]; then
+  echo "[perf] timings:"
+  for key in "${!_FK_PERF_TIMINGS[@]}"; do
+    [[ "$key" == *_start ]] && continue
+    echo "  ${key}=${_FK_PERF_TIMINGS[$key]}s"
+  done
+fi

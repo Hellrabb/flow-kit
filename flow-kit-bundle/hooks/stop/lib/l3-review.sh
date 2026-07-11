@@ -139,6 +139,43 @@ smart_truncate() {
     fi
   done <<< "$text"
 
+  # 第 3 遍: 尾部锚点扫描（l3-pipeline-fix-2026-07 D2）
+  # 从文件末尾向前扫描，匹配尾部关键段 header（风险/ADR/决策），确保不因头部填充被丢弃
+  local tail_output=""
+  local tail_matched=0
+  local tail_anchors='## 5\. 风险|## 风险|ADR-|已锁决策|\| # \| 风险'
+  local tail_lines=() line_rev
+  mapfile -t tail_lines <<< "$text"
+  local tail_total=${#tail_lines[@]}
+  local tail_idx=$((tail_total - 1))
+  local in_tail_section=0
+  while [ "$tail_idx" -ge 0 ]; do
+    line_rev="${tail_lines[$tail_idx]}"
+    if [[ "$line_rev" =~ ^###?\  ]]; then
+      if [[ "$line_rev" =~ $tail_anchors ]]; then
+        in_tail_section=1
+        tail_matched=$((tail_matched + 1))
+      elif [ "$in_tail_section" -eq 1 ]; then
+        break  # 遇到非锚点标题，尾部段结束
+      fi
+    fi
+    if [ "$in_tail_section" -eq 1 ]; then
+      tail_output="${line_rev}"$'\n'"${tail_output}"
+    fi
+    tail_idx=$((tail_idx - 1))
+  done
+
+  if [ "$tail_matched" -gt 0 ]; then
+    output="${output}"$'\n'"${tail_output}"
+    meta_tail="[尾部保留: ${tail_matched} 段锚点匹配]"
+  else
+    # fallback: 未匹配到任何锚点 → 保留最后 max_chars/4 字符
+    local tail_fallback_chars=$((max_chars / 4))
+    local tail_fallback="${text: -${tail_fallback_chars}}"
+    output="${output}"$'\n'"${tail_fallback}"
+    meta_tail="[尾部保留: 0 段锚点匹配，已回退到通用保留（最后 ${tail_fallback_chars} chars）]"
+  fi
+
   # 构造截断元信息
   local truncated_size=${#output}
   local meta="[截断] 原始: ${original_size} chars → 截断后: ${truncated_size} chars（上限 ${max_chars}）"
@@ -148,12 +185,41 @@ smart_truncate() {
   else
     meta="${meta} | 所有章节已保留（内容被压缩）"
   fi
+  meta="${meta} | ${meta_tail}"
   meta="${meta}"$'\n'"[提示] 以上为截断摘要，信息不完整。请优先标记确定性问题，减少不确定环境下的武断 critical。"
 
   echo "$output"
   echo ""
   echo "$meta"
   return 0
+}
+
+# ── _l3_inject_context() · Step 0: 前次审查上下文注入（l3-pipeline-fix-2026-07 D4）──
+# 用法: _l3_inject_context <phase> <artifacts_dir>
+# 输出: context_preamble 到 stdout（若 INDEPENDENT-REVIEW-{phase}.md 不存在则输出空）
+_l3_inject_context() {
+  local phase="$1" artifacts_dir="$2"
+  local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
+  [ -f "$review_md" ] || return 0
+
+  local l2_verdict l3_verdict agent_response
+  l2_verdict=$(grep -m1 '^\*\*Verdict\*\*: ' "$review_md" 2>/dev/null | head -1 || echo "")
+  l3_verdict=$(grep -A1 '"verdict"' "$review_md" 2>/dev/null | grep -o '"verdict":"[^"]*"' | tail -1 | tr -d '"' || echo "")
+  agent_response=$(sed -n '/## 主 agent 响应/,/^## /p' "$review_md" 2>/dev/null | head -30 || echo "")
+
+  if [ -z "$l2_verdict" ] && [ -z "$l3_verdict" ]; then
+    return 0  # 无审查上下文可注入
+  fi
+
+  cat <<CTX_EOF
+
+[前次审查上下文 · 最近一次]
+- ${l2_verdict:-L2 Verdict: (无)}
+- L3 Verdict: ${l3_verdict:-verdict:(无)}
+- 主 agent 已响应前次发现（详见 INDEPENDENT-REVIEW-${phase}.md）
+[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]
+
+CTX_EOF
 }
 
 # ── _l3_build_prompt() · Step 1: 按阶段收集工件 + 构造审查 prompt ──
@@ -197,13 +263,34 @@ _l3_build_prompt() {
       ;;
     6)
       local project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      # source common.sh for fk_estimate_tokens (fail-open)
+      local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/lib/common.sh"
+      [ -f "$_common_lib" ] && source "$_common_lib" 2>/dev/null || true
+      local _new_limit=$((max_chars / 4))
       artifact=$(cd "$project_root" && {
-        git diff HEAD 2>/dev/null
+        # 并集策略: git diff HEAD (工作区 vs HEAD) + git diff --cached (index vs HEAD)
+        # 用 awk 按文件路径去重（同名文件取首次出现的更完整的 diff）
+        { git diff HEAD 2>/dev/null; echo ""; git diff --cached 2>/dev/null; } | awk '
+          /^diff --git/ { f=$3; if (seen[f]++) next }
+          { print }
+        '
         git ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(sh|bats)$' | while read -r f; do
           echo ""; echo "=== NEW FILE: $f ==="
-          head -c 5000 "$project_root/$f" 2>/dev/null || true
+          head -c "$_new_limit" "$project_root/$f" 2>/dev/null || true
         done
-      } | head -c "$max_chars" || true)
+      } | {
+        if declare -f fk_estimate_tokens >/dev/null 2>&1; then
+          local _raw && _raw=$(cat) && local _est && _est=$(fk_estimate_tokens "$_raw" 2>/dev/null || echo "0")
+          local _max_tokens=$(( ${FK_CONTEXT_WINDOW:-100000} * 60 / 100 ))
+          if [ "${_est:-0}" -le "${_max_tokens:-60000}" ] 2>/dev/null; then
+            echo "$_raw"
+          else
+            echo "$_raw" | head -c "$max_chars"
+          fi
+        else
+          head -c "$max_chars"
+        fi
+      } || true)
       if [ -f "${artifacts_dir}/REVIEW.md" ]; then
         artifact="${artifact}"$'\n\n=== 主 agent REVIEW.md ===\n'"$(head -c 8000 "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")"
       fi
@@ -251,20 +338,34 @@ _l3_call_api() {
 
   # Path 1: ANTHROPIC_AUTH_TOKEN (env-var-first 直连)
   if [ -n "$auth_token" ]; then
-    ai_response=$(curl -s --max-time 90 "${base_url}/v1/messages" \
+    ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
       -H "Authorization: Bearer ${auth_token}" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
         '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+    local _http_code
+    _http_code=$(echo "$ai_response" | tail -1)
+    ai_response=$(echo "$ai_response" | sed '$d')
+    case "$_http_code" in
+      200) ;;  # OK, continue
+      [45]??) echo "[l3-review] L3 API returned HTTP ${_http_code}" >&2; return 3 ;;
+    esac
   fi
 
   # Path 2: Legacy ANTHROPIC_API_KEY (向后兼容)
   if [ -z "$ai_response" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    ai_response=$(curl -s --max-time 90 https://api.anthropic.com/v1/messages \
+    ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 https://api.anthropic.com/v1/messages \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
         '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+    local _http_code2
+    _http_code2=$(echo "$ai_response" | tail -1)
+    ai_response=$(echo "$ai_response" | sed '$d')
+    case "$_http_code2" in
+      200) ;;  # OK, continue
+      [45]??) echo "[l3-review] L3 API returned HTTP ${_http_code2}" >&2; return 3 ;;
+    esac
   fi
 
   local content=""
@@ -463,9 +564,44 @@ l3_review_run() {
   local model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-deepseek-v4-flash}"
   [ -n "$model" ] || model="deepseek-v4-flash"
 
-  # Step 1: 构造 prompt
-  local prompt_text
+  # --background 模式（l3-pipeline-fix-2026-07 D5 Phase 3）
+  # Stop hook 兜底路径 fire-and-forget：curl 异步，结果由 SessionStart 收割
+  local bg_mode=0
+  case "${6:-}" in --background) bg_mode=1 ;; esac
+  case "${7:-}" in --background) bg_mode=1 ;; esac
+
+  if [ "$bg_mode" -eq 1 ]; then
+    local bg_dir="${artifacts_dir}"
+    local bg_file="${bg_dir}/.l3-bg-${phase}.json"
+    (
+      # 子进程独立执行 L3 API 调用
+      local _prompt _content _output _verdict _summary
+      _prompt=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_chars" 2>/dev/null || echo "")
+      if [ -n "$_prompt" ]; then
+        _ctx_pre=$(_l3_inject_context "$phase" "$artifacts_dir" 2>/dev/null || echo "")
+        [ -n "$_ctx_pre" ] && _prompt="${_ctx_pre}"$'\n'"${_prompt}"
+        _content=$(_l3_call_api "$_prompt" "$model" 2>/dev/null || echo "")
+        if [ -n "$_content" ]; then
+          _output=$(_l3_parse_result "$_content" "$phase" "$artifacts_dir" "$model" 2>/dev/null || echo "")
+          _verdict=$(echo "$_output" | grep "^VERDICT=" | cut -d= -f2-)
+          _summary=$(echo "$_output" | grep "^SUMMARY=" | cut -d= -f2-)
+          # 写入后台结果文件供 SessionStart 收割
+          jq -n --arg v "${_verdict:-error}" --arg s "${_summary:-background L3 review}" \
+            --arg ts "$(date -Iseconds)" \
+            '{verdict: $v, summary: $s, phase: "'"$phase"'", model: "'"$model"'", completed_at: $ts}' \
+            > "$bg_file" 2>/dev/null || true
+        fi
+      fi
+    ) &
+    echo "[l3-review] L3 dispatched in background (phase ${phase}, pid $!)" >&2
+    return 0
+  fi
+
+  # Step 1: 构造 prompt（含前次审查上下文注入 · l3-pipeline-fix-2026-07 D4）
+  local prompt_text context_preamble
   prompt_text=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_chars") || return 3
+  context_preamble=$(_l3_inject_context "$phase" "$artifacts_dir" 2>/dev/null || echo "")
+  [ -n "$context_preamble" ] && prompt_text="${context_preamble}"$'\n'"${prompt_text}"
 
   # Step 2: 调用 API
   local content
@@ -507,10 +643,9 @@ l3_review_with_timeout() {
 
   # 尝试同步调用
   local ret=0
-  timeout "${timeout_secs}s" bash -c '
-    source "$0"
-    l3_review_run "$1" "$2" "$3" "$4" "${5:-both}"
-  ' "${BASH_SOURCE[0]}" "${phase}" "${change_id}" "${artifacts_dir}" "${l2_verdict}" "${gate_config_value:-both}" 2>/dev/null || ret=$?
+  timeout "${timeout_secs}s" HOOK_BASE_DIR="${HOOK_BASE_DIR}" bash -c '
+    source "${HOOK_BASE_DIR}/lib/l3-review.sh"
+    l3_review_run "$@"' _ "${phase}" "${change_id}" "${artifacts_dir}" "${l2_verdict}" "${gate_config_value:-both}" 2>/dev/null || ret=$?
 
   if [ $ret -eq 124 ] || [ $ret -eq 137 ]; then
     # timeout 命令返回 124 (GNU timeout) 或进程被 kill (137=128+9)

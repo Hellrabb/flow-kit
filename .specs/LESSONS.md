@@ -3,6 +3,11 @@
 > 本文件跨 change 累积。M-health 巡检 + 各 change 的 brooks-lint 结果 + 人工标注都写入此处。
 > 格式：严重程度 | 位置 | 问题 | 建议 | 状态 | 来源
 
+<!-- l3-pipeline-fix-2026-07 ↓ -->
+| L-041 | 🟡 | `auto-checkpoint.sh` PreToolUse hook | 自引用竞态：hook 在 Write/Edit `.flow-active` 前触发 `checkpoint_write()` 修改同一文件，导致 harness 检测到文件内容变化后拒绝 Write/Edit | 在 `auto-checkpoint.sh` 中检测 `file_path` 是否为 `.flow-active` 自身——若是则 skip checkpoint 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` |
+| L-042 | 🔴 | `29-independent-review.sh` L3 派发 | `--background` 异步 flag 硬编码激活导致 `.done` 永不写入：fork 子进程后立即返回 `return 0`，`_l3_write_done()` 未执行 → 下次 Stop hook 再次进入积压扫描 → 无限重派循环 | 异步功能默认关闭（opt-in via `L3_BACKGROUND=1`）；默认同步路径确保 `.done` 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` L2 审查 R1 |
+<!-- l3-pipeline-fix-2026-07 ↑ -->
+
 ---
 
 ## 技术债清单
@@ -269,3 +274,33 @@
 - **修复**：T07 verify 升级为复合命令：grep 验证 CONTEXT.md 含命名约定段 + _gate_ 前缀 + _grep 保留决策 → 通过后才跑 make test
 - **教训**：文档类 AC 的 verify 应包含**针对文档内容的 grep 断言**（不依赖 bats 框架也可以在 CI 中用 shell 脚本实现）。`make test` 不能覆盖所有 AC 类型
 - **How to apply**：拆 TASK 时，文档类 task 的 verify 必须包含 `grep` / `diff` 等文档内容验证命令，不能仅依赖 `make test`
+
+---
+
+### L-039 · `set -euo pipefail` 下命令替换内 pipeline 失败静默终止脚本
+
+- **日期**：2026-07-11
+- **来源**：`health-fix-l3-2026-07` Phase 6 L3 缺失排查
+- **分类**：Shell 陷阱 / Hook 可靠性
+- **严重度**：🔴 Critical（导致 Stop hook 29 号 L3 派发静默跳过 3 个 phase）
+- **发现**：`29-independent-review.sh:120` 的 `l2v_extracted=$(grep ... | tail -1 | grep ... | tail -1)` 在 grep 无匹配时，`pipefail` 使 pipeline exit code ≠ 0。bash 在 `set -euo pipefail` 下命令替换内的非零 pipeline 退出码导致脚本静默终止
+- **修复**：`l2v_extracted=$(...) || true`——追加 `|| true` 防止非零退出码传播
+- **教训**：所有 `set -euo pipefail` 脚本中命令替换含 pipeline 时，末尾必须加 `|| true` 保护
+
+---
+
+### L-040 · L3 审查管线 5 项系统限制导致反复假阳性
+
+- **日期**：2026-07-11
+- **来源**：`health-fix-l3-2026-07` Phase 6/7 L3 多次重审失败
+- **分类**：L3 审查机制 / Hook 设计缺陷
+- **严重度**：🟡 Major（不阻断 pipeline 但严重降低 L3 审查可信度）
+- **发现**：Phase 6/7 L3 三次审查均返回 fail，根因均在 L3 管线自身：
+  1. **git diff 硬限 5000 字符**（`l3-review.sh:204`）：大变更的代码 diff 被截断，L3 模型看不到完整变更
+  2. **`git diff HEAD` 不含 untracked 文件**：新增文件（correction-types.sh/goal-parsing.md/test_l3_timeout.bats）对 L3 不可见
+  3. **`head -c 20000` 逐文件硬截断**（`max_artifact_chars`）：大产物（REQUIREMENT 12.3K/DESIGN 19.2K）尾部被丢弃
+  4. **仅审当前 phase**：Stop hook 只看 `.flow-active` 当前阶段，历史积压不处理
+  5. **无状态**：每次审查独立，无法参考前次反驳或 L2 结论
+- **建议修复**：增大 git diff 上限（建议 50000）+ 改用 `git diff --cached HEAD`（包含 staged 新文件）+ `smart_truncate` 改为保留头尾策略 + 添加积压检测 + L3 prompt 注入前次反驳摘要
+- **临时方案**：L3 fail + 主 agent 判定为已知限制 → 手动写 `.done`（L3_verdict=waiver）
+- **How to apply**：下次 L3 管线变更时一并处理（关联 TD-008 l3-review.sh 拆分）

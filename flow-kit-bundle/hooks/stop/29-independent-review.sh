@@ -58,24 +58,61 @@ fi
 
 spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 
+# perf timing (l3-pipeline-fix-2026-07 D5)
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "29" || true
+
+# L3 async mode: opt-in via L3_BACKGROUND=1 (default sync to ensure .done written)
+# --background 在 l3-review.sh 中实现，子进程写入 .l3-bg-{phase}.json 供 SessionStart 收割
+L3_BG_FLAG=""
+[ "${L3_BACKGROUND:-0}" = "1" ] && L3_BG_FLAG="--background"
+
+# ── _l3_scan_backlog() · 积压扫描（l3-pipeline-fix-2026-07 D3）──
+_l3_scan_backlog() {
+  local flow_file="$1" spec_dir="$2" l3_lib="$3"
+  local phases_done gate_config backlog=()
+
+  phases_done=$(jq -r '.goal.phases_done // [] | .[]' "$flow_file" 2>/dev/null || echo "")
+  [ -n "$phases_done" ] || return 0
+
+  while IFS= read -r pn; do
+    [ -n "$pn" ] || continue
+    local phase_name="${PHASE_GATE_KEY_MAP[$pn]:-}"
+    [ -n "$phase_name" ] || continue
+    local gv
+    gv=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+    case "$gv" in independent|true) gv="both" ;; L3|both) ;; *) continue ;; esac
+    local dm="${spec_dir}/.independent-review-${pn}.done"
+    [ -f "$dm" ] && continue
+    backlog+=("$pn")
+  done <<< "$phases_done"
+
+  local count=0
+  for pn in "${backlog[@]}"; do
+    [ "$count" -ge 3 ] && { echo "[backlog] ${#backlog[@]} phases total, $(( ${#backlog[@]} - 3 )) deferred to next Stop hook" >&2; break; }
+    echo "[backlog] running L3 for phase ${pn} (backlog scan)" >&2
+    if [ -f "$l3_lib" ] && type l3_review_run >/dev/null 2>&1; then
+      l3_review_run "$pn" "$change_id" "$spec_dir" "skipped" "both" $L3_BG_FLAG 2>/dev/null || true
+    fi
+    count=$((count + 1))
+  done
+}
+
 # ── Gate 5: done 标志已写（主 agent 收齐了）→ 清理握手文件 ──
 done_marker="${spec_dir}/.independent-review-${phase}.done"
 if [ -f "$done_marker" ]; then
   module_output "info" "IR" "skipped: ${done_marker} — L3 already completed for phase ${phase}"
   rm -f "$state_file"
+  declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "29" || true
   exit 0
 fi
 
+# ── 积压扫描：在审查当前 phase 前补齐历史缺失的 L3 ──
+l3_lib="${HOOK_BASE_DIR}/lib/l3-review.sh"
+[ -f "$l3_lib" ] && source "$l3_lib" 2>/dev/null || true
+_l3_scan_backlog "$flow_file" "$spec_dir" "$l3_lib"
+
 # ── D4 fix: L2 检测 — both 模式 L2 未完成时输出派发提示 ──
-phase_name=""
-case "$phase" in
-  1) phase_name="1-requirement" ;;
-  2) phase_name="2-design" ;;
-  3) phase_name="3-task" ;;
-  5) phase_name="5-test" ;;
-  6) phase_name="6-review" ;;
-  7) phase_name="7-integration" ;;
-esac
+	phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
 case "$gate_val" in
@@ -113,15 +150,7 @@ spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 review_md="${spec_dir}/INDEPENDENT-REVIEW-${phase}.md"
 
 # 读 gate_config 当前阶段值（用于 D1 L2-wait + D2 L3-only skipped）
-phase_name=""
-case "$phase" in
-  1) phase_name="1-requirement" ;;
-  2) phase_name="2-design" ;;
-  3) phase_name="3-task" ;;
-  5) phase_name="5-test" ;;
-  6) phase_name="6-review" ;;
-  7) phase_name="7-integration" ;;
-esac
+	phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
 # 值标准化映射（与 done-validation.sh 保持一致）
@@ -133,7 +162,7 @@ esac
 
 l2_verdict="fail"  # 默认 fail（保守，both 模式 L2 未完成时）
 if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
-  l2v_extracted=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+  l2v_extracted=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
   [ -n "$l2v_extracted" ] && l2_verdict="$l2v_extracted"
 elif [[ "$gate_val" == "L3" ]]; then
   l2_verdict="skipped"  # L3-only: L2 是刻意不跑，非失败
@@ -146,11 +175,10 @@ if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 �
 fi
 
 # ── 调用共享 lib l3-review.sh 执行 L3（P0-1/F1 修复）──
-l3_lib="${HOOK_BASE_DIR}/lib/l3-review.sh"
-if [ -f "$l3_lib" ]; then
-  source "$l3_lib" 2>/dev/null || true
+# l3-review.sh 已在积压扫描段 source，此处仅检查可用性
+if [ -f "${HOOK_BASE_DIR}/lib/l3-review.sh" ]; then
   if type l3_review_run >/dev/null 2>&1; then
-    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" "${gate_val:-both}" 2>/dev/null && rc=0 || rc=$?
+    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" "${gate_val:-both}" $L3_BG_FLAG 2>/dev/null && rc=0 || rc=$?
     # l3_review_run 内部完成: L3 API 调用 → 写 L3 段 → 写 6 键 .done
     case $rc in
       0) module_output "info" "IR" "L3 独立 review 完成（阶段 ${phase}, verdict=pass, L2_verdict=${l2_verdict}）→ INDEPENDENT-REVIEW-${phase}.md + .done";;

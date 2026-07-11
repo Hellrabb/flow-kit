@@ -246,3 +246,57 @@ declare -a HOOK_MODULE_NAMES=(
   26-workflow 27-interactive-ui-check 28-weak-model-compliance
   29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 33-flow-active-integrity 99-report
 )
+
+# PHASE_GATE_KEY_MAP — phase number → gate_config key for independent review lookups.
+# Phase 0（change）and Phase 4（dev）are intentionally excluded — they have no independent review gate.
+# If a gate is added for either phase in the future, ALL four layers must be updated:
+#   PRESET_MAP + Prompt template + L2-blind-review.md checklist + this MAP.
+# Usage: local gate_key="${PHASE_GATE_KEY_MAP[$phase]:-}"
+declare -A PHASE_GATE_KEY_MAP=(
+  [1]="1-requirement"
+  [2]="2-design"
+  [3]="3-task"
+  [5]="5-test"
+  [6]="6-review"
+  [7]="7-integration"
+)
+
+# ══ Token 估算 + 性能计时基础设施（l3-pipeline-fix-2026-07） ══
+
+# fk_estimate_tokens — 轻量 token 估算（字符数 / 2 ≈ token 数 · 中文保守估算）
+# 英文实际 ~4 char/token，中文 ~1.5~2 char/token。用 /2 对英文多估 ~2x，
+# 但保证中英混合内容不会低估→不会超 context window。安全优先于精确。
+# 用法: fk_estimate_tokens <text> [context_window]
+# context_window 默认 100000，可通过 FK_CONTEXT_WINDOW 环境变量覆盖
+fk_estimate_tokens() {
+  local text="${1:-}"
+  local context_window="${2:-${FK_CONTEXT_WINDOW:-100000}}"
+  local char_count=${#text}
+  local estimated=$(( char_count / 2 ))
+  echo "$estimated"
+}
+
+# _FK_PERF_TIMINGS — 全局性能计时关联数组（label → elapsed_seconds）
+# 由 fk_perf_timing_start/end 读写；99-report.sh 汇总输出
+declare -A _FK_PERF_TIMINGS 2>/dev/null || true
+
+# fk_perf_timing_start — 记录起始时间
+# 用法: fk_perf_timing_start <label>
+fk_perf_timing_start() {
+  local label="${1:-unknown}"
+  _FK_PERF_TIMINGS["${label}_start"]=$SECONDS
+}
+
+# fk_perf_timing_end — 计算耗时并输出
+# 用法: fk_perf_timing_end <label>
+# fail-open：未先调 start 时仅警告，不退出（避免阻断 hook 链）
+fk_perf_timing_end() {
+  local label="${1:-unknown}"
+  local start_time="${_FK_PERF_TIMINGS[${label}_start]:-}"
+  if [ -z "$start_time" ]; then
+    echo "[perf] WARNING: fk_perf_timing_end('$label') called without prior fk_perf_timing_start()" >&2
+    return 0
+  fi
+  local elapsed=$(( SECONDS - start_time ))
+  _FK_PERF_TIMINGS["$label"]=$elapsed
+}

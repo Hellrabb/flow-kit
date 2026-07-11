@@ -10,6 +10,9 @@ set -euo pipefail
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 
+# l3-pipeline-fix-2026-07 D5: perf timing probe
+declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "25" || true
+
 module_enabled "project" || exit 0
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -191,3 +194,5 @@ check_f2
 check_f3
 check_f4
 check_f5
+
+declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "25" || true

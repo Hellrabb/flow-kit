@@ -77,6 +77,7 @@
 用户选 1（确认建议或手动指定其他可回退目标）→ **Phase 回退（通用化 jq，$TARGET 为选定目标）**：
 
 ```bash
+# goal 字段结构及常用 jq 查询见 @flow-kit/reference/goal-parsing.md
 TARGET=<用户确认的目标，如 "4" 或 "2" 或 "1">
 PHASES_DONE=$(jq -c '.goal.phases_done // []' .flow-active)
 REMOVE=$(jq -n --arg target "$TARGET" --argjson done "$PHASES_DONE" \

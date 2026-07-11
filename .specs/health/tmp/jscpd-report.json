@@ -1,0 +1,321 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 45,
+        "endLoc": {
+          "column": 13,
+          "line": 45,
+          "position": 2330
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 33,
+        "startLoc": {
+          "column": 30,
+          "line": 33,
+          "position": 1967
+        }
+      },
+      "format": "markdown",
+      "fragment": "",
+      "lines": 13,
+      "secondFile": {
+        "end": 70,
+        "endLoc": {
+          "column": 10,
+          "line": 70,
+          "position": 3498
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 55,
+        "startLoc": {
+          "column": 35,
+          "line": 55,
+          "position": 3154
+        }
+      },
+      "tokens": 325
+    },
+    {
+      "firstFile": {
+        "end": 48,
+        "endLoc": {
+          "column": 2,
+          "line": 48,
+          "position": 2456
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 33,
+        "startLoc": {
+          "column": 30,
+          "line": 33,
+          "position": 1967
+        }
+      },
+      "format": "markdown",
+      "fragment": "",
+      "lines": 16,
+      "secondFile": {
+        "end": 95,
+        "endLoc": {
+          "column": 3,
+          "line": 95,
+          "position": 4637
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 81,
+        "startLoc": {
+          "column": 35,
+          "line": 81,
+          "position": 4227
+        }
+      },
+      "tokens": 396
+    },
+    {
+      "firstFile": {
+        "end": 41,
+        "endLoc": {
+          "column": 2,
+          "line": 41,
+          "position": 2260
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 35,
+        "startLoc": {
+          "column": 0,
+          "line": 35,
+          "position": 1970
+        }
+      },
+      "format": "markdown",
+      "fragment": "",
+      "lines": 7,
+      "secondFile": {
+        "end": 41,
+        "endLoc": {
+          "column": 3,
+          "line": 41,
+          "position": 2261
+        },
+        "name": "MODULE_IDEAS.md:markdown",
+        "start": 35,
+        "startLoc": {
+          "column": 1,
+          "line": 35,
+          "position": 1971
+        }
+      },
+      "tokens": 284
+    },
+    {
+      "firstFile": {
+        "end": 69,
+        "endLoc": {
+          "column": 39,
+          "line": 69,
+          "position": 2361
+        },
+        "name": "pre-tool-use/auto-checkpoint.sh",
+        "start": 63,
+        "startLoc": {
+          "column": 0,
+          "line": 63,
+          "position": 2139
+        }
+      },
+      "format": "bash",
+      "fragment": "",
+      "lines": 7,
+      "secondFile": {
+        "end": 377,
+        "endLoc": {
+          "column": 6,
+          "line": 377,
+          "position": 17696
+        },
+        "name": "pre-tool-use/independent-review-gate.sh",
+        "start": 372,
+        "startLoc": {
+          "column": 0,
+          "line": 372,
+          "position": 17508
+        }
+      },
+      "tokens": 56
+    },
+    {
+      "firstFile": {
+        "end": 208,
+        "endLoc": {
+          "column": 7,
+          "line": 208,
+          "position": 10068
+        },
+        "name": "pre-tool-use/independent-review-gate.sh",
+        "start": 203,
+        "startLoc": {
+          "column": 2,
+          "line": 203,
+          "position": 9833
+        }
+      },
+      "format": "bash",
+      "fragment": "",
+      "lines": 6,
+      "secondFile": {
+        "end": 315,
+        "endLoc": {
+          "column": 7,
+          "line": 315,
+          "position": 15250
+        },
+        "name": "pre-tool-use/independent-review-gate.sh",
+        "start": 309,
+        "startLoc": {
+          "column": 2,
+          "line": 309,
+          "position": 15014
+        }
+      },
+      "tokens": 51
+    },
+    {
+      "firstFile": {
+        "end": 31,
+        "endLoc": {
+          "column": 35,
+          "line": 31,
+          "position": 1252
+        },
+        "name": "stop/27-interactive-ui-check.sh",
+        "start": 23,
+        "startLoc": {
+          "column": 2,
+          "line": 23,
+          "position": 925
+        }
+      },
+      "format": "bash",
+      "fragment": "",
+      "lines": 9,
+      "secondFile": {
+        "end": 27,
+        "endLoc": {
+          "column": 35,
+          "line": 27,
+          "position": 1110
+        },
+        "name": "stop/28-weak-model-compliance.sh",
+        "start": 19,
+        "startLoc": {
+          "column": 2,
+          "line": 19,
+          "position": 783
+        }
+      },
+      "tokens": 57
+    },
+    {
+      "firstFile": {
+        "end": 80,
+        "endLoc": {
+          "column": 69,
+          "line": 80,
+          "position": 3474
+        },
+        "name": "stop/29-independent-review.sh",
+        "start": 70,
+        "startLoc": {
+          "column": 0,
+          "line": 70,
+          "position": 3141
+        }
+      },
+      "format": "bash",
+      "fragment": "",
+      "lines": 11,
+      "secondFile": {
+        "end": 126,
+        "endLoc": {
+          "column": 69,
+          "line": 126,
+          "position": 5064
+        },
+        "name": "stop/29-independent-review.sh",
+        "start": 116,
+        "startLoc": {
+          "column": 0,
+          "line": 116,
+          "position": 4731
+        }
+      },
+      "tokens": 75
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-07-10T17:03:01.611Z",
+    "formats": {
+      "bash": {
+        "clones": 4,
+        "duplicatedLines": 29,
+        "duplicatedTokens": 239,
+        "lines": 6480,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.44753086419753085,
+        "percentageTokens": 0.7932030135076831,
+        "sources": 34,
+        "tokens": 30131
+      },
+      "json": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 171,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 415
+      },
+      "markdown": {
+        "clones": 3,
+        "duplicatedLines": 33,
+        "duplicatedTokens": 1005,
+        "lines": 104,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 31.73076923076923,
+        "percentageTokens": 577.5862068965517,
+        "sources": 1,
+        "tokens": 174
+      },
+      "text": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 104,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 68
+      }
+    },
+    "total": {
+      "clones": 7,
+      "duplicatedLines": 62,
+      "duplicatedTokens": 1244,
+      "lines": 6859,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 0.9039218544977402,
+      "percentageTokens": 4.040535273483175,
+      "sources": 38,
+      "tokens": 30788
+    }
+  }
+}
