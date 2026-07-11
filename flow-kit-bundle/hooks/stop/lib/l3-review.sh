@@ -587,8 +587,8 @@ l3_review_run() {
           _summary=$(echo "$_output" | grep "^SUMMARY=" | cut -d= -f2-)
           # 写入后台结果文件供 SessionStart 收割
           jq -n --arg v "${_verdict:-error}" --arg s "${_summary:-background L3 review}" \
-            --arg ts "$(date -Iseconds)" \
-            '{verdict: $v, summary: $s, phase: "'"$phase"'", model: "'"$model"'", completed_at: $ts}' \
+            --arg ts "$(date -Iseconds)" --arg phase "$phase" --arg model "$model" \
+            '{verdict: $v, summary: $s, phase: $phase, model: $model, completed_at: $ts}' \
             > "$bg_file" 2>/dev/null || true
         fi
       fi
