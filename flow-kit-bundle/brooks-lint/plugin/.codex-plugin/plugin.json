@@ -30,7 +30,7 @@
       "Interactive"
     ],
     "websiteURL": "https://github.com/hyhmrright/brooks-lint",
-    "composerIcon": "./assets/logo.svg",
-    "logo": "./assets/logo.svg"
+    "composerIcon": "",
+    "logo": ""
   }
 }
