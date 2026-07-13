@@ -38,7 +38,7 @@ validate_staging_coverage() {
   local EXPECTED
 
   echo "   解析 Part A (flow-kit 核心)..."
-  EXPECTED=$(find "$BUNDLE_DIR/flow-kit" -type f 2>/dev/null | sort)
+  EXPECTED=$(command find "$BUNDLE_DIR/flow-kit" -type f 2>/dev/null | sort)
 
   echo "   解析 Part B (flow-* skills)..."
   for skill_dir in "$BUNDLE_DIR/skills/"*/; do
@@ -69,11 +69,11 @@ validate_staging_coverage() {
   # test/ directory is part of the bundle (all fixtures: .bats, .sh, .md, .json)
   while IFS= read -r -d '' test_file; do
     EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$test_file")
-  done < <(find "$BUNDLE_DIR/test" -type f ! -path '*/.git/*' -print0 2>/dev/null)
+  done < <(command find "$BUNDLE_DIR/test" -type f ! -path '*/.git/*' -print0 2>/dev/null)
 
   echo "   解析 Part F (brooks-lint 插件)..."
   local brooks_files
-  brooks_files=$(find "$BUNDLE_DIR/brooks-lint" -type f 2>/dev/null | sort)
+  brooks_files=$(command find "$BUNDLE_DIR/brooks-lint" -type f 2>/dev/null | sort)
   [ -n "$brooks_files" ] && EXPECTED=$(printf '%s\n%s' "$EXPECTED" "$brooks_files")
 
   echo "   解析 Part G (brooks-tools)..."
@@ -86,7 +86,7 @@ validate_staging_coverage() {
 
   echo "   扫描 flow-kit-bundle/ 实际文件..."
   local ACTUAL
-  ACTUAL=$(find "$BUNDLE_DIR" -type f \
+  ACTUAL=$(command find "$BUNDLE_DIR" -type f \
     ! -path '*/.git/*' \
     ! -path '*/node_modules/*' \
     2>/dev/null | sort)

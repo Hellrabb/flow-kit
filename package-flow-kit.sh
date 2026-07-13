@@ -269,7 +269,7 @@ fi
 
 if [ -n "$brooks_src" ]; then
   # 首选：rsync 离线打包
-  rsync -a --exclude='.git' --exclude='commands' "$brooks_src/" "$STAGING/brooks-lint/plugin/"
+  rsync -a --exclude='.git' --exclude='commands' --exclude='docs' --exclude='assets' "$brooks_src/" "$STAGING/brooks-lint/plugin/"
   echo "   ✅ brooks-lint 插件主体已打包（${brooks_label}）"
 elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
   # Fallback：git archive（原有逻辑）
@@ -287,6 +287,8 @@ elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
         cp "$BROOKS_PLUGIN_SRC/$extra" "$STAGING/brooks-lint/plugin/$extra"
       fi
     done
+    # 清理 docs/ assets/（非运行时文件，与 rsync 路径对齐）
+    rm -rf "$STAGING/brooks-lint/plugin/docs" "$STAGING/brooks-lint/plugin/assets" 2>/dev/null || true
     echo "   ✅ brooks-lint 插件主体 git archive 完成 ($(git -C "$BROOKS_PLUGIN_SRC" describe --always --tags 2>/dev/null || echo 'HEAD'))"
   else
     rsync -a --exclude='.git' --exclude='assets' --exclude='docs' \
@@ -295,7 +297,7 @@ elif [ -d "$BROOKS_PLUGIN_SRC" ]; then
   fi
 elif [ -d "$SCRIPT_DIR/flow-kit-bundle/brooks-lint/plugin" ]; then
   echo "   ℹ️  使用本地副本: flow-kit-bundle/brooks-lint/plugin/"
-  rsync -a --exclude='.git' --exclude='commands' "$SCRIPT_DIR/flow-kit-bundle/brooks-lint/plugin/" "$STAGING/brooks-lint/plugin/"
+  rsync -a --exclude='.git' --exclude='commands' --exclude='docs' --exclude='assets' "$SCRIPT_DIR/flow-kit-bundle/brooks-lint/plugin/" "$STAGING/brooks-lint/plugin/"
   echo "   ✅ brooks-lint 本地副本打包完成"
 else
   echo "   ⚠️  brooks-lint 插件目录不存在，跳过"
