@@ -256,3 +256,19 @@ DONE
   run bash -c "PROJECT_ROOT='$TMP_DIR' bash '$GATE_SH' < '$TMP_DIR/payload.json' 2>/dev/null"
   [ "$status" -eq 0 ]
 }
+
+@test "INT-7 (BUG-F critical): phase1 forward transition 无.done deny exit2（不再绕过）" {
+  # L2 phase2 R1 发现的覆盖盲区：forward transition 路径。BUG-F（PHASE_GATE_KEY_MAP 未定义）
+  # 让 gate_val 永远空 → forward transition 绕过 gate。修复（source common.sh）后应 deny。
+  local specs_dir="$TMP_DIR/.specs/test-change"
+  jq -n --argjson gc '{"1-requirement":"both"}' \
+    '{change_id:"test-change",phase:1,goal:{scope:"pipeline",current_phase:"1",gate_config:$gc,phases_done:["0"],gates:{"0→1":"passed","1→2":"pending"},auto_advance:false}}' \
+    > "$TMP_DIR/.flow-active"
+  mkdir -p "$specs_dir"
+  jq -n --argjson gc '{"1-requirement":"both"}' '{gate_config:$gc,created_at:"2026-07-17"}' > "$specs_dir/.goal-snapshot.json"
+  rm -f "$specs_dir"/.independent-review-*.done "$specs_dir"/INDEPENDENT-REVIEW-*.md 2>/dev/null || true
+  CMD="jq '.goal.current_phase = \"2\"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active"
+  jq -n --arg c "$CMD" --arg cwd "$TMP_DIR" '{tool_name:"Bash",tool_input:{command:$c},cwd:$cwd}' > "$TMP_DIR/payload.json"
+  run bash -c "PROJECT_ROOT='$TMP_DIR' bash '$GATE_SH' < '$TMP_DIR/payload.json' 2>/dev/null"
+  [ "$status" -eq 2 ]   # forward transition 无.done 必须 deny（修复前 BUG-F 绕过 exit0）
+}
