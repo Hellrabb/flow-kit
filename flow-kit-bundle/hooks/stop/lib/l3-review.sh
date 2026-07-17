@@ -583,9 +583,9 @@ l3_review_run() {
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
   [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
 
-  # 模型选择
-  local model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-deepseek-v4-flash}"
-  [ -n "$model" ] || model="deepseek-v4-flash"
+  # 模型选择 — 完全由 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义（用户的 haiku 配置，如 deepseek-v4-flash[1m]）
+  # 不固定任何 fallback（修：原写死 deepseek-v4-flash；曾误改 claude-haiku，应尊重用户 haiku 定义）
+  local model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:?L3 需 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义 haiku 模型}"
 
   # --background 模式（l3-pipeline-fix-2026-07 D5 Phase 3）
   # Stop hook 兜底路径 fire-and-forget：curl 异步，结果由 SessionStart 收割
