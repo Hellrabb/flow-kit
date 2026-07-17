@@ -305,3 +305,41 @@
 - **建议修复**：增大 git diff 上限（建议 50000）+ 改用 `git diff --cached HEAD`（包含 staged 新文件）+ `smart_truncate` 改为保留头尾策略 + 添加积压检测 + L3 prompt 注入前次反驳摘要
 - **临时方案**：L3 fail + 主 agent 判定为已知限制 → 手动写 `.done`（L3_verdict=waiver）
 - **How to apply**：下次 L3 管线变更时一并处理（关联 TD-008 l3-review.sh 拆分）
+
+---
+
+## L-044 · 用户指南同步应跑检查清单
+
+- **严重度**：🟡 Major
+- **发现**：用户指南更新（+139/-34）时，TOC 重编号（新增 §9 导致后续章节顺延）遗漏子章节编号同步（10.1-10.7 仍为 9.x）。L2 盲审两轮才完全修复（R1 flow-kit-install 假阳性修复 + 工作流子章节编号 + lib 文件清单补全 + 独立审查阶段数 3→6 + TOC 破折号格式）。
+- **Why**：人工更新大文档时容易遗漏交叉引用。用户指南有 12 个锚点 + 7 个子章节 + 目录树 + 跨引用，单次手动编辑几乎不可能零遗漏。
+- **How to apply**：今后用户指南更新后必跑检查清单：① `grep -n 'sec-.*workflows\|sec-.*rules\|sec-.*file-structure'` 无旧编号残留 ② 子章节编号与父标题一致 ③ `diff <(grep -c 'a id=') <(grep -c '](#sec-')` TOC 链接数=锚点数 ④ lib 文件清单与 `ls flow-kit-bundle/hooks/stop/lib/` 对齐
+
+## L-045 · bundle validate 依赖 shell 环境，command find 是必要防护
+
+- **严重度**：🟡 Major（validate 全部依赖环境正确性）
+- **发现**：`validate_staging.sh` 使用裸 `find` 命令，用户 shell 中 `find` 被函数拦截（rtk→bfs）时校验结果 flaky——多次运行 ERROR 数从 3→2→1→0 波动，完全不可信。根本原因是 `export -f find` 使得子 bash 进程也继承该函数。
+- **Why**：shell 函数的动态作用域 + `bash` 继承 `export -f` 函数 → validate 作为被 source 的库，无法控制调用环境。
+- **How to apply**：所有 validate/hook 脚本中的 `find` 统一改为 `command find`。本会话修复了 validate_staging.sh 4 处，但 hooks/stop/ 中仍有 13 处裸 `find`（见 L2 Sonnet 审查报告）待后续统一。
+
+
+## L-046 · L2 dispatch 应走 PreToolUse hook 同步驱动，与 L3 异构互补
+
+- **严重度**：🟢 Suggestion（设计讨论，未实施）
+- **发现**：弱模型在其他环境测试中会逃避 prompt 指令不 spawn L2 subagent（口头声明"已审查"但无 Agent tool call）。讨论了五层方案（L1 prompt→L2 hook 检测→L3 gate→L4 hook 补跑→L5 双轨），最终收敛为 PreToolUse 同步 L2 dispatch 方案——在 transition 时拦截 + 同步派子 agent + 立即写入 done。方案设计完毕，待开 change 实施（预期 ~65 行改动，核心在 independent-review-gate.sh 扩展 L2 dispatch 逻辑）。
+- **Why**：Stop hook 方案有两个硬伤——L2 结果下次会话才能看到（当轮无感知），弱模型可能永远不会结束会话。PreToolUse 同步方案在 transition 时立即触发，结果当轮可用。
+- **How to apply**：下次开 change `l2-pretooldispatch`，扩展 `independent-review-gate.sh` + 更新 prompt 告知段。
+
+## L-047 · Stop hook L3 审查结果静默丢失：`2>/dev/null` 吞错 + `>>` 非原子写入
+
+- **严重度**：🔴 Critical（生产影响——L3 审查完成但内容未持久化，gate 形同虚设）
+- **发现**：排查 L3 审查缺失时发现两层根因：(1) `29-independent-review.sh` backlog 扫描和当前阶段 L3 调用均用 `2>/dev/null` 吞掉所有错误；(2) `l3-review.sh` 用裸 `>>` 追加写入，主 agent 后续 Edit 可能因锚点文本变化导致 L3 段被覆盖。Phase 1-3 的 L3 全部受此影响。
+- **Why**：`2>/dev/null` 在 `set -euo pipefail` 下等于主动关掉唯一诊断通道。`>>` 非原子——Stop hook 和主 agent 交替写同一文件必然竞态。
+- **How to apply**：(1) 所有 `l3_review_run` 调用去 `2>/dev/null`，失败时 `module_output` 记录；(2) L3 段 + .done 改用 tmp+mv 原子写入；(3) 写入后 `grep -q` 验证持久化。本次 change 已修复（T08+T09）。
+
+## L-048 · L3 审查依赖 Stop hook 触发时机——连续推进 session 中天然滞后
+
+- **严重度**：🟡 Major（设计约束）
+- **发现**：本次 change 大部分阶段在同一对话轮次内连续推进。L3 依赖 Stop hook（对话轮次边界）触发，Phase 5-7 的 L3 从未运行。L3 触发时机与 pipeline 推进速度存在结构性错配。
+- **Why**：Stop hook 假设"每阶段至少一次对话结束"，但快速推进模式下多阶段可在同一轮完成。
+- **How to apply**：(1) 短期：关键 phase 结束后显式结束会话让 Stop hook 跑 L3；(2) 中期：PreToolUse gate 层增加 L3 同步 dispatch（与 L2 对称）；(3) 长期：prompt 层也触发 L3。本次 change 已修复 L3 内容可靠性（L-047），触发时机优化留给后续。

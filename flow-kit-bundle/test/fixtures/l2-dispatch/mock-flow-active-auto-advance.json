@@ -1,0 +1,30 @@
+{
+  "change_id": "test-change",
+  "phase": "2",
+  "task_id": null,
+  "updated_at": "2026-07-15T00:00:00+08:00",
+  "goal": {
+    "scope": "pipeline",
+    "current_phase": "2",
+    "phases_done": [
+      "0",
+      "1"
+    ],
+    "gates": {
+      "0→1": "passed",
+      "1→2": "passed"
+    },
+    "gate_config": {
+      "0-change": "both",
+      "1-requirement": "both",
+      "2-design": "L2",
+      "3-task": "both",
+      "4-dev": "both",
+      "5-test": "both",
+      "6-review": "both",
+      "7-integration": "both"
+    },
+    "auto_advance": true,
+    "phase_sub_goals": {}
+  }
+}

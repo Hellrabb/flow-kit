@@ -91,7 +91,11 @@ _l3_scan_backlog() {
     [ "$count" -ge 3 ] && { echo "[backlog] ${#backlog[@]} phases total, $(( ${#backlog[@]} - 3 )) deferred to next Stop hook" >&2; break; }
     echo "[backlog] running L3 for phase ${pn} (backlog scan)" >&2
     if [ -f "$l3_lib" ] && type l3_review_run >/dev/null 2>&1; then
-      l3_review_run "$pn" "$change_id" "$spec_dir" "skipped" "both" $L3_BG_FLAG 2>/dev/null || true
+      l3_review_run "$pn" "$change_id" "$spec_dir" "skipped" "both" $L3_BG_FLAG || true
+      local bl_rc=$?
+      if [ "$bl_rc" != "0" ]; then
+        module_output "warning" "IR" "backlog L3 failed for phase ${pn} (rc=${bl_rc})——see hooks.log"
+      fi
     fi
     count=$((count + 1))
   done
@@ -178,7 +182,7 @@ fi
 # l3-review.sh 已在积压扫描段 source，此处仅检查可用性
 if [ -f "${HOOK_BASE_DIR}/lib/l3-review.sh" ]; then
   if type l3_review_run >/dev/null 2>&1; then
-    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" "${gate_val:-both}" $L3_BG_FLAG 2>/dev/null && rc=0 || rc=$?
+    l3_review_run "$phase" "$change_id" "$spec_dir" "$l2_verdict" "${gate_val:-both}" $L3_BG_FLAG && rc=0 || rc=$?
     # l3_review_run 内部完成: L3 API 调用 → 写 L3 段 → 写 6 键 .done
     case $rc in
       0) module_output "info" "IR" "L3 独立 review 完成（阶段 ${phase}, verdict=pass, L2_verdict=${l2_verdict}）→ INDEPENDENT-REVIEW-${phase}.md + .done";;

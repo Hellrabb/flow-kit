@@ -440,12 +440,28 @@ _l3_parse_result() {
   else
     section_title="## L3 盲审（${model} 外部模型 · ${ts}）"
   fi
+  # ── 原子写入 L3 段（tmp + mv 防主 agent Edit 竞态）──
+  local tmp_review="${review_md}.tmp.$$"
+  if [ -f "$review_md" ]; then
+    cat "$review_md" > "$tmp_review" 2>/dev/null || true
+  fi
   {
     echo ""; echo "---"; echo ""; echo "$section_title"; echo ""
     echo "> 自动生成于 ${ts}。由 l3-review.sh 写入。"
     echo ""; echo "### 审查结论"; echo ""; echo '```json'
     echo "$content"; echo '```'
-  } >> "$review_md"
+  } >> "$tmp_review"
+  mv "$tmp_review" "$review_md" 2>/dev/null || {
+    echo "[l3-review] CRITICAL: atomic mv failed for ${review_md}" >&2
+    rm -f "$tmp_review" 2>/dev/null || true
+    return 3
+  }
+
+  # ── 写入后验证 ──
+  if ! grep -q "^## L3 盲审\|^## L3 重审" "$review_md" 2>/dev/null; then
+    echo "[l3-review] CRITICAL: L3 content not persisted after write to ${review_md}" >&2
+    return 3
+  fi
 
   # ── 提取 verdict（三层提取：代码块 → 纯 JSON → grep 正则）──
   local extracted
@@ -506,6 +522,13 @@ _l3_write_done() {
       echo "[l3-review] L3 content appended but .done deferred (L2 not yet complete, gate_config=both)" >&2
       return 0
     fi
+  fi
+
+  # 防御：L3 内容持久化验证（原子写入后二次确认）
+  local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
+  if [ ! -f "$review_md" ] || ! grep -q "^## L3 盲审\|^## L3 重审" "$review_md" 2>/dev/null; then
+    echo "[l3-review] .done deferred: L3 content not found in ${review_md} (write may have failed)" >&2
+    return 3
   fi
 
   # .done 仅 pass 时写入 (fix-l3-gate AC-2/AC-3)

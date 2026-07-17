@@ -1,0 +1,13 @@
+{
+  "id": "msg_mock_l2_review_001",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"verdict\": \"pass\",\n  \"summary\": \"Mock L2 review: all checks passed. No critical findings.\",\n  \"findings\": []\n}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "stop_reason": "end_turn"
+}
