@@ -147,14 +147,19 @@ _gate_phase_filter() {
 }
 
 # _gate_active_check — verify independent review gate is enabled for this phase
+# 修 BUG-E：fk_independent_review_gate_active 定义在 done-validation.sh（非 artifacts.sh），
+#   且依赖 PROJECT_ROOT。旧代码只 source artifacts.sh → type 失败 → 永远 return 0（gate 永远未开，
+#   所有 review phase 的 commit/transition 在 Gate3 放行，gate 形同虚设）。
+#   改为 source done-validation.sh + 传 PROJECT_ROOT=cwd。
 _gate_active_check() {
-  local phase="$1"
-  local artifacts_lib="${HOOK_BASE_DIR}/../stop/lib/flow-kit-artifacts.sh"
-  [ -f "$artifacts_lib" ] || return 0
+  local phase="$1" cwdd="${2:-$PWD}"
+  local lib_dir="${HOOK_BASE_DIR}/../stop/lib"
+  local dv_lib="${lib_dir}/done-validation.sh"
+  [ -f "$dv_lib" ] || return 0
   # shellcheck source=/dev/null
-  source "$artifacts_lib" 2>/dev/null || return 0
+  PROJECT_ROOT="$cwdd" source "$dv_lib" 2>/dev/null || return 0
   type fk_independent_review_gate_active >/dev/null 2>&1 || return 0
-  fk_independent_review_gate_active "$phase" 2>/dev/null || return 0
+  PROJECT_ROOT="$cwdd" fk_independent_review_gate_active "$phase" 2>/dev/null || return 0
   return 1
 }
 
@@ -207,12 +212,63 @@ EOF
     return 0
   fi
 
-  # L2 not done, no skip — dispatch prompt + block
+  # L2 not done, no skip — auto_advance 检测 + dispatch + block
   local l2_lib="${HOOK_BASE_DIR}/../stop/lib/l2-detect.sh"
+
+  # ── auto_advance 检测（非阻塞模式）──
+  local flow_file="${cwd}/.flow-active"
+  local auto_advance
+  auto_advance=$(jq -r '.goal.auto_advance // false' "$flow_file" 2>/dev/null || echo "false")
+  if [[ "$auto_advance" == "true" ]]; then
+    cat >&2 <<EOF
+[l2-dispatch] auto_advance: L2 missing for phase ${phase} but not blocking in auto_advance mode
+EOF
+    # 异步派发 Agent（fire-and-forget），不阻塞自动推进
+    if [ -f "$l2_lib" ]; then
+      source "$l2_lib" 2>/dev/null || true
+      type l2_dispatch_agent >/dev/null 2>&1 && l2_dispatch_agent "$phase" "$change_id" "${cwd}/.specs/${change_id}" || true
+    fi
+    return 0  # 放行，不 exit 2
+  fi
+
+  # ── 尝试自动派发 L2 Agent ──
+  local dispatch_ok=0
+  if [ -f "$l2_lib" ]; then
+    source "$l2_lib" 2>/dev/null || true
+    if type l2_dispatch_agent >/dev/null 2>&1; then
+      if l2_dispatch_agent "$phase" "$change_id" "${cwd}/.specs/${change_id}"; then
+        dispatch_ok=1
+      fi
+    fi
+  fi
+
+  # ── 派发成功 → 输出确认 + exit 2 ──
+  if [ "$dispatch_ok" = "1" ]; then
+    if [[ "$gate_val" == "L2" ]]; then
+      cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底）但 L2 尚未完成。
+   [l2-dispatch] Agent dispatched for phase ${phase} — 等待 Agent 写入后重试 transition。
+   若 dispatch 失败：手动复制上方命令或设置 FLOW_KIT_SKIP_L2=1 跳过（仅 gate_config=both 时可用）。
+EOF
+    else
+      cat >&2 <<EOF
+⛔ 独立 review gate：gate_config=both 但 L2 尚未完成。
+   [l2-dispatch] Agent dispatched for phase ${phase} — 等待 Agent 写入后重试 transition。
+   选项：① 等待 Agent 完成（推荐）② 跳过 L2：FLOW_KIT_SKIP_L2=1 后重试
+EOF
+    fi
+    exit 2
+  fi
+
+  # ── 派发失败 → 降级为手动命令 ──
   if [ -f "$l2_lib" ]; then
     source "$l2_lib" 2>/dev/null || true
     type l2_dispatch_prompt >/dev/null 2>&1 && l2_dispatch_prompt "$phase" "$change_id" "${cwd}/.specs/${change_id}" >&2 2>/dev/null || true
   fi
+  cat >&2 <<'EOF'
+[l2-dispatch] dispatch failed, see manual command above
+  若需跳过此 gate：设置 FLOW_KIT_SKIP_L2=1 后重试（仅 gate_config=both 时可用）
+EOF
   if [[ "$gate_val" == "L2" ]]; then
     cat >&2 <<EOF
 ⛔ 独立 review gate：gate_config=L2（仅 L2，无 L3 兜底）但 L2 尚未完成。
@@ -237,8 +293,20 @@ _gate_check_l3() {
 
   # ── L2 done or L3-only → determine if L3 needed ──
   if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
+    # L2 已完成：仅当 gate_config 含 L3（both/L3）时才继续检查 L3
     if [[ "$gate_val" != "L3" && "$gate_val" != "both" ]]; then exit 0; fi
-  elif [[ "$gate_val" == "L3" ]]; then :; else exit 2; fi
+  elif [[ "$gate_val" == "L3" ]]; then
+    :   # L3-only 模式，不需 L2，继续检查 L3
+  elif [[ -z "$gate_val" ]]; then
+    exit 0   # 修 BUG-D：gate_val 空（该 phase 未配 gate）→ 放行（旧 else exit 2 误拦未配 gate 的 phase）
+  else
+    # gate_val=both/L2 但 review_md 无 L2 段 — _gate_check_l2 应已拦截，到此为异常状态
+    cat >&2 <<EOF
+⛔ 独立 review gate（phase ${phase}）：状态异常 — gate_config=${gate_val} 但 ${review_md} 缺 L2 盲审段。
+   _gate_check_l2 应已拦截。请检查 hook 调用顺序或 INDEPENDENT-REVIEW-${phase}.md 完整性。
+EOF
+    exit 2
+  fi
 
   # ── L3 done → fix-compliance + format result ──
   if fk_validate_done_marker "$done_marker" "$phase" "$change_id" "transition" 2>/dev/null; then
@@ -295,7 +363,7 @@ EOF
 _gate_phase_transition() {
   local cmd="$1" phase="$2" change_id="$3" cwd="$4" flow_file="$5"
 
-  if ! is_phase_write "$cmd"; then return 1; fi
+  if ! is_phase_write "$cmd"; then return 0; fi   # 修 BUG-C：非阶段写=正常返回（set -e 不再误退出），交 Gate 7 _gate_deny_reason
 
   local cur_phase
   cur_phase=$(jq -r '.goal.current_phase // ""' "$flow_file" 2>/dev/null || echo "")
@@ -362,13 +430,21 @@ _run_review_gates() {
   _gate_path_guard "$tool_name" "$file_path" "$cmd" || exit 2
 
   # Gate 2: phase filter → extract phase + change_id
+  # _gate_phase_filter 语义：return 0=skip(非review phase/无效change_id)，return 1=continue
+  # ⚠️ 与 bash `||` 惯例（非0=失败）相反 → 用 if 显式判定（修 BUG-A/B 反转：
+  #    旧 `|| exit 0` 使 review phase return1→放行(gate失效)、phase0 return0→继续(误拦)，双向错）
   local pf_output phase change_id
-  pf_output=$(_gate_phase_filter "$flow_file") || exit 0
+  if pf_output=$(_gate_phase_filter "$flow_file" 2>/dev/null); then
+    exit 0   # return 0 = skip → 放行（phase 0/4、无 change_id 走这里）
+  fi
   phase=$(echo "$pf_output" | grep "^PHASE=" | cut -d= -f2-)
   change_id=$(echo "$pf_output" | grep "^CHANGE_ID=" | cut -d= -f2-)
 
   # Gate 3: gate active check
-  _gate_active_check "$phase" || exit 0
+  # _gate_active_check 语义：return 0=gate未开(skip)，return 1=gate开(continue) — 同样反向，用 if 判定
+  if _gate_active_check "$phase" "$cwd" 2>/dev/null; then
+    exit 0   # return 0 = gate 未开 → 放行
+  fi
 
   # Gate 4: done validation (Tier 1+2)
   local done_marker="${cwd}/.specs/${change_id}/.independent-review-${phase}.done"

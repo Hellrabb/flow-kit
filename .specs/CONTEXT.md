@@ -190,6 +190,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | L3 上下文注入（L3 context injection） | L3 prompt 构建时注入前次审查摘要：前次 verdict + 主 agent 反驳 + L2 verdict。使每次审查基于历史上下文而非独立盲审。解决 L-040 限制⑤。来自 `l3-pipeline-fix-2026-07` |
 | Stop hook 性能基线（Stop hook performance baseline） | 优化前对 Stop hook 链各模块做 wall-clock 耗时测量（`time` 3 次取中位数），作为 ≥30% 性能提升目标的对比基线。优化方向待测量后确定（异步化 / 懒加载 / 并行化）。来自 `l3-pipeline-fix-2026-07` |
 <!-- l3-pipeline-fix-2026-07 追加 ↑ -->
+<!-- l2-pretooluse-dispatch 追加 ↓ -->
+| L2 PreToolUse dispatch | PreToolUse hook 层新增的 L2 独立审查前置触发机制：AI 写 `.flow-active.phase` 切换阶段时，`independent-review-gate.sh` 检测目标阶段 gate_config 是否含 `L2` 或 `both`，若 L2 缺失则硬拦截（exit 2）并自动派发 L2 审查 Agent。与 Stop hook L2（事后兜底）互补，不替代。来自 `l2-pretooluse-dispatch` |
+| PreToolUse L2 gate | `independent-review-gate.sh` 中新增的 L2 检测分支：在 `is_phase_write` 命中后，对 gate_config 含 L2/both 的阶段调用 `l2_detect_missing()` 判定 L2 完成状态，缺失则 fail-close deny。与既有 L3 gate 独立判定（任缺其一即拦截）。来自 `l2-pretooluse-dispatch` |
+<!-- l2-pretooluse-dispatch 追加 ↑ -->
 
 ## 已锁决策
 

@@ -44,7 +44,7 @@ install_hooks() {
   # shellcheck source=/dev/null
   source "${SCRIPT_DIR}/hooks/stop/lib/common.sh" 2>/dev/null || {
     echo "   ⚠️  common.sh 不可用，使用回退列表"
-    HOOK_MODULE_NAMES=(00-gate 01-transcript-parse 20-claude-md 21-memory 22-git 23-quality 24-session 25-project 26-workflow 27-interactive-ui-check 28-weak-model-compliance 29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 99-report)
+    HOOK_MODULE_NAMES=(00-gate 01-transcript-parse 20-claude-md 21-memory 22-git 23-quality 24-session 25-project 26-workflow 27-interactive-ui-check 28-weak-model-compliance 29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 33-flow-active-integrity 99-report)
   }
   for script in "${HOOK_MODULE_NAMES[@]}"; do
     install_file "$SCRIPT_DIR/hooks/stop/${script}.sh" "$hook_dst/stop/${script}.sh"

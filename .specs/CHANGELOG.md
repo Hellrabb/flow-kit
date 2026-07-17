@@ -1,6 +1,7 @@
 # CHANGELOG
 
 > 按日期倒序。每行：日期 / change-id / 摘要 / LESSONS 新增。
+| 2026-07-15 | `l2-pretooluse-dispatch` | L2 PreToolUse 前置拦截 + L3 写入管道修复：_gate_check_l2 扩展（auto_advance检测 + auto-dispatch + 降级）+ l2_dispatch_agent() 异步Agent派发(Anthropic API)+ L3 backlog错误日志(去2>/dev/null)+ L3原子写入(tmp+mv)+ _l3_write_done防御 + test_l2_pretooluse_dispatch.bats 12 tests · 7 files, +294/-4 · 全量回归 80 bats 绿 · pipeline 0→7 gate_config=all | L-047 (L3内容丢失: 2>/dev/null吞错+非原子写入竞态), L-048 (L3触发时机: Stop hook依赖对话轮次边界导致连续推进session中L3滞后) |
 | 2026-07-11 | `l3-pipeline-fix-2026-07` | L3管线5项限制修复 + Stop hook性能优化：git diff并集+token估算截断 + smart_truncate三遍扫描(尾部锚点+fallback) + 积压扫描(_l3_scan_backlog≤3限流) + 上下文注入(_l3_inject_context+免责声明) + L3 API异步化(L3_BACKGROUND=1 opt-in) + HTTP降级(curl -w状态码) + 15模块fk_perf_timing探针 + auto-checkpoint自引用竞态修复 · 33 files, +582/-115 · 482 bats 0 fail(-2,BW01重组) · pipeline 0→7 全L2+L3(phase1~6) | L-041 (auto-checkpoint自引用竞态), L-042 (--background默认sync安全) |
 | 2026-07-11 | `health-fix-l3-2026-07` | L3 审计子系统健康修复（72→pass）：`_gate_phase_transition` 122L→45L编排器+3子函数 + `fk_fix_compliance_check` 126L→编排层 + correction-types.sh 解环三向依赖 + PHASE_GATE_KEY_MAP 消除3处phase_name硬编码 + goal-parsing.md DRY jq解析 + self-sourcing修复 + 死代码清理 + timeout测试补齐 · 16 files, +350/-97 · 469 bats 0 fail(+3) · pipeline 0→7 全L2+L3 | L-039 (`set -euo pipefail`下命令替换pipefail静默终止29号hook) |
 | 2026-07-10 | `sweep-fix-2026-07-10` | Full Sweep 统一清理（评分 65→≥80）：l3_review_run 305→42行拆分（4子函数+编排器）+ independent-review-gate 285行无名块→7`_gate_*`+`_run_review_gates`编排器 + `run_check()` 消除30处check_enabled模板重复(-97%) + `write_failed_state`死代码移除 + CONTEXT.md命名约定7前缀文档化 + `_grep`保留决策(KEEP·防御性shim·证据链完整) + `_l3_check_rerun`重审检测提取 + DRY_RUN安装测试4条新增 · 12 files, +456/-415 · 466 bats 0 fail(+4) · pipeline 0→7 全L2 ×5 | L-034 (AC硬编码数陷阱), L-035 (Given污染下游), L-036 (heredoc引用退化), L-037 (exit-in-subfunction反模式), L-038 (verify不覆盖非代码产物) |
@@ -122,3 +123,14 @@ PCSC/PG 双层防护全面审计（12 项发现：1🔴 + 4🟡 + 7🟢）
 
 ## 2026-07-09 · fix-gate-test-setup（修 TD-013 · test_gate_integrity 多重假绿）
 setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 补 artifacts= KVP + 17 条测试体改 run+$status + 范围外 skip 归因（#19/#20 TD-014 · #11/#12/#23 TD-016）。bats 18ok/5skip/0fail · make test 407 全绿 · 反向断言有效。降挡（无 L2/L3）完成。揭示 TD-016（断言债）+ 为 TD-014 提供可信测试基础。
+
+## 2026-07-14 · user-guide-ppt-sync（用户指南同步 + PPT + 打包修复 + 离线 bundle）
+**Commits**: `9d6e308`, `749ec36`
+**范围**:
+- FLOW-KIT-用户指南.md 同步至 20260713：+139/-34 行，模块数修正 (13→17)、Hook 表补全 (31/32/33)、PreToolUse 新增 auto-checkpoint、L3 异步化描述、§9 新增 ppt-diagram-pipeline skill 文档
+- flow-kit-用户指南.pptx 生成：18 页 / 4 图表 (dot×3 + mscgen×1)
+- 打包完整性修复：rsync 三路 exclude 对齐 (L272/L298/L290 git-archive)、validate_staging.sh find→command find、docs/ assets/ git rm (16 files)
+- 全包离线 bundle: flow-kit-full-20260713-143435.tar.gz (26M)
+- user-scope 同步：核心引擎 goal-parsing.md + 6-review.md + 7-integration.md + brooks-lint cache
+**审查**: L2 DeepSeek-V4 + Haiku 两轮跨模型盲审（用户指南） + L2 Sonnet + Haiku 修复前/后四轮审查（打包修复） + 三方安全审查（主 agent + Sonnet + Haiku）
+**LESSONS**: L-044（用户指南同步检查清单）、L-045（bundle validate 环境依赖）、L-046（L2 dispatch PreToolUse 方案设计）

@@ -88,3 +88,176 @@ DISPATCH_EOF
 
   return 0
 }
+
+# ── l2_dispatch_agent() ────────────────────────────────────────────
+# SYNC-POINT: keep aligned with flow-kit/prompts/independent/L2-blind-review.md
+#
+# 自动派发 L2 审查 Agent（curl + Anthropic API + 异步后台进程）。
+# 用法: l2_dispatch_agent <phase> <change_id> [specs_dir]
+# 返回: 0 = dispatch 成功触发后台进程, 1 = 失败（curl 不可用/API 不可达/凭证缺失）
+# 环境变量:
+#   FLOW_KIT_L2_MOCK=1 — 跳过真实 API 调用，使用 mock 响应（供 bats 测试用）
+#   ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY — API 鉴权
+#   ANTHROPIC_BASE_URL — API endpoint（默认 https://api.anthropic.com）
+l2_dispatch_agent() {
+  local phase="$1"
+  local change_id="$2"
+  local specs_dir="${3:-${PROJECT_ROOT}/.specs/${change_id}}"
+  local review_md="${specs_dir}/INDEPENDENT-REVIEW-${phase}.md"
+
+  [[ "$phase" =~ ^[1-7]$ ]] || { echo "[l2-dispatch] invalid phase: $phase" >&2; return 1; }
+  [ -n "$change_id" ] || { echo "[l2-dispatch] missing change_id" >&2; return 1; }
+
+  # ── Mock 模式（测试用）──────────────────────────────────────────
+  if [ "${FLOW_KIT_L2_MOCK:-0}" = "1" ]; then
+    local mock_tmp="${review_md}.tmp.$$"
+    if [ -f "$review_md" ]; then
+      cat "$review_md" > "$mock_tmp" 2>/dev/null || true
+    fi
+    {
+      echo ""
+      echo "---"
+      echo "## L2 盲审（mock · ${mock_ts}）"
+      echo ""
+      echo "> Mock L2 review — FLOW_KIT_L2_MOCK=1"
+      echo ""
+      echo "### 🟢 Mock Finding · Mock review for testing"
+      echo "**Symptom**: Mock dispatch succeeded"
+      echo "**Source**: FLOW_KIT_L2_MOCK=1"
+      echo "**Consequence**: None (mock)"
+      echo "**Remedy**: None (mock)"
+      echo ""
+      echo "**Verdict**: pass"
+    } >> "$mock_tmp"
+    mv "$mock_tmp" "$review_md" 2>/dev/null || true
+    echo "[l2-dispatch] mock Agent wrote to ${review_md}" >&2
+    return 0
+  fi
+
+  # ── 凭证检查 ──────────────────────────────────────────────────
+  local auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
+  local api_key="${ANTHROPIC_API_KEY:-}"
+  if [ -z "$auth_token" ] && [ -z "$api_key" ]; then
+    echo "[l2-dispatch] no API credentials (ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY)" >&2
+    return 1
+  fi
+
+  # ── 构造 L2 审查 prompt（与 L2-blind-review.md 一致的固化模板）──
+  local prompt_text
+  prompt_text=$(cat <<'L2_PROMPT_EOF'
+# L2 独立盲审员 · 固化指令
+
+你是独立审查员，对 flow-kit 阶段产物做盲审。判断必须独立、客观。
+
+## 独立性硬约束
+1. 只看指定工件，不假设外部陈述
+2. 禁止证实偏差——证据优先于解释
+3. 不主动假设作者意图
+
+## 输出格式（四要素 + 严重度）
+每个发现必须含：Symptom / Source / Consequence / Remedy
+严重度：🔴 Critical / 🟡 Major / 🟢 Minor
+报告末尾：**Verdict**: pass | fail
+
+## 审查重点（阶段特定，由调用参数决定）
+L2_PROMPT_EOF
+)
+
+  # 按阶段追加审查重点
+  case "$phase" in
+    1) prompt_text+=$'\n'"阶段 1 · 需求审查：AC 是否 Given/When/Then 齐全且可验证？v1/v2/out 切分合理？非功能需求是否遗漏？" ;;
+    2) prompt_text+=$'\n'"阶段 2 · 设计审查：ADR 决策是否有备选+理由+代价？是否撞禁动清单？抽象层次是否得当？风险是否遗漏？" ;;
+    3) prompt_text+=$'\n'"阶段 3 · 任务审查：单 task ≤200行？依赖图无环？verify 可机器执行？AC 全覆盖？write_files 禁动清单无越界？" ;;
+    5) prompt_text+=$'\n'"阶段 5 · 测试审查：AC 覆盖率 100%？5 轮金字塔是否逐轮填写？UAT 可脚本化？回归全绿？" ;;
+    6) prompt_text+=$'\n'"阶段 6 · 代码审查：spec 合规？代码质量 6 维衰退风险？主 agent REVIEW 漏判/误判？修代码优先？" ;;
+    7) prompt_text+=$'\n'"阶段 7 · 集成审查：产物齐全？LESSONS 同步？CHANGELOG 更新？归档清洁？done 真实性？" ;;
+  esac
+
+  prompt_text+=$'\n'$'\n'"## 本次审查参数"$'\n'
+  prompt_text+="- 阶段：${phase}"$'\n'
+  prompt_text+="- change-id：${change_id}"$'\n'
+  prompt_text+="- 工件目录：${specs_dir}"$'\n'
+  prompt_text+="- 输出：追加写入 ${review_md} 的 L2 盲审段（禁止覆写已有 L3 段）"$'\n'
+
+  # ── API 调用（异步后台进程）────────────────────────────────────
+  local base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+  local model="${ANTHROPIC_L2_MODEL:-claude-sonnet-5}"
+
+  (
+    local ai_response="" content="" http_code=0
+
+    # 构造 JSON payload（jq --arg 防注入）
+    local payload
+    payload=$(jq -n \
+      --arg m "$model" \
+      --arg p "$prompt_text" \
+      '{model:$m, max_tokens:4096, messages:[{role:"user", content:$p}]}' 2>/dev/null) || {
+      echo "[l2-dispatch] jq payload construction failed" >&2
+      exit 1
+    }
+
+    # Path 1: ANTHROPIC_AUTH_TOKEN
+    if [ -n "$auth_token" ]; then
+      ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
+        -H "Authorization: Bearer ${auth_token}" \
+        -H "Content-Type: application/json" \
+        -d "$payload" 2>/dev/null || true)
+      http_code=$(echo "$ai_response" | tail -1)
+      ai_response=$(echo "$ai_response" | sed '$d')
+    fi
+
+    # Path 2: Legacy ANTHROPIC_API_KEY
+    if [ -z "$ai_response" ] && [ -n "$api_key" ]; then
+      ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "https://api.anthropic.com/v1/messages" \
+        -H "x-api-key: $api_key" \
+        -H "Content-Type: application/json" \
+        -d "$payload" 2>/dev/null || true)
+      http_code=$(echo "$ai_response" | tail -1)
+      ai_response=$(echo "$ai_response" | sed '$d')
+    fi
+
+    # ── 解析响应 ─────────────────────────────────────────────────
+    case "$http_code" in
+      200) ;;
+      *) echo "[l2-dispatch] API returned HTTP ${http_code}" >&2; exit 1 ;;
+    esac
+
+    content=$(echo "$ai_response" | jq -r '[.content[] | select(.type == "text") | .text][0] // .content[0].text // empty' 2>/dev/null || echo "")
+    if [ -z "$content" ]; then
+      echo "[l2-dispatch] API call succeeded but no content in response" >&2
+      exit 1
+    fi
+
+    # ── 追加写入 INDEPENDENT-REVIEW（防 L3 覆写）─────────────────
+    # ── 原子写入 L2 段（tmp + mv 防竞态，与 L3 一致）──
+    local bg_tmp="${review_md}.tmp.$$"
+    if [ -f "$review_md" ]; then
+      cat "$review_md" > "$bg_tmp" 2>/dev/null || true
+    fi
+    {
+      echo ""
+      echo "---"
+      echo "## L2 盲审"
+      echo ""
+      echo "> 审查日期：$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ) | 阶段：${phase} | change-id：${change_id} | 自动派发"
+      echo ""
+      echo "$content"
+    } >> "$bg_tmp"
+    mv "$bg_tmp" "$review_md" 2>/dev/null || {
+      echo "[l2-dispatch] CRITICAL: atomic mv failed for ${review_md}" >&2
+      exit 1
+    }
+
+    echo "[l2-dispatch] Agent completed, result written to ${review_md}" >&2
+    exit 0
+  ) 1>/dev/null 2>"${specs_dir}/.l2-dispatch-${phase}.log" & disown
+
+  local bg_pid=$!
+  if [ -n "$bg_pid" ] && kill -0 "$bg_pid" 2>/dev/null; then
+    echo "[l2-dispatch] Agent dispatched for phase ${phase} (pid=${bg_pid})" >&2
+    return 0
+  else
+    echo "[l2-dispatch] dispatch failed, see manual command above" >&2
+    return 1
+  fi
+}
