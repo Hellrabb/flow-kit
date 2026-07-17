@@ -18,6 +18,19 @@ set -euo pipefail
 
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
+# 修 BUG-F（L2 phase2 R1 critical + L3 phase2 critical1 改局部定义隔离副作用）：
+# PHASE_GATE_KEY_MAP 在 common.sh:255 定义，hook 编排层（_gate_phase_transition:382 / _gate_deny_reason:400）需要它。
+# D7 原 source common.sh（L2 验证有效），但 L3 担心全局副作用（config_get 等污染 PreToolUse 环境）。
+# 改为局部 declare（与 common.sh:255 保持同步，副作用完全隔离）。若 common.sh 增删 phase，此处须同步。
+declare -A PHASE_GATE_KEY_MAP=(
+  [1]="1-requirement"
+  [2]="2-design"
+  [3]="3-task"
+  [5]="5-test"
+  [6]="6-review"
+  [7]="7-integration"
+)
+
 # ══ helper 函数（source-safe · check.sh / bats 可复用，不依赖 stdin）══════════
 
 # is_handshake_write <cmd> — 检测 Bash 命令是否写 .flow-active.independent-review（D7 · 29号独占写）

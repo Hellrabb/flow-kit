@@ -86,10 +86,10 @@ REQUIREMENT AC 的验证方式引用以下 ID，全部定义于 `test/test_l2_pr
 
 ### AC-6 · 全量 bats 全绿（加严 · 用户定 v1）
 
-- **Given** 修复 A-E+G 后（F/H/J/I 在 v2，不影响 bats）
+- **Given** 修复 A-E+F+G 后（F 升级 v1 critical，H/J/I 在 v2）
 - **When** `npx bats test/test_l2_pretooluse_dispatch.bats`
-- **Then** 18/18 全过：smoke(1) + bats-AC-1/2/3/5a/5b/5c/9/10/11(9) + regression×2(2) + INT-1~6(6)
-- **验证方式**: `npx bats ... | grep -c '^ok'` == 18 且无 `^not ok`
+- **Then** 19/19 全过：smoke(1) + bats-AC-1/2/3/5a/5b/5c/9/10/11(9) + regression×2(2) + INT-1~7(7)
+- **验证方式**: `npx bats ... | grep -c '^ok'` == 19 且无 `^not ok`
 - **注**: bats-AC-N 是 bats 内部编号（测 l2-detect.sh 函数），与本文档 AC-N 无对应（见测试 ID 定义表）。本文档 AC-8/9/10 的覆盖由 INT-3~6 + AC-10 单元断言保证，不重复计入 bats-AC-N。
 
 ### AC-7 · 全链路 toll-gate 状态可断言
@@ -139,10 +139,10 @@ REQUIREMENT AC 的验证方式引用以下 ID，全部定义于 `test/test_l2_pr
 
 ### v1（本次必做）
 
-- 诊断 L2/L3 gate 7 bug（A-G）—— DIAGNOSE.md（先诊断，用户确认修复 A-E+G）
-- 修复 A-E（gate 编排）+ G（l2-detect mock_ts）+ L3 model（haiku env-first，移除固定 deepseek fallback）
-- INT-1~6 集成测试防回归
-- bats 全绿 18/18
+- 诊断 L2/L3 gate bug（A-G + L2 phase2 发现 BUG-F 升级 critical）—— DIAGNOSE.md
+- 修复 A-E（gate 编排）+ **F（source common.sh，forward transition 绕过 critical）** + G（l2-detect mock_ts）+ L3 model（haiku env-first）
+- INT-1~7 集成测试防回归（INT-7 forward transition deny）
+- bats 全绿 19/19
 - from-0-all pipeline 实跑（逐阶段 toll-gate 验证 AC-7）
 
 ### v2（l2-l3-mock-fix change）

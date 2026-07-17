@@ -87,9 +87,17 @@
 | 5 | phase0 纯 ls | exit0 | exit0 ✓ |
 | 6 | phase6 git commit 无.done | exit0（gate失效） | exit2+stderr ✓ |
 
-### 残留瑕疵 BUG-F（非阻塞 · 归属后续 change）
+### BUG-F 升级 critical（L2 phase2 R1 发现 · 已修 v1）
 
-TEST3/6 stderr 显示「阶段 1 ()」——括号内 phase_name 空。根因：`_gate_deny_reason` 用 `PHASE_GATE_KEY_MAP[$phase]` 但该数组从未初始化。不影响 gate 功能（数字 phase deny 正确），仅显示瑕疵。
+**原判 cosmetic 错误**：TEST3/6 stderr「阶段 1 ()」phase_name 空 → 原判显示瑕疵（DIAGNOSE v1 误判）。
+
+**L2 phase2 独立审查发现真实 critical**：`PHASE_GATE_KEY_MAP` 在 `common.sh:255` 定义（declare -A），但 `independent-review-gate.sh` **从不 source common.sh** → 数组未定义 → `_gate_phase_transition:382/400` `${PHASE_GATE_KEY_MAP[$phase]:-}` 永远空 → `gate_val` 空 → BUG-D"空→放行"被触发 → **forward transition 全量绕过 gate**（phase1+ review 无.done 仍 forward 放行，应 deny）。
+
+**实跑确认**：fixture phase=1, gate_config=both, 无.done, forward transition → **EXIT=0**（绕过，应 exit2）。
+
+**修复 v1**：`independent-review-gate.sh` 顶部 `source common.sh` + 补 INT-7（forward transition deny 回归）。修复后 EXIT=2（deny，stderr `gate_config=both 但 L2 尚未完成`）。
+
+**重大意义**：L2 独立审查发现了主 agent + 单元测试的**覆盖盲区**——INT-1~6 只测 git commit deny（Gate7 兜底），没测 forward transition deny（Gate6）。BUG-F 长期伪装为 cosmetic（forward transition 绕过未被任何测试覆盖）。这是独立审查机制的核心价值证明。
 
 ### 遗留 BUG-G（l2-detect.sh · 归属后续 change · 非本次引入）
 
