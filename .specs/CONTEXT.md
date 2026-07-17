@@ -194,6 +194,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | L2 PreToolUse dispatch | PreToolUse hook 层新增的 L2 独立审查前置触发机制：AI 写 `.flow-active.phase` 切换阶段时，`independent-review-gate.sh` 检测目标阶段 gate_config 是否含 `L2` 或 `both`，若 L2 缺失则硬拦截（exit 2）并自动派发 L2 审查 Agent。与 Stop hook L2（事后兜底）互补，不替代。来自 `l2-pretooluse-dispatch` |
 | PreToolUse L2 gate | `independent-review-gate.sh` 中新增的 L2 检测分支：在 `is_phase_write` 命中后，对 gate_config 含 L2/both 的阶段调用 `l2_detect_missing()` 判定 L2 完成状态，缺失则 fail-close deny。与既有 L3 gate 独立判定（任缺其一即拦截）。来自 `l2-pretooluse-dispatch` |
 <!-- l2-pretooluse-dispatch 追加 ↑ -->
+<!-- l2-l3-test-defect 追加 ↓ -->
+| gate 编排层（gate orchestration layer） | independent-review-gate.sh 的 `_run_review_gates` 编排逻辑（Gate1 path-guard → Gate2 phase filter → Gate3 gate active → Gate4 done validation → Gate5 tamper → Gate6 phase transition → Gate7 deny reason）。区别于底层 lib 单函数（l2-detect.sh / done-validation.sh）。诊断教训：编排层**必须**有集成测试（PreToolUse payload 注入 `bash gate.sh` + exit code 断言），单元测试（source lib + 调单函数）覆盖不到编排层 bug。来自 `l2-l3-test-defect`（BUG-A/B/C/D/E 全在编排层，原 AC-1~11 全单元级，0 覆盖） |
+| 返回值语义反转（return-value semantic inversion） | bash 函数 return 0=成功/1=失败的惯例与业务约定的"0=skip,1=continue"冲突时的陷阱。gate 函数（_gate_phase_filter/_gate_active_check）曾用 0=skip/1=continue，调用方却用 `cmd \|\| exit 0`（非0=失败→放行）→ 双向 bug：skip 的继续走 gate、continue 的反向放行。修复：调用方显式 rc 判定（`if cmd; then exit 0; fi`）。来自 `l2-l3-test-defect` BUG-A/B |
+| gate-active source 依赖 | `_gate_active_check` 必须 source 定义 `fk_independent_review_gate_active` 的 lib（**done-validation.sh**，非 artifacts.sh）+ 传 `PROJECT_ROOT=cwd`。否则 `type` 失败 → gate 永远判定"未开"→ 所有 review phase 的 commit/transition 在 Gate3 放行（gate 形同虚设）。来自 `l2-l3-test-defect` BUG-E |
+| 假绿（false-green） | 测试声明（CHANGELOG/commit "全绿"）与实际不符——测试实际失败却被声明通过。`l2-pretooluse-dispatch` 的 AC-5a/5c/9 三个 mock 测试因 `mock_ts` 未定义一直失败，但 CHANGELOG 声称「12 tests 全绿」。验收前必须实跑 `npx bats` 确认，不信任声明。来自 `l2-l3-test-defect` BUG-G |
+<!-- l2-l3-test-defect 追加 ↑ -->
 
 ## 已锁决策
 

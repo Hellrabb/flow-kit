@@ -41,11 +41,9 @@ max_chars=$(config_get '.independent_review.max_artifact_chars' "20000")
 [[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=20000
 max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
-# Model: env var (ANTHROPIC_DEFAULT_HAIKU_MODEL) > config > hardcoded default
-default_model=$(config_get '.ai.model' "deepseek-v4-flash")
-configured_model=$(config_get '.independent_review.model' "$default_model")
-model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-$configured_model}"
-[ -n "$model" ] || model="deepseek-v4-flash"
+# Model: 完全由 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义（用户的 haiku 配置，如 deepseek-v4-flash[1m]），
+# 不固定 fallback、不读 config model（修：原 default_model/configured_model 写死 deepseek；曾误改 claude-haiku）
+model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:?L3 需 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义 haiku 模型}"
 
 # ── Gate 4: 幂等——本阶段 L3 已成功就跳过 ──
 state_file="${PROJECT_ROOT}/.flow-active.independent-review"

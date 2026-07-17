@@ -235,3 +235,24 @@ _gate_run() {
   _gate_run "1" '{"6-review":"both"}' 'git commit -m test'
   [ "$status" -eq 0 ]
 }
+
+@test "INT-6 (AC-9 正向): .done + phases_done 含 phase 时放行（Gate4 敏感性 · mock fixture）" {
+  # 验证 Gate4 对 .done/phases_done 的敏感性（mock fixture，非真实 Stop hook 写入——后者属 BUG-I 环境）
+  local specs_dir="$TMP_DIR/.specs/test-change"
+  jq -n --argjson gc '{"1-requirement":"both"}' \
+    '{change_id:"test-change",phase:1,goal:{scope:"pipeline",current_phase:"1",gate_config:$gc,phases_done:["0","1"],gates:{"0→1":"passed","1→2":"passed"},auto_advance:false}}' \
+    > "$TMP_DIR/.flow-active"
+  mkdir -p "$specs_dir"
+  jq -n --argjson gc '{"1-requirement":"both"}' '{gate_config:$gc,created_at:"2026-07-17"}' > "$specs_dir/.goal-snapshot.json"
+  cat > "$specs_dir/.independent-review-1.done" <<'DONE'
+phase=1
+change_id=test-change
+written_by=test-fixture
+L2_verdict=pass
+L3_verdict=pass
+artifacts=REQUIREMENT.md
+DONE
+  jq -n --arg c 'git commit -m test' --arg cwd "$TMP_DIR" '{tool_name:"Bash",tool_input:{command:$c},cwd:$cwd}' > "$TMP_DIR/payload.json"
+  run bash -c "PROJECT_ROOT='$TMP_DIR' bash '$GATE_SH' < '$TMP_DIR/payload.json' 2>/dev/null"
+  [ "$status" -eq 0 ]
+}
