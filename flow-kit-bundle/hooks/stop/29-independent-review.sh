@@ -16,6 +16,19 @@ HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 source "${HOOK_BASE_DIR}/lib/common.sh"
 [ -f "${HOOK_BASE_DIR}/lib/flow-kit-artifacts.sh" ] && source "${HOOK_BASE_DIR}/lib/flow-kit-artifacts.sh"
 
+# _write_l2_missing_correction <phase> <change_id> — D3 双管 (a)（ADR-009 · AC-I）：
+# gate_config=both 但 ## L2 盲审 段缺失时写 .flow-active.correction（type=l2-missing）作持久化日志。
+# L2-first 契约：gate_config=both 时主 agent 必须先派 L2 子 agent + 写 ## L2 盲审 段，Stop 才能 L3。
+# 注：SessionStart flow-kit-resume.sh 当前仅对 type=compliance 显示 banner；l2-missing flag 作持久化
+# 记录 + 未来 SessionStart 扩展识别的载体（D3 双管 a 的 banner 部分待 SessionStart 适配）。
+_write_l2_missing_correction() {
+  local phase="$1" change_id="$2"
+  local correction_file="${PROJECT_ROOT}/.flow-active.correction"
+  jq -n --arg phase "$phase" --arg cid "$change_id" \
+    '{type:"l2-missing", phase:$phase, change_id:$cid, message:"gate_config=both 但 ## L2 盲审 段缺失，主 agent 请派 L2 子 agent 并写入该段（L2-first 契约）"}' \
+    > "$correction_file" 2>/dev/null || true
+}
+
 # ── Gate 1: 模块启用 ──
 module_enabled "independent_review" || exit 0
 
@@ -74,7 +87,7 @@ _l3_scan_backlog() {
 
   while IFS= read -r pn; do
     [ -n "$pn" ] || continue
-    local phase_name="${PHASE_GATE_KEY_MAP[$pn]:-}"
+    local phase_name="$(fk_phase_gate_key "$pn")"
     [ -n "$phase_name" ] || continue
     local gv
     gv=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
@@ -114,7 +127,7 @@ l3_lib="${HOOK_BASE_DIR}/lib/l3-review.sh"
 _l3_scan_backlog "$flow_file" "$spec_dir" "$l3_lib"
 
 # ── D4 fix: L2 检测 — both 模式 L2 未完成时输出派发提示 ──
-	phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
+	phase_name="$(fk_phase_gate_key "$phase")"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
 case "$gate_val" in
@@ -132,7 +145,8 @@ if [[ "$gate_val" == "both" ]]; then
         : # L2 已完成，继续 L3
       else
         l2_dispatch_prompt "$phase" "$change_id" "$spec_dir" 2>/dev/null || true
-        module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both）——等待主 agent 派 L2 子 agent"
+        _write_l2_missing_correction "$phase" "$change_id"
+        module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
         exit 0
       fi
     fi
@@ -152,7 +166,7 @@ spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 review_md="${spec_dir}/INDEPENDENT-REVIEW-${phase}.md"
 
 # 读 gate_config 当前阶段值（用于 D1 L2-wait + D2 L3-only skipped）
-	phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
+	phase_name="$(fk_phase_gate_key "$phase")"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
 # 值标准化映射（与 done-validation.sh 保持一致）
@@ -172,7 +186,8 @@ fi
 
 # ── D1: gate_config="both" 时 L2 未完成 → 跳过 L3，不写 .done ──
 if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
-  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both）——等待主 agent 派 L2 子 agent"
+  _write_l2_missing_correction "$phase" "$change_id"
+  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
   exit 0
 fi
 

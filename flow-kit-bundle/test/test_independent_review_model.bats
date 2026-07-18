@@ -42,13 +42,15 @@ teardown() {
 
 # ── AC-3: env var 缺失时 fallback ──────────────────────────────────────
 
-@test "AC-3: model uses env-var-first pattern with fallback" {
-  # Both scripts should use ${ANTHROPIC_DEFAULT_HAIKU_MODEL:-...} pattern
-  run grep -c 'ANTHROPIC_DEFAULT_HAIKU_MODEL:-' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "AC-3: model uses env-var-first pattern (:? 强制 / :- fallback)" {
+  # 29 用 ${ANTHROPIC_DEFAULT_HAIKU_MODEL:?} 强制（l2-l3-test-defect INT-6：模型必须定义，无 fallback）
+  # 30 用 ${ANTHROPIC_DEFAULT_HAIKU_MODEL:-} fallback（env var > config > default）
+  # 两者都属 env-var-first：变量后跟 :- 或 :? modifier（T06 修测：原仅 :- 零匹配 29 的 :?）
+  run grep -cE 'ANTHROPIC_DEFAULT_HAIKU_MODEL:[-?]' "$HOME/.claude/hooks/stop/29-independent-review.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 
-  run grep -c 'ANTHROPIC_DEFAULT_HAIKU_MODEL:-' "$HOME/.claude/hooks/stop/30-ai-analyze.sh"
+  run grep -cE 'ANTHROPIC_DEFAULT_HAIKU_MODEL:[-?]' "$HOME/.claude/hooks/stop/30-ai-analyze.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 }
