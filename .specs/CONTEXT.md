@@ -154,7 +154,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | auto-checkpoint | flow-kit 在关键操作时自动更新 `.flow-active.interrupt` 的机制。**三层实现**：① prompt 层指令（AI 在 4-dev 关键节点手动 `/flow checkpoint`）② PreToolUse hook 层兜底（Write/Edit 调用前自动写 interrupt，100% 覆盖，不去抖）③ Stop hook G5 PROGRESS 日志（会话粒度进度记录）。三层互补不冲突——最后写入者覆盖。v1（auto-checkpoint-hook change）只实现第②层 PreToolUse hook；①③ 已存在 |
 | checkpoint 触发事件 | auto-checkpoint 的触发条件。**已实现**：① Write/Edit PreToolUse hook（编辑文件前 · 全阶段 0~7 · 不去抖 · 每次更新 · fail-open）② 测试命令返回非零退出码（prompt 层手动触发）③ phase transition（prompt 层手动触发）④ toll-gate 暂停（prompt 层手动触发）。每次触发写入 active_file + last_action + checkpoint_at。**注意**：v1 去掉了早期设计中的 30s 去重窗口——实测 jq 更新 < 10ms，去重增加的复杂度（比较时间戳 + 同文件判定）不值得 |
 | checkpoint-lib.sh | auto-checkpoint 的共享 lib：提供 `checkpoint_write(file, desc)` 函数封装 jq 写入 + fail-open 容错 + 活跃 change 检测。由 PreToolUse hook 脚本调用。**禁止**绕过直接 jq write `.flow-active.interrupt`（必须通过 `checkpoint_write()`）——此约束在 `@.specs/CONTEXT.md` § 禁动清单 已登记 |
-| L2-first gating（L2 优先门控） | gate_config="both" 时的时序约束：L3（外部模型审查）必须在 L2（子 agent 盲审）完成后才写入 `.done` 文件。L3 可先产出审查内容（追加到 review md），但 `.done` 标记的写入被推迟到 L2 也完成后。防止 L3 提前写 `.done` 导致主 agent 误判为"双层审查已完成" |
+| L2-first gating（L2 优先门控 · ADR-009 调度契约） | gate_config="both" 时的两层约束：**(1) 调度契约**——主 agent 必须先派 L2 子 agent + 写 `## L2 盲审` 段到 `INDEPENDENT-REVIEW-N.md`，Stop hook 29 才会跑 L3（Stop 不能自派 L2 子 agent，框架硬限制）；29 D4 门（主门 + fallback）检测不到 `## L2 盲审` 段时输出派发指引 + 写 `.flow-active.correction`(type=l2-missing) 作持久化日志。**(2) 时序约束**——L3 必须在 L2 完成后才写 `.done`；L3 可先产出审查内容，但 `.done` 标记推迟到 L2 完成后，防止主 agent 误判"双层审查已完成"。BUG-I 根因修正：原"Stop 触发不可靠"经 Explore 诊断为误判，实为 L2-first 调度契约未满足（主 agent 未派 L2） |
 | append-write semantics（追加写入语义） | L2 子 agent 写入 `INDEPENDENT-REVIEW-<N>.md` 时的文件操作约束：必须追加（`>>`）而非覆写（`Write` 全量）。若文件已有 L3 段，L2 段追加到文件末尾并标注顺序。解决 L2 子 agent 用 Write 工具覆写文件时销毁已有 L3 内容的问题 |
 | dual-review-merge-fix | 本次 change：修复 L2/L3 双层审查因时序错位（L3 先于 L2 完成）+ 文件覆写（L2 Write 销毁 L3 段）导致审查建议丢失的问题。三处修复：① 29 号 hook L3 等待 L2 ② L2 prompt 改为追加写入 ③ .done 仅在双方完成后写入 |
 | L3 反馈可见性（L3 feedback visibility） | L3 外部模型审查的结果（verdict + summary）在 agent 对话上下文中的可感知性。区别于静默写入磁盘文件（当前行为）。本次 change 修复两条路径上 L3 反馈不可见的问题 |
@@ -200,6 +200,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | gate-active source 依赖 | `_gate_active_check` 必须 source 定义 `fk_independent_review_gate_active` 的 lib（**done-validation.sh**，非 artifacts.sh）+ 传 `PROJECT_ROOT=cwd`。否则 `type` 失败 → gate 永远判定"未开"→ 所有 review phase 的 commit/transition 在 Gate3 放行（gate 形同虚设）。来自 `l2-l3-test-defect` BUG-E |
 | 假绿（false-green） | 测试声明（CHANGELOG/commit "全绿"）与实际不符——测试实际失败却被声明通过。`l2-pretooluse-dispatch` 的 AC-5a/5c/9 三个 mock 测试因 `mock_ts` 未定义一直失败，但 CHANGELOG 声称「12 tests 全绿」。验收前必须实跑 `npx bats` 确认，不信任声明。来自 `l2-l3-test-defect` BUG-G |
 <!-- l2-l3-test-defect 追加 ↑ -->
+<!-- l2-l3-mock-fix 追加 ↓ -->
+| PHASE_GATE_KEY_MAP pure fn | phase→gate_key 映射的**单一来源纯函数**，替代 `common.sh:255` 与 `independent-review-gate.sh:25` 的重复 `declare -A`。消除 v1 修复（D7 复制 declare）引入的 DRY 违反与失同步风险。来自 `l2-l3-mock-fix` BUG-F |
+| 结构化命令识别（structured command recognition） | 基于命令结构（argv / 命令边界）而非文本子串判断命令类型。解决 `is_git_commit` 子串误判——L2 审查报告正文含 "git commit" 字符串被误拦，被迫 `chr()` 拼装绕过。来自 `l2-l3-mock-fix` BUG-H |
+| `## L3` 段检查（## L3 section check） | L3 复审判定基于 artifact markdown 的 `## L3` 段是否存在/更新，而非文件 mtime。解决 `_l3_check_rerun` 的 mtime 误判——artifact 被 touch 即被误判已审查而 skip 复审。来自 `l2-l3-mock-fix` BUG-J |
+<!-- l2-l3-mock-fix 追加 ↑ -->
 
 ## 已锁决策
 

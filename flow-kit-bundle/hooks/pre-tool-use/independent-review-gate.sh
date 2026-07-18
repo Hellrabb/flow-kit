@@ -18,18 +18,13 @@ set -euo pipefail
 
 HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
-# 修 BUG-F（L2 phase2 R1 critical + L3 phase2 critical1 改局部定义隔离副作用）：
-# PHASE_GATE_KEY_MAP 在 common.sh:255 定义，hook 编排层（_gate_phase_transition:382 / _gate_deny_reason:400）需要它。
-# D7 原 source common.sh（L2 验证有效），但 L3 担心全局副作用（config_get 等污染 PreToolUse 环境）。
-# 改为局部 declare（与 common.sh:255 保持同步，副作用完全隔离）。若 common.sh 增删 phase，此处须同步。
-declare -A PHASE_GATE_KEY_MAP=(
-  [1]="1-requirement"
-  [2]="2-design"
-  [3]="3-task"
-  [5]="5-test"
-  [6]="6-review"
-  [7]="7-integration"
-)
+# D1（ADR-007 · l2-l3-mock-fix）：fk_phase_gate_key 定义在 common.sh（单一来源），
+# gate.sh source common.sh 获取该 fn。D7 的"局部 declare 隔离 source 副作用"已废弃——
+# common.sh 顶层仅函数定义 + 默认值（: "${VAR:=}"），source-safe；L3 当初担心的
+# "config_get 污染 PreToolUse"是误判（函数定义 source 不执行）。29 已 source common.sh 且 work。
+COMMON_LIB="${HOOK_BASE_DIR}/../stop/lib/common.sh"
+# shellcheck source=/dev/null
+source "$COMMON_LIB" 2>/dev/null || true
 
 # ══ helper 函数（source-safe · check.sh / bats 可复用，不依赖 stdin）══════════
 
@@ -108,11 +103,68 @@ _fk_phase_direction() {
   if [[ "$target" == "$cur" ]]; then echo "noop"; return 0; fi
   echo "forward"
 }
-is_git_commit() {
-  [[ "$1" =~ (^|[[:space:]])git[[:space:]]+commit([[:space:]]|$) ]]
+# _command_has_write_context <cmd> — 写字面量上下文检测（ADR-008 D2·H）
+# 含 heredoc(<<) / 多行(\n) / 写重定向(> >> 到非 /dev/null) → return 0（保守不 deny：
+# heredoc/重定向内容可能是审查文本含敏感词，BUG-H 根治）。fd 合并重定向(2>&1) 不算写文件。
+_command_has_write_context() {
+  local cmd="$1"
+  [[ "$cmd" == *"<<"* ]] && return 0
+  [[ "$cmd" == *$'\n'* ]] && return 0
+  local target
+  if [[ "$cmd" =~ [0-9]?\>{1,2}[[:space:]]*([^|&;[:space:]]+) ]]; then
+    target="${BASH_REMATCH[1]}"
+    [[ "$target" != "/dev/null" ]] && return 0
+  fi
+  return 1
 }
+
+# _command_first_tokens <cmd> — 引号感知 split &|; → 各子命令前 3 token（ADR-008 D2·H）
+# 保守：单/双引号内的分隔符不 split（引号内 "&& git commit" 不误判为子命令，回应 Consequences）。
+# 输出：每行 "t0|t1|t2"（前 3 token，不足补空），供 is_git_commit/is_gh_pr_create 逐行检查 token 序列。
+_command_first_tokens() {
+  local cmd="$1" out="" in_s=0 in_d=0 i ch
+  for ((i=0; i<${#cmd}; i++)); do
+    ch="${cmd:i:1}"
+    if [[ "$ch" == "'" && "$in_d" == 0 ]]; then in_s=$((1-in_s))
+    elif [[ "$ch" == '"' && "$in_s" == 0 ]]; then in_d=$((1-in_d))
+    elif [[ "$in_s" == 0 && "$in_d" == 0 && ("$ch" == "&" || "$ch" == "|" || "$ch" == ";") ]]; then
+      out+=$'\n'
+    else
+      out+="$ch"
+    fi
+  done
+  local sub t0 t1 t2
+  while IFS= read -r sub; do
+    sub="${sub#"${sub%%[![:space:]]*}"}"
+    [ -z "$sub" ] && continue
+    read -r t0 t1 t2 _ <<< "$sub"
+    echo "${t0:-}|${t1:-}|${t2:-}"
+  done <<< "$out"
+}
+
+# is_git_commit — 结构判定（ADR-008 D2·H · BUG-H 根治）
+# 写上下文 → 不 deny；否则任一子命令 token0=git ∧ token1=commit → deny。
+# 不再用正则 [[ =~ git commit ]]（不识 quoting/heredoc）。
+# 反规避 (f)：token 序列判定（"git"/"commit" 分开比较），无字面 'git commit' 白黑名单。
+is_git_commit() {
+  _command_has_write_context "$1" && return 1
+  local line t0 t1
+  while IFS= read -r line; do
+    IFS='|' read -r t0 t1 _ <<< "$line"
+    [[ "$t0" == "git" && "$t1" == "commit" ]] && return 0
+  done < <(_command_first_tokens "$1")
+  return 1
+}
+
+# is_gh_pr_create — 结构判定（ADR-008 D2·H）：同 is_git_commit，token0=gh ∧ token1=pr ∧ token2=create
 is_gh_pr_create() {
-  [[ "$1" =~ (^|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]
+  _command_has_write_context "$1" && return 1
+  local line t0 t1 t2
+  while IFS= read -r line; do
+    IFS='|' read -r t0 t1 t2 _ <<< "$line"
+    [[ "$t0" == "gh" && "$t1" == "pr" && "$t2" == "create" ]] && return 0
+  done < <(_command_first_tokens "$1")
+  return 1
 }
 
 # ══ Gate check functions (extracted from main logic · DESIGN D2 · 7 gates) ══
@@ -392,7 +444,7 @@ EOF
   esac
 
   # ── forward transition → resolve gate_config ──
-  local phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
+  local phase_name="$(fk_phase_gate_key "$phase")"
   local gate_val
   gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
   case "$gate_val" in independent|true) gate_val="both" ;; L2|L3|both) ;; *) gate_val="" ;; esac
@@ -410,7 +462,7 @@ EOF
 _gate_deny_reason() {
   local cmd="$1" phase="$2" change_id="$3" cwd="$4"
 
-  local phase_name="${PHASE_GATE_KEY_MAP[$phase]:-}"
+  local phase_name="$(fk_phase_gate_key "$phase")"
 
   local deny_reason=""
   if is_phase_write "$cmd"; then deny_reason="阶段 ${phase} (${phase_name}) 切换"

@@ -388,26 +388,41 @@ _l3_check_rerun() {
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
   [ -f "$review_md" ] || return 0  # 无现有审查 → 首次运行
 
-  local review_mtime=0
-  review_mtime=$(stat -c %Y "$review_md" 2>/dev/null || stat -f %m "$review_md" 2>/dev/null || date -r "$review_md" +%s 2>/dev/null || echo "0")
-  local artifact_mtime=0
-  case "$phase" in
-    1) artifact_mtime=$(stat -c %Y "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || stat -f %m "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || date -r "${artifacts_dir}/REQUIREMENT.md" +%s 2>/dev/null || echo "0") ;;
-    2) artifact_mtime=$(stat -c %Y "${artifacts_dir}/DESIGN.md" 2>/dev/null || stat -f %m "${artifacts_dir}/DESIGN.md" 2>/dev/null || date -r "${artifacts_dir}/DESIGN.md" +%s 2>/dev/null || echo "0") ;;
-    3) artifact_mtime=$(stat -c %Y "${artifacts_dir}/TASK.md" 2>/dev/null || stat -f %m "${artifacts_dir}/TASK.md" 2>/dev/null || date -r "${artifacts_dir}/TASK.md" +%s 2>/dev/null || echo "0") ;;
-    5) artifact_mtime=$(stat -c %Y "${artifacts_dir}/TEST.md" 2>/dev/null || stat -f %m "${artifacts_dir}/TEST.md" 2>/dev/null || date -r "${artifacts_dir}/TEST.md" +%s 2>/dev/null || echo "0") ;;
-    6|7)
-      if [ -f "${artifacts_dir}/REVIEW.md" ]; then
-        artifact_mtime=$(stat -c %Y "${artifacts_dir}/REVIEW.md" 2>/dev/null || stat -f %m "${artifacts_dir}/REVIEW.md" 2>/dev/null || date -r "${artifacts_dir}/REVIEW.md" +%s 2>/dev/null || echo "0")
-      fi ;;
-  esac
-  if [ "$artifact_mtime" -gt "$review_mtime" ] 2>/dev/null; then
-    echo "[l3-review] re-review triggered for phase ${phase} (artifact mtime=${artifact_mtime} > review mtime=${review_mtime})" >&2
+  # ADR-010 D4·J：判定基从 mtime 改内容标记（## L3 段 regex + artifact hash）。
+  # 判定优先级：hash 变→重审 / ## L3 段缺失或空→重审 / hash 提取失败→重审+警告 / 否则 skip。
+  # ① ## L3 段检测（^## L3 (盲审|重审) 前缀匹配真实 token · 与 _l3_parse_result section_title 一致）
+  if ! grep -qE '^## L3 (盲审|重审)' "$review_md" 2>/dev/null; then
+    echo "[l3-review] re-review triggered for phase ${phase} (## L3 段缺失或空)" >&2
     return 0
-  else
-    echo "[l3-review] skipping L3 for phase ${phase} (artifact unchanged since last review, mtime=${review_mtime})" >&2
-    return 2
   fi
+
+  # ② artifact hash：INDEPENDENT-REVIEW-N.md 末尾 L3_artifact_hash 元数据行（_l3_parse_result 审后写入）
+  local recorded_hash
+  recorded_hash=$(grep -E '^L3_artifact_hash:' "$review_md" 2>/dev/null | tail -1 | awk '{print $2}')
+  if [ -z "$recorded_hash" ]; then
+    echo "[l3-review] re-review triggered for phase ${phase} (L3_artifact_hash 缺失或提取失败 · 保守重审)" >&2
+    return 0
+  fi
+
+  # ③ 当前 artifact sha（按 phase 取工件）
+  local artifact_file=""
+  case "$phase" in
+    1) artifact_file="${artifacts_dir}/REQUIREMENT.md" ;;
+    2) artifact_file="${artifacts_dir}/DESIGN.md" ;;
+    3) artifact_file="${artifacts_dir}/TASK.md" ;;
+    5) artifact_file="${artifacts_dir}/TEST.md" ;;
+    6|7) artifact_file="${artifacts_dir}/REVIEW.md" ;;
+  esac
+  local current_hash=""
+  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && current_hash=$(sha256sum "$artifact_file" 2>/dev/null | awk '{print $1}')
+
+  # ④ 判定：当前 sha ≠ 记录 hash → 重审；否则 skip（touch 不触发，hash 捕内容变更）
+  if [ "$current_hash" != "$recorded_hash" ]; then
+    echo "[l3-review] re-review triggered for phase ${phase} (artifact hash 变更: ${recorded_hash:0:12} → ${current_hash:0:12})" >&2
+    return 0
+  fi
+  echo "[l3-review] skipping L3 for phase ${phase} (artifact hash 不变 + ## L3 段非空)" >&2
+  return 2
 }
 
 # ── _l3_parse_result() · Step 3: 追加 L3 段 + verdict/summary 三层提取 ──
@@ -445,11 +460,23 @@ _l3_parse_result() {
   if [ -f "$review_md" ]; then
     cat "$review_md" > "$tmp_review" 2>/dev/null || true
   fi
+  # ADR-010 D4·J：artifact hash 元数据（审后追加 · 供 _l3_check_rerun 内容标记判定 · 不触 .done）
+  local artifact_file=""
+  case "$phase" in
+    1) artifact_file="${artifacts_dir}/REQUIREMENT.md" ;;
+    2) artifact_file="${artifacts_dir}/DESIGN.md" ;;
+    3) artifact_file="${artifacts_dir}/TASK.md" ;;
+    5) artifact_file="${artifacts_dir}/TEST.md" ;;
+    6|7) artifact_file="${artifacts_dir}/REVIEW.md" ;;
+  esac
+  local artifact_hash=""
+  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && artifact_hash=$(sha256sum "$artifact_file" 2>/dev/null | awk '{print $1}')
   {
     echo ""; echo "---"; echo ""; echo "$section_title"; echo ""
     echo "> 自动生成于 ${ts}。由 l3-review.sh 写入。"
     echo ""; echo "### 审查结论"; echo ""; echo '```json'
     echo "$content"; echo '```'
+    if [ -n "$artifact_hash" ]; then echo ""; echo "L3_artifact_hash: ${artifact_hash}"; fi
   } >> "$tmp_review"
   mv "$tmp_review" "$review_md" 2>/dev/null || {
     echo "[l3-review] CRITICAL: atomic mv failed for ${review_md}" >&2

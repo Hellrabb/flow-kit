@@ -247,19 +247,24 @@ declare -a HOOK_MODULE_NAMES=(
   29-independent-review 30-ai-analyze 31-auto-advance 32-fallback-guard 33-flow-active-integrity 99-report
 )
 
-# PHASE_GATE_KEY_MAP — phase number → gate_config key for independent review lookups.
+# fk_phase_gate_key — phase number → gate_config key for independent review lookups.
+# Single source（ADR-007 / D1 · l2-l3-mock-fix）：5 执行消费者（gate.sh:395/413 + 29:77/117/155）
+# + 1 文档注释引用本 pure fn，不再 declare -A（消除 v1 重复 declare 的 DRY 违反 = BUG-F 温床）。
 # Phase 0（change）and Phase 4（dev）are intentionally excluded — they have no independent review gate.
 # If a gate is added for either phase in the future, ALL four layers must be updated:
-#   PRESET_MAP + Prompt template + L2-blind-review.md checklist + this MAP.
-# Usage: local gate_key="${PHASE_GATE_KEY_MAP[$phase]:-}"
-declare -A PHASE_GATE_KEY_MAP=(
-  [1]="1-requirement"
-  [2]="2-design"
-  [3]="3-task"
-  [5]="5-test"
-  [6]="6-review"
-  [7]="7-integration"
-)
+#   PRESET_MAP + Prompt template + L2-blind-review.md checklist + this fn.
+# 用法: local gate_key="$(fk_phase_gate_key "$phase")"
+fk_phase_gate_key() {
+  case "$1" in
+    1) echo "1-requirement" ;;
+    2) echo "2-design" ;;
+    3) echo "3-task" ;;
+    5) echo "5-test" ;;
+    6) echo "6-review" ;;
+    7) echo "7-integration" ;;
+    *) echo "" ;;
+  esac
+}
 
 # ══ Token 估算 + 性能计时基础设施（l3-pipeline-fix-2026-07） ══
 

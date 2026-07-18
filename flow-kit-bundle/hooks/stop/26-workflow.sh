@@ -72,8 +72,14 @@ check_g1_body() {
   fi
 
   # ── 2. Auto phase transition detection (Phase A2) ──
+  # D5·K (ADR-011): pipeline goal 模式不 auto-advance .phase——推进权归 toll-gate
+  #   （/flow 人工 + 31-auto-advance.sh 完整 transition），避免 pipeline goal 在 review 未开阶段
+  #   （fk_independent_review_gate_active=false）被 G1 静默推进，造 phase/current_phase 不一致（AC-K）。
+  #   单阶段 goal（scope=phase 或无 goal.scope）保留原 auto-advance。fk_auto_phase 函数不改（仅调用方加守卫）。
+  local goal_scope
+  goal_scope=$(jq -r '.goal.scope // "phase"' "$flow_file" 2>/dev/null || echo "phase")
   local next_phase=""
-  if [[ "$change_id" != "none" && "$change_id" != "?" ]]; then
+  if [[ "$change_id" != "none" && "$change_id" != "?" && "$goal_scope" != "pipeline" ]]; then
     if command -v fk_auto_phase &>/dev/null; then
       next_phase=$(fk_auto_phase "$change_id" "$phase" 2>/dev/null) || true
       # fk_auto_phase may output info messages to stderr — capture those
