@@ -159,7 +159,7 @@ Wave 3:            T06 (AC-T 全套 bats) → T07 (NFR-1 性能) → T08 (NFR-2 
   <depends_on>T01,T02,T03,T04,T05</depends_on>
 </task>
 
-<task id="T07" parallel="false" status="pending">
+<task id="T07" parallel="false" status="done">
   <name>NFR-1 — gate hook 性能实测 + 填阈值</name>
   <read_files>
     flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh
@@ -178,7 +178,7 @@ Wave 3:            T06 (AC-T 全套 bats) → T07 (NFR-1 性能) → T08 (NFR-2 
   <depends_on>T06</depends_on>
 </task>
 
-<task id="T08" parallel="false" status="pending">
+<task id="T08" parallel="false" status="done">
   <name>NFR-2 — bash 兼容性实测（4.4+ / 5.x）</name>
   <read_files>
     flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh

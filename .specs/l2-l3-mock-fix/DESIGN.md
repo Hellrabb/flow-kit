@@ -198,4 +198,23 @@ N/A（纯 Bash，无新增依赖）
 
 ---
 
+## NFR 实测结果（T07 性能 / T08 兼容）
+
+### NFR-1 · 性能（T07 实测 · 重构前后 wall time · 回应 R4）
+
+- **方法**：固定 deny payload（phase 1 + gate_config[1-requirement]=both + 无 .independent-review-1.done + stdin `git commit` → gate.sh exit 2 deny 路径，gate_active(1)=true），bash `time` ×3 取中位数
+- **重构前**（commit 7fb59e8^ · declare -A PHASE_GATE_KEY_MAP + is_git_commit 正则剥离）：**53 ms**
+- **重构后**（7fb59e8 · pure fn fk_phase_gate_key + 结构判定 helper）：**53 ms**
+- **差**：**0%**（远 < 30% 阈值）→ 重构对 gate hook 性能无显著影响
+- **结论**：pure fn `case` 查找 vs `declare -A` 哈希、结构判定 helper vs 正则剥离，在 gate.sh 完整执行（bash 启动 + source common.sh + jq 主流程）中开销可忽略（μs 级，淹没在 ~53ms 总开销）
+
+### NFR-2 · 兼容性（T08 实测 · bash 4.4+ · 回应 R4）
+
+- **实测环境**：GNU bash 5.2.21（5.x 档，满足 4.4+）
+- **语法**：`bash -n` gate.sh + common.sh 通过
+- **pure fn 兼容性**：fk_phase_gate_key 用 `case`（bash 2+ 原生），**不依赖 `declare -A`**（需 bash 4+）。重构后 `declare -A PHASE_GATE_KEY_MAP` count = 0（common.sh + gate.sh · NFR-4 grep 守护）→ 兼容性**只增不减**
+- **bash 4.4 档**：当前环境仅 5.2，无法实跑 4.4；case 语法 bash 2+ 支持，4.4 兼容由「不依赖 declare -A」论证保证。macOS bash 3.2 不在矩阵
+
+---
+
 > 本文件不含完整代码实现。函数签名、伪代码、接口定义可以；函数体不行（R3.1）。
