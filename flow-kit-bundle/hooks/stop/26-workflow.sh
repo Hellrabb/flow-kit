@@ -26,7 +26,7 @@ module_enabled "workflow" || exit 0
 # ── Helpers ───────────────────────────────────────────────────────────
 
 # File age in days
-file_age_days() {
+_fk_file_age_days() {
   local f="$1"
   if [[ ! -f "$f" ]]; then echo "0"; return; fi
   local now f_ts
@@ -38,7 +38,7 @@ file_age_days() {
 # ═══════════════════════════════════════════════════════════════════════
 # G1: Flow-kit state (enhanced — artifact validation + auto phase + stale)
 # ═══════════════════════════════════════════════════════════════════════
-check_g1_body() {
+_fk_check_g1_body() {
 
   local flow_file="${PROJECT_ROOT}/.flow-active"
   if [[ ! -f "$flow_file" ]]; then
@@ -142,7 +142,7 @@ check_g1_body() {
 # ═══════════════════════════════════════════════════════════════════════
 # G2: Stash / patch / todo file detection
 # ═══════════════════════════════════════════════════════════════════════
-check_g2_body() {
+_fk_check_g2_body() {
 
   local stash_files=()
   local patterns=("*.patch" "*.diff" "*.todo" "WIP_*" "TODO_*")
@@ -170,7 +170,7 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 # G3: Temp file cleanup reminder
 # ═══════════════════════════════════════════════════════════════════════
-check_g3_body() {
+_fk_check_g3_body() {
 
   # Check for plan/report files older than 3 days
   local old_plans=()
@@ -190,7 +190,7 @@ check_g3_body() {
       esac
 
       local age
-      age=$(file_age_days "$f")
+      age=$(_fk_file_age_days "$f")
       if [[ "$age" -gt "$max_age_days" ]]; then
         old_plans+=("$f (${age}d)")
       fi
@@ -209,7 +209,7 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 # G4: PUA Loop status
 # ═══════════════════════════════════════════════════════════════════════
-check_g4_body() {
+_fk_check_g4_body() {
 
   local pua_dir="${HOME}/.claude/pua"
   if [[ ! -d "$pua_dir" ]]; then
@@ -228,7 +228,7 @@ check_g4_body() {
     [[ -z "$lf" ]] && continue
     local fname age
     fname=$(basename "$lf")
-    age=$(file_age_days "$lf")
+    age=$(_fk_file_age_days "$lf")
 
     # Check heartbeat: recently modified = active
     # Use find -mmin for recency check
@@ -249,7 +249,7 @@ check_g4_body() {
 # ═══════════════════════════════════════════════════════════════════════
 # G5: Interrupt snapshot + PROGRESS log + Token accumulation (NEW)
 # ═══════════════════════════════════════════════════════════════════════
-check_g5_body() {
+_fk_check_g5_body() {
 
   local flow_file="${PROJECT_ROOT}/.flow-active"
   [[ -f "$flow_file" ]] || return 0
@@ -291,16 +291,16 @@ check_g5_body() {
   fi
 }
 
-check_g1() { run_check "workflow" "G1" "" check_g1_body; }
-check_g2() { run_check "workflow" "G2" "" check_g2_body; }
-check_g3() { run_check "workflow" "G3" "" check_g3_body; }
-check_g4() { run_check "workflow" "G4" "" check_g4_body; }
-check_g5() { run_check "workflow" "G5" "" check_g5_body; }
+_fk_check_g1() { run_check "workflow" "G1" "" _fk_check_g1_body; }
+_fk_check_g2() { run_check "workflow" "G2" "" _fk_check_g2_body; }
+_fk_check_g3() { run_check "workflow" "G3" "" _fk_check_g3_body; }
+_fk_check_g4() { run_check "workflow" "G4" "" _fk_check_g4_body; }
+_fk_check_g5() { run_check "workflow" "G5" "" _fk_check_g5_body; }
 # ── Run all checks ──────────────────────────────────────────────────
-check_g1
-check_g2
-check_g3
-check_g4
-check_g5
+_fk_check_g1
+_fk_check_g2
+_fk_check_g3
+_fk_check_g4
+_fk_check_g5
 
 declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "26" || true

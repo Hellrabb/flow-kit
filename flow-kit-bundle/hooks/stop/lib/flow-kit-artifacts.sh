@@ -107,7 +107,7 @@ fk_auto_phase() {
   local change_id="$1" phase="$2"
   local spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
 
-  # 独立 review gate：本阶段开启独立 review 且未完成 → echo 空，阻断 check_g1 自动推进
+  # 独立 review gate：本阶段开启独立 review 且未完成 → echo 空，阻断 _fk_check_g1 自动推进
   if fk_independent_review_gate_active "$phase"; then
     return 0
   fi
