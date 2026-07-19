@@ -38,6 +38,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - **测试**: bats-core 1.13.0（`npx bats` · 72 tests in `test/`）
 - **构建/部署**: 纯 Shell 脚本打包（tar + gzip），无 CI/CD 检测到
 - **栈卡片编号**: 不适用（非标准技术栈项目）
+- **命名约定**（2026-07-20 · health-debt-cleanup 统一）：
+  - **公共函数** `fk_*`：跨文件调用的 shared lib 函数（如 `fk_resolve_phase()`、`fk_check_doc_only_diff()`）
+  - **私有函数** `_*`：文件内/模块内可见，开头下划线（如 `_fk_check_g1_body()`、`_gate_phase_filter()`）
+  - 历史 `check_g*` 前缀已全仓迁移至 `_fk_check_*`
+- **`_grep` 兼容层保留决策**（2026-07-20）：`fix-compliance.sh` 的 `_grep() { command grep "$@"; }` 保留。理由：Claude Code 环境将 `grep` 重写为 `ugrep`（-P 和扩展正则兼容性差异），`command grep` 强制走 GNU grep 保证跨环境一致。6 处调用均在 fix-compliance.sh 内，隔离良好，成本可忽略
+- **install 函数长度容忍度**（2026-07-20）：`install_hooks()` 195 行不拆分。安装脚本非热路径（每项目执行一次），长度容忍度高于运行时 hook 的 `run_check` 路径。测试覆盖通过 dry-run 模式补齐
 
 ## 域语言（术语表）
 

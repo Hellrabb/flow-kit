@@ -13,7 +13,7 @@
 
 ## 技术债清单
 
-> 最后更新: 2026-07-10
+> 最后更新: 2026-07-20（M-health 巡检）
 
 ### L-032: L2 盲审在每阶段都捕获了主 agent 漏检的 Critical 问题（auto-checkpoint-hook）
 
@@ -43,6 +43,22 @@
 
 **修复**: Makefile L23 追加 `flow-kit-bundle/hooks/stop/lib/*.sh` 到 lint for-loop
 **建议**: 后续 change 可在 `make lint` 中使用 `find ... -name '*.sh'` 递归扫描替代显式 glob 枚举，从根本上消除此类遗漏
+
+### L-052: 命名约定三套风格共存——`check_g*` / `_gate_*` / `fk_*` 不一致
+
+**严重程度**: 🟡 → ✅ resolved（health-debt-cleanup · 2026-07-20）
+**修复**: `26-workflow.sh` 全仓重命名：`check_g*_body()` → `_fk_check_g*_body()`（5 个私有 body 函数）+ `check_g*()` → `_fk_check_g*()`（5 个 thin wrapper）+ `file_age_days()` → `_fk_file_age_days()`（1 个私有 helper）。注释 `flow-kit-artifacts.sh:110` 同步更新。CONTEXT.md 追加命名约定段（公共 `fk_*` + 私有 `_*`）。
+
+### L-053: `install_hooks()` 195 行——安装脚本单体函数偏长
+
+**严重程度**: 🟡 → ✅ resolved（health-debt-cleanup · 2026-07-20）
+**修复**: 用户确认暂不拆分（安装脚本非热路径）。补齐测试覆盖（16 bats cases in `test_install_coverage.bats`）+ CONTEXT.md 标注长度容忍度。
+
+### 🔍 观察（M-health 2026-07-20 · 🟢 → ✅ resolved by health-debt-cleanup）
+
+- **T5 · install 函数测试覆盖缺口**: ✅ 已补齐 — `test/test_install_coverage.bats` 16 条 bats cases，覆盖 install_flow_kit_core / install_skills / install_specs_template / install_hooks(user scope) / install_brooks_lint(jq fallback) / install_brooks_tools(shim conflict + PATH warning) / install_file
+- **R4 · `_grep` 兼容层间接性**: ✅ 已标注 — CONTEXT.md 记录保留决策 + 理由（`command grep` 跨环境一致性 · 6 处调用隔离良好 · 成本可忽略）
+- **R4 · `_grep` 兼容层间接性**: `fix-compliance.sh` 中 `_grep` wrapper 增加一层间接性但提供跨平台兼容（ugrep/grep 自适应），成本收益比合理。保留现状，不做变更
 
 |---|---|---|---|---|---|---|
 | L-031 | 🟡 | 跨文件批量修改 · DESIGN.md 清单驱动 | **DESIGN.md 列出的修改文件清单不完整时，AI 会漏改**：fix-l3-gate 的 AC-4（transition jq `.phase` 同步）涉及 9 处修改点，DESIGN.md §3.4 列出了 7 处（0-change/1-req/2-design/3-task/5-test/6-review prompts + 31-auto-advance.sh），遗漏了 4-dev.md 和 pipeline-gates.md 两处。主 agent 按 DESIGN 清单逐项执行，L2 盲审通过全仓 grep `phases_done.*+=` 才发现遗漏 | 批量修改前必须全仓 grep 确认所有命中点，不能仅依赖 DESIGN.md 清单。在 DESIGN.md 底部加一栏「全仓扫描确认」：grep 命令 + 命中数 + 逐项标注"需改/不适用" | active | `fix-l3-gate` 2026-07-10 · L2 盲审发现 |
@@ -87,8 +103,8 @@
 
 ## 元数据
 
-- **最近更新**: 2026-07-08（M-health 巡检：TD-006/007 标 resolved + 新增 L-025）
-- **下次复查**: 2026-08-08（建议每月一次 M-health）
+- **最近更新**: 2026-07-20（M-health 巡检：评分 92/100 · 上次 2🔴 全修复 · 新增 L-052/L-053 + 2 观察）
+- **下次复查**: 2026-08-20（建议每月一次 M-health）
 
 ## L-016 · 独立审查四层架构必须全对齐
 
