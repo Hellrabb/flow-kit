@@ -5,6 +5,8 @@
 - **审查范围**: `git diff c00afb8..HEAD`（40 files +3640/-58 · 5 hook 源码 + 测试 + SPEC）
 - **模式**: PR Review · brooks-lint 内置路径 B（context 限制未跑 skill 全套 shared；6 维诊断基于已读 5 hook 代码 + 5-test L2 证据）
 
+> ⚠️ **状态演进（RR4 导航）**：本文件 verdict 经历 **pass（主 agent 初审）→ fail（L2 复核捕 R1/R2 critical）→ T-FIX 修复（commit 57b2669）→ L2 重审 pass**。**最新状态以末段「L2 复核修正」+「T-FIX 修复」为准**；下方「严重度汇总 0/0/0」「Verdict pass」（line ~92-98）为主 agent 初审**作废值**（漏判 R1/R2，L2 已纠正）。
+
 ---
 
 ## 第一轮 · Spec 合规审查
@@ -121,3 +123,22 @@ gate_6=both → 由 L2（code-reviewer 子 agent）+ L3（Stop hook）统一接�
 Gate 失败暂停 → 用户选**回退 6→4**。T-FIX-01（R1）+ T-FIX-02（R2）追加 TASK.md。修完重跑全套 bats + 重审 L2/L3。
 
 **修正 Verdict: fail**（1 🔴 R1 + 1 🟡 R2）。原「6 维整体改善」过度乐观——R4 偶然复杂度（write-context 过宽 + `|| true`）实为净倒退，主 agent 误判。
+
+---
+
+## T-FIX 修复（2026-07-19 · R1/R2 已修，待 L2/L3 复核）
+
+> 回退 6→4 后 T-FIX-01/02 修复 R1/R2（commit 57b2669），重审 6-review。
+
+### R1 → Fixed in: gate.sh `_command_has_write_context`（T-FIX-01）
+收紧：**只 heredoc(<<) → 写上下文**；重定向/多行 → 走 token 判定 deny。补 e4-e7 测试。实测 `git commit 2>log` / 多行 git commit → deny ✓；heredoc 写报告 → 不 deny ✓。
+
+### R2 → Fixed in: gate.sh source COMMON_LIB（T-FIX-02）
+fail-close：source 后 `declare -f fk_phase_gate_key` 检查，未定义 → exit 2 + stderr 告警。补 R2 测试。实测 HOOK_BASE_DIR 错 → exit 2 ✓。
+
+### verify（T-FIX 后）
+- T-FIX 测（e4-e7 + R2 + 既有 a-f/NFR-3）：**20/20 pass**
+- 全套 bats：**541 ok / 0 fail / exit=0**（+5 新测）
+- 部署同步：gate.sh cp ~/.claude/hooks/（md5 46d992bf）
+
+**修正 Verdict: 待 L2/L3 复核**（R1/R2 已 Fixed in 代码 + 测试，主 agent 自评待独立复核确认）。

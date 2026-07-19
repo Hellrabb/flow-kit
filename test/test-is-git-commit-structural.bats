@@ -137,6 +137,22 @@ _load_gate() {
   [ "$status" -ne 0 ]
 }
 
+@test "AC-H (e8-限制): git commit -m \"$(cat <<EOM)\" → not is_git_commit（多行 message 惯用法 · RR3）" {
+  _load_gate
+  # RR3（L2 重审）：heredoc << 短路覆盖的 residual regression——多行 message 惯用法也漏拦。
+  # 锁定当前 not-deny 行为（v2 加密签名根治）。诚实登记 residual regression。
+  run is_git_commit $'git commit -m "$(cat <<EOM\nmulti-line msg\nEOM)"'
+  [ "$status" -ne 0 ]
+}
+
+@test "AC-H (e9-限制): heredoc 管道喂 commit → << 短路 not is_git_commit（RR3）" {
+  _load_gate
+  # RR3（L2 重审）：cat <<EOF | xargs git commit 模式因 << 短路判写上下文不 deny。
+  # 锁定 not-deny（residual regression，v2 加密签名根治）。
+  run is_git_commit $'cat <<EOF | xargs -I {} git commit -m {}\nfeat\nEOF'
+  [ "$status" -ne 0 ]
+}
+
 # ══ gh pr create 同结构 ══
 
 @test "AC-H (d-gh): gh pr create → is_gh_pr_create" {
