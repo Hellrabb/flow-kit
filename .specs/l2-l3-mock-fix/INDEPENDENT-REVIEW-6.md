@@ -151,3 +151,161 @@ source "$COMMON_LIB" || { echo "[ir-gate] CRITICAL: source common.sh failed ($CO
 存在 1 项 🔴 Critical（R1：AC-H (e) 重定向/多行子类未实现 + 主 agent 漏判），1 项 🟡 Major（R2：source fail-open 与声明矛盾），2 项 🟢 Minor（R3 banner 未实装、R4 REVIEW 过度乐观）。536 bats 虽真绿，但对 R1 漏拦场景零覆盖，AC-T 的"每个改动伴 ≥1 集成测试"对 AC-H (e) 重定向/多行子类未满足。
 
 回退 toll-gate 6→7 至 R1（a 或 c）+ R2 修复后重审。独立性声明：本结论仅基于 git diff 与 REQUIREMENT/DESIGN 独立得出，未受主 agent REVIEW.md 影响。
+
+---
+
+## L2 重审（T-FIX 后 · 2026-07-19）
+
+### 独立性核验
+
+- 工件：`git diff 85628fe..57b2669`（T-FIX 改动）+ `git diff c00afb8..HEAD`（全 change）+ `.specs/l2-l3-mock-fix/REVIEW.md`（末段 "T-FIX 修复" 待复核）+ `T-FIX-SUMMARY.md`。
+- REVIEW.md 末段「R1/R2 Fixed in ...」**仅作"待复核对象"**，不作为权威；以下结论均基于对当前 HEAD 源码独立 source 后调用 `is_git_commit` + `bash gate.sh < payload` 实测得出。
+- 未检测到主 agent 自评注入：prompt 仅含"主 agent 自评 R1/R2 Fixed，**待你独立复核**"，措辞中性。
+
+### 独立复现的关键事实（T-FIX 后）
+
+实测（在 `/home/hellrabbit/unisoc/flow-kit/flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh` 当前 HEAD source 后直接调用 `is_git_commit` / 整体 `bash gate.sh < payload`）：
+
+| 输入命令 | is_git_commit | gate.sh exit | 期望 | 判定 |
+|---|---|---|---|---|
+| `git commit -m "y" 2> /tmp/clog` | **0（deny）** | 2（deny + NFR-3 三要素 stderr） | deny | ✅ R1 修复 |
+| `git commit -m "y" > /tmp/out` | **0（deny）** | — | deny | ✅ R1 修复 |
+| `$'echo a\ngit commit -m "y"'` | **0（deny）** | — | deny | ✅ R1 修复 |
+| `$'git commit -F - <<EOF\nmsg\nEOF'` | 1（不 deny） | — | not deny（已知限制） | ✅ e7 锁定 |
+| `cat <<EOF\nreview 文本含 git commit 字符串\nEOF` | 1（不 deny） | — | not deny | ✅ BUG-H 不误拦 |
+| `echo "讨论 git commit 流程"` | 1（不 deny） | — | not deny | ✅ 不误拦 |
+| HOOK_BASE_DIR=/tmp/nonexistent bash gate.sh <git-commit-payload> | — | **2（fail-close）** + stderr "common.sh 加载失败...fk_phase_gate_key 未定义" | exit 2 | ✅ R2 修复 |
+| HOOK_BASE_DIR 正确 + gate_config=both + 无 .done + git commit payload | — | 2（deny）+ NFR-3 三要素 stderr | exit 2 deny（gate 真工作） | ✅ 正常路径不退化 |
+| 全套 bats | — | 541 ok / 0 fail / exit=0 | 541/0（+5 新测）| ✅ 与 T-FIX-SUMMARY 一致 |
+
+上轮 R1/R2 两个 fail 证据点**已全部消失**（exit code 从 0 翻为 2 / is_git_commit 对重定向/多行返回 0）。下文聚焦 T-FIX 是否真实修复 + 是否引入新问题。
+
+---
+
+### 🟢 RR1 · 原 R1（🔴 AC-H(e) 重定向/多行漏拦）：真实修复，验证通过
+
+**Symptom（症状）**：T-FIX-01 收紧 `_command_has_write_context`（gate.sh:117-121）为**只 heredoc(`<<`) → 写上下文**，移除原"多行(\n) / 重定向(> 非/dev/null) → 写上下文"两路。源码 diff 与 T-FIX-SUMMARY 声称一致；实测 `git commit 2>log` / 多行 git commit 均进入 `_command_first_tokens` token 判定 → 命中 `t0=git ∧ t1=commit` → return 0（deny）。AC-H (e) 的两个原本漏拦子类（重定向、多行）**已实现 deny**。
+
+**Source（源头）**：AC-H (e) 字面要求（REQUIREMENT:39）；ADR-008（结构判定 + quoting 感知）。修复路径对应上轮 Remedy (a)：先 token 判定，write-context 仅作 quoted-string 内 token 的去敏。
+
+**Consequence（后果）**：原 🔴 已消除；反规避 (f) 未破坏（token 序列判定，无字面 'git commit' 白黑名单——`grep` 断言 test 18 仍 pass）。补测 e4/e5/e6 覆盖三个原本漏拦等价类，e7 锁定 heredoc-message 已知限制防回归，AC-T 对 AC-H (e) 重定向/多行子类的"≥1 集成测试"现在满足。
+
+**Remedy（修补）**：无需。修复采纳了上轮 Remedy (a) 的精确思路，且测试覆盖到位。
+
+---
+
+### 🟢 RR2 · 原 R2（🟡 source fail-open 与 fail-close 声明矛盾）：真实修复，验证通过
+
+**Symptom（症状）**：T-FIX-02 在 `source "$COMMON_LIB" 2>/dev/null || true`（gate.sh:27）**之后**追加 `if ! declare -f fk_phase_gate_key >/dev/null 2>&1; then ... exit 2; fi`（gate.sh:30-33）。实测 `HOOK_BASE_DIR=/tmp/nonexistent-$$ bash gate.sh <git-commit-payload>` → exit 2 + stderr 含 "common.sh 加载失败" + "fk_phase_gate_key 未定义" + "fail-close"，与 T-FIX-SUMMARY 一致。gate.sh header :12 "review gate 校验 = fail-close" 现与实际行为一致。
+
+**Source（源头）**：header 第 12 行声明；Clean Code Fail-Fast / Security gate fail-close 原则。
+
+**Consequence（后果）**：原 🟡 已消除；`|| true` 保留（吞 source stderr 防 set -e 副作用）但**后置 `declare -f` 显式校验**把失败模式重新纳入 fail-close，逻辑闭环。正常路径（HOOK_BASE_DIR 正确）deny 行为不退化（实测 exit 2 + NFR-3 三要素 stderr）。
+
+**Remedy（修补）**：无需。最低限度的 fail-close 检查，未引入新失败面。
+
+---
+
+### 🟢 RR3 · T-FIX-01 已知限制范围文档不完整：实际 bypass 面比 e7 锁定更广
+
+**Symptom（症状）**：T-FIX-01 注释（gate.sh:116）+ e7 测试仅承认 **1 种** heredoc 已知限制：`git commit -F - <<EOF\nmsg\nEOF`（heredoc 作 commit message）。实测发现 `<<` 子串短路还覆盖**至少 2 种更现实**的真实 commit 漏拦：
+- `git commit -m "$(cat <<EOM\nmulti-line msg\nEOM)"` —— 用 `$(...)` 命令替换 + heredoc 构造多行 message（agent 写多行 commit 的常见惯用法）→ `[[ "$cmd" == *"<<"* ]]` 命中 → write_context → return 1（**不 deny**）
+- `cat <<EOF | xargs -I {} git commit -m {}` —— heredoc 管道喂 commit → 同理**不 deny**
+
+二者**均为真实 commit**（不仅 `git commit -F - <<EOF` 这一种）。前置 l2-l3-mock-fix 引入 `<<` 短路前，旧正则 `(^|[[:space:]])git[[:space:]]+commit([[:space:]]|$)` 对二者均能 deny（实测复跑旧 regex 即可证实）。
+
+**Source（源头）**：
+- ADR-008 / T-FIX 注释 :116 与 e7 测试用例注释均只枚举 1 种 heredoc 限制；DESIGN §"取舍代价"亦同。文档对已知限制的**枚举不全**。
+- AC-H (e) "子 shell" 子类（`$(...)` 是命令替换 = 子 shell 的一种）。
+
+**Consequence（后果）**：低烈度。`<<` 短路是 l2-l3-mock-fix 为 BUG-H（写报告含敏感词不误拦）做的取舍，本身合法；但"已知限制"清单不完整会让未来维护者误以为 bypass 面只有 e7 一种，低估 residual risk。当前 v1 不要求根治（v2 加密签名路径已在 DESIGN §6 列明），但**文档枚举须诚实**。
+
+**Remedy（修补）**：把注释/e7 用例说明扩展为枚举式："已知限制（含但不限于）：(i) `git commit -F - <<EOF`；(ii) `git commit -m "$(cat <<EOM ... EOM)"`；(iii) `cat <<EOF | xargs git commit`。三者皆因 `<<` 子串短路触发，v2 加密签名根治。" 可选补 1 个 bats 用例锁定 (ii) 当前 not-deny 行为防回归。
+
+---
+
+### 🟢 RR4 · REVIEW.md 顶部 verdict 与底部历史段措辞张力（非阻塞）
+
+**Symptom（症状）**：REVIEW.md 顶部表「严重度汇总 0/0/0 + Verdict: pass」（行 90-98）未改，但行 106-123「L2 复核修正」已翻为 fail、行 127-142「T-FIX 修复」标 "待 L2/L3 复核"。读者首屏看到 pass，需向下滚动 ~100 行才看到已被翻转。三段并存（pass → fail → 待复核）作为审计史保留是合理的，但顶部缺一个 "⚠️ 本 verdict 已被下方 L2 复核翻转，以最新段为准" 的导航注记。
+
+**Source（源头）**：固化指令「文档完整清晰」。
+
+**Consequence（后果）**：极低。审计 trail 完整但首屏误导，可能让快速浏览者误以为 pass 仍生效。
+
+**Remedy（修补）**：在 REVIEW.md 顶部 metadata 段加一行 "最新状态：T-FIX 后重审 pass（见末段 L2 重审）—— 顶部 Verdict: pass 是历史首轮结论，已被 L2 复核修正段翻转，再被 T-FIX 段重置"。
+
+---
+
+### 原 R3/R4 状态（不在 T-FIX 范围，保留登记）
+
+- **原 R3 🟢**（SessionStart banner 未实装）：T-FIX 未触（scope 仅 R1/R2）。登记为 Tech-debt，DESIGN D3 双管 (a) reading 端待 SessionStart 适配。非阻塞。
+- **原 R4 🟢**（首轮 REVIEW 过度乐观）：REVIEW.md 「L2 复核修正」段已自登 1 🔴 + 1 🟡，主 agent 漏判在文档层已纠正。T-FIX 段进一步如实登记。视为已 documentationally 解决。
+
+---
+
+### 6 维独立评估（仅对 T-FIX 触碰代码 = gate.sh helper + source + 新测）
+
+| 维度 | 独立判断（T-FIX 增量） |
+|---|---|
+| R1 认知过载 | ✅ 进一步改善（`_command_has_write_context` 从 3 条件 → 1 条件，更直观） |
+| R2 变更传播 | ✅ 改善（fail-close `declare -f` 检查是局部 + 显式，传播面小） |
+| R3 知识重复 | — 不涉 |
+| R4 偶然复杂 | ✅ 改善（移除重定向 regex + 多行短路两分支 → 单一 `<<` 判定，复杂度下降） |
+| R5 依赖混乱 | — 不涉（未新增 source 边） |
+| R6 领域扭曲 | ✅ 忠实（"重定向/多行真实 commit 须 deny" 是领域正确语义） |
+
+T-FIX 在 6 维上**无倒退**（R4 偶然复杂度反而下降）。RR3 文档枚举不全不构成代码维倒退。
+
+---
+
+### 主 agent REVIEW.md「T-FIX 修复」段漏判/误判清单
+
+- **无误判**：R1/R2 "Fixed in" 文件 + 行号 + 效果描述与独立实测一致；"20/20 + 全套 541/0 + 部署同步 md5" 与独立复跑 `npx bats test/` 一致。
+- **轻度漏报**：RR3（heredoc 已知限制枚举不全，至少漏 2 种更现实的真实 commit bypass 模式）。属文档诚实度问题，非 spec 违规，不阻塞。
+- **轻度文档张力**：RR4（顶部 verdict 与底部最新段不一致，无导航注记）。
+
+---
+
+**Verdict（T-FIX 后重审）**: **pass**
+
+原 🔴 R1（AC-H(e) 重定向/多行漏拦）+ 原 🟡 R2（source fail-open）**两项阻塞项经独立实测确认真实修复**：
+- R1：`is_git_commit` 对 `git commit 2>log` / `git commit >out` / 多行 commit 均返回 0（deny）；gate.sh 整体对 git-commit payload 在 gate_config=both + 无 .done 下 exit 2 deny。
+- R2：HOOK_BASE_DIR 错 → exit 2 + stderr fail-close 告警；正常路径 deny 不退化。
+
+全套 bats 541/0 真绿（独立复跑，无假绿）。RR3/RR4 两 🟢 非阻塞（建议下一轮顺手收紧文档枚举 + 顶部 verdict 导航注记，不强制）。原 R3 🟢（SessionStart banner）保留 Tech-debt。
+
+可进 toll-gate 6→7。独立性声明：本重审结论仅基于 git diff + 当前 HEAD 源码独立 source 后实测，未受主 agent REVIEW.md「T-FIX 修复」段自评影响（该段作"待复核对象"处理）。
+
+---
+
+## L3 重审（glm-5.1 外部模型 · 2026-07-19 23:38）
+
+> 自动生成于 2026-07-19 23:38。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{"critical":[],"major":[],"minor":[],"verdict":"pass","summary":"前次发现的 R1/R2 缺陷已被针对性修复，且修复方案未引入新的认知过载或偶然复杂度，附带的新增测试有效覆盖了相关边界场景。"}
+```
+
+L3_artifact_hash: 94a0fd82850b613c03378df6d8588ab09783156c2e0d7c934b0da8ec12435dfc
+
+---
+
+## 主 agent 响应 L2 重审（2026-07-19 · RR3/RR4/原 R3）
+
+> L2 重审 Verdict=**pass**（R1/R2 独立确认 Fixed）。3 项 🟢 Minor 处理：
+
+### RR3 · heredoc << 短路覆盖 bypass（🟢）→ Fixed in
+**Fixed in**: gate.sh:116 注释扩展（枚举 3 种 heredoc bypass：`-F - <<EOF` / 多行 message `$(cat <<EOM)` / 管道喂 commit，诚实登记 residual regression + v2 加密签名根治）+ test e8/e9 bats 锁定 not-deny 行为（防回归）
+
+### RR4 · REVIEW.md 顶部 verdict 导航缺失（🟢）→ Fixed in
+**Fixed in**: REVIEW.md 顶部加「状态演进」导航注记（最新状态以末段 L2 复核/T-FIX 为准；顶部 0/0/0 pass 为初审作废值）
+
+### 原 R3 · SessionStart banner 未实装（🟢）→ Tech-debt
+**Tech-debt**: DESIGN D3 双管 (a) reading 端待 SessionStart 适配。计划：后续 SessionStart hook 加 type=l2-missing banner。
+
+注：bats heredoc cmd（e7-e9/c1）的警告是 bats run helper 对含 `<<` 命令的已知解析噪音（test_functions.bash:471），exit=0，测试全 pass，非测试缺陷。
+
+### 元发现 · .done-6 L2_verdict=fail（l3-review.sh 提取 bug）→ Tech-debt
+**Tech-debt**: .done-6 写入时 L2_verdict 取 INDEPENDENT-REVIEW-6.md 首个 `## L2 盲审`段（初审 fail），非 `## L2 重审`段（pass）。根因：l3-review.sh L2 verdict 提取取首个段。`fk_validate_done_marker` 仅校验 L2_verdict 值域（pass|fail|skipped）非必须 pass → gate 放行（commit/toll-gate 不阻塞）。语义错误（.done L2=fail 而 L2 重审 pass）。计划：独立 change 修 l3-review.sh L2 verdict 提取（取最新段 / `## L2 重审`优先）。非本 change 范围（gate hook 自身 bug）。

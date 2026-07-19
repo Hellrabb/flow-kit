@@ -113,7 +113,11 @@ _fk_phase_direction() {
 # 只 heredoc(<<) → return 0（不 deny：heredoc 内容可能是审查文本含敏感词，BUG-H 根治）。
 # T-FIX-01（6-review L2 R1）：移除「多行(\n) / 重定向(> 非/dev/null) → 写上下文」——
 #   重定向/多行的真实 git commit 须走 token 判定 deny（AC-H(e)）。fd 合并(2>&1)/重定向走 token。
-# 已知限制：`git commit -F - <<EOF`（真实 commit 用 heredoc message）→ 不 deny（罕见，v2 加密签名）。
+# 已知限制（L2 重审 RR3 · heredoc << 短路覆盖的真实 commit bypass，v1 诚实登记，v2 加密签名根治）：
+#   (i)  `git commit -F - <<EOF`（heredoc 作 message 输入）
+#   (ii) `git commit -m "$(cat <<EOM\n...\nEOM)"`（多行 message 惯用法）
+#   (iii)`cat <<EOF | xargs -I {} git commit -m {}`（heredoc 管道喂 commit）
+#   三者因 << 短路判为写上下文不 deny（旧正则可 deny，residual regression）。v2 改加密签名根治。
 _command_has_write_context() {
   local cmd="$1"
   [[ "$cmd" == *"<<"* ]] && return 0
