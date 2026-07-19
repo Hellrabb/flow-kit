@@ -221,8 +221,8 @@ teardown() {
     install_brooks_tools
   "
   [ "$status" -eq 0 ]
-  # Should mention PATH or .local/bin or continue without warning
-  true
+  # Should mention PATH, .local/bin, or complete without error
+  [[ "$output" =~ "PATH" || "$output" =~ ".local/bin" || "$output" =~ "install" ]]
 }
 
 # ── install_file helper ──

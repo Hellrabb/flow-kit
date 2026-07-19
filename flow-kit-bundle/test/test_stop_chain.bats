@@ -57,7 +57,7 @@ STOP_DIR="flow-kit-bundle/hooks/stop"
 }
 
 @test "smoke: 26-workflow.sh 含 get_workflow_state 函数定义" {
-  run grep -q "file_age_days\|get_workflow_state()" "$STOP_DIR/26-workflow.sh"
+  run grep -q "_fk_file_age_days\|_fk_check_g1_body" "$STOP_DIR/26-workflow.sh"
   [ "$status" -eq 0 ]
 }
 

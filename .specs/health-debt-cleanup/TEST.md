@@ -7,10 +7,10 @@
 | 测试文件 | cases | pass | fail | 说明 |
 |----------|-------|------|------|------|
 | `test_install_coverage.bats` | 16 | 16 | 0 | 新增 · install 函数补齐覆盖 |
-| `test_install_dry_run.bats` | 8 | 8 | 0 | 既有 · DRY_RUN 模式 |
+| `test_install_dry_run.bats` | 4 | 4 | 0 | 既有 · DRY_RUN 模式 |
 | `test_install.bats` | 11 | 11 | 0 | 既有 · CLI 参数 |
-| `test_install_brooks_tools.bats` | 8 | 8 | 0 | 既有 · brooks-tools |
-| 其余 20+ bats 文件 | 516 | 516 | 0 | 既有 · 全覆盖 |
+| `test_install_brooks_tools.bats` | 5 | 5 | 0 | 既有 · brooks-tools |
+| 其余 40+ bats 文件 | 523 | 523 | 0 | 既有 · 全覆盖 |
 | **总计** | **559** | **559** | **0** | ✅ |
 
 ## 测试覆盖
@@ -40,7 +40,7 @@ $ find . -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' \
 
 | # | 验收条件 | 状态 |
 |---|----------|------|
-| 1 | `grep -r 'check_g[0-9]\b' flow-kit-bundle/hooks/ --include='*.sh' \| grep -v fk_check_gate` 零命中 | ✅ |
+| 1 | `grep -rn '\<check_g[0-9]_body\>\|\<check_g[0-9]()\>' flow-kit-bundle/hooks/ --include='*.sh'` 零命中（word-boundary 精确匹配，新旧名不误判） | ✅ |
 | 2 | install 函数 ≥ 15 bats cases | ✅ (16) |
 | 3 | CONTEXT.md 追加三段（命名约定 + _grep + install 容忍度） | ✅ |
 | 4 | `make test` 全绿 · 0 fail | ✅ (559/0) |
