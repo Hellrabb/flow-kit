@@ -58,7 +58,6 @@
 
 - **T5 · install 函数测试覆盖缺口**: ✅ 已补齐 — `test/test_install_coverage.bats` 16 条 bats cases，覆盖 install_flow_kit_core / install_skills / install_specs_template / install_hooks(user scope) / install_brooks_lint(jq fallback) / install_brooks_tools(shim conflict + PATH warning) / install_file
 - **R4 · `_grep` 兼容层间接性**: ✅ 已标注 — CONTEXT.md 记录保留决策 + 理由（`command grep` 跨环境一致性 · 6 处调用隔离良好 · 成本可忽略）
-- **R4 · `_grep` 兼容层间接性**: `fix-compliance.sh` 中 `_grep` wrapper 增加一层间接性但提供跨平台兼容（ugrep/grep 自适应），成本收益比合理。保留现状，不做变更
 
 |---|---|---|---|---|---|---|
 | L-031 | 🟡 | 跨文件批量修改 · DESIGN.md 清单驱动 | **DESIGN.md 列出的修改文件清单不完整时，AI 会漏改**：fix-l3-gate 的 AC-4（transition jq `.phase` 同步）涉及 9 处修改点，DESIGN.md §3.4 列出了 7 处（0-change/1-req/2-design/3-task/5-test/6-review prompts + 31-auto-advance.sh），遗漏了 4-dev.md 和 pipeline-gates.md 两处。主 agent 按 DESIGN 清单逐项执行，L2 盲审通过全仓 grep `phases_done.*+=` 才发现遗漏 | 批量修改前必须全仓 grep 确认所有命中点，不能仅依赖 DESIGN.md 清单。在 DESIGN.md 底部加一栏「全仓扫描确认」：grep 命令 + 命中数 + 逐项标注"需改/不适用" | active | `fix-l3-gate` 2026-07-10 · L2 盲审发现 |
