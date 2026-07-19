@@ -222,3 +222,24 @@ Wave 3:            T06 (AC-T 全套 bats) → T07 (NFR-1 性能) → T08 (NFR-2 
 ```xml
 <!-- 占位 -->
 ```
+
+<!-- 6-review L2 回退触发 · T-FIX-01/02（R1 critical + R2 major）-->
+<task id="T-FIX-01" parallel="false" status="done">
+  <name>R1 🔴 · AC-H(e) _command_has_write_context 收紧（重定向/多行 git commit 须 deny）</name>
+  <read_files>flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh .specs/l2-l3-mock-fix/REQUIREMENT.md .specs/adr/008-is-git-commit-quoting-aware.md test/test-is-git-commit-structural.bats</read_files>
+  <write_files>flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh test/test-is-git-commit-structural.bats flow-kit-bundle/test/test-is-git-commit-structural.bats</write_files>
+  <action>_command_has_write_context（gate.sh:109-119）收紧：**只 heredoc(`<<`) → 写上下文（return 0 不 deny，写报告含敏感字符串）**；**移除「多行(\n) / 重定向(> 非/dev/null) → 写上下文」**，改走 token 判定（git commit deny）。效果：`git commit 2>log`（重定向）/ `echo a;git commit`（多行）→ 无 `<<` → token 判定 → deny ✓；`cat <<EOF...git commit...EOF`（heredoc 写报告）→ `<<` → 不 deny ✓。已知限制：`git commit -F - <<EOF`（真实 commit 用 heredoc message）→ 不 deny（罕见，v2 加密签名）。补 AC-H(e) 测试：(e1)`git commit 2>log` deny / (e2)`git commit >out` deny / (e3)`echo a;git commit` deny / (e4)heredoc 写报告不 deny / (e5)`git commit -F - <<EOF` 注明已知限制。</action>
+  <verify>npx bats test/test-is-git-commit-structural.bats</verify>
+  <done>AC-H(e)：重定向/多行 git commit deny + heredoc 写报告不 deny + 反规避 (f) grep 无白黑名单</done>
+  <depends_on></depends_on>
+</task>
+
+<task id="T-FIX-02" parallel="false" status="done">
+  <name>R2 🟡 · source COMMON_LIB 改 fail-close（fk_phase_gate_key 未定义 → deny）</name>
+  <read_files>flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh</read_files>
+  <write_files>flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh</write_files>
+  <action>gate.sh:27 `source "$COMMON_LIB" 2>/dev/null || true` 改 fail-close：source 后 `declare -f fk_phase_gate_key >/dev/null 2>&1 || { echo "[gate] common.sh 加载失败，review gate fail-close（fk_phase_gate_key 未定义）" >&2; exit 2; }`。保留 set -euo pipefail。同步 .done 路径 deny_reason 三要素（NFR-3）。</action>
+  <verify>HOOK_BASE_DIR=/tmp/nonexistent PROJECT_ROOT=<fix> bash gate.sh <git-commit-payload> exit 2（fail-close）；正常路径 exit 不变</verify>
+  <done>R2：source 失败 → exit 2 fail-close + stderr 告警（不再 exit 0 fail-open）</done>
+  <depends_on></depends_on>
+</task>
