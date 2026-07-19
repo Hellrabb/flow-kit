@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-17` (`l2-l3-test-defect` · L2/L3 gate 诊断+修复 11bug · 8修 A-F+G+D7-alt+L3-model · phase 0-2 · L3 模型不可靠终极发现)
+- **last_change_archived**: `2026-07-20` (`l2-l3-mock-fix` · L2/L3 gate 残留缺陷根治 F/H/I/J+K · 5 bug 修复+T-FIX(R1/R2 critical) · pipeline 0→7 全 gate · 6-review L2 经 fail→T-FIX→重审 pass 完整 cycle · LESSONS L-049/050/051)
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
