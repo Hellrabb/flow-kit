@@ -142,3 +142,13 @@ fail-close：source 后 `declare -f fk_phase_gate_key` 检查，未定义 → ex
 - 部署同步：gate.sh cp ~/.claude/hooks/（md5 46d992bf）
 
 **修正 Verdict: 待 L2/L3 复核**（R1/R2 已 Fixed in 代码 + 测试，主 agent 自评待独立复核确认）。
+
+---
+
+## L3 重审触发注（2026-07-20）
+
+> 触发 _l3_check_rerun 重审（artifact REVIEW.md hash 变）。L3 上轮 verdict=fail 核验为误判，澄清（供 L3 重审参考）：
+> - **CHANGE.md 状态**：:6 `draft`→`done`（归档终态，L3 Major 已 Fixed in）
+> - **CHANGELOG.md**：line 4 已含 `| 2026-07-20 | l2-l3-mock-fix | ... | L-049, L-050, L-051 |`（L3 上轮「CHANGELOG 缺失」是误判——L3 未读 `.specs/CHANGELOG.md`，该文件存在且本 change 行已追加）
+> - **L2 verdict=pass**（独立复现 543/0 + 产物齐全 + 6-review T-FIX 闭环）权威
+> - **Conventional Commits**：commit 57b2669 / 9fefc45 `fix(l2-l3-mock-fix):` 已遵循

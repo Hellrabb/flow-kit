@@ -343,3 +343,24 @@
 - **发现**：本次 change 大部分阶段在同一对话轮次内连续推进。L3 依赖 Stop hook（对话轮次边界）触发，Phase 5-7 的 L3 从未运行。L3 触发时机与 pipeline 推进速度存在结构性错配。
 - **Why**：Stop hook 假设"每阶段至少一次对话结束"，但快速推进模式下多阶段可在同一轮完成。
 - **How to apply**：(1) 短期：关键 phase 结束后显式结束会话让 Stop hook 跑 L3；(2) 中期：PreToolUse gate 层增加 L3 同步 dispatch（与 L2 对称）；(3) 长期：prompt 层也触发 L3。本次 change 已修复 L3 内容可靠性（L-047），触发时机优化留给后续。
+
+## L-049 · bash `local var="$(cmd)"` 屏蔽 set -e → 静默 fail-open
+
+- **严重度**：🔴 Critical（gate 安全门失效）
+- **发现**：6-review L2 R2 捕获——gate.sh:447 `local phase_name="$(fk_phase_gate_key "$phase")"`，当 `fk_phase_gate_key` 未定义（common.sh source 失败 `|| true`）时，`$(...)` 返回空 + 非零，但 `local` 赋值的返回值覆盖了命令替换的退出码（local 本身成功 → 0），`set -e` 不触发 → `phase_name=""` 静默得空 → gate 完全失效 exit 0（fail-open）。实测 `HOOK_BASE_DIR=/tmp/nonexistent bash gate.sh <git-commit-payload>` → exit 0（应 fail-close exit 2）。
+- **Why**：bash 语义——`local`/`declare`/`typeset` 的返回值是**赋值语句本身**的退出码，非命令替换内命令的退出码。`set -e` 检查的是 `local` 的退出码（恒 0），命令替换内的失败被吞。这是 bash 长期陷阱（POSIX sh 同理）。
+- **How to apply**：(1) 永远分开写：`local var; var="$(cmd)"`（先声明 local，再单独赋值，让 set -e 捕获 cmd 失败）；(2) 关键依赖显式校验：`declare -f fk_phase_gate_key >/dev/null || { echo fail >&2; exit 2; }`；(3) 审查所有 `local x="$(...)"` 模式（grep `local .*="\$\(`）。本次 change T-FIX-02 修复 gate.sh source fail-close。
+
+## L-050 · flow-kit-bundle 改动须 cp 同步 ~/.claude/hooks 部署路径
+
+- **严重度**：🟡 Major（修复运行时未生效，"全套真绿"≠"现场已修复"）
+- **发现**：5-test L2 + 6-review L2 元发现——本 change 改 flow-kit-bundle/hooks/ 源码（T01-T05），但运行时 hook（~/.claude/hooks/）未同步。全部 5 hook md5 不同。后果：(1) AC-3 测 fail（已安装副本 29 脚本 :? 与开发副本一致但测期望错——同型）；(2) 6-review L2 写报告时被**旧版** BUG-H gate 误拦（heredoc 内 git commit 字符串），用 chr() 绕过——现场复现 REQUIREMENT US-2。本 change 修复在运行时未生效，全套 bats 536/0（开发副本）≠ 现场已修复。
+- **Why**：flow-kit-bundle/ 是分发包源码，~/.claude/hooks/ 是部署路径。改源码后须 install.sh 或 cp 同步部署。两路径不同步 = 源码修复但运行时旧版。
+- **How to apply**：(1) 改 flow-kit-bundle/hooks/ 后必 `cp flow-kit-bundle/hooks/<f> ~/.claude/hooks/<f>`（或 install.sh 重装）；(2) 5-test 阶段加「部署同步」验证（md5 对比 bundle vs ~/.claude）；(3) 7-integration 归档前确认部署同步。本次 change 已 cp 同步 5 hook。
+
+## L-051 · L2 独立盲审是主 agent 证实偏差的最后防线（critical 实证）
+
+- **严重度**：🔴 Critical（流程教训——主 agent 自评不可全信）
+- **发现**：本 change 6-review 阶段，主 agent REVIEW.md 初审 Verdict=pass（0 Critical / 0 Major / "6 维整体改善"），5-test 阶段 L2 也 pass。但 6-review L2 独立盲审（code-reviewer 子 agent）实测复现 R1 🔴 Critical：`_command_has_write_context` 把「重定向/多行」当写上下文 → `git commit 2>log` 漏拦（AC-H(e) 要求 deny，AC 未实现），主 agent + 5-test L2 都漏判。主 agent 核验实测确认（exit 0 漏拦），非误判。回退 6→4 修 T-FIX 后 L2 重审 pass。
+- **Why**：主 agent（实现者）有证实偏差——「代码能跑 + 全套真绿」≠「AC 真实现」。自评倾向于放过自己写的代码。5-test L2 审 TEST.md（非代码），未触代码层。6-review L2 审 git diff（代码），实测复现，才捕到。
+- **How to apply**：(1) L2 盲审须独立子 agent + 原样注入 prompt（禁主 agent 自评注入）；(2) L2 须实测复现（非采信自评）；(3) 主 agent 核验 L2 发现（receiving-code-review 技术验证，非盲目接受/反驳）；(4) 6-review L2 审 diff（代码层）比 5-test L2 审 TEST.md（文档层）更易捕 critical。本 change 是 L2 机制价值的强实证。

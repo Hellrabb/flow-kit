@@ -23,3 +23,14 @@
 | 2026-07-18 16:32 | 70cf0c08-af7 | 4 | T03-done | ? |
 | 2026-07-18 16:39 | 70cf0c08-af7 | 4 | T04-done | ? |
 | 2026-07-18 16:43 | 70cf0c08-af7 | 4 | T04-done | ? |
+| 2026-07-19 13:30 | 0a205c74-b1c | 5 | 5-test-TEST-done | ? |
+| 2026-07-19 14:11 | 0a205c74-b1c | 5 | 5-test-L2-responded | ? |
+| 2026-07-19 14:34 | 0a205c74-b1c | 5 | 5-test-L2-responded | ? |
+| 2026-07-19 19:45 | 0a205c74-b1c | 6 | 6-review-REVIEW-done | ? |
+| 2026-07-19 20:22 | 0a205c74-b1c | 4 | 6-review-rollback-TFIX | ? |
+| 2026-07-19 23:37 | 0a205c74-b1c | 6 | 6-review-reaudit | ? |
+| 2026-07-19 23:54 | 0a205c74-b1c | 6 | 6-review-L2reaudit-pass | ? |
+| 2026-07-19 23:59 | 0a205c74-b1c | 7 | 7-integration-start | ? |
+| 2026-07-20 00:07 | 0a205c74-b1c | 7 | 7-integration-lessons-done | ? |
+| 2026-07-20 00:16 | 0a205c74-b1c | 7 | 7-integration-L2-pass | ? |
+| 2026-07-20 00:29 | 0a205c74-b1c | 7 | 7-integration-L3-rerun | ? |
