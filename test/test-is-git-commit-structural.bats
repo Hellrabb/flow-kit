@@ -107,6 +107,36 @@ _load_gate() {
   [ "$status" -eq 0 ]
 }
 
+# ══ (e) T-FIX-01 R1 补：重定向/多行真实 git commit → deny（AC-H(e) 漏拦修复回归）══
+# 6-review L2 R1：原 _command_has_write_context 把重定向/多行当写上下文 → git commit 2>log 漏拦
+# T-FIX-01 收紧（只 heredoc << → 写上下文），重定向/多行真实 commit 走 token 判定 deny
+
+@test "AC-H (e4): git commit -m x 2> log → is_git_commit（stderr 重定向真实 commit · T-FIX-01）" {
+  _load_gate
+  run is_git_commit 'git commit -m "y" 2> /tmp/clog'
+  [ "$status" -eq 0 ]
+}
+
+@test "AC-H (e5): git commit -m x > out → is_git_commit（stdout 重定向真实 commit · T-FIX-01）" {
+  _load_gate
+  run is_git_commit 'git commit -m "y" > /tmp/out'
+  [ "$status" -eq 0 ]
+}
+
+@test "AC-H (e6): 多行 git commit → is_git_commit（T-FIX-01）" {
+  _load_gate
+  run is_git_commit $'echo a\ngit commit -m "y"'
+  [ "$status" -eq 0 ]
+}
+
+@test "AC-H (e7-限制): git commit -F - <<EOF → not is_git_commit（heredoc message 真实 commit · 已知限制）" {
+  _load_gate
+  # 已知限制（T-FIX-01）：heredoc 作 commit message 的真实 commit 因 << 判为写上下文不 deny。
+  # 罕见（agent 极少用 heredoc 写 commit message），v2 加密签名根治。此处锁定当前行为防回归。
+  run is_git_commit $'git commit -F - <<EOF\nmsg\nEOF'
+  [ "$status" -ne 0 ]
+}
+
 # ══ gh pr create 同结构 ══
 
 @test "AC-H (d-gh): gh pr create → is_gh_pr_create" {
@@ -144,4 +174,20 @@ _load_gate() {
   grep -q "1-requirement" "$TMP_DIR/stderr.log"
   grep -q "\.independent-review-1\.done" "$TMP_DIR/stderr.log"
   grep -q "独立 review" "$TMP_DIR/stderr.log"
+}
+
+# ══ R2 fail-close（T-FIX-02 · 6-review L2）：common.sh 加载失败 → deny exit2 ══
+
+@test "R2 fail-close: HOOK_BASE_DIR 错（common.sh 加载失败）→ exit 2 + stderr 告警（T-FIX-02）" {
+  local specs_dir="$TMP_DIR/.specs/test-change"
+  jq -n --argjson gc '{"1-requirement":"both"}' \
+    '{change_id:"test-change",phase:1,goal:{scope:"pipeline",current_phase:"1",gate_config:$gc,phases_done:["0"],gates:{"0→1":"passed","1→2":"pending"},auto_advance:false}}' \
+    > "$TMP_DIR/.flow-active"
+  jq -n --argjson gc '{"1-requirement":"both"}' '{gate_config:$gc}' > "$specs_dir/.goal-snapshot.json"
+  jq -n --arg c 'git commit -m test' --arg cwd "$TMP_DIR" '{tool_name:"Bash",tool_input:{command:$c},cwd:$cwd}' > "$TMP_DIR/p.json"
+  # 错 HOOK_BASE_DIR → source COMMON_LIB 失败 → fk_phase_gate_key 未定义 → fail-close exit 2（不再 fail-open exit 0）
+  run bash -c "HOOK_BASE_DIR=/tmp/nonexistent-$$ PROJECT_ROOT='$TMP_DIR' bash '$GATE_SH' < '$TMP_DIR/p.json' 2>'$TMP_DIR/r2.log'"
+  [ "$status" -eq 2 ]
+  grep -q "fail-close" "$TMP_DIR/r2.log"
+  grep -q "fk_phase_gate_key" "$TMP_DIR/r2.log"
 }

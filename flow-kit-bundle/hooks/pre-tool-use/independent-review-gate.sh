@@ -25,6 +25,12 @@ HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 COMMON_LIB="${HOOK_BASE_DIR}/../stop/lib/common.sh"
 # shellcheck source=/dev/null
 source "$COMMON_LIB" 2>/dev/null || true
+# T-FIX-02（R2 · 6-review L2）：fail-close——fk_phase_gate_key 未定义（common.sh 加载失败）→ deny exit 2
+# 原 || true 后 local phase_name 得空 → gate 失效 exit 0（fail-open），与 header fail-close 矛盾
+if ! declare -f fk_phase_gate_key >/dev/null 2>&1; then
+  echo "[gate] common.sh 加载失败（HOOK_BASE_DIR=${HOOK_BASE_DIR}），review gate fail-close：fk_phase_gate_key 未定义，拒绝放行" >&2
+  exit 2
+fi
 
 # ══ helper 函数（source-safe · check.sh / bats 可复用，不依赖 stdin）══════════
 
@@ -103,18 +109,14 @@ _fk_phase_direction() {
   if [[ "$target" == "$cur" ]]; then echo "noop"; return 0; fi
   echo "forward"
 }
-# _command_has_write_context <cmd> — 写字面量上下文检测（ADR-008 D2·H）
-# 含 heredoc(<<) / 多行(\n) / 写重定向(> >> 到非 /dev/null) → return 0（保守不 deny：
-# heredoc/重定向内容可能是审查文本含敏感词，BUG-H 根治）。fd 合并重定向(2>&1) 不算写文件。
+# _command_has_write_context <cmd> — 写字面量上下文检测（ADR-008 D2·H · T-FIX-01 R1 收紧）
+# 只 heredoc(<<) → return 0（不 deny：heredoc 内容可能是审查文本含敏感词，BUG-H 根治）。
+# T-FIX-01（6-review L2 R1）：移除「多行(\n) / 重定向(> 非/dev/null) → 写上下文」——
+#   重定向/多行的真实 git commit 须走 token 判定 deny（AC-H(e)）。fd 合并(2>&1)/重定向走 token。
+# 已知限制：`git commit -F - <<EOF`（真实 commit 用 heredoc message）→ 不 deny（罕见，v2 加密签名）。
 _command_has_write_context() {
   local cmd="$1"
   [[ "$cmd" == *"<<"* ]] && return 0
-  [[ "$cmd" == *$'\n'* ]] && return 0
-  local target
-  if [[ "$cmd" =~ [0-9]?\>{1,2}[[:space:]]*([^|&;[:space:]]+) ]]; then
-    target="${BASH_REMATCH[1]}"
-    [[ "$target" != "/dev/null" ]] && return 0
-  fi
   return 1
 }
 
