@@ -15,6 +15,32 @@
 
 set -euo pipefail
 
+# fk_extract_l2_verdict — extract L2 verdict from INDEPENDENT-REVIEW-N.md（ADR-007 / D1 · gate-review-fix）
+# Single source for L2 verdict extraction across 4 consumers (4 files).
+# Strategy: grep verdict line → last match → case-insensitive pass|fail extraction.
+# Fallback: heading-style search (grep -iA 2 '^##.*Verdict' → extract pass|fail from heading context)
+# 用法: l2v="$(fk_extract_l2_verdict "$review_md")"
+# 返回: "pass" | "fail" | "" (未找到)
+fk_extract_l2_verdict() {
+  local review_md="${1:-}"
+  [ -f "$review_md" ] || { echo ""; return 1; }
+  local verdict
+  # Primary: grep verdict line → tail -1 → case-insensitive pass|fail
+  verdict=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+  if [ -n "$verdict" ]; then
+    echo "$verdict"
+    return 0
+  fi
+  # Fallback: heading-style search (## Verdict / **Verdict**: pass)
+  verdict=$(grep -iA 2 '^##.*Verdict' "$review_md" 2>/dev/null | grep -ioE 'pass|fail' | tail -1)
+  if [ -n "$verdict" ]; then
+    echo "$verdict"
+    return 0
+  fi
+  echo ""
+  return 1
+}
+
 # ── l2_detect_missing() ──────────────────────────────────────────────
 l2_detect_missing() {
   local phase="$1"
@@ -108,9 +134,13 @@ l2_dispatch_agent() {
   [[ "$phase" =~ ^[1-7]$ ]] || { echo "[l2-dispatch] invalid phase: $phase" >&2; return 1; }
   [ -n "$change_id" ] || { echo "[l2-dispatch] missing change_id" >&2; return 1; }
 
+  # AC-7: 确保 specs_dir 存在（防止后台 stderr redirect 因目录缺失失败）
+  mkdir -p "$specs_dir" 2>/dev/null || true
+
   # ── Mock 模式（测试用）──────────────────────────────────────────
   if [ "${FLOW_KIT_L2_MOCK:-0}" = "1" ]; then
-    local mock_tmp="${review_md}.tmp.$$"
+    local mock_tmp
+    mock_tmp="$(mktemp "${review_md}.tmp.XXXXXX")"
     local mock_ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo mock)"   # 修 BUG-G：mock_ts 原未定义，set -u 下 line120 ${mock_ts} 报错
     if [ -f "$review_md" ]; then
       cat "$review_md" > "$mock_tmp" 2>/dev/null || true
@@ -231,7 +261,8 @@ L2_PROMPT_EOF
 
     # ── 追加写入 INDEPENDENT-REVIEW（防 L3 覆写）─────────────────
     # ── 原子写入 L2 段（tmp + mv 防竞态，与 L3 一致）──
-    local bg_tmp="${review_md}.tmp.$$"
+    local bg_tmp
+    bg_tmp="$(mktemp "${review_md}.tmp.XXXXXX")"
     if [ -f "$review_md" ]; then
       cat "$review_md" > "$bg_tmp" 2>/dev/null || true
     fi

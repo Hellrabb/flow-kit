@@ -77,37 +77,55 @@ teardown() {
 
 # ── AC-3: L3 section dedup ───────────────────────────────────────────
 
-@test "AC-3: strips old L3 section before writing new one" {
+@test "AC-3: strips old L3 sections (盲审 + 重审) before writing new one" {
   local review_md="${ARTIFACTS_DIR}/INDEPENDENT-REVIEW-1.md"
-  # Write initial L2 + old L3
+  # Write initial L2 + old L3 盲审 + old L3 重审 (simulate accumulated history)
   cat > "$review_md" << 'EOF'
 # 独立审查 · 阶段 1
 ## L2 盲审
 L2 content here
-## L3 盲审（old model · old date）
+
+## L3 盲审（first model · old date）
 old L3 content
+
+## L3 重审（second model · older date）
+old L3 re-review content
 EOF
-  # Simulate dedup logic
+
+  # AC-3: Use the same sed pattern as _l3_parse_result implementation
+  # (deletes all ## L3 (盲审|重审) sections, preserves L2 and other content)
   if [ -f "$review_md" ]; then
-    awk '/^## L3 盲审/{stop=1} !stop{print}' "$review_md" > "${review_md}.tmp"
+    # AC-3/R1 fix: 用 awk 替代 sed，正确处理连续盲审+重审段
+    awk '/^## L3 (盲审|重审)/ { skip=1; next } /^## / && skip { skip=0 } !skip' "$review_md" > "${review_md}.tmp"
     mv "${review_md}.tmp" "$review_md"
   fi
-  # Append new L3
+
+  # Append new L3 section
   cat >> "$review_md" << 'EOF'
 ## L3 盲审（new model · new date）
 new L3 content
 EOF
-  # Verify only 1 L3 section
+
+  # Verify only 1 L3 section remains (the new one)
   local count
-  count=$(grep -c '## L3 盲审' "$review_md")
+  count=$(grep -c '^## L3 \(盲审\|重审\)' "$review_md")
   [[ "$count" -eq 1 ]]
-  # Verify old L2 preserved
+
+  # AC-3: L2 段不受影响
   grep -q '## L2 盲审' "$review_md"
   grep -q 'L2 content here' "$review_md"
-  # Verify new L3 content present
+
+  # AC-3: 新 L3 内容存在
   grep -q 'new L3 content' "$review_md"
-  # Verify old L3 content gone
+
+  # AC-3: 旧 L3 内容已删除（blind + re-review）
   ! grep -q 'old L3 content' "$review_md"
+  ! grep -q 'old L3 re-review content' "$review_md"
+
+  # AC-3: 下游 reader 兼容 — _l3_inject_context 可正常读取去重后的 L3 段
+  grep -q '^## L3 盲审' "$review_md"
+  # SessionStart banner pattern match (detects L3 section presence)
+  grep -qE '^## L3 (盲审|重审)' "$review_md"
 }
 
 # ── AC-1: Phase 6 artifact includes new files ─────────────────────────

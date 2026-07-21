@@ -38,16 +38,10 @@ fk_independent_review_gate_active() {
   # Security: reject change_ids with path traversal chars (only kebab-case allowed)
   [[ "$change_id" =~ ^[a-z0-9][-a-z0-9]+$ ]] || return 1
 
+  # AC-9: 使用 fk_phase_gate_key() 替代内联 case（common.sh 由 caller 在调用前 source）
   local phase_name
-  case "$phase" in
-    1) phase_name="1-requirement" ;;
-    2) phase_name="2-design" ;;
-    3) phase_name="3-task" ;;
-    5) phase_name="5-test" ;;
-    6) phase_name="6-review" ;;
-    7) phase_name="7-integration" ;;
-    *) return 1 ;;
-  esac
+  phase_name="$(fk_phase_gate_key "$phase")"
+  [ -n "$phase_name" ] || return 1
 
   # 双源读 gate_config 原始值
   local gate_val=""
@@ -61,12 +55,7 @@ fk_independent_review_gate_active() {
     fi
   fi
 
-  # 值标准化映射（向后兼容）
-  case "$gate_val" in
-    independent|true) gate_val="both" ;;
-    L2|L3|both) ;;  # 合法值保持
-    *) gate_val="" ;;  # 未知值视为未开启
-  esac
+  gate_val="$(fk_normalize_gate_val "$gate_val")"
 
   [[ -n "$gate_val" ]] || return 1
 
@@ -168,11 +157,7 @@ fk_validate_done_marker() {
   l2v=$(_fk_done_kvp "$done_path" "L2_verdict")
   md_path="${PROJECT_ROOT:-}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
   if [[ -n "$l2v" && -f "$md_path" ]]; then
-    md_v=$(grep -iE 'verdict[^a-z]*[:：]' "$md_path" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
-    # Fallback: heading-style format (e.g. "## Verdict\npass")
-    if [[ -z "$md_v" ]]; then
-      md_v=$(grep -iA 2 '^##.*Verdict' "$md_path" 2>/dev/null | grep -ioE 'pass|fail' | tail -1)
-    fi
+    md_v="$(fk_extract_l2_verdict "$md_path")"
     [[ -z "$md_v" || "$md_v" == "$l2v" ]] || return 2     # 提取不到 verdict 不挡（best-effort）
   fi
 

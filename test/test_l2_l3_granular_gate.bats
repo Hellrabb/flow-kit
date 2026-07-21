@@ -11,6 +11,7 @@ setup() {
     d="$(dirname "$d")"
   done
   DONE_VALIDATION_LIB="$d/flow-kit-bundle/hooks/stop/lib/done-validation.sh"
+  COMMON_LIB="$d/flow-kit-bundle/hooks/stop/lib/common.sh"
 
   PROJECT_ROOT="$TEST_TMP"
   mkdir -p "$TEST_TMP/.specs/test-change"
@@ -43,7 +44,8 @@ EOF
 
 @test "gate_val 'independent' maps to both (backward compat)" {
   write_flow_active "independent"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   # tier="" (any): should return 0
   run fk_independent_review_gate_active "6" ""
   [[ "$status" -eq 0 ]]
@@ -57,7 +59,8 @@ EOF
 
 @test "gate_val 'true' maps to both (backward compat)" {
   write_flow_active "true"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" "L2"
   [[ "$status" -eq 0 ]]
   run fk_independent_review_gate_active "6" "L3"
@@ -66,7 +69,8 @@ EOF
 
 @test "gate_val 'invalid' maps to empty (gate off)" {
   write_flow_active "invalid"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" ""
   [[ "$status" -eq 1 ]]
 }
@@ -75,7 +79,8 @@ EOF
 
 @test "L2-only: L2 active, L3 not" {
   write_flow_active "L2"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" "L2"
   [[ "$status" -eq 0 ]]
   run fk_independent_review_gate_active "6" "L3"
@@ -84,7 +89,8 @@ EOF
 
 @test "L2-only: any tier (tier='') is active" {
   write_flow_active "L2"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" ""
   [[ "$status" -eq 0 ]]
 }
@@ -93,7 +99,8 @@ EOF
 
 @test "L3-only: L3 active, L2 not" {
   write_flow_active "L3"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" "L3"
   [[ "$status" -eq 0 ]]
   run fk_independent_review_gate_active "6" "L2"
@@ -102,7 +109,8 @@ EOF
 
 @test "L3-only: any tier (tier='') is active" {
   write_flow_active "L3"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" ""
   [[ "$status" -eq 0 ]]
 }
@@ -111,7 +119,8 @@ EOF
 
 @test "both: L2 and L3 both active" {
   write_flow_active "both"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" "L2"
   [[ "$status" -eq 0 ]]
   run fk_independent_review_gate_active "6" "L3"
@@ -128,7 +137,8 @@ EOF
   "goal": {}
 }
 EOF
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "6" ""
   [[ "$status" -eq 1 ]]
 }
@@ -137,7 +147,8 @@ EOF
 
 @test "invalid phase returns 1" {
   write_flow_active "both"
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_independent_review_gate_active "4" "L2"
   [[ "$status" -eq 1 ]]
 }
@@ -155,11 +166,12 @@ L3_verdict=pass
 artifacts=REVIEW.md,TEST.md
 session_id=abc-123
 EOF
-  # Set up flow-active for phases_done shortcut
+  # AC-5: 不含 phases_done，确保值域验证不被短路
   cat > "$FLOW_ACTIVE" << 'EOF'
-{"change_id":"test-change","phase":"6","goal":{"phases_done":["6"],"gates":{"6→7":"passed"}}}
+{"change_id":"test-change","phase":"6","goal":{"gates":{"6→7":"passed"}}}
 EOF
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_validate_done_marker "$done_file" "6" "test-change" "write"
   [[ "$status" -eq 0 ]]
 }
@@ -175,10 +187,12 @@ L3_verdict=skipped
 artifacts=REVIEW.md,TEST.md
 session_id=abc-123
 EOF
+  # AC-5: 不含 phases_done，确保值域验证不被短路
   cat > "$FLOW_ACTIVE" << 'EOF'
-{"change_id":"test-change","phase":"6","goal":{"phases_done":["6"],"gates":{"6→7":"passed"}}}
+{"change_id":"test-change","phase":"6","goal":{"gates":{"6→7":"passed"}}}
 EOF
-  source "$DONE_VALIDATION_LIB" 2>/dev/null || true
+  source "$COMMON_LIB" 2>/dev/null || true
+source "$DONE_VALIDATION_LIB" 2>/dev/null || true
   run fk_validate_done_marker "$done_file" "6" "test-change" "write"
   [[ "$status" -eq 0 ]]
 }
