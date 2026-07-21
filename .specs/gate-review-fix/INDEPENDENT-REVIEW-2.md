@@ -285,3 +285,102 @@ T03 action 中指定了完整 sed 表达式。
 ```
 
 L3_artifact_hash: e60527028fd6e06d1a80f27fd566dc0faf542f6a7d3f2c1dce5f7dceb0aede03
+
+---
+
+## L2 盲审（复审）
+
+> 审查日期：2026-07-21 | 阶段：2 | change-id：gate-review-fix | 独立审查员派发
+
+### 审查环境声明
+
+本审查基于以下工件：
+- `.specs/gate-review-fix/DESIGN.md`（主审查对象）
+- `.specs/CONTEXT.md`（参考：术语、已锁决策、禁动清单）
+- `.specs/ARCHITECTURE.md`（参考：ADR、跨模块契约、模块边界）
+- `.specs/gate-review-fix/REQUIREMENT.md`（参考：AC 验收准则）
+- `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh`（D5 return-value 合约实现验证 · 代码已实现）
+
+---
+
+### 🟡 F1 · D5 "fire-and-forget" 声明与实际实现矛盾：`_gate_do_transition` 必然 exit 2 硬阻塞
+
+**Symptom（症状）**：DESIGN.md D5（第 102-111 行）将 `_gate_check_l3` auto_advance 路径描述为 "fire-and-forget"、"不 `exit 2` 硬阻塞"、"不阻塞 transition"、"与 L2 auto_advance 的 fire-and-forget 语义一致"。实测代码对照发现三处矛盾：
+
+1. `_gate_check_l3` 函数头注释（independent-review-gate.sh:356）明确写入：`# Returns 1 if L3 not done (caller should then call _gate_do_transition to block).` —— 函数自身的文档化合约就是 **block**，不是 fire-and-forget。
+2. `_gate_do_transition`（independent-review-gate.sh:416-437）以 `exit 2` 无条件结束 —— 路径 `return 1 → _gate_do_transition → exit 2` 必然阻塞 PreToolUse，拒绝 phase-write 命令。
+3. L2 auto_advance（independent-review-gate.sh:289-298）以 `return 0` 立即放行 —— 这是真正的 fire-and-forget。L3 auto_advance 路径（independent-review-gate.sh:375-380）以 `return 1` 触发 `_gate_do_transition` → exit 2 —— 行为完全不同。
+
+代码注释（independent-review-gate.sh:377）写 "not blocking" 但函数头注释（line 356）写 "to block" 且实际行为确实阻塞 —— 单文件内就存在自相矛盾。
+
+**Source（源头）**：DESIGN.md D5（102-111 行）；independent-review-gate.sh:356（`_gate_check_l3` 函数头文档合约 "to block"）、independent-review-gate.sh:375-380（auto_advance return 1 实现）、independent-review-gate.sh:416-437（`_gate_do_transition` exit 2 实现）、independent-review-gate.sh:289-298（L2 auto_advance return 0 对照）、independent-review-gate.sh:470-471（`|| _gate_do_transition` 消费点）。
+
+**Consequence（后果）**：
+- 文档债务：DESIGN.md 作为设计规格文件，其描述的 gate 行为与实际实现不一致。未来维护者基于 DESIGN.md 理解模块行为时会被误导 —— 例如，若有人按"fire-and-forget"语义修改代码（去掉 `_gate_do_transition` 的 exit 2），将导致 gate 失效。
+- 代码注释自相矛盾：同一文件内 line 356（"to block"）与 line 377（"not blocking"）矛盾，增加代码阅读理解成本。
+- 实际 pipeline 行为：auto_advance=true 时 L3 else 分支并不会立即放行 transition，而是由 Stop hook 31-auto-advance.sh 在会话结束时延迟推进。这一延迟路径在 DESIGN.md D5 的代价分析中未提及。
+
+**Remedy（修补）**：
+1. 统一代码注释（line 377 的 "not blocking" 改为如实描述）。
+2. DESIGN.md D5 更新为准确描述：auto_advance 下 `_gate_check_l3` else 分支通过 `return 1 → _gate_do_transition` 派发 L3 dispatch prompt 后仍阻塞 PreToolUse transition，过渡由 Stop hook 延迟执行。删除"fire-and-forget"和"与 L2 auto_advance 语义一致"的误导性声明，或明确解释为何两者语义不同。
+3. 若 AC-6 的"整体不阻塞 transition"意图是立即放行（与 L2 一致），则需将 auto_advance 路径改为直接派发 L3 dispatch + `return 0` 而非走 `_gate_do_transition` 的 exit 2 路径。当前实现满足 AC-6 的 `return 1` 行为要求，但不满足其"不阻塞"的语义声明。
+
+---
+
+### 🟡 F2 · DESIGN.md 数据流图遗漏 done-validation.sh 为 `fk_extract_l2_verdict` 第四 consumer
+
+**Symptom（症状）**：DESIGN.md 第 2 节数据流图（第 129-132 行）列出 `fk_extract_l2_verdict` 恰好 3 个 consumer（independent-review-gate.sh:421、29-independent-review.sh:181、l3-review.sh:755）。D1（第 77-78 行）基于"3 consumer 均在 L2/L3 上下文"判定函数应放入 `l2-detect.sh` 而非 `common.sh`。但前次 L2 审查 R3 发现 `done-validation.sh` 保留了与共享函数同源的 heading-fallback 逻辑，主 agent 反驳（第 241 行）确认 TASK.md T06 已将 `done-validation.sh:171` 纳入迁移范围，使其成为第 4 个 consumer。
+
+`done-validation.sh` 是 gate 校验模块（属于 done-validation 层），不是 L2/L3 上下文。这一 consumer 的加入削弱了 D1 将函数放入 `l2-detect.sh`（L2 特化模块）而非 `common.sh`（通用共享 lib）的决策理由。
+
+**Source（源头）**：DESIGN.md 第 2 节数据流图（129-132 行）、DESIGN.md D1（77-78 行）、INDEPENDENT-REVIEW-2.md 主 agent 反驳（241 行）。
+
+**Consequence（后果）**：
+- DESIGN.md 与 TASK.md 不同步：DESIGN.md 仍写 3 consumer，TASK.md 已规划 4 consumer。未来变更 DESIGN.md D1 决策时，基于过时的 consumer 数量判断可能做出错误决策。
+- 模块依赖合理性存疑：`done-validation.sh` source `l2-detect.sh` 仅为获取 verdict 提取函数，形成一个门控模块依赖审查检测模块的跨层依赖。若该函数放入 `common.sh`（中立层），此依赖方向更自然。
+
+**Remedy（修补）**：
+1. 更新 DESIGN.md 第 2 节数据流图，将 `done-validation.sh` 加入 `fk_extract_l2_verdict` 的 consumer 列表（4 consumer）。
+2. 在 D1 中补充说明：第 4 个 consumer（done-validation.sh）为何仍接受函数留在 `l2-detect.sh`，或重新评估是否应迁至 `common.sh`。
+
+---
+
+### 🟢 F3 · D3 sed 去重正则未在 DESIGN.md 中指定 `^` 行首锚定
+
+**Symptom（症状）**：DESIGN.md D3（第 90-93 行）描述去重策略但未给出准确的 sed 命令（含 `^` 行首锚定）。风险 R4（第 175 行）承认格式破坏风险但仅以"bats 测试覆盖"缓解。L3 外部模型审查独立指出了同一锚定缺失。
+
+**Source（源头）**：DESIGN.md D3（90-93 行）、R4（175 行）；INDEPENDENT-REVIEW-2.md L3 重审（126 行 minor 发现）。
+
+**Consequence（后果）**：无 `^` 锚定时，正文中如 "参考 `## L3 盲审` 的结果" 的内联引用可能被误匹配删除，静默损坏审查文件内容。低概率但高破坏性。
+
+**Remedy（修补）**：在 D3 中给出含 `^` 锚定的完整 sed 命令，或将锚定要求明确写入设计约束。主 agent 反驳称 TASK.md T03 已含完整表达式 —— 该信息应同步回 DESIGN.md D3。
+
+---
+
+### 🟢 F4 · 风险 R5 mktemp fallback 缺乏具体实现规格
+
+**Symptom（症状）**：DESIGN.md 风险 R5（第 179-180 行）指出"mktemp 在 CI 环境不可用"，缓解措施仅写"如不可用则 fallback 到前缀方案"，无函数名、无代码位置、无实现细节。这是一个被标记为风险的 TODO，而非已完成的设计决策。
+
+**Source（源头）**：DESIGN.md R5（179-180 行）、D2（82-86 行）。
+
+**Consequence（后果）**：若 CI 环境缺失 mktemp，当前实现无定义好的 fallback 路径。风险虽低（mktemp 是 POSIX 标准），但设计未闭环。
+
+**Remedy（修补）**：明确指定 fallback 实现方式（如 `common.sh` 中定义 `fk_mktemp()` 包装函数，先尝试 `mktemp`，失败时回退到 `mkdir -p` + 时间戳前缀），或显式判定"mktemp 不可用视为不支持环境，不提供 fallback"。
+
+---
+
+### 既有审查发现跟踪
+
+前次 L2 审查 R1（Critical · D5 return 1 合约断裂）经代码验证已澄清：`_run_review_gates`（line 536）调用的是 `_gate_phase_transition`，后者在 lines 470-471 以 `|| _gate_do_transition` 消费 `_gate_check_l3` 的 return 1。`_run_review_gates` 不直接调用 `_gate_check_l3`，因此不存在 return-value 语义反转问题。R1 的 Critical 判定基于对调用链的不完整假设 —— 实际调用链为 `_run_review_gates → _gate_phase_transition → _gate_check_l3 || _gate_do_transition`，return 1 在 `_gate_phase_transition` 层即被 `||` 消费，不会传播到 `_run_review_gates` 的 `if cmd; then` 逻辑。
+
+前次 L2 审查 R2（D5 缺失备选分析）已通过 DESIGN.md D5 更新增加备选方案及其排除理由得到修补。
+
+前次 L2 审查 R3（done-validation.sh DRY）已通过 TASK.md T06 规划迁移，但 DESIGN.md 尚未反映（见本复审 F2）。
+
+前次 L2 审查 R4（D3 sed 未完全指定）已通过 TASK.md T03 补充表达式，但 DESIGN.md D3 仍需更新（见本复审 F3）。
+
+---
+
+**Verdict**: **pass**
+
+**理由**：4 项发现中 2 项 Major（F1 · D5 fire-and-forget 声明与实现矛盾 + F2 · 数据流图 consumer 缺失）、2 项 Minor（F3 · sed 锚定缺失 + F4 · mktemp fallback 未指定）。无 🔴 Critical —— D5 的 blocking 行为本身是安全保守的正确行为，问题在于 DESIGN.md 文档描述不准确；前次审查 R1 的合约断裂已通过调用链分析澄清不存在。F1 和 F2 需要在 DESIGN.md 文档层面修正，不阻塞设计方向。

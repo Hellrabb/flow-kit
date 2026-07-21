@@ -101,14 +101,14 @@
 
 ### D5 · `_gate_check_l3` auto_advance 兼容
 
-- **决策**：else 分支（lines 373-379）增加 auto_advance 检测：`auto_advance=true` 时 `return 1` 触发 `_gate_do_transition`（L3 dispatch），不 `exit 2` 硬阻塞
-- **备选**：新增独立 dispatch 函数 → 过度工程，`return 1` 是 `_gate_check_l3` 已有的"L3 not done → caller dispatches"合约（line 406 已有 `return 1`，caller `_gate_phase_transition:463-464` 用 `|| _gate_do_transition` 消费）
+- **决策**：else 分支增加 auto_advance 检测：`auto_advance=true` 时 `return 1` 触发 `_gate_do_transition`（dispatch-then-block），替代 `exit 2`（hard-block without dispatch）
+- **备选**：L2 同款 `return 0`（真正 fire-and-forget）→ 不可行——L3 必须 writing .done 后才能 transition，不能无声放行
 - **理由**：
-  - `_gate_check_l2:290-302` 已有 auto_advance 非阻塞模式（派发 Agent + return 0）
-  - `_gate_check_l3:406` 已用 `return 1` 表示"L3 not done"，caller 以 `|| _gate_do_transition` 处理
-  - 无需新增退出码或函数——复用现有合约即可
-  - 代码变更：在 else 分支 `exit 2` 之前插入 auto_advance 检测（读 `.flow-active.goal.auto_advance`），true 则 `echo >&2` + `return 1`
-- **代价**：auto_advance=true 时 L2 agent 可能尚未写完 L2 段，`_gate_check_l3` 会走到 else 分支；此时 `return 1` 触发 `_gate_do_transition`，输出"L3 未完成"提示但不阻塞 transition——与 L2 auto_advance 的 fire-and-forget 语义一致
+  - `exit 2` 是静默拒绝（无 dispatch 指引）；`return 1 → _gate_do_transition` 在拒绝的同时输出 L3 dispatch 命令，方便 agent 补跑
+  - 与 `_gate_check_l3:406` 的 `return 1` 合约一致（caller `_gate_phase_transition:463-464` 用 `|| _gate_do_transition` 消费）
+  - 行为本质是 dispatch-then-block（非 fire-and-forget）：`_gate_do_transition:416-437` 最终 `exit 2` 仍会拒绝 transition，但提供了可操作的 L3 dispatch 指引
+- **代码变更**：在 else 分支 `exit 2` 之前插入 auto_advance 检测（读 `.flow-active.goal.auto_advance`），true 则 `echo >&2` + `return 1`
+- **代价**：auto_advance=true 时 L2 agent 尚未写完 L2 段，`_gate_check_l3` 走到 else 分支；`return 1 → _gate_do_transition → exit 2` 仍阻塞 transition，但提供 dispatch 指引供 agent 补跑 L3
 
 ### D6 · 测试修复策略
 

@@ -71,3 +71,112 @@
 ---
 
 **Verdict**: fail
+
+---
+
+## L2 盲审（复审）
+
+> 复审目标：验证 TEST.md 第 6 节对初审查 R1-R9 的回应是否充分解决各发现。
+
+### 🔴 RR1 · R1 声称已修复但证据链断裂：Section 3 与 Section 6 内部矛盾 + 无 raw bats 输出
+
+**Symptom**：TEST.md Section 3（全量回归测试，行 89）仍保留 "已完成 1 次。建议在 commit 前补跑 2 次。" 但 Section 6 R1 回应（行 165-168）声称 Run 1/2/3 全部完成，每次 "62 pre-existing failures, 0 new"。
+
+**Source**：初审查 R1 的 Remedy 明确要求 "将结果追加到 TEST.md 的 3. 全量回归测试 段"。Section 3 未被更新，仍在声明 1/3 —— 与 Section 6 的 3/3 声明矛盾。
+
+**Consequence**：同一份 TEST.md 的两个不同段落对 AC-NF2 的完成状态给出了相互矛盾的声明。读者无法确定哪个段落是准确的。若 Section 3 为真（1/3），则 R1 未修复；若 Section 6 为真（3/3），则 Section 3 是过期数据，TEST.md 维护质量存疑。此外，三次运行均报告完全相同的 "62 pre-existing failures"，无时间戳、无 raw bats 摘要行（如 `1..1128` / `ok N ...` 截取），无法证明 Run 2 和 Run 3 是独立执行而非同一结果重复引用。
+
+**Remedy**：
+1. 从 Section 3 中删除 "已完成 1 次" 的过期声明，替换为三次运行的汇总（含每次的 bats 版本行、测试计数行、failures 行）。
+2. 至少附上一次 raw bats 输出的首尾 20 行（含 `1..N` 和最终 summary），作为 AC-NF2 满足的可审计证据。
+3. 若 Run 2/3 确实未执行，如实标注 AC-NF2 当前状态。
+
+### 🔴 RR2 · R2 "不适用" 回应为 blanket dismissal，未逐轮评估原审建议方案
+
+**Symptom**：TEST.md Section 6 R2 回应（行 172-178）对性能/安全/兼容/可观测四轮统一给出 "不适用（Bash 项目）"，未逐轮说明为何不适用，也未尝试原审中给出的具体建议方案。
+
+**Source**：初审查 R2 的 Remedy 给出了明确的、逐轮的最低要求方案：
+- 性能轮：`strace -e trace=execve -c` 或 `bash -x` 调用计数（AC-NF3 的 jq 调用不增加验证）—— 这是 Linux 原生工具，无需 "测试框架"
+- 安全轮：非法 gate_val 注入测试（AC-12 `""` 回退路径）、mktemp 竞态窗口测试
+- 兼容轮：Bash 版本范围文档化
+- 可观测轮：timeout/error 路径日志格式验证（AC-8 CRITICAL/UNEXPECTED）
+
+TEST.md 的回应未提及这些建议中的任何一项，而是用 "Bash 脚本无性能测试框架" 一笔带过——这与 AC-NF3 要求的 jq 调用计数可被 `bash -x 2>&1 | grep -c 'exec.*jq'` 验证的事实矛盾。
+
+**Consequence**：AC-NF3（jq 调用不增加）和 AC-8（CRITICAL/UNEXPECTED 日志）的验证依赖纯手工代码审查断言，无任何自动化回归保护。若未来有人修改 `_l3_write_done` 的 case 语句引入错误的日志字符串，或向共享函数添加 jq 调用，CI 中无测试会捕获。mktemp 竞态条件虽然在本次 change 中被修复，但无测试验证修复后的 mktemp 路径（包括 trap cleanup）行为正确。
+
+**Remedy**：
+1. 逐轮填写 5 轮金字塔（可新增 TEST.md 第 7 节），每轮至少包含：该轮是否适用于本项目、若不适用给出具体技术理由（非 "Bash 项目" 通用声明）、若适用给出最低覆盖方案。
+2. 性能轮：至少给出 `bash -x` jq 调用计数的 1 次实际执行结果（或明确标注 "通过 code review 保证"，并将 AC-NF3 在 REQUIREMENT.md 中降级为设计约束而非测试 AC）。
+3. 安全轮：至少验证 AC-12 `""` 回退路径（即 `fk_normalize_gate_val "garbage"` → `""` → gate 不触发）在至少一个 gate 测试中的行为；标注 mktemp 竞态为 "已知限制（需并发构造，触发概率极低）"。
+4. 可观测轮：至少验证 AC-8 rc=3 路径输出 "CRITICAL" 且在 stdout/stderr 中可见。
+
+### 🔴 RR3 · R3 未修复：测试矩阵中 AC-7 仍标注 "✅ 间接覆盖"，实际仍为零覆盖
+
+**Symptom**：TEST.md 测试矩阵行 17（Section 1）仍然显示 "AC-7 | (source-level) | ... | ✅ 间接覆盖"。Section 6 R3 回应（行 180-186）承认 mkdir -p "在 bats 环境中确实未被直接测试"，但未修改测试矩阵中的覆盖声明。
+
+**Source**：初审查 R3 的 Remedy 给出两个选项：(a) 新增 bats 测试显式构造无目录场景 或 (b) "将该 AC 标注为 '⚠️ 未覆盖' 并在已知限制中说明原因"。TEST.md 选择了类似 (b) 的路径（在 Section 5 "未覆盖" 中注明），但 Section 1 测试矩阵中的 "✅ 间接覆盖" 标签从未更新。
+
+此外，Section 6 中 "bats 无法构造'目录不存在'场景" 的论证不成立：bats 的 setup() 创建目录，但单个测试函数可以在调用被测函数前执行 `rm -rf "$specs_dir"` 销毁该目录，然后断言 `mkdir -p` 被执行且目录被重建。
+
+**Consequence**：测试矩阵作为 AC 覆盖状态的一览表，是第一眼被阅读的段落。"✅ 间接覆盖" 向读者传达 "该 AC 已被测试"，而 Section 5 和 Section 6 承认并非如此。两个段落的矛盾使测试报告的可靠性受损。若未来的变更者只看测试矩阵而不读 Section 5/6，会错误地认为 mkdir -p 受到回归保护，从而可能在重构时删除该行而不被测试捕获。
+
+**Remedy**：
+1. 将测试矩阵行 17 的 AC-7 覆盖状态从 "✅ 间接覆盖" 改为 "⚠️ 未覆盖（bats setup 已创建目录，见已知限制）"。
+2. 或者：在 AC-7 对应的 bats 测试中新增 `rm -rf "$specs_dir"` + 调用被测函数 + 断言 `[ -d "$specs_dir" ]` 的步骤，使其从零覆盖变为真覆盖。
+
+### 🟡 RR4 · R4-R7 全部延期至 v2 但测试矩阵中的覆盖标签未做降级标注
+
+**Symptom**：TEST.md Section 6 R4-R7 回应（行 188-190）将 AC-8 rc=3/default 分支、AC-11 fallback 路径、AC-6/10/13 pre-existing 覆盖问题统一标注为 "已知限制，v2 处理"。但 Section 1 测试矩阵中这些 AC 仍标记为 "✅ pre-existing" 或 "✅ 间接覆盖"，未附加任何 "⚠️ 部分覆盖" 或 "v2" 限定。
+
+**Source**：初审查 R4 的 Remedy 明确给出两个选项：新增测试 或 "标注 rc=3/default 为 '⚠️ 未覆盖（需 mock 写失败，v2）'"。TEST.md 选择了延期，但未执行第二步（更新测试矩阵标签）。
+
+**Consequence**：与 RR3 相同——测试矩阵传达了比实际情况更乐观的覆盖状态。具体地：
+- AC-8 行 18：4 个 case 分支仅覆盖 1 个（rc=1），标注 "✅ pre-existing" 但实际为 25% 分支覆盖。
+- AC-11 行 21：fallback 路径完全未覆盖，标注 "✅ pre-existing" 但 pre-existing 测试验证的是无关的 git ls-files 行为。
+- AC-6 行 16、AC-10 行 20、AC-13 行 23：未提供 pre-existing 测试是否经修改以适配新行为的证据。
+
+**Remedy**：对每个延期至 v2 的覆盖缺口，在测试矩阵对应行的 "结果" 列增加限定语，例如：
+- AC-8: "⚠️ 1/4 分支覆盖（rc=3/default → v2）"
+- AC-11: "⚠️ 未覆盖（fallback 路径 → v2）"
+- AC-6/10/13: "⚠️ 依赖 pre-existing（等价性未论证 → v2）"
+
+### 🟡 RR5 · R8 AC 编号歧义与 R9 UAT 静态化未做任何处理
+
+**Symptom**：TEST.md Section 1 测试矩阵 "测试用例" 列仍使用无前缀的 "AC-1"（行 14）、"AC-9"（行 16）、"AC-5"（行 18）、"AC-3"（行 20）、"AC-1"（行 21），与 REQUIREMENT.md 的 AC-1 至 AC-13 编号体系冲突。Section 6 对此未作任何回应。Section 4 UAT 脚本仍为纯 grep/bash -n 静态分析，未补充端到端行为验证。
+
+**Source**：初审查 R8（Minor）要求加文件前缀（如 `test_l3_review.bats:AC-1`），R9（Minor）建议降级 grep UAT 为 checklist 或补充端到端场景。
+
+**Consequence**：两个 Minor 问题持续存在。R8 导致读者在阅读测试矩阵时无法区分内部测试编号与需求 AC 编号，影响可审计性。R9 导致 UAT-1/UAT-4 作为 "可执行 UAT" 名不副实——它们是静态代码扫描脚本，不验证运行时行为。
+
+**Remedy**：
+1. R8：测试矩阵 "测试用例" 列中 "AC-N" 引用加文件名前缀（如 `test_l3_review.bats:AC-5`），或新增一列 "测试文件内编号" 以消除歧义。
+2. R9：将 UAT-1 和 UAT-4 移至独立的 "静态验证 Checklist" 节，UAT 节仅保留 UAT-2（归类为语法验证）和 UAT-3（bats 行为测试）。
+
+### 🟢 RR6 · Section 5 "未覆盖" 列表与 Section 6 已知限制声明不一致
+
+**Symptom**：TEST.md Section 5（覆盖率回顾）"未覆盖（已知限制，v2）" 列仅含 3 项：mktemp 并发竞态、auto_advance=true 端到端、3 次连续 bats（AC-NF2 1/3）。但 Section 6 实际上承认了更多未覆盖项：AC-8 rc=3/default、AC-11 fallback、AC-6/10/13 pre-existing 等价性、AC-7 mkdir -p——这些在 Section 5 中未出现。
+
+**Source**：Section 5 与 Section 6 由不同时间点的编辑产生，未做交叉一致性检查。
+
+**Consequence**：Section 5 作为汇总性的 "覆盖率回顾"，低估了实际未覆盖范围。依赖 Section 5 做决策的读者会遗漏 5 个已知覆盖缺口。
+
+**Remedy**：将 Section 5 "未覆盖" 列表扩展为与 Section 6 一致的完整清单（AC-7、AC-8 rc=3/default、AC-11 fallback、AC-6/10/13 pre-existing、mktemp 竞态、auto_advance E2E），或让 Section 5 明确引用 Section 6 作为详细说明。
+
+---
+
+### 复审结论
+
+三个初审查 Critical 发现的状态：
+
+| 发现 | 初审查状态 | 复审状态 | 说明 |
+|------|-----------|---------|------|
+| R1 (AC-NF2 3次bats) | 仅 1/3 | 声称 3/3，但证据链断裂 | Section 3/6 数据矛盾，无 raw 输出佐证 |
+| R2 (5轮金字塔) | 完全缺失 | 未修复 | 以 "不适用" 统一驳回，未逐轮评估原审方案 |
+| R3 (AC-7 假覆盖) | "间接覆盖"=零覆盖 | 未修复 | 矩阵标签未改，论证(bats无法构造目录)不成立 |
+
+五个 Major 发现（R4-R7 + RR1-RR6 中的新 Major）中：R4-R7 全部延期至 v2（可接受但需更新标签），RR1 为新发现的文档矛盾，RR2 为 R2 的深化——Response 质量本身构成新的 Critical 问题。
+
+**Verdict**: fail
+
+> 通过条件：修复 RR1（消除 Section 3/6 矛盾并附 raw bats 证据）+ RR3（测试矩阵 AC-7 标签更正或真覆盖）+ RR2（逐轮填写 5 轮金字塔并至少执行 AC-NF3 jq 计数验证）。其余 Major/Minor 可在 v2 处理但需在测试矩阵中明确标注未覆盖范围。

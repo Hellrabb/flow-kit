@@ -8,7 +8,7 @@
 ## 波次划分
 
 ```
-Wave 1 (parallel): T01[P], T02[P]     ← 共享函数 + 低风险独立修复
+Wave 1: T01[P] → T02 (depends on T01, shared write_files)
 Wave 2 (parallel): T03[P], T04[P]     ← L3 核心修复 + L2 竞态修复
 Wave 3 (parallel): T05[P], T06[P]     ← Gate 逻辑修复 + DRY 迁移
 Wave 4 (parallel): T07[P], T08[P]     ← 测试修复（依赖 Wave 1-3 源码改动）
@@ -47,7 +47,7 @@ Wave 5:            T09                ← 全量测试验证 + 打包
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true">
+<task id="T02">
   <name>新增 fk_extract_l2_verdict() 共享函数 + 3 consumer 迁移</name>
   <read_files>
     flow-kit-bundle/hooks/stop/lib/l2-detect.sh
@@ -75,7 +75,7 @@ Wave 5:            T09                ← 全量测试验证 + 打包
   </action>
   <verify>grep -rn 'fk_extract_l2_verdict' flow-kit-bundle/hooks/ | wc -l | xargs test 3 -le</verify>
   <done>≥3 处调用 fk_extract_l2_verdict()；旧 grep 链消除；heading fallback 可用</done>
-  <depends_on></depends_on>
+  <depends_on>T01</depends_on>
 </task>
 
 <task id="T03" parallel="true">
@@ -182,7 +182,7 @@ Wave 5:            T09                ← 全量测试验证 + 打包
   </action>
   <verify>grep -c 'fk_phase_gate_key' flow-kit-bundle/hooks/stop/lib/done-validation.sh</verify>
   <done>done-validation.sh 使用 fk_phase_gate_key() 替代内联 case；旧 case 消除</done>
-  <depends_on></depends_on>
+  <depends_on>T02</depends_on>
 </task>
 
 <task id="T07" parallel="true">
