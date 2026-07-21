@@ -266,6 +266,22 @@ fk_phase_gate_key() {
   esac
 }
 
+# fk_normalize_gate_val — gate_config value normalizer（ADR-007 / D1 · gate-review-fix）
+# Single source for gate_val normalization across 4 consumers (3 files).
+# Normalization rules:
+#   independent|true → both   (backward-compat aliases)
+#   L2|L3|both        → keep  (passthrough valid values)
+#   other/empty       → ""    (unknown → treat as off)
+# 用法: gate_val="$(fk_normalize_gate_val "$raw_val")"
+fk_normalize_gate_val() {
+  local raw="${1:-}"
+  case "$raw" in
+    independent|true) echo "both" ;;
+    L2|L3|both) echo "$raw" ;;
+    *) echo "" ;;
+  esac
+}
+
 # ══ Token 估算 + 性能计时基础设施（l3-pipeline-fix-2026-07） ══
 
 # fk_estimate_tokens — 轻量 token 估算（字符数 / 2 ≈ token 数 · 中文保守估算）

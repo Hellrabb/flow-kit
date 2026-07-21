@@ -130,11 +130,7 @@ _l3_scan_backlog "$flow_file" "$spec_dir" "$l3_lib"
 	phase_name="$(fk_phase_gate_key "$phase")"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
-case "$gate_val" in
-  independent|true) gate_val="both" ;;
-  L2|L3|both) ;;
-  *) gate_val="" ;;
-esac
+gate_val="$(fk_normalize_gate_val "$gate_val")"
 
 if [[ "$gate_val" == "both" ]]; then
   l2_lib="${HOOK_BASE_DIR}/lib/l2-detect.sh"
@@ -169,16 +165,11 @@ review_md="${spec_dir}/INDEPENDENT-REVIEW-${phase}.md"
 	phase_name="$(fk_phase_gate_key "$phase")"
 gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
-# 值标准化映射（与 done-validation.sh 保持一致）
-case "$gate_val" in
-  independent|true) gate_val="both" ;;
-  L2|L3|both) ;;  # 合法值保持
-  *) gate_val="" ;;  # 未知值视为未开启
-esac
+	gate_val="$(fk_normalize_gate_val "$gate_val")"
 
 l2_verdict="fail"  # 默认 fail（保守，both 模式 L2 未完成时）
 if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
-  l2v_extracted=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
+  l2v_extracted="$(fk_extract_l2_verdict "$review_md")" || true
   [ -n "$l2v_extracted" ] && l2_verdict="$l2v_extracted"
 elif [[ "$gate_val" == "L3" ]]; then
   l2_verdict="skipped"  # L3-only: L2 是刻意不跑，非失败

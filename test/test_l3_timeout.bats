@@ -19,12 +19,17 @@ setup() {
   WORKSPACE="$(mktemp -d)"
   mkdir -p "${WORKSPACE}/.specs/test-change"
 
+  # AC-1: Create REQUIREMENT.md fixture so _l3_build_prompt doesn't exit early (return 3)
+  echo "# Test Requirement" > "${WORKSPACE}/.specs/test-change/REQUIREMENT.md"
+
   # Save original curl path
   ORIG_CURL="$(command -v curl)"
 
   # Stub curl function
   stub_curl() {
     local _exit_code="$1" _response="$2"
+    # AC-1: Mark that curl was called (real coverage verification)
+    touch "${WORKSPACE}/.curl_called"
     eval "curl() { echo '${_response}'; return ${_exit_code}; }"
     export -f curl
   }
@@ -58,6 +63,12 @@ teardown() {
     skip "l3_review_run not available (l3-review.sh not sourceable in test env)"
   fi
 
+  # AC-1: Verify curl stub was actually called (real coverage, not early exit)
+  if [ ! -f "${WORKSPACE}/.curl_called" ]; then
+    echo "FAIL: curl stub not called — test not reaching _l3_call_api (early exit before curl?)"
+    false
+  fi
+
   # On timeout: function should return non-zero
   # .done should NOT be written (safe-write logic)
   if [ -f "$done_marker" ]; then
@@ -78,6 +89,12 @@ teardown() {
     run l3_review_run 1 "test-change" "${WORKSPACE}/.specs/test-change" "pass" "5" "both"
   else
     skip "l3_review_run not available"
+  fi
+
+  # AC-1: Verify curl stub was actually called
+  if [ ! -f "${WORKSPACE}/.curl_called" ]; then
+    echo "FAIL: curl stub not called — test not reaching _l3_call_api"
+    false
   fi
 
   if [ -f "$done_marker" ]; then

@@ -264,7 +264,7 @@ _l3_build_prompt() {
     6)
       local project_root="$(dirname "$(dirname "$artifacts_dir")")"
       # source common.sh for fk_estimate_tokens (fail-open)
-      local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/lib/common.sh"
+      local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/common.sh"
       [ -f "$_common_lib" ] && source "$_common_lib" 2>/dev/null || true
       local _new_limit=$((max_chars / 4))
       artifact=$(cd "$project_root" && {
@@ -456,9 +456,12 @@ _l3_parse_result() {
     section_title="## L3 盲审（${model} 外部模型 · ${ts}）"
   fi
   # ── 原子写入 L3 段（tmp + mv 防主 agent Edit 竞态）──
-  local tmp_review="${review_md}.tmp.$$"
+  local tmp_review
+  tmp_review="$(mktemp "${review_md}.tmp.XXXXXX")"
   if [ -f "$review_md" ]; then
-    cat "$review_md" > "$tmp_review" 2>/dev/null || true
+    # AC-3: 删除旧 L3 段（去重后再追加新段，文件中仅保留 1 个 L3 段）
+    # 用 awk 替代 sed：正确处理连续 ## L3 盲审 + ## L3 重审 段（R1 fix）
+    awk '/^## L3 (盲审|重审)/ { skip=1; next } /^## / && skip { skip=0 } !skip' "$review_md" > "$tmp_review" 2>/dev/null || cat "$review_md" > "$tmp_review" 2>/dev/null || true
   fi
   # ADR-010 D4·J：artifact hash 元数据（审后追加 · 供 _l3_check_rerun 内容标记判定 · 不触 .done）
   local artifact_file=""
@@ -666,8 +669,15 @@ l3_review_run() {
   l3_summary=$(echo "$l3_output" | grep "^SUMMARY=" | cut -d= -f2-)
 
   # Step 4: 写入 .done（含 D3 both 检查）
+  local _write_rc=0
   _l3_write_done "$phase" "$change_id" "$l3_verdict" "$l3_summary" \
-    "$l2_verdict" "$artifacts_dir" "$gate_config_value" || true
+    "$l2_verdict" "$artifacts_dir" "$gate_config_value" || _write_rc=$?
+  case $_write_rc in
+    0) ;;  # success — .done written
+    1) echo "[l3-review] verdict non-pass, .done not written" >&2 ;;
+    3) echo "[l3-review] CRITICAL: .done write failed" >&2; return 3 ;;
+    *) echo "[l3-review] UNEXPECTED: _l3_write_done rc=$_write_rc" >&2; return $_write_rc ;;
+  esac
 
   # 返回 verdict 对应的 exit code
   case "$l3_verdict" in
@@ -752,7 +762,7 @@ l3_dispatch_prompt() {
   if [[ "$gate_val" == "both" ]]; then
     local review_md="${specs_dir}/INDEPENDENT-REVIEW-${phase}.md"
     if [ -f "$review_md" ]; then
-      l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+      l2v="$(fk_extract_l2_verdict "$review_md")"
       [ -n "$l2v" ] || l2v="fail"
     else
       l2v="fail"

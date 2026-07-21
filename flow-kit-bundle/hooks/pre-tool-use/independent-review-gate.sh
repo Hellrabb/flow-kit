@@ -202,13 +202,9 @@ EOF
 # stdout: PHASE=<v>\nCHANGE_ID=<v> ；return 0=skip(not review phase), 1=continue
 _gate_phase_filter() {
   local flow_file="$1"
-  local scope phase change_id
-  scope=$(jq -r '.goal.scope // ""' "$flow_file" 2>/dev/null || echo "")
-  if [[ "$scope" == "pipeline" ]]; then
-    phase=$(jq -r '.goal.current_phase // "?"' "$flow_file" 2>/dev/null || echo "?")
-  else
-    phase=$(jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
-  fi
+  local change_id phase
+  # AC-10: 使用 fk_resolve_phase 替代内联 pipeline scope 检测（含 phase [0-7] 值域校验 + 无效时回退 .phase）
+  phase=$(fk_resolve_phase 2>/dev/null || echo "?")
   change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
   echo "PHASE=${phase}"
   echo "CHANGE_ID=${change_id}"
@@ -371,7 +367,18 @@ _gate_check_l3() {
   elif [[ -z "$gate_val" ]]; then
     exit 0   # 修 BUG-D：gate_val 空（该 phase 未配 gate）→ 放行（旧 else exit 2 误拦未配 gate 的 phase）
   else
-    # gate_val=both/L2 但 review_md 无 L2 段 — _gate_check_l2 应已拦截，到此为异常状态
+    # gate_val=both/L2 但 review_md 无 L2 段
+    # AC-6: auto_advance 检测 — 不阻塞 transition（对齐 _gate_check_l2:290-302 fire-and-forget 语义）
+    local flow_file="${cwd}/.flow-active"
+    local auto_advance
+    auto_advance=$(jq -r '.goal.auto_advance // false' "$flow_file" 2>/dev/null || echo "false")
+    if [[ "$auto_advance" == "true" ]]; then
+      cat >&2 <<EOF
+[l3-gate] auto_advance: L2 section missing for phase ${phase} (gate_config=${gate_val}), not blocking.
+   _gate_check_l2 should have intercepted this. L3 dispatch will proceed via return 1 → _gate_do_transition.
+EOF
+      return 1  # AC-6: 触发 || _gate_do_transition（与 line 406 return 1 合约一致）
+    fi
     cat >&2 <<EOF
 ⛔ 独立 review gate（phase ${phase}）：状态异常 — gate_config=${gate_val} 但 ${review_md} 缺 L2 盲审段。
    _gate_check_l2 应已拦截。请检查 hook 调用顺序或 INDEPENDENT-REVIEW-${phase}.md 完整性。
@@ -418,7 +425,7 @@ _gate_do_transition() {
   fi
   local l2v="skipped"
   if [[ "$gate_val" == "both" ]]; then
-    l2v=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
+    l2v="$(fk_extract_l2_verdict "$review_md")"
     [ -n "$l2v" ] || l2v="fail"
   fi
   cat >&2 <<EOF
@@ -453,7 +460,7 @@ EOF
   local phase_name="$(fk_phase_gate_key "$phase")"
   local gate_val
   gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
-  case "$gate_val" in independent|true) gate_val="both" ;; L2|L3|both) ;; *) gate_val="" ;; esac
+  gate_val="$(fk_normalize_gate_val "$gate_val")"
 
   local review_md="${cwd}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
   local done_marker="${cwd}/.specs/${change_id}/.independent-review-${phase}.done"
