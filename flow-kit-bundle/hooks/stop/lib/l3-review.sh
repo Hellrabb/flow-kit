@@ -32,6 +32,11 @@
 
 set -euo pipefail
 
+# Source l2-detect.sh for fk_extract_l2_verdict（gate-review-fix: l3_dispatch_prompt consumer）
+local _l3r_dir
+_l3r_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$_l3r_dir/l2-detect.sh" ] && source "$_l3r_dir/l2-detect.sh" 2>/dev/null || true
+
 # ── _l3_format_result() · L3 反馈统一格式化 ──
 # 用法: _l3_format_result <verdict> <summary> <report_relative_path>
 # 输出: 单行 L3_RESULT: 格式，供 F1(PreToolUse stdout) 和 F2(SessionStart banner) 共用

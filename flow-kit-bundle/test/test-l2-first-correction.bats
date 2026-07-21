@@ -11,7 +11,9 @@
 
 setup() {
   TEST_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-  REAL_PROJECT_ROOT="$(cd "$TEST_ROOT/.." && pwd)"
+  local d="$TEST_ROOT"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do d="$(dirname "$d")"; done
+  REAL_PROJECT_ROOT="$d"
   HOOK_29="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/29-independent-review.sh"
   TMP_DIR="$BATS_TMPDIR/l2-first-test-$$"
   mkdir -p "$TMP_DIR/.specs/test-change" "$TMP_DIR/hook-tmp" "$TMP_DIR/.claude"

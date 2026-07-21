@@ -250,15 +250,24 @@ EOF
 # AC-5: 跨阶段一致性 — phase_name mapping intact
 # ═══════════════════════════════════════════════════════════════════════
 
-@test "AC-5: done-validation.sh phase_name mapping covers {1,2,3,5,6,7}" {
+@test "AC-5: done-validation.sh uses fk_phase_gate_key() (gate-review-fix: inline case→shared fn)" {
   local fk_root
   fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
   done_val="$fk_root/hooks/stop/lib/done-validation.sh"
+  common_sh="$fk_root/hooks/stop/lib/common.sh"
 
+  # done-validation.sh 应调用 fk_phase_gate_key（不再内联 phase_name 映射）
+  run grep -q 'fk_phase_gate_key' "$done_val" 2>/dev/null
+  if [ $status -ne 0 ]; then
+    echo "FAIL: done-validation.sh should call fk_phase_gate_key() (not inline case)"
+    false
+  fi
+
+  # common.sh 的 fk_phase_gate_key 覆盖全部 6 个 phase
   for phase_name in "1-requirement" "2-design" "3-task" "5-test" "6-review" "7-integration"; do
-    run grep -q "\"$phase_name\"" "$done_val" 2>/dev/null
+    run grep -q "\"$phase_name\"" "$common_sh" 2>/dev/null
     if [ $status -ne 0 ]; then
-      echo "FAIL: done-validation.sh missing phase_name=$phase_name"
+      echo "FAIL: common.sh fk_phase_gate_key missing phase_name=$phase_name"
       false
     fi
   done

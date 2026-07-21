@@ -15,7 +15,13 @@
 
 setup() {
   TEST_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-  REAL_PROJECT_ROOT="$(cd "$TEST_ROOT/.." && pwd)"
+
+  # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录（修复 double flow-kit-bundle/ 路径 bug）
+  local d="$TEST_ROOT"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d="$(dirname "$d")"
+  done
+  REAL_PROJECT_ROOT="$d"
   GATE_SH="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh"
   TMP_DIR="$BATS_TMPDIR/is-git-commit-test-$$"
   mkdir -p "$TMP_DIR/.specs/test-change"

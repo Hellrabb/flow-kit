@@ -13,7 +13,9 @@
 
 setup() {
   TEST_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-  REAL_PROJECT_ROOT="$(cd "$TEST_ROOT/.." && pwd)"
+  local d="$TEST_ROOT"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do d="$(dirname "$d")"; done
+  REAL_PROJECT_ROOT="$d"
   L3_REVIEW="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib/l3-review.sh"
   TMP_DIR="$BATS_TMPDIR/l3-rerun-test-$$"
   mkdir -p "$TMP_DIR/.specs/c"
