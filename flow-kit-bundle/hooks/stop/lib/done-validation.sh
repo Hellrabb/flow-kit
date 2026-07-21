@@ -8,6 +8,11 @@
 # Provides: fk_independent_review_gate_active, _fk_done_kvp, fk_validate_done_marker
 
 # NOTE: Does NOT set -euo pipefail — this is a library, sourced by callers.
+
+# Source l2-detect.sh for fk_extract_l2_verdict（gate-review-fix: Tier4 cross-reference）
+local _dv_dir
+_dv_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$_dv_dir/l2-detect.sh" ] && source "$_dv_dir/l2-detect.sh" 2>/dev/null || true
 # Callers are responsible for shell flags.
 
 : "${MIN_MEANINGFUL_LINES:=6}"   # 阈值: 6 键 .done (phase/change_id/written_by/L2_verdict/L3_verdict/artifacts) 至少 6 行
