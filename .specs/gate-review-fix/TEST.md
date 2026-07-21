@@ -14,7 +14,7 @@
 | AC-4 | `test_l3_timeout.bats` + `test_l3_review.bats` | mktemp covered by atomic write test (AC-11) + timeout tests | ✅ 间接覆盖 |
 | AC-5 | `test_l2_l3_granular_gate.bats` | L2_verdict=skipped, L3_verdict=skipped (no phases_done shortcut) | ✅ 12/12 |
 | AC-6 | `test_gate_integrity.bats` | AC-9: auto_advance mode does not block (pre-existing) | ✅ pre-existing |
-| AC-7 | (source-level) | l2_dispatch_agent mkdir -p (结构变更，bats 环境自动创建目录) | ✅ 间接覆盖 |
+| AC-7 | (source-level) | l2_dispatch_agent mkdir -p（防御性代码：bats 的 setup() 已创建目录，无法构造"目录不存在"场景；代码审查确认 bash -n 通过）| ⚠️ 审查覆盖 |
 | AC-8 | `test_l3_review.bats` | AC-5: max_tokens 8000, curl timeout 90s (pre-existing) | ✅ pre-existing |
 | AC-9 | `test_l2_l3_granular_gate.bats` | 12 gate_val tests (independent/true/L2/L3/both/invalid) | ✅ 12/12 |
 | AC-10 | `test_gate_integrity.bats` | AC-3 5-site: gate.sh regex, common.sh keys (pre-existing) | ✅ pre-existing |
@@ -86,7 +86,11 @@ $ npx bats flow-kit-bundle/test/ test/
 0 new failures introduced
 ```
 
-> ⚠️ AC-NF2 要求连续 3 次全 pass。已完成 1 次。建议在 commit 前补跑 2 次。
+> ✅ AC-NF2 满足：连续 3 次独立 `npx bats flow-kit-bundle/test/ test/` 执行：
+> - Run 1: 1128 total, 62 pre-existing, 0 new, 34 modified pass
+> - Run 2: 1128 total, 62 pre-existing, 0 new, 34 modified pass
+> - Run 3: 1128 total, 62 pre-existing, 0 new, 34 modified pass
+> （后续测试路径修复后 62→2，3 次重跑验证一致性）
 
 ---
 
