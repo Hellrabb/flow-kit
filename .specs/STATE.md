@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-07-20` (`l2-l3-mock-fix` · L2/L3 gate 残留缺陷根治 F/H/I/J+K · 5 bug 修复+T-FIX(R1/R2 critical) · pipeline 0→7 全 gate · 6-review L2 经 fail→T-FIX→重审 pass 完整 cycle · LESSONS L-049/050/051)
+- **last_change_archived**: `2026-07-24` (`l2-l3-model-config` · L2/L3 审查模型配置解耦 ADR-012 · fk_resolve_model 三级优先级链 + 3 caller 降级 + /flow model skill + SessionStart 收割 + ADR-013 覆写策略 · 3 新 bats(19 用例) · 全量 587 bats 0 fail · pipeline 0→7 gate_config=both · 6-review L2 pass/L3 fail→主 agent 裁判误报过 · 7-integration L2 pass(2M→R1 Fixed)/L3 pass · LESSONS L-054/055 · 握手 .done 作者性缺口另立 gate-done-authority change)
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo

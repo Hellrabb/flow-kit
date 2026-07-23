@@ -233,6 +233,28 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 4. 输出：`✅ gate_config[<phase>] = <value>。` + 当前完整 gate_config 摘要
 5. 副作用提示：开启某阶段后，进入/处于该阶段时，Stop hook `29-independent-review.sh` 会跑 L3，PreToolUse hook `independent-review-gate.sh` 会拦 commit / PR / 切阶段直到主 agent 写 `.specs/<id>/.independent-review-<phase>.done`（机制见 `@flow-kit/prompts/independent/L2-blind-review.md` 与各阶段 prompt 的「独立 review 调度」段）
 
+### `/flow model`
+配置 L2/L3 审查模型（跨平台兼容，l2-l3-model-config ADR-012）。读 / 写 `.flow-active.goal.l2_model` / `l3_model`（可选字段）。动作：
+1. 检查 `.flow-active` 存在 + `.goal` 非 null
+2. 解析参数：
+   - 无参数 → 显示当前 L2/L3 模型配置（jq 格式化 `.goal.l2_model` / `.goal.l3_model`，并提示优先级链）
+   - `l2=<model>` → 设置 L2 模型
+   - `l3=<model>` → 设置 L3 模型
+   - `l2=<m> l3=<m>` → 同时设置
+   - `--clear l2` / `--clear l3` → 清除（回到 env var / 降级）
+3. 原子写（jq `--arg` 防注入 + 临时文件 mv，bracket 引用见 LESSONS L-011）：
+   ```bash
+   # 设置：/flow model l3=deepseek-v4-flash
+   jq --arg m "deepseek-v4-flash" --arg ts "$(date -Iseconds)" \
+     '.goal.l3_model = $m | .updated_at = $ts' \
+     .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+   # 清除：/flow model --clear l3 → .goal.l3_model = null
+   # 合并：/flow model l2=<m> l3=<m> → 同一次 jq 设两个字段
+   ```
+4. 输出：`✅ model[l3] = <value>。` + 当前 L2/L3 配置摘要
+5. **优先级链提示**：解析顺序 `ANTHROPIC_*` env var > `FLOW_KIT_*` env var > `.flow-active.goal.l*_model` > 降级。env var 优先；此处设置的是持久化兜底。
+6. **字段边界**：仅写 `.goal.l2_model` / `.goal.l3_model`，**不触碰** `.goal.condition` / `gates` / `gate_config` 等 `/flow goal` 字段（平行配置维度，DESIGN §5）。
+
 ### 自动 checkpoint（PreToolUse hook）
 
 **无需手动操作**。每当 AI 调用 Write 或 Edit 工具前，`auto-checkpoint.sh` PreToolUse hook 自动更新 `.flow-active` 的 `interrupt` 字段：

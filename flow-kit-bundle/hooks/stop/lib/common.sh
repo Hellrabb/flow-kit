@@ -236,6 +236,33 @@ fk_resolve_phase() {
   return 0
 }
 
+# ── fk_resolve_model() · L2/L3 model resolution (3-tier priority chain) ──
+# l2-l3-model-config (ADR-012, supersedes ADR-006)
+# Resolve the review model name for a layer via priority chain (each tier:
+# first non-empty wins, stop):
+#   L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .flow-active.goal.l3_model > ""
+#   L2: ANTHROPIC_L2_MODEL             > FLOW_KIT_L2_MODEL > .flow-active.goal.l2_model > ""
+# Usage: model=$(fk_resolve_model "L3")  or  model=$(fk_resolve_model "L2")
+# Pure query: writes nothing, calls no API, returns 0 always.
+# Empty stdout = all sources unconfigured → caller handles graceful degradation.
+# Uses ${PROJECT_ROOT:-} to survive `set -u` when PROJECT_ROOT unset (DESIGN §2 R5).
+fk_resolve_model() {
+  local layer="$1"
+  local model=""
+
+  if [[ "$layer" == "L3" ]]; then
+    model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
+    [[ -n "$model" ]] || model="${FLOW_KIT_L3_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l3_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+  elif [[ "$layer" == "L2" ]]; then
+    model="${ANTHROPIC_L2_MODEL:-}"
+    [[ -n "$model" ]] || model="${FLOW_KIT_L2_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l2_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+  fi
+
+  echo "$model"
+}
+
 # ── Hook module registry (single source of truth) ────────────────────
 # All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
 # Single source for install_hooks.sh, package-flow-kit.sh, and any

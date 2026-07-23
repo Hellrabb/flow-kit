@@ -78,6 +78,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | Phase Completion Self-Check (PCSC) | 阶段完成自检 — 每个阶段 prompt 中 Pipeline Toll-Gate 之前的强制产物自检段。列出本阶段必产文件清单，逐项标记 ✅/❌。任一 ❌ → 禁止进入 toll-gate，要求先补齐。auto_advance=true 时仍执行，全 ✅ 自动 transition，有 ❌ 暂停告警 |
 | Phase Completion Gate (PCG) | GO.md 路由层的独立产物检查门禁。AI 请求进入 phase N+1 时，GO.md 检查 phase N 的必须产物是否存在于磁盘。缺失 → 拒绝路由，输出缺失清单。独立于 prompt 指令，AI 无法绕过 |
 | artifact verification | 产物存在性验证 — 在进入 toll-gate 或 transition 之前，检查对应阶段必须产出的文件是否已写入磁盘（如 `test -f .specs/<id>/TEST.md`）。双层防护（PCSC + PCG）的核心机制 |
+| fk_resolve_model | 公共函数（`hooks/stop/lib/common.sh`），按三级优先级链解析 L2/L3 审查模型名。用法：`model=$(fk_resolve_model "L3")`。全部未配置时返回空字符串（调用方负责降级） |
+| FLOW_KIT_L2_MODEL / FLOW_KIT_L3_MODEL | 新增 env var，用于临时覆盖 L2/L3 审查模型（优先级 2，介于 ANTHROPIC_* env var 和 .flow-active 配置字段之间） |
+| l2_model / l3_model | `.flow-active.goal` 的新增可选字段，持久化 L2/L3 审查模型名（优先级 3）。通过 `/flow model l2=<m> l3=<m>` 设置 |
+| model resolution priority chain | L2/L3 模型名的三级优先级解析策略：1. ANTHROPIC_* env var（CC 原生）→ 2. FLOW_KIT_* env var（临时覆盖）→ 3. .flow-active.goal.l*_model（持久化配置）→ 4. 空字符串（优雅降级）。每级取到非空值即停 |
+| graceful degradation (model) | fk_resolve_model 返回空字符串时的降级策略：不崩溃（不用 `:?` 终止），输出配置提示 + 写 `.flow-active.correction`（type=l*-model-missing），SessionStart 收割展示 banner |
 | brooks-tools | brooks-lint 依赖的 4 个外部 npm 工具的统称：depcheck（未使用依赖检测）、jscpd（代码重复检测）、knip（未使用文件/导出检测）、ts-prune（未使用 TS 导出检测）。以扁平 node_modules 自包含目录形式打包，离线安装到 `~/.claude/tools/brooks-lint/` |
 | npm pack | npm 原生命令，将包及其依赖打包为 .tgz。本项目中用于从 pnpm 全局安装中提取工具的完整依赖树，绕过 pnpm 虚拟存储的符号链接复杂性 |
 | shim（工具适配层）| 薄 wrapper 脚本，将 `~/.claude/tools/brooks-lint/` 下的真实可执行文件映射到 PATH 可见位置（`~/.local/bin/`），使 depcheck/jscpd/knip/ts-prune 可直接调用 |
