@@ -2,6 +2,9 @@
 flow-kit-bundle.tar.gz
 *.tar.gz
 
+# === 工具索引（机器本地生成，不入库） ===
+.codegraph/
+
 # === 敏感文件 ===
 .env
 .env.*
