@@ -86,3 +86,60 @@ correction_file_clear() {
   rm -f "$path"
   return 0
 }
+
+# ── Model-missing correction (l2-l3-model-config, ADR-012/013) ──────────
+# write_model_missing_correction <layer> — write a {type,layer,message} correction
+# when L2/L3 review model is unconfigured (graceful degradation marker).
+# compliance-priority (ADR-013): if current correction is `compliance` with
+# violations, do NOT overwrite (preserve safety info for non-CC users).
+# Atomic write: single jq conditional pass → mktemp tmp → mv. 单步 jq 消除
+# Check-Then-Act TOCTOU（DESIGN §4.1）；mktemp XXXXXX 消除 fixed-tmp-name race
+# （L2 phase 7 R1 修复，对齐 l2-detect.sh:143）。Schema distinct from 既有
+# `l2-missing` (= L2 盲审段缺失).
+write_model_missing_correction() {
+  local layer="$1"
+  local path="${PROJECT_ROOT:-}/.flow-active.correction"
+  local mtype message new_json
+  case "$layer" in
+    L3) mtype="l3-model-missing"; message="L3 审查模型未配置。设置：export FLOW_KIT_L3_MODEL=<模型> 或 /flow model l3=<模型>" ;;
+    L2) mtype="l2-model-missing"; message="L2 审查模型未配置。设置：export FLOW_KIT_L2_MODEL=<模型> 或 /flow model l2=<模型>" ;;
+    *) echo "[correction-file] ERROR: invalid layer '$layer' (expect L2|L3)" >&2; return 1 ;;
+  esac
+  new_json=$(jq -nc --arg t "$mtype" --arg l "$layer" --arg m "$message" \
+    '{type:$t, layer:$l, message:$m}')
+
+  if correction_file_exists "$path"; then
+    # Compliance-priority conditional write: single jq pass → mktemp tmp → mv.
+    # mktemp XXXXXX 消除 fixed-tmp-name race（并发会话/--background 异步路径互覆
+    # 对方半截 JSON）——对齐 l2-detect.sh:143 既有正确模式（gate-review-fix 教训）。
+    local tmp; tmp=$(mktemp "${path}.tmp.XXXXXX") || { echo "[correction-file] WARN: mktemp failed for model-missing" >&2; return 1; }
+    if jq --argjson new "$new_json" \
+        'if .type=="compliance" and ((.violations // []) | length > 0) then . else $new end' \
+        "$path" > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$path"
+    else
+      rm -f "$tmp"
+      echo "[correction-file] WARN: model-missing write failed (jq parse or IO)" >&2
+    fi
+  else
+    correction_file_write "$path" "$new_json" overwrite
+  fi
+}
+
+# write_model_missing_clear <layer> — clear the model-missing correction for a
+# layer (called on normal path when model is configured, AC-6 退场). Only
+# removes the file if current type matches (preserves compliance/l2-missing/other).
+write_model_missing_clear() {
+  local layer="$1"
+  local path="${PROJECT_ROOT:-}/.flow-active.correction"
+  [[ -f "$path" ]] || return 0
+  local mtype cur_type
+  case "$layer" in
+    L3) mtype="l3-model-missing" ;;
+    L2) mtype="l2-model-missing" ;;
+    *) return 1 ;;
+  esac
+  cur_type=$(jq -r '.type // ""' "$path" 2>/dev/null || echo "")
+  [[ "$cur_type" == "$mtype" ]] && rm -f "$path"
+  return 0
+}

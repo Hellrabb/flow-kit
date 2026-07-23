@@ -212,7 +212,15 @@ L2_PROMPT_EOF
 
   # ── API 调用（异步后台进程）────────────────────────────────────
   local base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
-  local model="${ANTHROPIC_L2_MODEL:-claude-sonnet-5}"
+  # 模型选择 — 三级优先级链（l2-l3-model-config ADR-012；移除既有 L2 fallback，纯跨平台）
+  type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
+  local model; model=$(fk_resolve_model "L2")
+  if [[ -z "$model" ]]; then
+    write_model_missing_correction "L2"
+    echo "[l2-detect] L2 模型未配置（三级链全空）。设置：export FLOW_KIT_L2_MODEL=<模型> 或 /flow model l2=<模型>" >&2
+    return 3   # API 调用之前 return（不发 dispatch）
+  fi
+  write_model_missing_clear "L2"   # 正常路径：清残留 model-missing（AC-6 退场）
 
   (
     local ai_response="" content="" http_code=0

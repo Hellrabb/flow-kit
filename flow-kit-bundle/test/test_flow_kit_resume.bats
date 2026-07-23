@@ -110,3 +110,60 @@ EOF
   # Banner should mention the pipeline or goal
   [[ "$output" =~ "pipe-test" ]]
 }
+
+# ── l2-l3-model-config AC-6：model-missing 收割 + 不删 ──
+
+@test "l3-model-missing correction → banner FLOW_KIT_L3_MODEL + 不删文件 (AC-6)" {
+  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+{"change_id":"mm-l3","phase":"4","goal":null,"task_id":null,"interrupt":null}
+EOF
+  cat > "${PROJECT_ROOT}/.flow-active.correction" << 'EOF'
+{"type":"l3-model-missing","layer":"L3","message":"L3 未配置"}
+EOF
+  local stdin='{"hook_event_name":"SessionStart","session_id":"m1","cwd":"'"${PROJECT_ROOT}"'","parent_session_id":""}'
+  run_resume_hook "$stdin"
+  [[ "$status" -eq 0 ]]
+  [[ "$output" =~ "FLOW_KIT_L3_MODEL" ]]
+  [[ -f "${PROJECT_ROOT}/.flow-active.correction" ]]   # 不删（持续提示）
+}
+
+@test "l2-model-missing correction → banner FLOW_KIT_L2_MODEL + 不删文件 (AC-6)" {
+  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+{"change_id":"mm-l2","phase":"4","goal":null,"task_id":null,"interrupt":null}
+EOF
+  cat > "${PROJECT_ROOT}/.flow-active.correction" << 'EOF'
+{"type":"l2-model-missing","layer":"L2","message":"L2 未配置"}
+EOF
+  local stdin='{"hook_event_name":"SessionStart","session_id":"m2","cwd":"'"${PROJECT_ROOT}"'","parent_session_id":""}'
+  run_resume_hook "$stdin"
+  [[ "$status" -eq 0 ]]
+  [[ "$output" =~ "FLOW_KIT_L2_MODEL" ]]
+  [[ -f "${PROJECT_ROOT}/.flow-active.correction" ]]
+}
+
+@test "compliance correction → banner + 读后删（既有语义回归保护）" {
+  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+{"change_id":"comp","phase":"4","goal":null,"task_id":null,"interrupt":null}
+EOF
+  cat > "${PROJECT_ROOT}/.flow-active.correction" << 'EOF'
+{"type":"compliance","violations":[{"rule":"test","location":"x","fix":"y","layer":"L1"}]}
+EOF
+  local stdin='{"hook_event_name":"SessionStart","session_id":"c1","cwd":"'"${PROJECT_ROOT}"'","parent_session_id":""}'
+  run_resume_hook "$stdin"
+  [[ "$status" -eq 0 ]]
+  [[ "$output" =~ "合规" ]]
+  [[ ! -f "${PROJECT_ROOT}/.flow-active.correction" ]]   # compliance 读后删
+}
+
+@test "l2-missing correction → 不删（持久化 bug 修复，T06 附带）" {
+  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+{"change_id":"lm","phase":"4","goal":null,"task_id":null,"interrupt":null}
+EOF
+  cat > "${PROJECT_ROOT}/.flow-active.correction" << 'EOF'
+{"type":"l2-missing","phase":"1","change_id":"lm","message":"L2 段缺失"}
+EOF
+  local stdin='{"hook_event_name":"SessionStart","session_id":"lm1","cwd":"'"${PROJECT_ROOT}"'","parent_session_id":""}'
+  run_resume_hook "$stdin"
+  [[ "$status" -eq 0 ]]
+  [[ -f "${PROJECT_ROOT}/.flow-active.correction" ]]   # l2-missing 持久化（不再被无条件删）
+}

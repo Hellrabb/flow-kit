@@ -618,9 +618,15 @@ l3_review_run() {
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
   [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
 
-  # 模型选择 — 完全由 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义（用户的 haiku 配置，如 deepseek-v4-flash[1m]）
-  # 不固定任何 fallback（修：原写死 deepseek-v4-flash；曾误改 claude-haiku，应尊重用户 haiku 定义）
-  local model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:?L3 需 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义 haiku 模型}"
+  # 模型选择 — 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）
+  type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
+  local model; model=$(fk_resolve_model "L3")
+  if [[ -z "$model" ]]; then
+    write_model_missing_correction "L3"
+    echo "[l3-review] L3 模型未配置（三级链全空）。设置：export FLOW_KIT_L3_MODEL=<模型> 或 /flow model l3=<模型>" >&2
+    return 3   # API 调用之前 return（降级 vs 错误区分：不发 _l3_call_api）
+  fi
+  write_model_missing_clear "L3"   # 正常路径：清残留 model-missing（AC-6 退场）
 
   # --background 模式（l3-pipeline-fix-2026-07 D5 Phase 3）
   # Stop hook 兜底路径 fire-and-forget：curl 异步，结果由 SessionStart 收割

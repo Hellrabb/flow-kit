@@ -54,9 +54,15 @@ max_chars=$(config_get '.independent_review.max_artifact_chars' "20000")
 [[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=20000
 max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
-# Model: 完全由 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义（用户的 haiku 配置，如 deepseek-v4-flash[1m]），
-# 不固定 fallback、不读 config model（修：原 default_model/configured_model 写死 deepseek；曾误改 claude-haiku）
-model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:?L3 需 ANTHROPIC_DEFAULT_HAIKU_MODEL 定义 haiku 模型}"
+# Model: 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）
+type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
+model=$(fk_resolve_model "L3")
+if [[ -z "$model" ]]; then
+  write_model_missing_correction "L3"
+  echo "[29-independent-review] L3 模型未配置（三级链全空）。设置：export FLOW_KIT_L3_MODEL=<模型> 或 /flow model l3=<模型>" >&2
+  exit 3   # 顶层降级退出（run_module || true 不影响 gate 链；不发后续 API）
+fi
+write_model_missing_clear "L3"   # 正常路径：清残留 model-missing（AC-6 退场）
 
 # ── Gate 4: 幂等——本阶段 L3 已成功就跳过 ──
 state_file="${PROJECT_ROOT}/.flow-active.independent-review"

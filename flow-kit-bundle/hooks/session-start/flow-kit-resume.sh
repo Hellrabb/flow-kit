@@ -119,12 +119,42 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
     echo "║  请按上述修复动作逐项执行，完成后继续任务。            ║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
+    rm -f "$compliance_correction_file"   # compliance 读后清（一次性提示，既有语义）
+  elif [[ "$corr_type" == "l3-model-missing" ]]; then
+    # l2-l3-model-config (AC-6 入场)：L3 模型未配置，持续提示直到用户配置
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚙️ L3 审查模型未配置（L2/L3 配置解耦 · 降级中）       ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    echo "║  设置方式（任选其一）：                                ║"
+    echo "║    export FLOW_KIT_L3_MODEL=<模型名>                  ║"
+    echo "║    或 /flow model l3=<模型名>                         ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    # 不 rm —— 持续提示（caller 正常路径 write_model_missing_clear 清除）
+  elif [[ "$corr_type" == "l2-model-missing" ]]; then
+    # l2-l3-model-config (AC-6 入场)：L2 模型未配置
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ⚙️ L2 审查模型未配置（L2/L3 配置解耦 · 降级中）       ║"
+    echo "╠══════════════════════════════════════════════════════╣"
+    echo "║  设置方式（任选其一）：                                ║"
+    echo "║    export FLOW_KIT_L2_MODEL=<模型名>                  ║"
+    echo "║    或 /flow model l2=<模型名>                         ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    # 不 rm —— 同 l3-model-missing
+  elif [[ "$corr_type" == "l2-missing" ]]; then
+    # 既有 l2-missing（gate_config=both 但 L2 盲审段缺失）。顺带修复既有 bug：
+    # 原 :127 无条件 rm 删了它，与 _write_l2_missing_correction "持久化记录" 注释矛盾。
+    # 现保留不删，等主 agent 派 L2 写段后由下一轮 compliance 轮换清除。
+    :
   else
     # Unknown type or empty violations — warn and clean up
     echo "[flow-kit-resume] ⚠️ .flow-active.correction 格式异常（type=${corr_type} count=${corr_count}），已清除" >&2
+    rm -f "$compliance_correction_file"   # unknown 异常清除
   fi
-
-  rm -f "$compliance_correction_file"
+  # 原 :127 的无条件 rm -f 已移入各分支（compliance/unknown 删；model-missing/l2-missing 保留）
 fi
 
 # ── Independent review report injection (L3 feedback · F2) ──────────

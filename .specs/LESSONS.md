@@ -380,3 +380,17 @@
 - **发现**：本 change 6-review 阶段，主 agent REVIEW.md 初审 Verdict=pass（0 Critical / 0 Major / "6 维整体改善"），5-test 阶段 L2 也 pass。但 6-review L2 独立盲审（code-reviewer 子 agent）实测复现 R1 🔴 Critical：`_command_has_write_context` 把「重定向/多行」当写上下文 → `git commit 2>log` 漏拦（AC-H(e) 要求 deny，AC 未实现），主 agent + 5-test L2 都漏判。主 agent 核验实测确认（exit 0 漏拦），非误判。回退 6→4 修 T-FIX 后 L2 重审 pass。
 - **Why**：主 agent（实现者）有证实偏差——「代码能跑 + 全套真绿」≠「AC 真实现」。自评倾向于放过自己写的代码。5-test L2 审 TEST.md（非代码），未触代码层。6-review L2 审 git diff（代码），实测复现，才捕到。
 - **How to apply**：(1) L2 盲审须独立子 agent + 原样注入 prompt（禁主 agent 自评注入）；(2) L2 须实测复现（非采信自评）；(3) 主 agent 核验 L2 发现（receiving-code-review 技术验证，非盲目接受/反驳）；(4) 6-review L2 审 diff（代码层）比 5-test L2 审 TEST.md（文档层）更易捕 critical。本 change 是 L2 机制价值的强实证。
+
+## L-054 · independent-review gate `.done` 仅验存在不验作者——握手锚点是死代码
+
+- **严重度**：🟡 Major（安全设计缺口——agent 可伪造 .done 绕过 L3 外部审查）
+- **发现**：l2-l3-model-config 6→7 transition 期间深挖：`independent-review-gate.sh` Gate 3（`fk_independent_review_gate_active`）只要 `.independent-review-<phase>.done` **存在**就短路 `exit 0` 放行，不校验由谁写入。原用于证明「.done 由 stop-hook 子进程写（非 agent 伪造）」的握手 `.flow-active.independent-review` 已是死代码——全 hooks 树无生产 writer（仅 test fixture 写），`done-validation.sh` Tier 2 的 T3 握手校验因 Gate 3 短路而**不可达**，但 4 个单元测试（test_gate_integrity.bats）仍断言其安全意图（意图与现实脱节）。结果：主 agent 可自写结构合法的 .done 单方面绕过 L3。已另立 `gate-done-authorship` change 修（见 `.specs/gate-done-authorship/CHANGE.md`）。
+- **Why**：历次 gate 重构（L2/L3 拆分等）把握手写入废弃、改「l3_review_run 直接写 .done」，但**校验端 + 测试端未同步清除**，留下活校验 + 死写入 + 不可达的不一致。Gate 3 短路条件是 .done 存在性而非作者性。
+- **How to apply**：(1) 任何「标志文件存在即放行」的 gate 须额外校验作者性（path-guard 禁 agent 写该文件，或签名）；(2) 重构废弃某机制时，校验端 + 测试端必须同步清除，否则留下不可达的「活校验」制造虚假安全感；(3) 单元测试覆盖函数行为 ≠ 生产路径真生效——须确认函数在主流程里**可达**（本例 Tier 2 被 Gate 3 短路，测试再绿也不生效）。
+
+## L-055 · L3 外部模型对 flow-kit「skill=实现」架构理解不足——易对 /flow 命令报「无实现」误报 Critical
+
+- **严重度**：🟡 Major（review 流程教训——L3 误报会卡 pipeline，需人工裁判）
+- **发现**：l2-l3-model-config 6-review L3 轮（deepseek-v4-flash）对 AC-5 `/flow model` 报 🔴 Critical「仅文档描述，无实际可执行实现」。实测核实为**误报**：`/flow model` 实现完整在 `skills/flow/SKILL.md:236-256`（参数解析 + 原子 jq 写 + 字段边界），且 `test_flow_model.bats` 6 用例覆盖。根因：L3 按「传统 CLI 须有独立可执行脚本入口」的心智模型判定，不理解 flow-kit 所有 `/flow *` 命令都是 **AI 读 SKILL.md 执行内嵌 jq 的 skill**（非独立脚本）。L2 盲审（code-reviewer，理解架构）正确判 pass。L2-pass/L3-fail 分歧经主 agent 裁判（6-review §4.2）解决。
+- **Why**：L3 是通用外部模型，未内化 flow-kit「skill 即实现」的架构约定。补充既有教训「L3 verdict 不可全信」——本条是其具体、可操作的表现形式。
+- **How to apply**：(1) L3 对 skill / markdown-as-implementation 类工件的「无实现」Critical 默认怀疑，先核实 SKILL.md 是否含可执行 jq/bash 段 + 对应测试；(2) L2-pass / L3-fail 分歧时优先信理解项目架构的 L2，按 6-review §4.2 人工裁判（记录 L2_verdict/L3_verdict + 证据）；(3) 给 L3 的 artifact 可附一句架构提示「/flow 命令是 skill，实现在 SKILL.md 内嵌 jq」降低误报（注意：架构提示只能给 L3，**不可**注入 L2 盲审 prompt——会破坏 L2 独立性）。

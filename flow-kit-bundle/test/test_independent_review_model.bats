@@ -8,6 +8,14 @@ setup() {
   SAVED_HAIKU_MODEL="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
   SAVED_BASE_URL="${ANTHROPIC_BASE_URL:-}"
   SAVED_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-}"
+  # l2-l3-model-config: AC-1/AC-3 改读源码树（对齐 test_common.bats 向上查找），
+  # 避免依赖陈旧的 $HOME/.claude/hooks/ 安装副本（L2 R3'）。
+  local d="${BATS_TEST_DIRNAME:-.}"
+  while [ "$d" != "/" ] && [ ! -f "$d/flow-kit-bundle/hooks/stop/29-independent-review.sh" ]; do
+    d="$(dirname "$d")"
+  done
+  FK_SRC_29="$d/flow-kit-bundle/hooks/stop/29-independent-review.sh"
+  [ -f "$FK_SRC_29" ] || FK_SRC_29="$HOME/.claude/hooks/stop/29-independent-review.sh"
 }
 
 teardown() {
@@ -18,10 +26,10 @@ teardown() {
   export ANTHROPIC_AUTH_TOKEN="${SAVED_AUTH_TOKEN}"
 }
 
-# ── AC-1: 29号脚本读环境变量模型 ──────────────────────────────────────
+# ── AC-1: 29号脚本用 fk_resolve_model 三级链（l2-l3-model-config ADR-012）──
 
-@test "AC-1: 29-independent-review.sh references ANTHROPIC_DEFAULT_HAIKU_MODEL" {
-  run grep -c 'ANTHROPIC_DEFAULT_HAIKU_MODEL' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "AC-1: 29-independent-review.sh uses fk_resolve_model (l2-l3-model-config ADR-012)" {
+  run grep -c 'fk_resolve_model' "$FK_SRC_29"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 }
@@ -40,16 +48,15 @@ teardown() {
   [ "$output" -ge 1 ]
 }
 
-# ── AC-3: env var 缺失时 fallback ──────────────────────────────────────
+# ── AC-3: 模型解析 — 29 用 fk_resolve_model, 30 保持 env-var-first ──
 
-@test "AC-3: model uses env-var-first pattern (:? 强制 / :- fallback)" {
-  # 29 用 ${ANTHROPIC_DEFAULT_HAIKU_MODEL:?} 强制（l2-l3-test-defect INT-6：模型必须定义，无 fallback）
-  # 30 用 ${ANTHROPIC_DEFAULT_HAIKU_MODEL:-} fallback（env var > config > default）
-  # 两者都属 env-var-first：变量后跟 :- 或 :? modifier（T06 修测：原仅 :- 零匹配 29 的 :?）
-  run grep -cE 'ANTHROPIC_DEFAULT_HAIKU_MODEL:[-?]' "$HOME/.claude/hooks/stop/29-independent-review.sh"
+@test "AC-3: 29 用 fk_resolve_model 三级链, 30 保持 env-var-first :- (l2-l3-model-config)" {
+  # 29 (ADR-012): fk_resolve_model "L3" 三级链替代 :?
+  run grep -c 'fk_resolve_model "L3"' "$FK_SRC_29"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
 
+  # 30 (未改，env-var-first 保持)：ANTHROPIC_DEFAULT_HAIKU_MODEL:- pattern
   run grep -cE 'ANTHROPIC_DEFAULT_HAIKU_MODEL:[-?]' "$HOME/.claude/hooks/stop/30-ai-analyze.sh"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]

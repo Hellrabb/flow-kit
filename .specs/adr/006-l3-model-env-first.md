@@ -1,6 +1,6 @@
 # ADR-006 · L3 model env-first（ANTHROPIC_DEFAULT_HAIKU_MODEL）
 
-- **Status**: Accepted
+- **Status**: Superseded by [ADR-012](012-l2-l3-model-config-decoupling.md)（2026-07-23 · L3 扩展为三级链 + 降级，不再 `:?` 报错）
 - **Date**: 2026-07-17
 - **Change**: l2-l3-test-defect（用户要求）
 
