@@ -394,3 +394,13 @@
 - **发现**：l2-l3-model-config 6-review L3 轮（deepseek-v4-flash）对 AC-5 `/flow model` 报 🔴 Critical「仅文档描述，无实际可执行实现」。实测核实为**误报**：`/flow model` 实现完整在 `skills/flow/SKILL.md:236-256`（参数解析 + 原子 jq 写 + 字段边界），且 `test_flow_model.bats` 6 用例覆盖。根因：L3 按「传统 CLI 须有独立可执行脚本入口」的心智模型判定，不理解 flow-kit 所有 `/flow *` 命令都是 **AI 读 SKILL.md 执行内嵌 jq 的 skill**（非独立脚本）。L2 盲审（code-reviewer，理解架构）正确判 pass。L2-pass/L3-fail 分歧经主 agent 裁判（6-review §4.2）解决。
 - **Why**：L3 是通用外部模型，未内化 flow-kit「skill 即实现」的架构约定。补充既有教训「L3 verdict 不可全信」——本条是其具体、可操作的表现形式。
 - **How to apply**：(1) L3 对 skill / markdown-as-implementation 类工件的「无实现」Critical 默认怀疑，先核实 SKILL.md 是否含可执行 jq/bash 段 + 对应测试；(2) L2-pass / L3-fail 分歧时优先信理解项目架构的 L2，按 6-review §4.2 人工裁判（记录 L2_verdict/L3_verdict + 证据）；(3) 给 L3 的 artifact 可附一句架构提示「/flow 命令是 skill，实现在 SKILL.md 内嵌 jq」降低误报（注意：架构提示只能给 L3，**不可**注入 L2 盲审 prompt——会破坏 L2 独立性）。
+
+## L-056 · L3 工具 `_l3_call_api` 硬编码 max_tokens:8000 + curl --max-time 90 导致 deepseek-v4-pro 扩展思考吃满预算 → rc=3
+
+- **严重度**：🔴 Critical（工具故障——阻塞所有 gate_config 含 L3 的 change 的 pipeline transition）
+- **发现**：gate-done-authorship phase 3 L3 第二轮复核失败（2026-07-24）：deepseek-v4-pro 扩展思考把 8000 token 预算全花在 thinking block 上 → 无 text block → `jq select(.type=="text")` 返空 → rc=3。同时生成 ~144s 超 curl --max-time 90 → curl 杀进程。实测：禁用思考后 38s 返 3334 token 含 text block。
+- **Why**：L3 工具设计时假设模型不使用扩展思考（max_tokens 8000 够用）+ 审查 < 90s。两个假设在 deepseek-v4-pro + 大产物场景下不成立。硬编码值无 env var / 配置文件覆盖入口。
+- **修复**：l3-review-timeout-token change（2026-07-25）——三 env var 全可配：FLOW_KIT_L3_MAX_TOKENS（默认 32000）、FLOW_KIT_L3_TIMEOUT（默认 300）、FLOW_KIT_L3_THINKING（默认 enabled，可切 disabled）。Fail-safe：非法值回退默认 + 警告。jq -c compact 输出（省字节 + 易测试）。
+- **How to apply**：(1) 任何调用外部 API 的工具，超时/token 上限必须可配置（env var > 默认值），禁止硬编码；(2) 换 L3 模型时须先实测 max_tokens/timeout 承载能力（大产物场景）；(3) thinking 模型（deepseek-v4-pro）需 disabled 作为 escape hatch；(4) `_l3_parse_result` 的 fallback 链 `.thinking // .text` 可能静默错判——留 v2 修复。
+- **关联**：[[l3-model-unreliable]]（失败模式从 glm-4.7 幻觉演进为 deepseek-v4-pro 思考吃满预算）、TD-008（l3-review.sh 574 行多职责）、[[gate-done-authorship]]（被卡住的 change）
+- **来源**：`l3-review-timeout-token`

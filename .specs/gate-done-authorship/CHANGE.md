@@ -3,7 +3,7 @@
 - **Change ID**: gate-done-authorship
 - **创建日期**: 2026-07-24
 - **路径建议**: 完整
-- **状态**: seed（已立项，未启动 pipeline）
+- **状态**: active（pipeline 已启动 2026-07-24 · 0-change 进行中 · 完整模式 · gate_config=all）
 - **来源**: l2-l3-model-config phase 6 review 期间发现（INDEPENDENT-REVIEW-6 主 agent 裁判段）
 
 ---
@@ -24,6 +24,14 @@
 ### 根因
 
 Gate 3 的短路条件是 `.done` **存在性**，不是**作者性**。握手本该补作者性证明，但写入路径在历次 gate 重构（`1bd3d0a` L2/L3 拆分 / `189ca2a` gate-review 等）中演变为「l3_review_run 直接写 .done」的设计，握手写入被废弃但**校验 + 测试未同步清除**，留下「活校验 + 死写入 + 不可达」的不一致。
+
+---
+
+## 影响面
+
+- [x] **需要新增/修改 REQUIREMENT.md**：gate `.done` 作者性是新需求，须落 AC（agent 不可伪造 .done 过 gate + 机制保证 + 集成测试）
+- [x] **触及架构（更新 DESIGN.md / 新增 ADR）**：2-design 新增 `gate .done 作者性模型` ADR（定方案 A vs B + 威胁模型）；不与既有 ADR-007/008/010 冲突（它们是 gate 实现层，本 change 是其上的作者性补强）
+- [x] **影响现有 AC/测试**：`test_gate_integrity.bats` 4 个握手测试须改写为新语义；`test/regression-demos/tampered-done` + `exotic-escape` 握手 demo 须改/删
 
 ---
 
@@ -57,6 +65,20 @@ Gate 3 的短路条件是 `.done` **存在性**，不是**作者性**。握手�
 - 不改 gate_config 三值（L2/L3/both）语义
 - 不触碰 `gate-review-fix` 的 13 条缺陷（独立 scope，可并行）
 
+### Scope 边界（待 2-design / tech-debt 定，非强制纳入/排除）
+
+- **L2-only 模式例外**（gate_config=L2，协议要求主 agent 写 .done）：方案 A 须处理此例外（path-guard 按 gate_config 条件放行），方案 B 不涉；**方向未定前不强制纳入或排除**，2-design ADR 一并裁
+- **既有 `correction_file_write`（correction-file.sh :66/:73）同款 fixed-tmp race**：L2 phase7 R1 指出，属预存代码非本 change 引入；留全 lib 一致性 tech-debt，不纳入本 change scope
+
+---
+
+## 验收线（粗粒度 · done line）
+
+1. **机制保证**：agent 无法伪造 `.done` 过 gate——path-guard 禁 agent 写 `.independent-review-*.done`（方案 A）或握手恢复 + Tier 2 可达（方案 B），**非靠 agent 自律**
+2. **既有测试更新**：`test_gate_integrity.bats` 4 个握手测试（AC-1 ②③/④/⑤ + D9 正向）改写为新语义 + 绿
+3. **全量 bats 绿**：0 fail 回归
+4. **集成测试**：补「agent 试图伪造 `.done` → gate deny」payload 注入式集成测试（对应记忆 gate-orchestration-integration-test）
+
 ---
 
 ## 关联
@@ -64,3 +86,38 @@ Gate 3 的短路条件是 `.done` **存在性**，不是**作者性**。握手�
 - 发现于 `l2-l3-model-config` INDEPENDENT-REVIEW-6.md「主 agent 裁判」段（2026-07-24）
 - 相关代码：`flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh`（Gate 1/3）、`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（Tier 2）、`flow-kit-bundle/hooks/stop/29-independent-review.sh`（state_file 生命周期）、`flow-kit-bundle/hooks/stop/lib/l3-review.sh`（`_l3_write_done`）
 - 记忆笔记：L3 模型不可靠（[[l3-model-unreliable]]）、gate 编排层须集成测试（[[gate-orchestration-integration-test]]）
+
+---
+
+## 架构层影响声明（0.4 预检 · 非触发但声明在案）
+
+0.4 判定：本 change 属「bug 修复」例外（聚焦 gate `.done` 作者性安全缺陷修复，分析已在种子 + LESSONS L-054 完成），**不触发 A-architect**。但涉安全敏感 + gate 跨切面，声明影响：
+
+- **相关既有 ADR**（不冲突，是其上的作者性补强）：
+  - ADR-007（`fk_phase_gate_key` 单一来源）— 不改
+  - ADR-008（`is_git_commit`/`is_gh_pr_create` 结构判定 + path-guard D7）— **方案 A 扩展 D7 path-guard 到 `.done`，触及此 ADR 的 path-guard 边界**，2-design 须显式声明对 ADR-008 的影响
+  - ADR-010（`_l3_check_rerun` 内容标记 + artifact hash）— 不改
+- **新增 ADR**（2-design 落）：`gate .done 作者性模型`（方案 A vs B 抉择 + 威胁模型：agent 伪造 .done 的所有路径 + L2-only 例外处理）
+- **不涉**：项目级模块拆分 / 跨模块 API 契约 / 容量边界 / 跨服务编排
+
+---
+
+## 暂停声明（2026-07-24 11:12 · phase 3 卡点）
+
+**状态**：phase 3（task）产物全部完成 + L2 两轮 pass + L3 首轮 fail（9 条全修）→ L3 第二轮复核**无法完成**（deepseek-v4-pro 扩展思考吃满 8000 token + 144s 超 90s curl 超时）→ `.independent-review-3.done` 未写 → gate_config=both 拦 transition 3→4。
+
+**根因不在本 change scope**：L3 审查工具（`l3-review.sh`）的 `max_tokens:8000`（L350/366）+ `curl --max-time 90`（L346/362）硬编码上限，无法承载 deepseek-v4-pro 的扩展思考模式。这是 L3 子系统可靠性问题（关联 TD-008 + [[l3-model-unreliable]]），属独立 change。
+
+**解套决策**（用户选）：先开新 change `l3-review-timeout-token` 修 L3 工具，修完回本 change 跑 phase 3 L3 → transition 3→4。
+
+**恢复指令**：L3 工具修完后，回到本 change：
+1. 确认 `.flow-active.change_id = "gate-done-authorship"` + `phase = 3`
+2. 重跑 `l3_review_run 3 gate-done-authorship .specs/gate-done-authorship pass both`
+3. L3 verdict=pass → 写 `.independent-review-3.done` → transition 3→4
+4. 进入 4-dev 按 TASK.md 波次执行 T01-T06
+
+**产物清单**（全部已写入，L3 工具修完不需重做）：
+- CHANGE.md / REQUIREMENT.md / DESIGN.md / TASK.md（全完成 + L2/L3 两轮审查修复）
+- INDEPENDENT-REVIEW-1.md（L2 pass + L3 pass，.done 已写）
+- INDEPENDENT-REVIEW-2.md（L2 pass + L3 pass，.done 已写）
+- INDEPENDENT-REVIEW-3.md（L2 两轮 pass + L3 首轮 fail 已修 + L3 第二轮未完成）
