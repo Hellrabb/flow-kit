@@ -341,13 +341,58 @@ _l3_call_api() {
   local ai_response="" base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
   local auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
 
+  # ── 三 env var 可配（DESIGN D1/D2 · T01 证据：32k/300s/enabled 实测可用）──
+  # Fail-safe（AC-6）：
+  #   - 未设（env var 不存在）→ 走默认，不警告（正常路径）
+  #   - 已设但非法（非数字/空串/枚举外）→ 回退默认 + stderr 警告
+  # 用 ${VAR+x} 检测是否设置，区分"未设"与"设为空"
+  local max_tokens=32000 timeout=300 thinking="enabled"
+  if [[ -n "${FLOW_KIT_L3_MAX_TOKENS+x}" ]]; then
+    local _raw_mt="$FLOW_KIT_L3_MAX_TOKENS"
+    if [[ "$_raw_mt" =~ ^[0-9]+$ ]] && [[ "$_raw_mt" -gt 0 ]]; then
+      max_tokens="$_raw_mt"
+    else
+      echo "[l3-review] FLOW_KIT_L3_MAX_TOKENS='$_raw_mt' 非法（需正整数），回退默认 32000" >&2
+    fi
+  fi
+
+  if [[ -n "${FLOW_KIT_L3_TIMEOUT+x}" ]]; then
+    local _raw_to="$FLOW_KIT_L3_TIMEOUT"
+    if [[ "$_raw_to" =~ ^[0-9]+$ ]] && [[ "$_raw_to" -gt 0 ]]; then
+      timeout="$_raw_to"
+    else
+      echo "[l3-review] FLOW_KIT_L3_TIMEOUT='$_raw_to' 非法（需正整数），回退默认 300" >&2
+    fi
+  fi
+
+  if [[ -n "${FLOW_KIT_L3_THINKING+x}" ]]; then
+    local _raw_th="$FLOW_KIT_L3_THINKING"
+    case "$_raw_th" in
+      enabled|disabled) thinking="$_raw_th" ;;
+      *) echo "[l3-review] FLOW_KIT_L3_THINKING='$_raw_th' 非法（需 enabled|disabled），回退默认 enabled" >&2 ;;
+    esac
+  fi
+
+  # 可观测性（AC-7）：记录实际使用的配置值
+  echo "[l3-review] using max_tokens=$max_tokens timeout=$timeout thinking=$thinking" >&2
+
+  # 请求体构造（DESIGN §2.3）：thinking=disabled 时加 thinking:{type:disabled} 字段
+  # 用 jq -nc 条件构造（D4：jq 而非字符串拼接，防 JSON 注入；-c compact 输出，省字节 + 易测试匹配）
+  local req_body
+  if [[ "$thinking" == "disabled" ]]; then
+    req_body=$(jq -nc --arg m "$model" --arg p "$prompt_text" --argjson mt "$max_tokens" \
+      '{model:$m, max_tokens:$mt, thinking:{type:"disabled"}, messages:[{role:"user", content:$p}]}')
+  else
+    req_body=$(jq -nc --arg m "$model" --arg p "$prompt_text" --argjson mt "$max_tokens" \
+      '{model:$m, max_tokens:$mt, messages:[{role:"user", content:$p}]}')
+  fi
+
   # Path 1: ANTHROPIC_AUTH_TOKEN (env-var-first 直连)
   if [ -n "$auth_token" ]; then
-    ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
+    ai_response=$(curl -s -w '\n%{http_code}' --max-time "$timeout" "${base_url}/v1/messages" \
       -H "Authorization: Bearer ${auth_token}" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
-        '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+      -d "$req_body" 2>/dev/null || true)
     local _http_code
     _http_code=$(echo "$ai_response" | tail -1)
     ai_response=$(echo "$ai_response" | sed '$d')
@@ -359,11 +404,10 @@ _l3_call_api() {
 
   # Path 2: Legacy ANTHROPIC_API_KEY (向后兼容)
   if [ -z "$ai_response" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 https://api.anthropic.com/v1/messages \
+    ai_response=$(curl -s -w '\n%{http_code}' --max-time "$timeout" https://api.anthropic.com/v1/messages \
       -H "x-api-key: $ANTHROPIC_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg m "$model" --arg p "$prompt_text" \
-        '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}')" 2>/dev/null || true)
+      -d "$req_body" 2>/dev/null || true)
     local _http_code2
     _http_code2=$(echo "$ai_response" | tail -1)
     ai_response=$(echo "$ai_response" | sed '$d')

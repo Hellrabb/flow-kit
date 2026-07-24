@@ -138,3 +138,4 @@ setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 
 - user-scope 同步：核心引擎 goal-parsing.md + 6-review.md + 7-integration.md + brooks-lint cache
 **审查**: L2 DeepSeek-V4 + Haiku 两轮跨模型盲审（用户指南） + L2 Sonnet + Haiku 修复前/后四轮审查（打包修复） + 三方安全审查（主 agent + Sonnet + Haiku）
 **LESSONS**: L-044（用户指南同步检查清单）、L-045（bundle validate 环境依赖）、L-046（L2 dispatch PreToolUse 方案设计）
+| 2026-07-25 | l3-review-timeout-token | 修复 L3 工具硬编码 max_tokens:8000 + curl --max-time 90 致 deepseek-v4-pro 扩展思考吃满预算 → rc=3：三 env var 全可配（MAX_TOKENS/TIMEOUT/THINKING）+ Fail-safe + 可观测性 + jq -c。pipeline 0→7 gate_config=both。解套 gate-done-authorship。 | L-056 |

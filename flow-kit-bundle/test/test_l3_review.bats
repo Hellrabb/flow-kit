@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# test_l3_review.bats — Tests for l3-review.sh fixes (AC-1 ~ AC-6)
+# test_l3_review.bats — Tests for l3-review.sh（既有：fallback/dedup/artifact · AC-1~AC-6 旧编号重命名为 legacy 避与本 change 碰撞）
+# l3-review-timeout-token change 的 AC-1~AC-7（env var 可配）测试在 test_l3_review_params.bats
 
 setup() {
   TEST_TMP=$(mktemp -d)
@@ -19,37 +20,31 @@ teardown() {
   rm -rf "$TEST_TMP"
 }
 
-# ── AC-5: timeout + token params ────────────────────────────────────
+# ── l3-review-timeout-token: 旧硬编码断言已删（max_tokens:8000 / --max-time 90 被 T02 删除）──
+# 原 AC-5 "max_tokens is 8000" / "curl timeout is 90s" 已删——T02 改为 env var 可配，
+# 新断言在 test_l3_review_params.bats（AC-1~AC-7 stub curl 双路径）
 
-@test "AC-5: max_tokens is 8000" {
-  run grep -c 'max_tokens:8000' "$L3_LIB"
-  [[ "$output" -ge 2 ]]
-}
+# ── fallback 行为（AC-10 关联 · _l3_parse_result 的 content 提取 · 不改 fallback · Out of Scope）───
 
-@test "AC-5: curl timeout is 90s" {
-  run grep -c 'max-time 90' "$L3_LIB"
-  [[ "$output" -ge 2 ]]
-}
-
-# ── AC-4: dual-block content extraction ──────────────────────────────
-
-@test "AC-4: extracts text block when thinking+text blocks present" {
+@test "fallback: extracts text block when thinking+text blocks present" {
   local resp='{"content":[{"type":"thinking","thinking":"reasoning..."},{"type":"text","text":"THE_VERDICT"}]}'
   local content
   content=$(echo "$resp" | jq -r '[.content[] | select(.type == "text") | .text][0] // .content[0].thinking // .content[0].text // empty' 2>/dev/null)
   [[ "$content" == "THE_VERDICT" ]]
 }
 
-@test "AC-4: falls back to thinking when no text block" {
+@test "fallback: falls back to thinking when no text block (AC-10 静默错判行为 · 记录非修复)" {
+  # 本测试记录 fallback 链的静默错判行为（思考吃满无 text block 时取思考内容当 verdict）
+  # l3-review-timeout-token change 不修 fallback（Out of Scope），仅记录行为
   local resp='{"content":[{"type":"thinking","thinking":"THINKING_ONLY"}]}'
   local content
   content=$(echo "$resp" | jq -r '[.content[] | select(.type == "text") | .text][0] // .content[0].thinking // .content[0].text // empty' 2>/dev/null)
   [[ "$content" == "THINKING_ONLY" ]]
 }
 
-# ── AC-6: 3-layer verdict extraction ─────────────────────────────────
+# ── 3-layer verdict extraction（l3-comprehensive-fix 遗产 · 与本 change 无关）─────────
 
-@test "AC-6: extracts verdict from raw JSON" {
+@test "verdict-extract: extracts verdict from raw JSON" {
   local content='{"critical":[],"verdict":"pass","summary":"ok"}'
   local verdict
   verdict=$(echo "$content" | jq -r '.verdict // ""' 2>/dev/null)
@@ -57,17 +52,15 @@ teardown() {
   [[ "$verdict" == "pass" ]]
 }
 
-@test "AC-6: extracts verdict from mixed text+JSON via regex fallback" {
+@test "verdict-extract: extracts verdict from mixed text+JSON via regex fallback" {
   local content='Some reasoning text... {"critical":[],"verdict":"fail","summary":"bad"}'
-  # Layer 1: try jq on raw content (fails because of leading text)
   local verdict
   verdict=$(echo "$content" | jq -r '.verdict // ""' 2>/dev/null || echo "")
-  # Layer 2: grep regex fallback
   [[ -z "$verdict" ]] && verdict=$(echo "$content" | grep -oP '"verdict"\s*:\s*"\K(pass|fail)(?=")' 2>/dev/null | tail -1 || echo "")
   [[ "$verdict" == "fail" ]]
 }
 
-@test "AC-6: returns unknown when no verdict found at all" {
+@test "verdict-extract: returns unknown when no verdict found at all" {
   local content='Just some text, no JSON here at all'
   local verdict
   verdict=$(echo "$content" | jq -r '.verdict // ""' 2>/dev/null || echo "")
@@ -75,11 +68,10 @@ teardown() {
   [[ -z "$verdict" ]]
 }
 
-# ── AC-3: L3 section dedup ───────────────────────────────────────────
+# ── L3 section dedup（l3-comprehensive-fix 遗产 · 与本 change 无关）──────────────────
 
-@test "AC-3: strips old L3 sections (盲审 + 重审) before writing new one" {
+@test "dedup: strips old L3 sections (盲审 + 重审) before writing new one" {
   local review_md="${ARTIFACTS_DIR}/INDEPENDENT-REVIEW-1.md"
-  # Write initial L2 + old L3 盲审 + old L3 重审 (simulate accumulated history)
   cat > "$review_md" << 'EOF'
 # 独立审查 · 阶段 1
 ## L2 盲审
@@ -92,65 +84,46 @@ old L3 content
 old L3 re-review content
 EOF
 
-  # AC-3: Use the same sed pattern as _l3_parse_result implementation
-  # (deletes all ## L3 (盲审|重审) sections, preserves L2 and other content)
   if [ -f "$review_md" ]; then
-    # AC-3/R1 fix: 用 awk 替代 sed，正确处理连续盲审+重审段
     awk '/^## L3 (盲审|重审)/ { skip=1; next } /^## / && skip { skip=0 } !skip' "$review_md" > "${review_md}.tmp"
     mv "${review_md}.tmp" "$review_md"
   fi
 
-  # Append new L3 section
   cat >> "$review_md" << 'EOF'
 ## L3 盲审（new model · new date）
 new L3 content
 EOF
 
-  # Verify only 1 L3 section remains (the new one)
   local count
   count=$(grep -c '^## L3 \(盲审\|重审\)' "$review_md")
   [[ "$count" -eq 1 ]]
 
-  # AC-3: L2 段不受影响
   grep -q '## L2 盲审' "$review_md"
   grep -q 'L2 content here' "$review_md"
-
-  # AC-3: 新 L3 内容存在
   grep -q 'new L3 content' "$review_md"
-
-  # AC-3: 旧 L3 内容已删除（blind + re-review）
   ! grep -q 'old L3 content' "$review_md"
   ! grep -q 'old L3 re-review content' "$review_md"
-
-  # AC-3: 下游 reader 兼容 — _l3_inject_context 可正常读取去重后的 L3 段
   grep -q '^## L3 盲审' "$review_md"
-  # SessionStart banner pattern match (detects L3 section presence)
   grep -qE '^## L3 (盲审|重审)' "$review_md"
 }
 
-# ── AC-1: Phase 6 artifact includes new files ─────────────────────────
+# ── legacy artifact tests（l3-pipeline-fix 遗产 · 编号重命名避碰撞 · 与本 change 无关）──
 
-@test "AC-1: git ls-files captures new untracked .sh files" {
+@test "legacy-1: git ls-files captures new untracked .sh files" {
   cd "$TEST_TMP"
   git init -q && git config user.email "test@test" && git config user.name "Test"
   echo "tracked" > tracked.txt && git add tracked.txt && git commit -q -m "init"
   echo "new shell" > new_script.sh
-  # Verify ls-files finds it
   run git ls-files --others --exclude-standard
   [[ "$output" == "new_script.sh" ]]
-  # Verify grep filter
   run bash -c 'git ls-files --others --exclude-standard | grep -E "\.(sh|bats)$"'
   [[ "$output" == "new_script.sh" ]]
 }
 
-# ── AC-2: Phase 7 artifact listing ────────────────────────────────────
-
-@test "AC-2: phase 7 artifact includes all required file names" {
-  # Create all expected artifacts
+@test "legacy-2: phase 7 artifact includes all required file names" {
   for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
     echo "# $f" > "${ARTIFACTS_DIR}/$f"
   done
-  # Verify they exist
   for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
     [[ -f "${ARTIFACTS_DIR}/$f" ]]
   done

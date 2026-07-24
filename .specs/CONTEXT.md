@@ -216,6 +216,16 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 结构化命令识别（structured command recognition） | 基于命令结构（argv / 命令边界）而非文本子串判断命令类型。解决 `is_git_commit` 子串误判——L2 审查报告正文含 "git commit" 字符串被误拦，被迫 `chr()` 拼装绕过。来自 `l2-l3-mock-fix` BUG-H |
 | `## L3` 段检查（## L3 section check） | L3 复审判定基于 artifact markdown 的 `## L3` 段是否存在/更新，而非文件 mtime。解决 `_l3_check_rerun` 的 mtime 误判——artifact 被 touch 即被误判已审查而 skip 复审。来自 `l2-l3-mock-fix` BUG-J |
 <!-- l2-l3-mock-fix 追加 ↑ -->
+<!-- gate-done-authorship 追加 ↓ -->
+| `.done` 作者性校验（`.done` authorship verification） | gate `.done` 的第三维校验：不仅检查存在性（PCG）和真实性（gate-integrity），还验证 `.done` 由审查子系统（l3_review_run / L2 子 agent）而非主 agent 产出。解决独立 review gate「agent 可自写合法 .done 绕过 L3」的安全缺口 |
+| 握手死代码（handshake dead code） | 已废弃的 `state_file` 握手机制残留代码：`is_handshake_write()`（independent-review-gate.sh:30）、`29-independent-review.sh` 的 state_file 读（:68-74）+ 条件删除（:125, :203-204）、`done-validation.sh` Tier 2 T3 握手校验死分支。写入路径在 gate 重构中废弃，但校验 + 测试未同步清除 |
+| path-guard D7 扩展（path-guard D7 extension） | 将 independent-review-gate.sh 的 D7 path-guard 从当前覆盖的文件类型扩展到 `.independent-review-*.done` 文件，禁止 agent 通过 Bash/Write/Edit 直接写入 `.done`。方案 A 的核心机制。需配合 L2-only 模式例外（按 gate_config 条件放行 agent 写 .done） |
+| L2-only 模式例外（L2-only mode exception） | gate_config=L2 时，协议要求主 agent 写 `.done`（6-review.md:129）。path-guard D7 扩展需识别此模式并按 gate_config 条件放行 agent 写 `.done`（非全局禁），否则 L2-only 用户 pipeline 死锁 |
+<!-- gate-done-authorship 追加 ↑ -->
+<!-- l3-review-timeout-token 追加 ↓ -->
+| L3 思考吃满预算（L3 thinking budget exhaustion） | deepseek-v4-pro 扩展思考模式失败：在产生结论前把全部 max_tokens 预算花在 thinking block 上 → 无 text block → `jq select(.type=="text")` 返空 → rc=3。区别于 glm-4.7 时代的"幻觉 critical"失败模式。根因在工具层（l3-review.sh 硬编码 max_tokens:8000 + curl --max-time 90 无配置入口），非模型层 |
+| FLOW_KIT_L3_MAX_TOKENS / FLOW_KIT_L3_TIMEOUT / FLOW_KIT_L3_THINKING | 三个新增 env var，覆盖 l3-review.sh::_l3_call_api() 的硬编码上限。默认值：max_tokens=32000 / timeout=300s / thinking=enabled。遵循 env-var-first config 策略。disabled 时请求体加 `thinking:{type:"disabled"}`（L3 子 agent 实测 58.4s 返 3334 token 含 text block） |
+<!-- l3-review-timeout-token 追加 ↑ -->
 
 ## 已锁决策
 
