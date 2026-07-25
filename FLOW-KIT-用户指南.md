@@ -215,6 +215,7 @@ Phase 7: INTEGRATION — 集成、合并与发布
 | `/flow checkpoint <file> <desc>` | 保存中断恢复点 | AI 在关键操作后自动调用 |
 | `/flow`（无参数） | 查看当前状态 | 想知道现在在哪个阶段、哪个任务 |
 | `/flow doctor` | 诊断配置状态 | 排查 hook 配置、产物完整性等问题 |
+| `/flow model [l2=<模型>] [l3=<模型>]` | 查询/设置 L2/L3 审查模型（写 `.flow-active.goal.l*_model` 持久化层） | 非 CC 平台或想跨会话固定审查模型时；详见 §7「L2/L3 模型配置」 |
 
 ### 总结
 
@@ -871,7 +872,10 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 17 个模�
 
 ### SessionStart Hook
 
-- `flow-kit-resume.sh`：检测 `.flow-active` 中的中断信息，提醒用户恢复；检测 `.flow-active.interactive-ui-fix` 和 `.flow-active.correction` 矫正文件，注入交互 UI / 合规矫正 banner 后自动清除
+- `flow-kit-resume.sh`：检测 `.flow-active` 中的中断信息，提醒用户恢复；检测 `.flow-active.interactive-ui-fix` 和 `.flow-active.correction` 矫正文件，注入对应 banner。**按 correction 类型分类型收割**：
+  - `compliance`（弱模型合规违规）/ 未知类型 → 注入 banner 后**自动清除**（一次性，读后清）
+  - `l3-model-missing` / `l2-model-missing`（审查模型未配置，ADR-012/013）→ **持续提示，不自动清除**，由 caller 正常路径 `write_model_missing_clear` 在模型配齐后退场；提示文案含 `export FLOW_KIT_L3_MODEL=<模型>` 或 `/flow model l3=<模型>`
+  - `l2-missing`（gate_config=both 但 `## L2 盲审` 段缺失，L2-first 契约违反）→ 保留作持久化记录，等主 agent 派 L2 写段后由下一轮 compliance 轮换清除
 - `stop-report-reminder.sh`：提醒用户查看上次会话的 stop hook 报告
 
 ### 配置文件
@@ -879,7 +883,7 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 17 个模�
 `stop-hook.json` 控制各模块的启用/禁用、检查项、AI 分析频率（默认每 5 次会话）、各阈值和输出路径。自 v2026-07 起新增以下配置块：
 
 - `independent_review.phases`: 项目级默认开启独立 review 的阶段列表（如 `["6-review"]`），非 pipeline 项目用此兜底
-- `independent_review.model`: L3 调用的外部模型（默认 `deepseek-v4-flash`）
+- `independent_review.model`: L3 调用的外部模型（旧单字段，默认 `deepseek-v4-flash`）。**v2026-07.23 起 L2/L3 模型按 `fk_resolve_model` 三级优先级链解析**（ADR-012，supersede ADR-006），此字段仅作末级兜底；详见 §7「L2/L3 模型配置」
 - `independent_review.max_failures_before_bypass`: L3 连续失败多少次后允许手动绕过（默认 3）
 - `pre_tool_use_gates.independent_review.enabled`: 是否启用 PreToolUse 硬拦截（默认 true）
 - `pre_tool_use_gates.auto_checkpoint.enabled`: 是否启用 Write/Edit 前自动 checkpoint（默认 true）
@@ -908,6 +912,23 @@ L3 的外部模型审查由 Stop 模块 `29-independent-review.sh` 自动完成�
 **done 标志**: L2 + L3 都完成后，主 agent 执行 `touch .specs/<id>/.independent-review-<phase>.done`，三道防线全部放行。
 
 **降级兜底**: L3 调用连续失败 ≥ 3 次 → Stop 报告提示"允许手动绕过"，可手动 touch done 继续，不卡死流水线。
+
+### L2/L3 模型配置（ADR-012/013）
+
+L2/L3 审查用哪个模型由公共函数 `fk_resolve_model <layer>`（`hooks/stop/lib/common.sh`）按**三级优先级链**解析——每级取非空值即停，全空则**优雅降级**（不崩溃、不阻塞 session）：
+
+| 优先级 | L3 来源 | L2 来源 | 说明 |
+|---|---|---|---|
+| 1 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_L2_MODEL` | CC 原生 env，CC 用户优先命中，行为不变 |
+| 2 | `FLOW_KIT_L3_MODEL` | `FLOW_KIT_L2_MODEL` | 新增，临时覆盖（`export` 即生效） |
+| 3 | `.flow-active.goal.l3_model` | `.flow-active.goal.l2_model` | 持久化，由 `/flow model l3=<模型>` 写入 |
+| 4（空） | 优雅降级 | 优雅降级 | 写 `.flow-active.correction` + stderr 提示 |
+
+- **跨平台**：非 CC 平台（OpenCode / Codex / Gemini CLI）通过 `FLOW_KIT_*` env 或 `.flow-active` 配置；L2 已移除 `claude-sonnet-5` fallback（纯跨平台，未设 env 的 CC 用户升级后 L2 将降级，CHANGELOG 标注）。
+- **降级写 correction**：模型空时 caller（`l2-detect.sh` / `l3-review.sh` / `29-independent-review.sh`）调 `write_model_missing_correction <layer>`（`correction-file.sh`）写 `l3-model-missing` / `l2-model-missing` correction；`29` 顶层 `exit 3` 降级退出，不影响 gate 链。
+- **覆盖写策略（ADR-013）**：`write_model_missing_correction` 用单步 jq 条件 pass——当前 correction 若为 `compliance` 且 `violations[]` 非空则**不覆盖**（为非 CC 用户保留安全信息）；否则覆盖为 model-missing。**写入优先级 compliance > model-missing**，避免首启降级时 model-missing 压住 compliance banner。
+- **退场**：模型配齐后正常路径调 `write_model_missing_clear <layer>`（仅当当前 type 匹配才 `rm`，保留 compliance / l2-missing）。
+- **SessionStart 收割**：`flow-kit-resume.sh` 按 correction 类型分类型收割——`compliance` / 未知删；`l3-model-missing` / `l2-model-missing` / `l2-missing` 保留持续提示（见上 §7 SessionStart Hook）。
 
 ---
 
