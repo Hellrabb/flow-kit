@@ -11,6 +11,18 @@
 
 ---
 
+## M-health 巡检观察（监控级 · 不阻塞）
+
+> 最后更新: 2026-07-25（全量 Sweep · 98/100）
+> 格式：日期 | 严重度 | 位置 | 观察 | 建议操作
+
+<!-- 2026-07-25 Full Sweep ↓ -->
+| 2026-07-25 | 🟢 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh` | **l3-review.sh 持续增长至 875 行**（+65 vs 上次 810）。增长来自合法功能（`l3-review-timeout-token` 可配置化：FLOW_KIT_L3_MAX_TOKENS / TIMEOUT / THINKING）。12 函数结构良好，主编排函数 `l3_review_run()` 已从上上次 307 行拆至 ~90 行。 | 若未来突破 1000 行或新增第 5 种职责，触发 TD-008（拆为 l3-detect / l3-dispatch / l3-format 子库） |
+| 2026-07-25 | 🟢 | 5 个 Bash 文件（jscpd 检测） | **Bash 样板代码相似**：6-11 行的 shebang + `set -euo pipefail` + SOURCE_DIR 初始化段在 l2-detect↔l3-review、27↔28、auto-checkpoint↔gate 等模块间结构相似。非语义重复，是 Bash 脚本的固有模式。 | 不处理。提取公共样板反而增加耦合和认知负荷。 |
+<!-- 2026-07-25 Full Sweep ↑ -->
+
+---
+
 ## 技术债清单
 
 > 最后更新: 2026-07-20（M-health 巡检）
