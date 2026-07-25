@@ -6,8 +6,10 @@
 # 当某 change 在阶段 1/2/3/5/6/7 开启了独立 review（gate_config 或 stop-hook.json phases）
 # 且未完成（无 .specs/<id>/.independent-review-<phase>.done），命中 commit/PR/阶段切换 → exit 2 deny。
 #
-# path-guard（D7）：Write/Edit/Bash 写 .flow-active.independent-review 握手文件 → exit 2 deny（所有阶段，
-#   防 agent 预备伪造 L3 证据；29号 hook 子进程直写不经 PreToolUse，独占放行）。
+# path-guard（D7 扩展 · 方案 A）：Write/Edit/Bash 写 .independent-review-*.done → exit 2 deny（作者性锚点，
+#   防 agent 伪造 .done 绕过 L3 审查）。L2-only 例外：gate_config=L2 时 agent 按协议写 .done 放行。
+#   l3_review_run 写 .done 不被拦截——在 Stop hook 进程运行不经过 PreToolUse（架构天然隔离）。
+#   原保护对象 .flow-active.independent-review（握手）已废弃——改为 .done 作为新作者性锚点。
 #
 # fail 策略（D9）：path-guard = fail-open（拦不住不卡 agent 工具流）；review gate 校验 = fail-close。
 # 其余不确定（非 Bash/Write/Edit、无 .flow-active、阶段非 review gate、gate 未开、lib 失败、jq 不可用）→ exit 0 放行。
@@ -34,14 +36,15 @@ fi
 
 # ══ helper 函数（source-safe · check.sh / bats 可复用，不依赖 stdin）══════════
 
-# is_handshake_write <cmd> — 检测 Bash 命令是否写 .flow-active.independent-review（D7 · 29号独占写）
-# 返回 0 = 是握手写（deny）; 1 = 否（放行）
-# v1 非穷尽：挡常见 > / >> / tee / cp / mv / sed -i / printf / dd of= / install / awk / heredoc；
-#            exotic（python-c / base64 / 变量间接）留 v2 加密签名（DESIGN §6 · R12）
-is_handshake_write() {
+# _is_dotdone_write <cmd> — 检测 Bash 命令是否写 .independent-review-*.done（D7 扩展 · agent 不可写 .done）
+# 方案 A：path-guard D7 保护 .done 文件（替代废弃的握手文件 .flow-active.independent-review）
+# 返回 0 = 是 .done 写（deny）; 1 = 否（放行）
+# 写路径匹配继承原 is_handshake_write 的 11 种模式（> / >> / tee / cp / mv / sed -i / printf / dd of= / install / awk / heredoc）
+# exotic（python -c / base64 / 变量间接）留 v2 加密签名
+_is_dotdone_write() {
   local c="$1"
-  [[ "$c" == *.flow-active.independent-review* ]] || return 1
-  local re_redirect='[>][^=]'  # TD-015：变量化 \>[^=] 须用字符类（内联 \> 是字面 > 正常，但变量 re='\>[^=]' 触发 GNU 单词边界 → 误判）
+  [[ "$c" == *.independent-review-*.done* ]] || return 1
+  local re_redirect='[>][^=]'  # TD-015：变量化 \>[^=] 须用字符类
   [[ "$c" =~ $re_redirect ]] && return 0                # > / >> 重定向（排除 >=）
   [[ "$c" =~ (^|[[:space:]])tee[[:space:]] ]] && return 0
   [[ "$c" =~ (cp|mv)[[:space:]] ]] && return 0
@@ -52,6 +55,23 @@ is_handshake_write() {
   [[ "$c" =~ awk[[:space:]] ]] && return 0
   [[ "$c" == *"cat <<"* ]] && return 0
   return 1
+}
+
+# _gate_is_l2_only <phase_num> <cwd> — 检查 gate_config 对该阶段是否仅需 L2（允许 agent 写 .done）
+# 返回 0 = L2-only（放行 agent 写 .done）; 1 = 需要 L3/both 或读取失败（拦截）
+# L2-only 模式例外：gate_config=L2 时协议要求主 agent 写 .done，path-guard 须放行
+# gate_config 读取失败 → fail-open 放行（D3 决策）
+_gate_is_l2_only() {
+  local phase_num="$1" cwd="${2:-$PWD}"
+  local flow_file="${cwd}/.flow-active"
+  [[ -f "$flow_file" ]] || return 0  # 无 .flow-active → fail-open 放行
+  local phase_name
+  phase_name=$(fk_phase_gate_key "$phase_num" 2>/dev/null || echo "")
+  [[ -n "$phase_name" ]] || return 0  # phase_name 解析失败 → fail-open 放行
+  local gate_val
+  gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+  [[ "$gate_val" == "L2" ]] && return 0  # L2-only → 放行
+  return 1  # L3/both/未配 → 拦截
 }
 
 # fk_check_gate_config_tamper <flow_file> <snapshot_file> — D8 ⑥ gate_config 篡改检测
@@ -175,22 +195,41 @@ is_gh_pr_create() {
 
 # ══ Gate check functions (extracted from main logic · DESIGN D2 · 7 gates) ══
 
-# _gate_path_guard — D7: block Write/Edit/Bash from writing handshake files (all phases, fail-open)
+# _gate_path_guard — D7 扩展：禁止 agent 写 .independent-review-*.done（方案 A · 作者性锚点）
+# 原保护对象 .flow-active.independent-review（握手文件）已废弃——改为保护 .done 文件
+# L2-only 例外：gate_config=L2 时协议要求主 agent 写 .done → path-guard 放行
+# l3_review_run 写 .done 不被拦截——因在 Stop hook 进程运行不经过 PreToolUse（架构天然隔离）
 _gate_path_guard() {
   local tool_name="$1" file_path="$2" cmd="$3"
   if [[ "$tool_name" == "Write" || "$tool_name" == "Edit" ]]; then
-    if [[ "$file_path" == *.flow-active.independent-review* ]]; then
+    if [[ "$file_path" == *.independent-review-*.done* ]]; then
+      # 提取阶段号 N（文件路径中 .independent-review-<N>.done）
+      local phase_num
+      phase_num=$(echo "$file_path" | grep -oP '\.independent-review-\K[0-9]+(?=\.done)' 2>/dev/null || echo "")
+      if [[ -n "$phase_num" ]] && _gate_is_l2_only "$phase_num" "$PROJECT_ROOT"; then
+        return 0  # L2-only 例外放行
+      fi
       cat >&2 <<'EOF'
-⛔ path-guard（D7）：禁止直接写 .flow-active.independent-review（29号 hook 独占写）。
-   agent 不得自产 L3 握手证据。如确需绕过（hotfix）：由 29号 hook 子进程写，或 /flow gate-config 关闭。
+⛔ path-guard（D7）：禁止直接写 .independent-review-*.done（作者性锚点）。
+   agent 不得自产 .done 绕过 L3 审查——.done 须由审查子系统（l3_review_run / L2 子 agent）产出。
+   例外：gate_config=L2 时主 agent 按协议写 .done 放行。
+   如确需绕过（hotfix）：/flow gate-config 关闭对应阶段的独立审查。
 EOF
       return 2
     fi
   elif [[ "$tool_name" == "Bash" ]]; then
-    if is_handshake_write "$cmd" 2>/dev/null; then
+    if _is_dotdone_write "$cmd" 2>/dev/null; then
+      # 从命令中提取阶段号 N
+      local phase_num
+      phase_num=$(echo "$cmd" | grep -oP '\.independent-review-\K[0-9]+(?=\.done)' 2>/dev/null | head -1 || echo "")
+      if [[ -n "$phase_num" ]] && _gate_is_l2_only "$phase_num" "$PROJECT_ROOT"; then
+        return 0  # L2-only 例外放行
+      fi
       cat >&2 <<'EOF'
-⛔ path-guard（D7）：禁止 Bash 直接写 .flow-active.independent-review（29号 hook 独占写）。
-   agent 不得自产 L3 握手证据。如确需绕过（hotfix）：由 29号 hook 子进程写，或 /flow gate-config 关闭。
+⛔ path-guard（D7）：禁止 Bash 直接写 .independent-review-*.done（作者性锚点）。
+   agent 不得自产 .done 绕过 L3 审查——.done 须由审查子系统（l3_review_run / L2 子 agent）产出。
+   例外：gate_config=L2 时主 agent 按协议写 .done 放行。
+   如确需绕过（hotfix）：/flow gate-config 关闭对应阶段的独立审查。
 EOF
       return 2
     fi

@@ -64,13 +64,10 @@ if [[ -z "$model" ]]; then
 fi
 write_model_missing_clear "L3"   # 正常路径：清残留 model-missing（AC-6 退场）
 
-# ── Gate 4: 幂等——本阶段 L3 已成功就跳过 ──
-state_file="${PROJECT_ROOT}/.flow-active.independent-review"
-if [ -f "$state_file" ]; then
-  prev_status=$(jq -r --arg p "$phase" '.[$p].status // ""' "$state_file" 2>/dev/null || echo "")
-  if [[ "$prev_status" == "done" ]]; then
-    exit 0
-  fi
+# ── Gate 4: 幂等——本阶段 L3 已成功就跳过（方案 A：改用 .done 文件存在性，替代废弃的 state_file 握手）──
+done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
+if [ -f "$done_marker" ]; then
+  exit 0
 fi
 
 spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
@@ -118,11 +115,10 @@ _l3_scan_backlog() {
   done
 }
 
-# ── Gate 5: done 标志已写（主 agent 收齐了）→ 清理握手文件 ──
+# ── Gate 5: done 标志已写（主 agent 收齐了）→ 跳过（方案 A：握手文件废弃，不再清理 state_file）──
 done_marker="${spec_dir}/.independent-review-${phase}.done"
 if [ -f "$done_marker" ]; then
   module_output "info" "IR" "skipped: ${done_marker} — L3 already completed for phase ${phase}"
-  rm -f "$state_file"
   declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "29" || true
   exit 0
 fi
@@ -199,9 +195,7 @@ if [ -f "${HOOK_BASE_DIR}/lib/l3-review.sh" ]; then
       1) module_output "info" "IR" "L3 独立 review 完成（阶段 ${phase}, verdict=fail, L2_verdict=${l2_verdict}）→ INDEPENDENT-REVIEW-${phase}.md + .done";;
       *) module_output "warning" "IR" "L3 独立 review 调用失败（阶段 ${phase}, rc=${rc}），需人工检查";;
     esac
-    # 清理旧握手文件（若存在，不再需要——l3_review_run 直接写 .done）
-    state_file="${PROJECT_ROOT}/.flow-active.independent-review"
-    rm -f "$state_file" 2>/dev/null || true
+    # 方案 A：握手文件已废弃，不再需要清理——l3_review_run 直接写 .done
     exit 0
   fi
 fi

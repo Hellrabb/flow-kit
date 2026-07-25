@@ -89,10 +89,11 @@ _fk_done_kvp() {
 }
 
 # Usage: fk_validate_done_marker <done_path> <phase> <change_id> <tier>
-#   tier = write (Tier 1 元数据快校验) | transition (Tier 1 + Tier 2 后置)
+#   tier = write (Tier 1 元数据快校验) | transition (Tier 1 + Tier 2 后置 · 方案 A 删 T3 握手仅保留 T4)
 # Returns: 0 = .done 有效（放行）; 2 = 无效 deny（对齐 DESIGN §3 "deny exit 2" + forged-done check.sh rc=2）
 # fail-close（D9）: jq 不可用 / 解析异常 / 畸形输入 → return 2（deny，agent 不能靠制造 hook 内部错误放行）
 # phases_done 短路（D1/R11）: phase ∈ goal.phases_done → 直接有效（历史 .done 兜底）
+# 方案 A：作者性由 path-guard D7 前置保证（agent 写 .done 被 PreToolUse 拦截），Tier 2 不验作者性
 fk_validate_done_marker() {
   local done_path="$1" phase="$2" change_id="$3" tier="${4:-write}"
   local flow_file="${PROJECT_ROOT:-}/.flow-active"
@@ -137,25 +138,8 @@ fk_validate_done_marker() {
   [[ "$tier" == "transition" ]] || return 0                # tier=write 到此为止
 
   # ── Tier 2 · transition 后置（产物已齐）──
-  # T3 D7 握手锚点（挡威胁③ + ⑤-L3 常见路径）
-  local hs_path="${flow_file}.independent-review"
-  [[ -f "$hs_path" ]] || return 2
-  local hs_wby hs_verdict
-  hs_wby=$(jq -r --arg p "$phase" '.[$p].written_by // ""' "$hs_path" 2>/dev/null || echo "")
-  hs_verdict=$(jq -r --arg p "$phase" '.[$p].verdict // ""' "$hs_path" 2>/dev/null || echo "")
-  [[ "$hs_wby" == "stop-hook-29" ]] || return 2
-  local l3v
-  l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
-  [[ -n "$l3v" && "$hs_verdict" == "$l3v" ]] || return 2
-
-  # T3b SESSION_ID 跨会话锚点（挡威胁④ 移花接木）
-  local cur_sid done_sid
-  cur_sid="${CLAUDE_CODE_SESSION_ID:-}"
-  done_sid=$(_fk_done_kvp "$done_path" "session_id")
-  if [[ -n "$cur_sid" && -n "$done_sid" ]]; then
-    [[ "$done_sid" == "$cur_sid" ]] || return 2
-  fi
-  # cur_sid / done_sid 缺失 → best-effort 不挡（跨会话合法推进由 phases_done 短路兜底）
+  # 方案 A：T3 握手校验 + T3b SESSION_ID 已删除——作者性由 path-guard D7 前置保证（写入时拦截）
+  # Tier 2 仅保留 T4 L2_verdict vs INDEPENDENT-REVIEW-N.md 比对（L2-first gating 调度契约）
 
   # T4 L2_verdict 与 INDEPENDENT-REVIEW-<phase>.md 比对（挡威胁⑤-L2 · v1 best-effort 提高成本）
   local l2v md_path md_v

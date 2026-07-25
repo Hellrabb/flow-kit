@@ -51,15 +51,8 @@ artifacts=REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-6.md
 EOF
 }
 
-# Helper: 写合法握手（per-phase 格式 · phase=6, written_by=stop-hook-29, verdict=pass）
-write_valid_handshake() {
-  cat > "$PROJECT_ROOT/.flow-active.independent-review" << 'EOF'
-{"6":{"phase":"6","status":"done","verdict":"pass","written_by":"stop-hook-29","written_at":"2026-07-02T00:00:00Z"}}
-EOF
-}
-
 # ═══════════════════════════════════════════════════════════════════════
-# AC-1 · .done 真实性（6 类威胁 · fk_validate_done_marker deny=return 2）
+# AC-1 · .done 真实性（方案 A：作者性由 path-guard D7 前置保证）
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-1 ① empty-done: 空 .done → deny return 2" {
@@ -69,32 +62,25 @@ EOF
   [ "$status" -eq 2 ]
 }
 
-@test "AC-1 ②③ forged-done: 伪造 KVP + 无握手 → transition deny return 2" {
-  write_valid_done "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done"
-  run fk_validate_done_marker \
-    "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done" 6 test-change transition
-  [ "$status" -eq 2 ]
+@test "AC-1 ②③ forged-done: agent 写 .done → path-guard 拦截（方案 A · 作者性锚点）" {
+  # 方案 A：agent 通过 Bash cat heredoc 写 .independent-review-*.done → _is_dotdone_write 命中 → return 0（deny）
+  run _is_dotdone_write "cat > .specs/test-change/.independent-review-6.done << 'EOF'"
+  [ "$status" -eq 0 ]
+  # 验证 redirect 写也拦截
+  run _is_dotdone_write "echo x > .specs/test-change/.independent-review-6.done"
+  [ "$status" -eq 0 ]
 }
 
-@test "AC-1 ④ hijack-done: 跨 session .done → T3b session_id 不匹配 deny" {
-  write_valid_done "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done"
-  write_valid_handshake
-  export CLAUDE_CODE_SESSION_ID=xyz-different-session
-  run fk_validate_done_marker \
-    "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done" 6 test-change transition
-  [ "$status" -eq 2 ]
+@test "AC-1 ④ hijack-done: agent mv 写 .done → path-guard 拦截" {
+  # 方案 A：agent 在子目录写 .done 后 mv 到目标 → _is_dotdone_write 命中 mv 模式 → exit 2
+  run _is_dotdone_write "mv /tmp/fake/.independent-review-6.done .specs/x/.independent-review-6.done"
+  [ "$status" -eq 0 ]
 }
 
-@test "AC-1 ⑤ tampered-done: L2_verdict 与 INDEPENDENT-REVIEW.md 不一致 → T4 deny" {
-  write_valid_done "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done"
-  write_valid_handshake
-  export CLAUDE_CODE_SESSION_ID=abc-session-123
-  cat > "$TEST_TMPDIR/.specs/test-change/INDEPENDENT-REVIEW-6.md" << 'EOF'
-## Verdict: fail
-EOF
-  run fk_validate_done_marker \
-    "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done" 6 test-change transition
-  [ "$status" -eq 2 ]
+@test "AC-1 ⑤ tampered-done: agent sed -i 改 .done → path-guard 拦截" {
+  # 方案 A：agent 用 sed -i 原地修改 .done → _is_dotdone_write 命中 sed -i 模式 → exit 2
+  run _is_dotdone_write "sed -i 's/pass/fail/' .specs/x/.independent-review-6.done"
+  [ "$status" -eq 0 ]
 }
 
 @test "AC-1 ⑥ gate-config-tamper: independent→false → fk_check_gate_config_tamper deny return 1" {
@@ -108,6 +94,17 @@ EOF
     "$TEST_TMPDIR/.flow-active" \
     "$TEST_TMPDIR/.specs/test-change/.goal-snapshot.json"
   [ "$status" -eq 1 ]
+}
+
+@test "T4 L2 裁决不匹配: .done L2_verdict=pass 与 INDEPENDENT-REVIEW.md L2 verdict=fail → transition deny return 2（R1 补 · L2-first gating 契约负向）" {
+  write_valid_done "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done"
+  cat > "$TEST_TMPDIR/.specs/test-change/INDEPENDENT-REVIEW-6.md" << 'REOF'
+## L2 盲审
+**Verdict**: fail
+REOF
+  run fk_validate_done_marker \
+    "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done" 6 test-change transition
+  [ "$status" -eq 2 ]
 }
 
 @test "D9 fail-close: 畸形 snapshot（jq 解析失败）→ fk_check_gate_config_tamper deny return 1" {
@@ -137,10 +134,12 @@ EOF
 # D9 · 正向（合法 .done + 合法握手 + session 一致 → return 0 放行）
 # ═══════════════════════════════════════════════════════════════════════
 
-@test "D9 正向: 合法 .done + 合法握手 + session 一致 → fk_validate_done_marker return 0" {
+@test "D9 正向: 合法 .done（KVP 完整 + L2_verdict=pass 与 INDEPENDENT-REVIEW-6.md 一致）→ transition return 0（方案 A: 删 T3 握手仅保留 T4 L2 比对）" {
   write_valid_done "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done"
-  write_valid_handshake
-  export CLAUDE_CODE_SESSION_ID=abc-session-123
+  cat > "$TEST_TMPDIR/.specs/test-change/INDEPENDENT-REVIEW-6.md" << 'REOF'
+## L2 盲审
+**Verdict**: pass
+REOF
   run fk_validate_done_marker \
     "$TEST_TMPDIR/.specs/test-change/.independent-review-6.done" 6 test-change transition
   [ "$status" -eq 0 ]
@@ -167,37 +166,59 @@ EOF
 # gate.sh #9/#10 已覆盖 phase 检测，artifacts 重复断言且过时。
 
 # ═══════════════════════════════════════════════════════════════════════
-# D7 · path-guard is_handshake_write（run + $status）
+# D7 · path-guard _is_dotdone_write（方案 A · .done 作者性锚点）
 # ═══════════════════════════════════════════════════════════════════════
 
-@test "D7 path-guard: Bash 重定向 > 握手文件 → block (return 0)" {
-  run is_handshake_write "echo x > .flow-active.independent-review"
+@test "D7 path-guard: Bash 重定向 > .done → block (return 0)" {
+  run _is_dotdone_write "echo x > .specs/x/.independent-review-6.done"
   [ "$status" -eq 0 ]
 }
 
-@test "D7 path-guard: Bash 追加 >> 握手文件 → block (return 0)" {
-  run is_handshake_write "echo x >> .flow-active.independent-review"
+@test "D7 path-guard: Bash 追加 >> .done → block (return 0)" {
+  run _is_dotdone_write "echo x >> .specs/x/.independent-review-6.done"
   [ "$status" -eq 0 ]
 }
 
-@test "D7 path-guard: Bash cp 握手文件 → block (return 0)" {
-  run is_handshake_write "cp /tmp/x .flow-active.independent-review"
+@test "D7 path-guard: Bash cp .done → block (return 0)" {
+  run _is_dotdone_write "cp /tmp/x .specs/x/.independent-review-6.done"
   [ "$status" -eq 0 ]
 }
 
-@test "D7 path-guard: Bash sed -i 握手文件 → block (return 0)" {
-  run is_handshake_write "sed -i s/a/b/ .flow-active.independent-review"
+@test "D7 path-guard: Bash sed -i .done → block (return 0)" {
+  run _is_dotdone_write "sed -i s/a/b/ .specs/x/.independent-review-6.done"
   [ "$status" -eq 0 ]
 }
 
 @test "D7 path-guard: Bash exotic python-c → NOT block (return 1 · v1)" {
-  run is_handshake_write 'python3 -c "open(\".flow-active.independent-review\",\"w\")"'
+  run _is_dotdone_write 'python3 -c "open(\".specs/x/.independent-review-6.done\",\"w\")"'
   [ "$status" -eq 1 ]
 }
 
-@test "D7 path-guard: 非握手路径 → NOT block (return 1)" {
-  run is_handshake_write "jq .interrupt=x .flow-active"
+@test "D7 path-guard: 非 .done 路径 → NOT block (return 1)" {
+  run _is_dotdone_write "jq .interrupt=x .flow-active"
   [ "$status" -eq 1 ]
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# 新增 · AC-6 payload 集成 + AC-4 L2-only 例外
+# ═══════════════════════════════════════════════════════════════════════
+
+@test "AC-6 payload: gate_config=both → agent Bash 写 .done → path-guard deny exit 2" {
+  local flow_file="$TEST_TMPDIR/.flow-active"
+  cat > "$flow_file" << 'FEOF'
+{"phase":"6","change_id":"test-change","goal":{"gate_config":{"6-review":"both"}}}
+FEOF
+  run _gate_path_guard "Bash" "" "cat > .specs/test-change/.independent-review-6.done << 'EOF'"
+  [ "$status" -eq 2 ]
+}
+
+@test "AC-4 L2-only: gate_config=L2 → agent 写 .done → path-guard 放行 exit 0" {
+  local flow_file="$TEST_TMPDIR/.flow-active"
+  cat > "$flow_file" << 'FEOF'
+{"phase":"6","change_id":"test-change","goal":{"gate_config":{"6-review":"L2"}}}
+FEOF
+  run _gate_path_guard "Bash" "" "cat > .specs/test-change/.independent-review-6.done << 'EOF'"
+  [ "$status" -eq 0 ]
 }
 
 # ═══════════════════════════════════════════════════════════════════════

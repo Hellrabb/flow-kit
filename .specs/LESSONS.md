@@ -404,3 +404,13 @@
 - **How to apply**：(1) 任何调用外部 API 的工具，超时/token 上限必须可配置（env var > 默认值），禁止硬编码；(2) 换 L3 模型时须先实测 max_tokens/timeout 承载能力（大产物场景）；(3) thinking 模型（deepseek-v4-pro）需 disabled 作为 escape hatch；(4) `_l3_parse_result` 的 fallback 链 `.thinking // .text` 可能静默错判——留 v2 修复。
 - **关联**：[[l3-model-unreliable]]（失败模式从 glm-4.7 幻觉演进为 deepseek-v4-pro 思考吃满预算）、TD-008（l3-review.sh 574 行多职责）、[[gate-done-authorship]]（被卡住的 change）
 - **来源**：`l3-review-timeout-token`
+
+## L-057 · 握手死代码清理不完整——校验端+测试端未同步 → 不可达的"活校验"制造虚假安全感
+
+- **严重度**：🔴 Critical（安全设计缺陷——gate `.done` 仅验存在性不验作者性，agent 可伪造 `.done` 绕过 L3 审查）
+- **发现**：独立 review gate 的「`.done` 标志」机制存在安全缺口（2026-07-24）：Gate 3（`fk_independent_review_gate_active`）只要 `.done` 存在就短路放行，不校验由谁写入。原本用于证明 `.done` 由 stop-hook 子进程写入的握手机制（`.flow-active.independent-review`）已演变为死代码——无生产代码写它，仅测试 fixture 写。agent 可自写结构合法的 `.done` 绕过 L3 外部模型审查。
+- **Why**：握手的写入路径在 gate 重构中废弃（l3_review_run 直接写 .done），但校验端（done-validation.sh T3）+ 测试端（4 个握手测试 + regression-demos）未同步清除。结果是「活校验 + 死写入 + 不可达」（Gate 3 见 .done 存在即放行，永远到不了 Tier 2 T3）。单元测试再绿也不生——函数覆盖了但主流程不可达。
+- **修复**：gate-done-authorship change（2026-07-25）——方案 A：彻底废弃握手，改用 path-guard D7 扩展保护 .done（`_is_dotdone_write` 禁止 agent 写 `.independent-review-*.done`）+ L2-only 例外 + Fail-safe。23 tests + 613 full regression。
+- **How to apply**：(1) 删除机制时，校验端+测试端必须同步清除，不可留"死校验"制造虚假安全感；(2) 单元测试覆盖函数行为 ≠ 生产路径真生效——须确认函数在主流程里**可达**；(3) 安全敏感 gate 优先用前置拦截（path-guard 写入时阻）而非后置校验（Tier 2 读取时验）——前置更强（阻止创建 vs 检测已创建）；(4) 独立 review 发现握手死代码时先 check 全仓 `grep` 写路径真死否。
+- **关联**：[[l3-model-unreliable]]（L3 模型不可靠导致 pipeline 反复 review 才暴露此缺口）、[[l3-review-timeout-token]]（修 L3 工具解套此 change 的 L3 审查）、ADR-005（独立审查体系，D7 path-guard）
+- **来源**：`gate-done-authorship`

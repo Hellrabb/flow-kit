@@ -139,3 +139,4 @@ setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 
 **审查**: L2 DeepSeek-V4 + Haiku 两轮跨模型盲审（用户指南） + L2 Sonnet + Haiku 修复前/后四轮审查（打包修复） + 三方安全审查（主 agent + Sonnet + Haiku）
 **LESSONS**: L-044（用户指南同步检查清单）、L-045（bundle validate 环境依赖）、L-046（L2 dispatch PreToolUse 方案设计）
 | 2026-07-25 | l3-review-timeout-token | 修复 L3 工具硬编码 max_tokens:8000 + curl --max-time 90 致 deepseek-v4-pro 扩展思考吃满预算 → rc=3：三 env var 全可配（MAX_TOKENS/TIMEOUT/THINKING）+ Fail-safe + 可观测性 + jq -c。pipeline 0→7 gate_config=both。解套 gate-done-authorship。 | L-056 |
+| 2026-07-25 | gate-done-authorship | 修复 gate .done 作者性安全缺口：方案 A——废弃握手，path-guard D7 扩展保护 .done（_is_dotdone_write + _gate_is_l2_only）+ 删 done-validation T3/T3b + 29 号改用 .done 幂等。23 tests + 613 bats 全绿。Pipeline 0→7 gate_config=both。被 l3-review-timeout-token 解套后完成 | L-057 |
