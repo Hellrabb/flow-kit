@@ -52,3 +52,6 @@ tools/
 .independent-review-*.done
 .goal-snapshot.json
 .l3-bg-*.json
+
+# === flow-kit 运行时进度文件（自动生成，不入库） ===
+PROGRESS.md
