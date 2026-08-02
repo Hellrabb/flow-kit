@@ -1,8 +1,11 @@
-# 阶段 6 · REVIEW — 三轮审查（spec 合规 + 代码质量 + UI）
+# 阶段 6 · REVIEW — 单轮合并审查 + 可选 Critical 触发 spot-check
 
 ## 角色
 
 你是 Reviewer。**只产报告 + 修复任务，不直接改代码**（R3.3）。
+
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+> @see `flow-kit/reference/terse-contract.md` — review 输出遵守 terse contract
 
 ## 输入
 
@@ -56,20 +59,14 @@
 | 跨模块契约违反 | 2-design |
 | 其他 / 不确定 | 4-dev（默认兜底）|
 
-> 建议目标必须在 `[start_phase .. current_phase-1]` 内（仅可回退到已走过的阶段）。
-> `--from 4`（默认）时，可回退目标仅 [4]，建议即回 4（向后兼容）。
-> `--from 0` 时，可回退到 0/1/2/3/4，AI 按 critical 类型建议（如 spec 合规失败→1-requirement）。
+> 建议目标必须在 `[start_phase .. current_phase-1]` 内（`--from 4` 默认 → 仅 [4]；`--from 0` → 0/1/2/3/4，按 critical 类型建议）。
 
 ```
 ⛔ Pipeline 暂停：6-review 检测到 N 个 Critical 问题
   - [Critical] <文件> — <问题描述>
-
-   失败现象：<AI 判断，如「spec 合规失败」「架构撞 ADR」>
-   💡 建议回退到：<建议阶段名>（<理由>）
-   可回退目标：<rollback_targets = [start_phase .. 5]>
-
+  失败现象：<AI 判断> | 💡 建议回退：<建议阶段名>（<理由>）| 可回退目标：[start_phase .. 5]
 请选择：
-  1. ⬅️ 回退（默认建议：<建议目标>）→ current_phase=<目标>, phases_done 移除该目标之后的阶段
+  1. ⬅️ 回退（默认建议目标）→ current_phase=<目标>, phases_done 移除之后的阶段
   2. 接受风险继续 → Critical 降级为 Known，继续 6→7
   3. 放弃本次 pipeline → goal.status = "aborted"
 ```
@@ -77,7 +74,7 @@
 用户选 1（确认建议或手动指定其他可回退目标）→ **Phase 回退（通用化 jq，$TARGET 为选定目标）**：
 
 ```bash
-# goal 字段结构及常用 jq 查询见 @flow-kit/reference/goal-parsing.md
+# goal 字段 jq 查询见 @flow-kit/reference/goal-parsing.md
 TARGET=<用户确认的目标，如 "4" 或 "2" 或 "1">
 PHASES_DONE=$(jq -c '.goal.phases_done // []' .flow-active)
 REMOVE=$(jq -n --arg target "$TARGET" --argjson done "$PHASES_DONE" \
@@ -94,7 +91,6 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 ### 独立 review 调度（仅当本阶段 gate 开启时执行）
 
 > ⚠️ L2 盲审必须在本阶段产物完成后、toll-gate 前完成。跳过 L2 = gate deny transition。
-
 > **检测**：`.flow-active.goal.gate_config["6-review"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"6-review"`。未开启 → 跳过本段，直接进「阶段完成自检」。
 
 本阶段产物必须通过两层独立 review 才能切到 7-integration / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
@@ -109,13 +105,11 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
       subagent_type: code-reviewer
       description: "L2 blind review phase 6"
       prompt: |
-        <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 的完整内容>
-
+        <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 完整内容>
         ## 本次审查参数
-        - 阶段：6
-        - change-id：<change-id>
-        - 工件：git diff（参考 .specs/<change-id>/REVIEW.md —— 注意它是主 agent 的结论，是待复核对象而非权威）
-        - 输出：写入 .specs/<change-id>/INDEPENDENT-REVIEW-6.md 的「## L2 盲审」段（若文件已存在含 L3 段，先读全文，将 L2 段追加到末尾再 Write——禁止直接覆写；若文件不存在则新建，首行加 `# 独立审查 · 阶段 6`）
+        - 阶段：6 | change-id：<change-id>
+        - 工件：git diff（参考 REVIEW.md · 主 agent 结论，待复核对象）
+        - 输出：写入 INDEPENDENT-REVIEW-6.md 的「## L2 盲审」段（追加非覆写；不存在则新建，首行 `# 独立审查 · 阶段 6`）
 
 #### L3 · 外部模型审查（Stop hook 自动跑 · 你不用调度）
 
@@ -137,8 +131,7 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
       artifacts=REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-6.md
       DONE_EOF
       ```
-
-写完才能切到 7-integration / commit / 开 PR。L3 连续失败 ≥3 次（Stop 报告会提示「允许手动绕过」）时，可凭提示手动 touch 继续，不强制卡死。
+写完才能切到 7-integration / commit / 开 PR。L3 连续失败 ≥3 次时，可凭提示手动 touch 继续。
 
 ### 修代码优先协议（l2-l3-fix-compliance）
 
@@ -157,15 +150,14 @@ PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `N
 
 ### 阶段完成自检（Phase Completion Self-Check）
 
-> ⚠️ **强制**：在进入 Toll-gate 6→7 之前，必须逐项完成以下自检。
-> 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
+> ⚠️ **强制**：在进入 Toll-gate 6→7 之前，必须逐项完成以下自检。任一 ❌ → **禁止进入 toll-gate**。补齐后重新自检。
 
 | # | 产物/检查项 | 验证方式 | 状态 |
 |---|---|---|---|
-| 1 | `REVIEW.md` 已写入 `.specs/<change-id>/`（含三轮审查结果） | `test -f .specs/<change-id>/REVIEW.md` | ✅ / ❌ |
-| 2 | 第一轮 · Spec 合规审查已完成 | 人工确认 | ✅ / ❌ |
-| 3 | 第二轮 · 代码质量审查已完成 | 人工确认 | ✅ / ❌ |
-| 4 | 第三轮 · UI 审查已完成（前端项目）或已声明跳过 | 人工确认 | ✅ / ❌ |
+| 1 | `REVIEW.md` 已写入 `.specs/<change-id>/`（含合并审查结果） | `test -f .specs/<change-id>/REVIEW.md` | ✅ / ❌ |
+| 2 | Spec 合规审查已完成 | 人工确认 | ✅ / ❌ |
+| 3 | 代码质量审查已完成（6 维衰退风险） | 人工确认 | ✅ / ❌ |
+| 4 | UI 视觉审查已完成（前端项目）或已声明跳过 | 人工确认 | ✅ / ❌ |
 | 5 | 动态门禁判定（AC-9）已通过（无 🔴 Critical，或已记录接受风险） | 人工确认 | ✅ / ❌ |
 | 6 | Gate 失败项（如有）已记录在 REVIEW.md | 人工确认 | ✅ / ❌ |
 | 7 | 技术债已同步到 CONTEXT.md（若 4.1 触发且有 🟡 Scheduled 产出，确认已写入 `.specs/CONTEXT.md` 技术债段） | 人工确认（检查 4.1 是否触发；若触发则 `grep` CONTEXT.md 技术债段确认新条目已追加） | ✅ / ❌ / N/A |
@@ -209,215 +201,150 @@ jq --arg ts "$(date -Iseconds)" \
 
 ## 你的职责
 
-使用 `@flow-kit/templates/REVIEW.md` 模板分三轮审查（后端 / lib 项目跳过第三轮）。
+执行**单轮合并审查**，产出结构化的 REVIEW.md，遵守 terse contract。
 
-### 第一轮 · Spec 合规审查
+### 审查前准备：生成 review-package
 
-逐条对照 `REQUIREMENT.md` 的 AC，看实现是否真做到。
-检查项：
+1. 运行 `bash flow-kit/scripts/review-package <base-commit> HEAD > /tmp/review-pkg.md`
+2. Read `/tmp/review-pkg.md` — 含三段（## Commits / ## Files changed / ## Diff）
+
+> `<base-commit>` 默认取 `git merge-base HEAD main`（或 master）；pipeline goal 场景可查 `.flow-active.goal.start_phase` 对应分支起点。
+
+### 单轮合并审查（统一 workflow）
+
+在一次审查 pass 中覆盖以下所有维度，产出单一 verdict：
+
+#### A. Spec 合规
+
+对照 `.specs/<change-id>/REQUIREMENT.md` 的每条 AC：
 
 - [ ] 每条 AC 是否被实现
 - [ ] 每条 AC 是否被测试覆盖（链接到 TEST.md）
-- [ ] 是否引入了 `out of scope` 里明令排除的内容
-- [ ] 是否新增了 REQUIREMENT.md 里没有的功能（范围蔓延）
-- [ ] 是否触动了 DESIGN.md 之外的架构
+- [ ] 是否引入 `out of scope` 里排除的内容
+- [ ] 是否新增 REQUIREMENT.md 里没有的功能（范围蔓延）
+- [ ] 是否触动 DESIGN.md 之外的架构
 
-### 第二轮 · 代码质量审查（书本驱动 6 维衰退风险）
+#### B. 代码质量（6 维衰退风险）
 
-#### 2.0 TEST.md 5 轮金字塔完整性（先查）
+以 [brooks-lint](https://github.com/hyhmrright/brooks-lint) 提出的 6 维衰退风险为诊断框架（源自《重构》/《Clean Architecture》/《DDD》/《Pragmatic Programmer》/《Philosophy of Software Design》等）：
 
-打开 `.specs/<id>/TEST.md`，检查"本次测试范围声明"段：
+| 编号 | 衰退风险 | 诊断问题 |
+|---|---|---|
+| R1 | Cognitive Overload | 理解这段代码要多少心智？ |
+| R2 | Change Propagation | 改一点会坏多少不相干的地方？ |
+| R3 | Knowledge Duplication | 同一决定被表达在多处？ |
+| R4 | Accidental Complexity | 代码比问题本身更复杂？ |
+| R5 | Dependency Disorder | 依赖流方向一致吗？ |
+| R6 | Domain Model Distortion | 代码忠实反映业务领域吗？ |
 
-- [ ] 5 轮状态都明确（无未填）
-- [ ] 跳过的轮次都有理由（不允许"暂时跳过"）
-- [ ] 第 1 轮（功能）每条 AC 有覆盖
-- [ ] 第 2 轮（性能）若必跑：实测 / 预算 / 上版基线三列齐全；退步项有处理
-- [ ] 第 3 轮（安全）若必跑：依赖 / 秘钥 / SAST / OWASP 各有处理记录
-- [ ] 第 4 轮（兼容）若必跑：跨浏览器矩阵 / 数据迁移 / 跨版本对应填齐
-- [ ] 第 5 轮（可观测）若必跑：日志 / 指标 / 告警 / 健康检查清单逐项验证
-
-任意一项不达 → 标 🔴 Critical，先回 5-test 阶段补完，再继续后续审查。
-
-#### 2.1 代码质量诊断 · 6 维衰退风险
-
-以 [brooks-lint](https://github.com/hyhmrright/brooks-lint) 提出的 6 个生产代码衰退风险为诊断维度（源于 12 本经典软件工程书籍：《重构》/ 《Clean Architecture》/ 《DDD》/ 《Pragmatic Programmer》/ 《Philosophy of Software Design》 等）：
-
-| 编号 | 衰退风险 | 诊断问题 | 主要源头 |
-|---|---|---|---|
-| R1 | Cognitive Overload 认知过载 | 理解这段代码要多少心智？ | Code Complete / Refactoring / DDD / Philosophy of SD |
-| R2 | Change Propagation 变更传播 | 改一点会坏多少不相干的地方？ | Refactoring / Clean Architecture / Pragmatic / SE@Google |
-| R3 | Knowledge Duplication 知识重复 | 同一个决定是否被表达在多处？ | Pragmatic / Refactoring / DDD |
-| R4 | Accidental Complexity 偶然复杂 | 代码是否比问题本身更复杂？ | Refactoring / Code Complete / Brooks / Philosophy of SD |
-| R5 | Dependency Disorder 依赖混乱 | 依赖流是否一致方向（高层 → 低层）？ | Clean Architecture / Brooks / Pragmatic / SE@Google |
-| R6 | Domain Model Distortion 领域扭曲 | 代码是否忠实反映业务领域？ | DDD / Refactoring |
-
-> **R3 边界（重要）**：这里的"知识重复"是**概念级**——"同一个业务规则 / 常量 / 决策被表达在多处"。
-> 字面级的重复代码块、未用导出 / 依赖、死代码等**不属于 R3 范畴**，交由 `@prompts/M-health.md` 步骤 2.5 的冗余扫描处理（jscpd / knip / vulture / staticcheck 等工具级扫描 · 全库级别 · 定期跑）。
-> 6-review 只盯本次 diff 的概念层级；字面级冗余是"仓库级长期债"，跨 PR 才能看清，因此不放在 PR review 里。
-
+> **R3 边界**："知识重复"是概念级（同一业务规则/常量/决策在多处表达）。字面级冗余交 M-health.md 步骤 2.5（jscpd/knip 等）。
 ##### 路径 A · 装了 brooks-lint（首选）
 
-在 Claude Code / Gemini CLI / Codex CLI 里调用：
-
-```
-/brooks-review            # 基于 diff 的 PR 级诊断
-```
-
-或针对大型变更（架构调整、跨模块重构）补跑一次：
-
-```
-/brooks-audit            # 架构审计，产 Mermaid 依赖图、标出循环依赖
-```
-
-**输出必须包含**该工具要求的四要素（也是 flow-kit 下游认的格式）：
+跑 `/brooks-review`（PR 级诊断），输出原样贴入 REVIEW.md。格式（四要素 + severity）：
 
 ```
 ### 🔴/🟡/🟢 R<x> · <风险名>：<一句话结论>
-**Symptom（症状）**：<在哪个文件:行号发现的具体问题>
-**Source（源头）**：<哪本书哪一节提出这个原则，例如 Fowler · Refactoring · Divergent Change>
-**Consequence（后果）**：<不修会怎么样，未来多久会爆>
-**Remedy（修补）**：<具体怎么改，贴 before/after 代码或接口调整>
+**Severity**: 🔴 Critical / 🟡 Important / 🟢 Minor
+**Symptom**：<file>:<line> | **Source**：<书·章节> | **Consequence**：<后果> | **Remedy**：<方案>
 ```
-
-把 brooks-lint 输出原样贴入 `REVIEW.md` 的「代码质量审查 · 6 维衰退」段，不要改写丝毫。补充部分仅为指向 fix 任务。
 
 ##### 路径 B · 未装 brooks-lint（内置回退）
 
-AI 自己逐个维度诊断 diff，输出上面同样的 4 要素格式，发现的每个问题都要：
+AI 逐个维度诊断 diff，同上四要素格式，每条含 R1~R6 编号 + `file:line` + 书本引用 + severity 标记。
 
-- 标出 **R1~R6 编号**
-- 指出具体 `<file>:<line>`
-- 引用上表中至少一本书作为 Source（不要“根据最佳实践”这种空话）
-- 按下方「严重度分级」段标 🔴 Critical / 🟡 Major / 🟢 Minor
+> 内置路径成果质量明显低于 brooks-lint（带书本引用发现率 100% vs ~16%）。建议安装。
 
-内置路径下**成果质量明显低于 brooks-lint**（根据该工具 benchmark：带书本引用的发现率 100% vs 约 16%）。如果项目质量要求高建议装上 brooks-lint。
+##### 架构依赖检查（大型 change 触发）
 
-#### 2.2 架构依赖检查（大型 change 触发）
+触发条件：新增/重名顶级模块、危险 import、新中间件/服务、跨 ≥5 模块重构。
+brooks-lint → `/brooks-audit` 产 Mermaid 依赖图。重点核：循环依赖、反向依赖（domain→controller）、跨边界依赖。未装 → AI 手绘简化依赖图。
 
-**触发条件**：本次变更满足**任一**项：
-- 新增或重名了顶级模块 / package / 目录
-- 危险 `import` 合并（业务代码 import 类似 `infrastructure/` / `db/` 这种低层包）
-- DESIGN.md 表示引入了新中间件 / 新服务
-- 跨 ≥ 5 个模块的重构
+#### C. UI 视觉审查（仅前端项目）
 
-装了 brooks-lint → `/brooks-audit`，拿到 Mermaid 依赖图，贴入 REVIEW.md。重点核：
-- 是否出现**循环依赖**（图中虚线反向箭头）
-- 是否出现「业务层 → 低层」线路以外的反向依赖（如 `domain/` 依赖 `controller/`）
-- 是否出现跨边界依赖（如 `frontend/` 直接 import `backend/` 实现）
+**触发条件**：本次 change 含 `UI-DESIGN.md` 或 diff 涉及 UI 文件（`.css`/`.tsx`/`.vue`/`.html`/`.svelte`）。非前端项目 → 跳过，REVIEW.md 注明 "UI: N/A（非前端项目）"。
 
-未装 brooks-lint → AI 自己画个简化 Mermaid 依赖图，判同三点。
+- [ ] Design tokens 一致性（颜色/字体/间距来自 UI-DESIGN.md，无硬编码值 · 命中即 🔴 Critical）
+- [ ] Anti-pattern 扫描（对照 `@flow-kit/reference/ui-anti-patterns.md` 8 类禁忌 · 命中即 🔴 Critical · 列出 file:line）
+- [ ] 视觉北极星一致性（实现是否符合 UI-DESIGN 声明的调性 · 不符 → 🟡 Important）
+- [ ] 无障碍快检（对比度 ≥WCAG 2.1 AA / 键盘可达 / 焦点环 / reduced-motion / label / alt）
 
-### 第三轮 · UI 视觉审查（仅前端项目）
+> 装了 [impeccable](https://impeccable.style) → `npx impeccable detect <changed-files>`。
 
-**触发条件**：本次 change 含 `UI-DESIGN.md` 或 diff 涉及任何 UI 文件（`.css` / `.tsx` / `.vue` / `.html` / `.svelte` 等）。
+#### D. 综合评估与 verdict
 
-#### 3.1 Design Tokens 一致性
-
-- [ ] 实现里的颜色值是否全部来自 UI-DESIGN.md frontmatter（CSS variables / theme）？
-- [ ] 是否有硬编码的 hex / 字号 / 间距数值？（命中即 🔴 Critical）
-- [ ] 字体是否与 UI-DESIGN.md 声明一致？是否引入了 anti-pattern 字体（Inter / Roboto / Arial）？
-
-#### 3.2 Anti-Pattern 扫描
-
-逐项对照 `@flow-kit/reference/ui-anti-patterns.md` 的"强制禁忌"段：
-
-- [ ] 字体类（无 AI slop 默认字体）
-- [ ] 颜色类（无纯黑/纯白、无紫色渐变、无彩底灰字、无第二个强调色）
-- [ ] 阴影类（at rest 平面、alpha ≤ 0.15）
-- [ ] 边框类（无彩色侧条 > 1px、无玻璃拟态）
-- [ ] 动效类（无 bounce/elastic、不动 layout 属性、支持 reduced-motion）
-- [ ] 布局类（无卡片嵌套、无 SaaS hero-metric template）
-- [ ] 文案类（无 hedging、无 lorem ipsum、按钮动词具体）
-- [ ] 组件类（无 placeholder 充当 label、模态可 ESC 关闭）
-
-每条命中**必须列出文件:行号**，标 🔴 Critical 并生成 fix 任务。
-
-> 装了 [impeccable](https://impeccable.style) → 跑 `npx impeccable detect <changed-files>` 自动化扫描，把输出贴进 REVIEW.md。
-
-#### 3.3 视觉北极星一致性
-
-回到 UI-DESIGN.md 第 1 节"美学北极星"，问一个问题：
-**"如果只看实现的截图，看得出来这个产品的调性是 <UI-DESIGN 声明的那个> 吗？"**
-
-不能 → 标 🟡 Major，列出哪些视觉决策让调性失焦，建议怎么改。
-
-#### 3.4 无障碍快检
-
-- [ ] 颜色对比 ≥ WCAG 2.1 AA（用工具实测，不是肉眼）
-- [ ] 所有交互元素键盘可达（Tab 顺序合理）
-- [ ] 焦点环可见（不是默认蓝色 outline，而是与设计调性匹配的）
-- [ ] `prefers-reduced-motion` 响应正确
-- [ ] 表单 label 显式关联（不靠 placeholder）
-- [ ] 图片 alt 文本（装饰图用 `alt=""`）
-
-### 第四轮 · 补充审查（可选 · 按触发条件跳）
-
-上面三轮是**必跑**。本轮两项都是**按触发条件补跑**，不命中条件可跳。
-
-#### 4.1 技术债评估（适用于里程碑 / 季度大版本 / 重构项目）
-
-**触发条件**：本次 change 是里程碑 / 季度大版本 / 重构项目，或 `.specs/CONTEXT.md` 「技术债」段多于 30 天未更新。
+所有维度完成后，产出 verdict（遵守 terse contract — verdict-first，每条含 file:line）：
 
 ```
-/brooks-debt              # 装了 brooks-lint 才能调
+verdict: pass|fail
+
+🔴 Critical:  F1 · R2 Change Propagation · src/foo.ts:42 — <描述>
+  **Severity**: 🔴 Critical | **Symptom**: ... | **Source**: ... | **Consequence**: ... | **Remedy**: ...
+🟡 Important:  F2 · ...
+🟢 Minor:      F3 · ...
 ```
 
-输出会给出：
-- 各项债务的 **Pain × Spread 优先级**
-- Critical / Scheduled / Monitored 的还债路线图
+### Severity 标记格式（强制 · ADR-017）
 
-拿到输出后：
-- 🔴 Critical · 本次必修 → 追加为 fix 任务
-- 🟡 Scheduled · 近 1~3 个迭代 → 追加为 backlog，记入 `.specs/CONTEXT.md` 的「技术债」段
-- 🟢 Monitored · 仅记录不处理 → LESSONS.md
+每条 finding 必须含 markdown 行内 token `**Severity**: 🔴/🟡/🟢 Critical/Important/Minor`。
 
-未装 brooks-lint → 跳过本段（内置不提供回退，债评估需要书本包装才不会“凭感觉”）。
+| Severity | 入 fix loop | 写 MINOR-DEFERRED.md | 阻塞 toll-gate |
+|---|---|---|---|
+| 🔴 Critical | 是（必须 fix 才能进下阶段） | 否 | 是 |
+| 🟡 Important | 是（task 内解决） | 否 | 否 |
+| 🟢 Minor | **否** | 是 | 否（永远不阻塞） |
 
-#### 4.2 跨模型 spot-check（由独立 review 机制统一接管）
+### Critical-Triggered Cross-Model Spot-Check（ADR-014）
 
-> **新机制**：跨模型审查已由本文件 `### 独立 review 调度` 段 + Stop hook `29-independent-review.sh` 统一处理——L2 盲审子 agent + L3 外部模型双盲，产出 `.specs/<id>/INDEPENDENT-REVIEW-6.md`，强制写 done 才能进 7。不再需要手动「拿另一个模型跑」。
+触发条件：合并审查 `verdict=fail` 且至少 1 条 🔴 Critical finding。
 
-**何时启用**（二选一）：
-- 建 pipeline goal 时：`/flow goal "..." --pipeline --from N --gate-config '{"6-review":"independent"}'`
-- 中途追加：`/flow gate-config 6-review=independent`
+动作：
+1. 写 `.flow-active.goal.task_progress[].spot_check_triggered = true`（如适用）
+2. 派独立 subagent 用不同模型做盲审第 2 轮（subagent_type: oracle，不同 model tier）
+3. 第 2 轮 verdict 写入 `INDEPENDENT-REVIEW-6.md` 末尾 `## Cross-Model Spot-Check` 段
+4. 第 2 轮 Critical findings 加入主 review 的 fix loop
 
-**建议开启的场景**（以下任一命中）：涉及安全/认证、涉及并发/分布式、单一函数 > 80 行、测试覆盖率显著下降。
+### Minor Findings Deferral（ADR-017）
 
-启用后，差异分析自动发生在 `INDEPENDENT-REVIEW-6.md`：两份报告（L2 子 agent + L3 外部模型）都指出的 🔴 = 高可信；仅一方指出的 🔴 = 需人工裁判；并对照主 agent 的 REVIEW.md 看是否漏判 / 误判。未启用 → 跳过本段。
+🟢 Minor findings **不入 fix loop**。写入单一文件 `.specs/<change-id>/MINOR-DEFERRED.md`，格式：
 
-### 严重度分级
+```markdown
+# Minor Findings Deferred to Phase 7 Triage
+| # | Task | Finding | Suggested Action |
+|---|------|---------|------------------|
+| M1 | T03 | src/foo.ts:42 命名不够语义化 | 重命名 |
+```
 
-每个发现项标注：
-- 🔴 **Critical**：必须修复（数据损坏、安全漏洞、AC 未实现）
-- 🟡 **Major**：建议修复（明显的设计问题、显著性能回归）
-- 🟢 **Minor**：可选改进（命名、风格、小重构）
+> phase 7 integration 时 triage。`task_progress.deferred` 记录 M 编号。
 
 ### 产出修复任务
 
-对所有 Critical 和决定要修的 Major，**追加到 `TASK.md`** 末尾，编号延续（如 `T-FIX-01`），并触发回到 `4-dev`。
+对所有 🔴 Critical 和决定修的 🟡 Important，**追加到 `TASK.md`** 末尾，编号延续（如 `T-FIX-01`），触发回到 `4-dev`。
 
 ## 输出
 
 - `.specs/<change-id>/REVIEW.md`
+- `.specs/<change-id>/MINOR-DEFERRED.md`（有 🟢 Minor finding 时）
 - 0~N 条新增 fix 任务追加到 `TASK.md`
 
 ## 约束（强制）
 
 - **R3.3**：禁止直接修改代码
-- **R2.5**：所有 Critical 必须修复或显式「已知接受」并经人工确认，否则禁止进 INTEGRATION
-- 不允许笼统结论（"代码写得不错"），每条结论必须有具体行号或文件引用
+- **R2.5**：所有 🔴 Critical 必须修复或显式「已知接受」并人工确认，否则禁止进 INTEGRATION
+- 不允许笼统结论；每条 finding 必须有具体 `file:line`
+- 输出遵守 terse contract（verdict-first / no preamble / no closing summary）
 
 ## 自检
 
-- [ ] 三轮主审查都做了（后端 / lib 项目只跳第三轮 UI，不能跳二轮）
-- [ ] 二轮 · 6 维诊断输出含 4 要素 + 书本引用 + R1~R6 编号
-- [ ] 装了 brooks-lint 优先用（`/brooks-review` + `/brooks-audit`），输出原样贴入报告
-- [ ] 第四轮按触发条件判完（命中触发必跑，未命中可跳但要在 REVIEW.md 写明"X 未命中"）
-- [ ] 每条发现都有严重度标签
-- [ ] 每个 Critical 都已生成 fix 任务
+- [ ] review-package 已生成并 Read
+- [ ] 合并审查覆盖 spec 合规 + 代码质量（6 维）+ UI（如前端）+ 综合 verdict
+- [ ] 每条 finding 含 `**Severity**: 🔴/🟡/🟢 Critical/Important/Minor`
+- [ ] 代码质量发现含 R1~R6 编号 + 4 要素 + 书本引用
+- [ ] 🟢 Minor 已写入 MINOR-DEFERRED.md（如有）
+- [ ] spot-check 触发条件已判定（verdict=fail + ≥1 🔴 Critical → 触发）
 - [ ] 报告里没有自己悄悄改过的代码
 
 ## 触发下一步
 
-- 有 Critical 待修 → `@flow-kit/prompts/4-dev.md`（执行 fix 任务）
+- 有 🔴 Critical 待修 → `@flow-kit/prompts/4-dev.md`（执行 fix 任务）
+- spot-check 触发且待完成 → 派 subagent 后暂停，等待 spot-check 结果
 - 全部通过或人工接受 → `@flow-kit/prompts/7-integration.md`

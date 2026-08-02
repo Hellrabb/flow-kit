@@ -56,6 +56,22 @@ max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
 # Model: 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）
 type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
+
+# ── L2-first quick gate（L-072 fix）: gate_config=both だが ## L2 盲審 が無い時は L3 model 未設定でも先に検出 ──
+# L3 model resolution より前に L2 検出を走らせ、model-missing exit 3 で L2 検出が不可視になるのを防ぐ。
+spec_dir="${PROJECT_ROOT}/.specs/${change_id}"
+review_md="${spec_dir}/INDEPENDENT-REVIEW-${phase}.md"
+phase_name="$(fk_phase_gate_key "$phase")"
+gate_val=$(jq -r --arg pn "$phase_name" \
+  '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+gate_val="$(fk_normalize_gate_val "$gate_val")"
+
+if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
+  _write_l2_missing_correction "$phase" "$change_id"
+  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
+  exit 0
+fi
+
 model=$(fk_resolve_model "L3")
 if [[ -z "$model" ]]; then
   write_model_missing_correction "L3"
@@ -175,13 +191,6 @@ if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
   [ -n "$l2v_extracted" ] && l2_verdict="$l2v_extracted"
 elif [[ "$gate_val" == "L3" ]]; then
   l2_verdict="skipped"  # L3-only: L2 是刻意不跑，非失败
-fi
-
-# ── D1: gate_config="both" 时 L2 未完成 → 跳过 L3，不写 .done ──
-if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
-  _write_l2_missing_correction "$phase" "$change_id"
-  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
-  exit 0
 fi
 
 # ── 调用共享 lib l3-review.sh 执行 L3（P0-1/F1 修复）──

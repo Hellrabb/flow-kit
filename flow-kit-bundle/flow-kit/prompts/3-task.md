@@ -1,5 +1,7 @@
 # 阶段 3 · TASK — 把设计拆成可并行的原子任务
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+
 ## 角色
 
 你是 Planner。
@@ -119,6 +121,44 @@ Wave 3:            T05 (depends on T03, T04)
 - **R2.3**：每个任务必须有可执行的 `verify`，否则不允许进入 `DEV`
 - 任务粒度太大（无法在 fresh context 完成）必须再拆
 - 不允许「重构 X 模块」这种没有边界的任务
+
+## Plan-Conflict Scan（强制 · 进入自检前执行）
+
+> 借自 superpowers v6.0 C3 — 一次性扫描计划内部冲突，避免 mid-run interrupt。
+
+执行 3 类扫描，**全部冲突一次性 batch 输出给用户**（不逐条 interrupt）：
+
+### 1. TASK.md 内部一致性
+- 同 task id 是否重复（每个 Txx 唯一）
+- depends_on 引用的 task id 是否存在
+- verify 命令是否真的可执行（不是描述性文字）
+- parallel="true" 的 task 之间是否真无依赖
+
+### 2. TASK.md vs CONTEXT.md 禁动清单
+- 任意 write_files 含禁动清单文件 → 报告冲突
+- 禁动清单源：`.specs/CONTEXT.md` "禁动清单" 段
+
+### 3. TASK.md vs 既有 ADR
+- write_files 含被 ADR 明确禁止修改的文件（如 .goal-snapshot.json 的写入权限）
+- design 违反已锁决策（如 .flow-active 字段必须用 jq 不用 sed）
+
+### 输出格式
+
+无冲突：
+```
+✅ plan-conflict-scan 通过（0 conflicts）
+```
+
+有冲突：
+```
+⚠️ plan-conflict-scan 发现 <N> 处冲突：
+
+1. [TASK.md 内部] T05 depends_on="T99" — T99 不存在
+2. [禁动清单] T07 write_files 含 package-flow-kit.sh（禁动）— 需 DESIGN 显式例外
+3. [ADR 违反] T08 write_files 含 .goal-snapshot.json — 仅 hook 有写权限
+
+请修正 TASK.md 后重跑本扫描。
+```
 
 ## 自检
 

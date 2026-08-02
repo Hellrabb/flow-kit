@@ -1,5 +1,7 @@
 # 阶段 2 · DESIGN — 把需求变成可执行的技术设计
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+
 ## 角色
 
 你是 Architect。**只产出设计，不写实现代码**（角色红线 R3.1）。

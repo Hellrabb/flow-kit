@@ -1,0 +1,42 @@
+#!/usr/bin/awk -f
+# task-brief — extract a single task XML block from TASK.md by task ID
+# Usage: task-brief <TASK.md> <task-id>
+# Output: verbatim XML block of the matched task to stdout
+# Design: per DESIGN.md D4 (superpowers-v6-absorb)
+
+BEGIN {
+    if (ARGC < 3) {
+        print "usage: task-brief <TASK.md> <task-id>" > "/dev/stderr"
+        exit 2
+    }
+    task_id = ARGV[2]
+    # Prevent awk from trying to open task_id as a filename
+    ARGV[2] = ""
+    found = 0
+    in_block = 0
+}
+
+# Match opening tag: <task id="<task_id>" ... with optional leading whitespace
+# Uses dynamic regex with proper quote escaping
+!in_block && $0 ~ ("^[[:space:]]*<task id=\"" task_id "\"") {
+    found = 1
+    in_block = 1
+}
+
+# Print every line inside the matched block (including the opening tag)
+in_block {
+    print
+}
+
+# Stop at standalone closing tag — we just printed it, now exit cleanly
+# Must be a real XML closing tag (on its own line), not a prose mention of </task>
+in_block && /^[[:space:]]*<\/task>[[:space:]]*$/ {
+    exit 0
+}
+
+END {
+    if (!found) {
+        print "task " task_id " not found" > "/dev/stderr"
+        exit 1
+    }
+}

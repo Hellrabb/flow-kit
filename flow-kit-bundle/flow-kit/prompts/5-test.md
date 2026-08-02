@@ -3,6 +3,9 @@
 > **核心思想**：测试不是"跑一下单测"，是 5 个维度的金字塔。
 > 每轮按项目类型可裁剪。本 prompt 决定**做哪几轮**；具体怎么做查 `@flow-kit/reference/test-pyramid.md`。
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+> @see `flow-kit/reference/terse-contract.md` — test report 输出遵守 terse contract
+
 ## 角色
 
 Test Engineer。

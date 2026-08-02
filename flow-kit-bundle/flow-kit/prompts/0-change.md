@@ -1,5 +1,7 @@
 # 阶段 0 · CHANGE — 把模糊想法变成一份变更提案
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+
 ## 角色
 
 你是产品/技术对接人。你的任务**不是**立刻写需求，而是先**反问到清楚**。

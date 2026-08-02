@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# review-package — 预烤 git diff/metadata 到 markdown
+# 借自 superpowers v6.0 B2：让 reviewer 单次 Read 取代多次 shell 调用
+# 用法：review-package <base-commit> [head-commit]
+# 输出：stdout markdown 三段（## Commits / ## Files changed / ## Diff）
+
+if [ $# -lt 1 ]; then
+  echo "usage: review-package <base-commit> [head-commit]" >&2
+  exit 1
+fi
+
+base_commit="$1"
+head_commit="${2:-HEAD}"
+
+# 检查是否在 git 仓库中（AC-A1-ERR：非 git 仓库 → exit ≠0 + stderr "not a git repository"）
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "fatal: not a git repository" >&2
+  exit 1
+fi
+
+# Validate git refs (L-071 fix)
+if ! git rev-parse --verify "${base_commit}^{commit}" >/dev/null 2>&1; then
+  echo "fatal: bad revision '${base_commit}'" >&2
+  exit 1
+fi
+if ! git rev-parse --verify "${head_commit}^{commit}" >/dev/null 2>&1; then
+  echo "fatal: bad revision '${head_commit}'" >&2
+  exit 1
+fi
+
+echo "## Commits"
+echo ""
+git log --oneline "${base_commit}..${head_commit}" 2>/dev/null || true
+echo ""
+
+echo "## Files changed"
+echo ""
+git diff --stat "${base_commit}..${head_commit}" 2>/dev/null || true
+echo ""
+
+echo "## Diff"
+echo ""
+git diff -U10 "${base_commit}..${head_commit}" 2>/dev/null || true

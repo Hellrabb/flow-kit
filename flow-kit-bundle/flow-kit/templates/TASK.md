@@ -20,7 +20,7 @@ Wave 3:            T05               (depends on T03, T04)
 ## 任务清单
 
 ```xml
-<task id="T01" parallel="true" status="pending">
+<task id="T01" parallel="true" status="pending" model-tier="standard">
   <name><一句话任务名></name>
   <read_files>
     <参考边界 · 允许 read 的文件，支持 glob>
@@ -45,7 +45,7 @@ Wave 3:            T05               (depends on T03, T04)
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending">
+<task id="T02" parallel="true" status="pending" model-tier="standard">
   <name>……</name>
   <read_files>……</read_files>
   <write_files>……</write_files>
@@ -54,6 +54,11 @@ Wave 3:            T05               (depends on T03, T04)
   <done>……</done>
   <depends_on></depends_on>
 </task>
+
+<!-- 属性说明：
+     parallel="true" — 可与其他并行 task 同 wave 执行
+     status="pending|in_progress|done|blocked"
+     model-tier="cheap|standard|top" — 调度 tier，缺省 standard（ADR-016）-->
 
 <!-- 其他任务继续追加 -->
 ```
@@ -68,6 +73,17 @@ Wave 3:            T05               (depends on T03, T04)
 - `status="in_progress"` — 进行中（同时只允许一个非 [P] 任务为此状态）
 - `status="done"` — 已完成（verify 通过）
 - `status="blocked"` — 阻塞（必须在文件末尾「阻塞日志」记录）
+
+---
+
+## model-tier 字段说明（新 · ADR-016）
+
+- `model-tier="cheap"` — 1-2 文件 / 简单修改 / 类型 fix → 调度到 flash-tier 模型
+- `model-tier="standard"` — 多文件 / 标准功能 → 调度到 pro-tier 模型
+- `model-tier="top"` — 架构 / review / 复杂逻辑 → 调度到 top-tier 模型（glm-5.2 等）
+- 缺省 → fallback `standard`（向后兼容，旧 TASK.md 无 model-tier 属性时）
+
+<!-- model-tier 决定调度时使用的模型 tier，详见 ADR-016 -->
 
 ---
 

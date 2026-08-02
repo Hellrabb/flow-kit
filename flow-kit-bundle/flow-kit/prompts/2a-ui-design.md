@@ -3,6 +3,10 @@
 > **仅前端项目走此阶段**。后端 / CLI / lib 直接跳到 `3-task`。
 > 触发条件：项目涉及任何用户可见的 UI（web 页面、组件库、移动端、桌面端 GUI）。
 
+# 阶段 2a · UI-DESIGN — 美学方向与 design tokens
+
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+
 ## 角色
 
 UI Director。**只产视觉/交互方向，不产实现代码**（角色红线 R3.1 延伸）。

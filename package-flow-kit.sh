@@ -81,6 +81,9 @@ else
 fi
 echo "   ✅ ${SKILL_COUNT} 个 flow 技能已打包"
 
+# prompts/ — M-health.md explicit copy (L-069: Part B 覆盖)
+cp "$SCRIPT_DIR/flow-kit-bundle/flow-kit/prompts/M-health.md" "$STAGING/flow-kit/prompts/"
+
 # ═══════════════════════════════════════════════════════════════════════
 # Part C: Stop Hook 系统 (~/nanoclaw/.claude/hooks/)
 # ═══════════════════════════════════════════════════════════════════════
@@ -146,6 +149,10 @@ cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/stop-hook.json" "$STAGING/hooks/con
 
 # .specs/STATE.md 模板
 cp "$HOME/.claude/flow-kit/templates/STATE.md" "$STAGING/specs-template/STATE.md"
+
+# scripts/ 目录（superpowers-v6-absorb 追加）
+mkdir -p "$STAGING/flow-kit/scripts/"
+cp flow-kit-bundle/flow-kit/scripts/* "$STAGING/flow-kit/scripts/"
 
 echo "   ✅ 配置文件模板已生成"
 

@@ -31,16 +31,9 @@ flow-kit 的文件分两类，**加载策略不同**：
 
 > 上面是单阶段加载预算。本段是**整链路预算**——让用户提前知道价格，并选挡位。
 
-### 典型 token 成本表（按一个中等规模 change，前端项目，5 个 task）
+### 典型 token 成本表
 
-| 阶段 | 完整模式 | 极简模式（非 UI 跳 2a / 跳第四轮 / 跳跨模型）| 单点调用（仅跑选定阶段）|
-|---|---|---|---|
-| 0 + 1 + 2 + 2a + 3（规划链） | ~42k - 62k | ~30k - 45k | 按需，只跑你需要的那个 |
-| 4 × 5 task（实施） | ~125k - 300k | ~125k - 300k | 单 task ~25k - 60k |
-| 5（测试） | ~30k - 80k | ~20k - 50k | 单独 ~30k |
-| 6（review） | ~25k - 50k | ~15k - 25k | 单独 ~25k |
-| 7（集成归档） | ~20k - 40k | ~15k - 25k | 单独 ~20k |
-| **总计** | **~250k - 530k** | **~205k - 445k** | **选什么跑什么** |
+中等规模 change 总计 **~250k - 530k tokens**（详细见 README.md「Token 成本表」段）。
 
 ### 用户首轮路由后，AI 必须输出预算估算
 
@@ -58,33 +51,9 @@ flow-kit 的文件分两类，**加载策略不同**：
    4. 不走 flow-kit（< 50 行代码 / bugfix 直接修，别走闭环）
 ```
 
-### 何时**不必**跑这段
+### 何时不必跑这段
 
-- 用户已显式指定模式（如「快速加个字段」/「极简模式跑」）
-- 当前是恢复中断任务（直接走 R1.5 重启协议，不重新估）
-- 用户跑横向命令（L-restyle / M-health）— 这些有自己的预算
-
-### 真实成本影响因子（让估算更准）
-
-把下面这些因子套进估算：
-
-| 因子 | 影响 |
-|---|---|
-| 前端项目 | +20%（多 2a-ui-design 阶段 + UI 第三轮）|
-| 涉及 schema 变更 | +5~10%（多 1.7 段 + 5-test 4.2 验证）|
-| brooks-lint 已装 | +10%（多 4 个命令调用）|
-| 跨模型 spot-check 触发 | +30%（双模型走同样 review）|
-| task 数 < 3 | -30%（建议走单点调用不走闭环）|
-| task 数 > 10 | +50%（建议拆 milestone）|
-
-### 用户视角的取舍
-
-| 你的诉求 | 选 |
-|---|---|
-| 想要全套产物（CHANGE / REQUIREMENT / DESIGN / UI-DESIGN（前端）/ TASK / SUMMARY × N / TEST / REVIEW） | 完整 |
-| 想要核心产物但能少则少（REQUIREMENT / DESIGN / TASK / SUMMARY × N / REVIEW；UI 项目另含 UI-DESIGN） | 极简 |
-| 只想跑某一阶段（如只 review / 只 design / 只 体检）| 单点 · 见 README 决策表 |
-| 代码 < 50 行 · 一次性修补 · hackathon | 不走 flow-kit，走 7 个原生 skill 更划算 |
+已显式指定模式 / 恢复中断任务 / 跑横向命令时跳过预算估算。
 
 ---
 
@@ -93,18 +62,6 @@ flow-kit 的文件分两类，**加载策略不同**：
 1. 尝试读 `STATE.md`（仓库根）。不存在 → 视为新项目，跳过
 2. 关注字段：`活跃 Change` / `当前阶段` / `当前 Task` / `中断任务`
 3. 如果存在 `中断任务` 非空 → **优先级最高**，直接走"恢复中断任务"分支（见下表）
-
-### 可选 runtime adapter 检测
-
-flow-kit 默认不依赖任何运行时。若项目同时存在 `.claude/hooks/forge-pretool-guard.ps1` 与 `.claude/hooks/forge-session-audit.ps1`，说明可选 Forge runtime adapter 已安装。
-
-检测到 Forge 时，在路由声明里追加一行：
-
-```text
-Forge adapter: detected / not detected
-```
-
-若 detected，进入 `4-dev`、`5-test`、`6-review`、`7-integration` 时，可以把当前 `change-id`、阶段、task-id、风险、测试和 review 证据写入 Forge routing/state，供运行时门禁使用。Forge 缺失时不要报错，继续纯 markdown 流程。
 
 ## 第二步前 · Artifact Preflight Gate（强制）
 
@@ -141,9 +98,7 @@ Preflight 失败时，路由声明必须写明：
 
 ### 触发条件
 
-1. `.flow-active.goal.scope = "pipeline"`
-2. 目标阶段 > `current_phase`（AI 试图推进阶段）
-3. `change_id` 非 null（否则跳过 PCG + 警告）
+`.flow-active.goal.scope = "pipeline"`、目标阶段 > `current_phase`、`change_id` 非 null（否则跳过 + 警告）。
 
 ### 产物清单
 
@@ -175,11 +130,7 @@ Preflight 失败时，路由声明必须写明：
 
 ### 与 Artifact Preflight Gate 的区别
 
-| | Artifact Preflight Gate（已有） | Phase Completion Gate（新增） |
-|---|---|---|
-| 方向 | **前向**：进入目标阶段需要什么 | **后向**：离开当前阶段产出了什么 |
-| 触发时机 | 每次路由到新阶段 | pipeline 模式推进阶段时 |
-| 检查对象 | 目标阶段的上游工件 | 当前阶段的应产工件 |
+APG 前向检查（进入目标阶段需要什么，每次路由触发）；PCG 后向检查（离开当前阶段产出了什么，仅 pipeline 推进时触发）。
 
 ---
 
@@ -215,15 +166,7 @@ Preflight 失败时，路由声明必须写明：
 
 ### Fallback 路由（mode=fallback · P1-3/F5 修复）
 
-若 `.flow-active.goal.mode == "fallback"`，AI 在阶段 4/5/6/7 执行时启用内置迭代循环：
-
-1. **每 turn 结束时自检**：当前阶段条件是否满足（如 PCSC 全✅）
-2. **条件满足** → `goal.status = "done"`（32-fallback-guard.sh Stop hook 兜底）
-3. **条件不满足** → `goal.turns += 1`，继续下一 turn
-4. **上限**：最多 20 turns；超限后输出 `⛔ 回退模式已执行 20 turns，暂停等待人工介入`
-5. **Hook 兜底**：Stop hook `32-fallback-guard.sh` 在 phase 7 PCSC 全✅ 时自动标记 done
-
-> 与 native 模式差异：native 由 CC `/goal` 系统接管；fallback 由 prompt 自检循环 + hook 兜底。Toll-gate 暂停点、transition jq 格式两者完全一致。
+若 `.flow-active.goal.mode == "fallback"`：AI 启用内置迭代循环（每 turn 自检 → 满足则 done → 不满足则 turns+1），最多 20 turns，辅以 `32-fallback-guard.sh` Stop hook 兜底。Toll-gate 暂停点、transition jq 格式与 native 模式一致。
 
 ## 第三步 · 老项目入场检测（brownfield 必跑）
 
@@ -308,13 +251,7 @@ flow-kit 后续阶段需要项目上下文给 AI 用。请选择：
 
 跳过本步。这是 greenfield 项目，CONTEXT.md 会在 0-change / 1-requirement / 2-design 过程中逐步沉淀。
 
-### 3.3 为什么这步重要
-
-跳过会导致：
-- AI 不知项目架构 → 写出不合项目风格的代码
-- AI 重复实现已有抽象 → 费 token 且产生重复代码
-- 4-dev 1.7 schema 任务 / 1.8 破坏性变更检测都会不准
-- 用户明明有 CLAUDE.md 写好的约定 → AI 完全不读 → 抱怨"为什么不按我说的来"
+> **跳过本步会导致**：AI 不知项目架构 → 写出不合风格的代码；重复实现已有抽象；1.8 检测不准；忽略既有 AI 上下文文档。
 
 ## 第四步 · 自动准备（不打扰用户）
 
@@ -330,41 +267,11 @@ flow-kit 后续阶段需要项目上下文给 AI 用。请选择：
 - **新 CHANGE**：按 `prompts/0-change.md` 的步骤 0 自动生成 `change-id`（kebab-case，2~4 词），并在第一条回复里显式声明
 - **目录不存在**：自行 `mkdir -p .specs/<id>/`，不要让用户先建
 - **规则加载**：若 IDE 未注入全局规则，读 `@flow-kit/RULES.md`（精简版 `@flow-kit/SYSTEM.md` 也行）
-- **检测外部扩展**（阶段 4/5/6/M 需要）：进入阶段前检查是否装了以下并在路由声明里表明走「外部路径」还是「内置回退」：
-  - [`brooks-lint`](https://github.com/hyhmrright/brooks-lint)：4-dev self-review / 5-test 测试质量 / 6-review 代码质量 / M-health 巡检都会优先用
-  - [`ui-ux-pro-max`](https://uupm.cc) / [`impeccable`](https://impeccable.style)：2a-ui-design / 4-dev UI 任务会优先用
+- **检测外部扩展**（阶段 4/5/6/M 需要）：检查 `brooks-lint`（代码质量）/ `ui-ux-pro-max` 或 `impeccable`（UI）是否已装，路由声明标注「外部路径」或「内置回退」。
 
-### 加载工件（严格区分 必读 / 按需）
+### 加载工件
 
-**语义约定**：
-- `⚡︎ 全读` ：进阶段首轮必须 read_file 整个文件（只出现在 SPEC / TEMPLATE 上）
-- `⚡︎ 查表` ：只 grep 指定节 或 read offset/limit，**禁止默认整读**（reference/* 都是这个）
-- `⚡︎ 按需` ：首轮不读，里面某个决定点需要时才 grep / 读
-
-| 阶段 | 全读（SPEC） | 查表（REFERENCE，只读指定节） | 按需 |
-|---|---|---|---|
-| 0 / 1 | —（新建）| `flow-kit/reference/ui-aesthetics.md` 只查「给 AI 在 0-change 阶段展示用的标准模板」一节（仅前端项目）| — |
-| 2 | `<id>/CHANGE.md` + `<id>/REQUIREMENT.md` + `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在 · brownfield 强烈推荐 · 重点读 § 2/§ 3/§ 4）| `flow-kit/reference/tech-stacks.md` 只查「适用矩阵」+ 过滤出的 5~6 张卡片 | ADR 阶段某项要深谈时再读 |
-| 2a | `<id>/CHANGE.md` + `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` `## 0` 段 + `.specs/CONTEXT.md` + `flow-kit/reference/ui-anti-patterns.md`（仅 75 行可全读）| `flow-kit/reference/ui-aesthetics.md` 查「5 维度」+ 「给 AI 的模板」 | uipro / impeccable 查询（装了才调）|
-| 3 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` + `<id>/UI-DESIGN.md`（前端项目）+ `.specs/CONTEXT.md` | — | 任务模板查询 |
-| 4 | `<id>/TASK.md`（只读当前 task 块）+ `<id>/DESIGN.md` `## 0` 段 + `<id>/UI-DESIGN.md`（UI 任务）+ `.specs/CONTEXT.md` + `.specs/LESSONS.md` | `flow-kit/reference/ui-anti-patterns.md`（UI 任务 · 75 行可全读）| — |
-| 5 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` `## 0` 段 + `<id>/TASK.md` + 各 `*-SUMMARY.md` | `flow-kit/reference/test-pyramid.md` 只查「适用矩阵」+ 需要的那几轮详情 | — |
-| 6 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` + `<id>/TASK.md` + `<id>/TEST.md` + `git diff` | `flow-kit/reference/ui-anti-patterns.md`（前端项目第三轮 · 75 行可全读）| — |
-| 7 | `.specs/<id>/` 全部产物 + `.specs/LESSONS.md` | — | — |
-| **M** (health) | `.specs/CONTEXT.md` + `.specs/LESSONS.md` + 最近 1 份 `.specs/health/*.md`（如有，做对比基线）| — | 抽样 5 个最近改动频繁的 src/ 模块 + 5 个测试文件 + 最近 30 天 git log |
-| **A** (evolve) | `STATE.md` + `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在）+ 范围内每个 `.specs/archive/<change>/DESIGN.md` 的 § 9 段（仅 § 9，非整份 DESIGN）| — | 仅扫 `last_evolve_at` 之后归档的 change，禁止越界读 § 9 以外的 DESIGN 内容 |
-| **A** (architect) | `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在）+ `.specs/CHANGELOG.md` + `flow-kit/templates/ARCHITECTURE.md`（模板）| — | `src/` 顶层结构 + `package.json` / 依赖文件 + 抽样几份 `.specs/archive/*/DESIGN.md` |
-
-### 查 reference 某一节的实际动作示例
-
-```
-# ± 查「适用矩阵」那一节的起始行
-grep_search Query="适用矩阵" SearchPath="flow-kit/reference/tech-stacks.md"
-# 取到 line 380 左右为起始，再：
-read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
-```
-
-不要「为了保险」一上来就整读。不仅费 token，还让你在后面的推理中被无关节况干扰。
+> @see `flow-kit/reference/loading-artifacts.md` — 工件加载操作手册（grep + read + offset/limit + 150 行 cap）
 
 ## 第五步 · 显式声明执行计划（必须）
 
@@ -389,21 +296,6 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 ✅ 第一动作：<具体下一步，例如 "按 0-change 流程反问澄清，先问 3 个问题"）
 ```
 
-示例（2-design 阶段首轮）：
-
-```
-✅ 路由：2-design
-✅ Change-ID：companion-platform
-✅ Goal：（无 · 仅展示格式——有 goal 时如 "backend tests pass (active, 3 turns)"；pipeline 模式如 "[pipeline] feature X shipped | 起始: 4 | 进度: 4✅→5🔄→6⏸→7⏸ | auto_advance: false"）
-✅ 已加载：
-   - .specs/companion-platform/CHANGE.md（全读，52 行）
-   - .specs/companion-platform/REQUIREMENT.md（全读，98 行）
-   - .specs/CONTEXT.md（全读，41 行）
-   - flow-kit/reference/tech-stacks.md（仅查「适用矩阵」，line 380-405，提取出 5 张候选卡）
-✅ 未加载：ui-aesthetics.md / test-pyramid.md / ui-anti-patterns.md（后面阶段才需）
-✅ 第一动作：按 2-design 步骤 0，列 5 张技术栈卡片 + 推荐 + 排除，等用户选定后才出 ADR。
-```
-
 用户看到这段后可以一句话纠偏（"换 id"、"我想要的是别的阶段"、"你加载太多了"），AI 必须接受。
 
 ## 第六步 · 执行对应阶段 prompt
@@ -424,18 +316,7 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
    a. 读取 `REQUIREMENT.md`，grep `### AC-` 块，提取 Given/When/Then
    b. 生成单阶段 goal 建议（拼接所有 AC Then 条件）
    c. 生成 Pipeline goal 建议（按阶段归类：4=实现/5=测试/6=审查/7=归档）
-   d. 展示双选项：
-      ```
-      ╔══════════════════════════════════════════╗
-      ║  检测到 4-dev 但无活跃 goal              ║
-      ║  选择 goal 模式（自动从 REQUIREMENT 提取）：║
-      ║                                          ║
-      ║  1. 单阶段 — 仅 phase 4 dev 迭代          ║
-      ║  2. Pipeline — 4→5→6→7 全执行链           ║
-      ║  3. 我自定义条件                           ║
-      ║  4. skip — 跳过 goal，直接执行             ║
-      ╚══════════════════════════════════════════╝
-      ```
+    d. 展示选项：1. 单阶段（仅 phase 4）| 2. Pipeline（4→5→6→7）| 3. 自定义条件 | 4. skip（直接执行）
    e. 用户确认 → AI 直接写 goal 到 `.flow-active`（jq 原子写入，复用 /flow skill 写法）
    f. goal 写入完成后 → 继续加载 4-dev.md
 
@@ -449,25 +330,16 @@ read_file path="flow-kit/reference/tech-stacks.md" offset=380 limit=60
 
 ---
 
-## 极少数情况：用户根本没说他想做什么
+## 极少数情况：用户未说意图
 
-例：用户只发了 `@flow-kit/GO.md`，正文空。
-
-→ AI 必须主动反问，给出 3 个最可能的选项让用户选：
-1. 我有个新想法想做
-2. 继续上次的工作（如果 STATE 有活跃 change，主动列出）
-3. 我要审查/测试某段已有代码
-
-不要瞎猜路由。
+若用户只发 `@flow-kit/GO.md` 无正文 → 主动反问：1. 新想法 2. 继续上次 3. 审查/测试已有代码。不要瞎猜。
 
 ---
 
 ## 自检（产出路由声明前）
 
-- [ ] 已读 STATE.md（如果存在）
-- [ ] 已按表格匹配意图，没有跳过
-- [ ] 新 CHANGE 已自动生成 ID 并展示
-- [ ] **Token 预算**：本轮加载的 reference/* 总行数 ≤ 150（全读仅 ui-anti-patterns 75 行 · 其他均查节）
-- [ ] **未越界**：没有读上表「查表」或「按需」列中的文件为全文
+- [ ] 已读 STATE.md（如存在）
+- [ ] 已按表格匹配意图，新 CHANGE 已自动生成 ID
+- [ ] **Token 预算**：本轮加载的 reference/* 总行数 ≤ 150（全读仅 ui-anti-patterns 75 行 · 其他均查节）；未越界读「查表」/「按需」列文件全文
 - [ ] 路由声明含「已加载 / 未加载 / 起止行」三要素
 - [ ] 没有要求用户提供 ID / 路径 / 阶段名（这些 AI 自己决定）
