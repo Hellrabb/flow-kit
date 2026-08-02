@@ -426,3 +426,132 @@
 - **How to apply**：(1) 删除机制时，校验端+测试端必须同步清除，不可留"死校验"制造虚假安全感；(2) 单元测试覆盖函数行为 ≠ 生产路径真生效——须确认函数在主流程里**可达**；(3) 安全敏感 gate 优先用前置拦截（path-guard 写入时阻）而非后置校验（Tier 2 读取时验）——前置更强（阻止创建 vs 检测已创建）；(4) 独立 review 发现握手死代码时先 check 全仓 `grep` 写路径真死否。
 - **关联**：[[l3-model-unreliable]]（L3 模型不可靠导致 pipeline 反复 review 才暴露此缺口）、[[l3-review-timeout-token]]（修 L3 工具解套此 change 的 L3 审查）、ADR-005（独立审查体系，D7 path-guard）
 - **来源**：`gate-done-authorship`
+
+---
+
+## superpowers-v6-absorb (2026-08-02) · 9 Minor findings 转 tech debt
+
+> 来源：`.specs/superpowers-v6-absorb/MINOR-DEFERRED.md`，由 phase 1/2/5/6 各阶段 L2 审查捕获。
+
+### L-058 · AC-A3 "如可用"弱化跨平台验证（来自 Phase 1 L2 R7）
+- 严重度: 🟢 Minor
+- 位置: REQUIREMENT.md AC-A3
+- 问题: "如可用"使 macOS 不可用时 AC 自动退化为 Linux-only，违反 Given/When/Then 确定性原则
+- 修复: 拆为 AC-A3a (Linux 硬) + AC-A3b (macOS 软)。下次 REQUIREMENT 重构时处理。
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2
+
+### L-059 · 多条 AC 验证方式含"人工"（来自 Phase 1 L2 R8）
+- 严重度: 🟢 Minor
+- 位置: REQUIREMENT.md AC-B1/B2/D2/F2/G1/G2
+- 问题: "人工 + grep" 降低自动化置信度，未来 prompt 行为退化无法自动捕获
+- 修复: 将 grep 部分独立为 bats 测试
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2
+
+### L-060 · 范围决策嵌入 REQUIREMENT（来自 Phase 1 L2 R9）
+- 严重度: 🟢 Minor
+- 位置: REQUIREMENT.md 范围决策框
+- 问题: 设计决策（双轨测量 / 加强语义 / 并存策略）属 how 层级，嵌入 what 层级文档模糊边界
+- 修复: 移到 CHANGE.md 验收线段或独立 DESIGN-NOTES.md
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2
+
+### L-061 · ADR-016 探测脚本路径未验证（来自 Phase 2 L2 R5）
+- 严重度: 🟢 Minor
+- 位置: `.specs/adr/016-model-tier-dispatch.md` detect_opencode_tier_support
+- 问题: 缓存路径 `.specs/<id>/.opencode-capability.json` 来自未验证假设
+- 修复: 实测时确认路径或改临时文件
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+
+### L-062 · task_progress lifecycle 图细节缺失（来自 Phase 2 L2 R6）
+- 严重度: 🟢 Minor
+- 位置: DESIGN.md § 2 task_progress lifecycle 图
+- 问题: 图未展示 skip 任务时 task-brief 是否仍需提取
+- 修复: 完善图注释
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+
+### L-063 · D5/D6 弱模型缓解引用 ADR-001 不适配（来自 Phase 2 L2 R7）
+- 严重度: 🟢 Minor
+- 位置: DESIGN.md D5/D6
+- 问题: terse contract + narration constraint 在弱模型场景的退化问题引用 ADR-001 gate（输出风格约束 ≠ gate）
+- 修复: 弱模型场景实测后补 ADR
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+
+### L-064 · 安全注入测试缺失（来自 Phase 5 L2 R8）
+- 严重度: 🟢 Minor
+- 位置: TEST.md 安全段
+- 问题: 仅代码结构描述，无注入测试
+- 修复: 加 edge case bats（special chars in commit messages / path traversal）
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 5 L2
+
+### L-065 · 集成测试无自动化（来自 Phase 5 L2 R9）
+- 严重度: 🟢 Minor
+- 位置: TEST.md 集成测试段
+- 问题: 3 个集成场景全部手动验证
+- 修复: 加 test_integration_smoke.bats
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 5 L2
+
+### L-066 · AC-B4 测试深度不足（来自 Phase 6 L2 R4）
+- 严重度: 🟢 Minor
+- 位置: TEST.md AC-B4
+- 问题: 仅测 task-brief 输出，未测合并指标（4-dev.md + task-brief）
+- 修复: 加合并指标 bats 测试（前提：先澄清 AC-B4 措辞，见 INTEGRATION.md § 3）
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 6 L2
+
+### L-067 · AC-I(b)(c) pre-existing failures（来自 Phase 5 TEST.md 归因）
+- 严重度: 🟢 Minor
+- 位置: `test/test-l2-first-correction.bats` AC-I(b)(c)
+- 问题: gate_config=both 无 L2 段跑 Stop hook 29 的 2 个测试失败，与本 change 无关（write_files 不含 29 hook）
+- 修复: 独立 change `fix-l2-first-correction-test` 处理
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 5 TEST.md
+
+### L-068 · 4-dev.md 体积压缩（结构性技术债）
+- 严重度: 🟡 Scheduled
+- 位置: `flow-kit-bundle/flow-kit/prompts/4-dev.md` (781 行)
+- 问题: 4-dev.md 体积持续增长（721 → 781），无压缩机制
+- 修复: 拆 TDD/grep-before-code/5-submit 等段为 reference 片段（如 terse-contract.md 模式）
+- 状态: ✅ resolved 2026-08-03 · `cleanup-debt-batch-2026-08` T04 · 781→352 行 + 3 reference 文件（tdd-workflow / commit-protocol / checkpoint-protocol）
+
+## superpowers-absorb-followup-1（2026-08-03 · 测试补强）
+
+### L-069 · package validate 漏配 M-health.md
+- 严重度: 🟡 Scheduled
+- 位置: `package-flow-kit.sh::validate_staging_coverage()`
+- 问题: `flow-kit-bundle/flow-kit/prompts/M-health.md` 未被任何 Part A-G 覆盖。Pre-existing（initial commit `549b6a0`）
+- 修复: 在 Part A-G 之一加入 M-health.md；建议独立 change `fix-package-validate-mhealth-missing`
+- 状态: ✅ resolved 2026-08-03 · `cleanup-debt-batch-2026-08` T02 · Part B 加 cp 行
+
+### L-070 · package validate exit=0 even on error
+- 严重度: 🟢 Minor
+- 位置: `package-flow-kit.sh::validate`
+- 问题: validate 报 🔴 ERROR 但 exit code=0，CI 无法机器判定失败
+- 修复: validate 函数末尾按错误数返回 exit code
+- 状态: ✅ verified non-bug 2026-08-03 · `cleanup-debt-batch-2026-08` Phase 2 L2 R1 · `validate_staging_coverage()` at `lib/validate_staging.sh:127-131` 已正确 exit 1（ERRORS>0）；caller `package-flow-kit.sh:18-19` 正确传播 via `exit $?`。原 tech debt 条目记录有误。
+
+### L-071 · review-package 缺 git ref validation
+- 严重度: 🟡 Scheduled
+- 位置: `flow-kit-bundle/flow-kit/scripts/review-package`
+- 问题: review-package 不验证 git ref 有效性。`../../etc/passwd` 类输入静默返回 exit=0 + 空输出（41 字节空 diff sections）。SEC-5b 测试 honest skip。
+- 修复: 加 `git rev-parse --verify "$base" 2>/dev/null` 校验 + 失败时 exit 1 + stderr 错误信息。建议独立 change `fix-review-package-ref-validation`
+- 状态: ✅ resolved 2026-08-03 · `cleanup-debt-batch-2026-08` T01 · 加 ref validation 循环 + SEC-5b unsuppressed
+
+### L-072 · 29 hook L3 short-circuit ordering 与 mock 冲突
+- 严重度: 🟢 Minor
+- 位置: `flow-kit-bundle/hooks/stop/29-independent-review.sh:59-64`
+- 问题: 29 hook 在 line 59-64 检测 L3 model 配置（短路 exit 3），在 line 181-185 才检测 L2-missing。Mock 环境必须设 `FLOW_KIT_L3_MODEL=mock-l3-model` 才能到达 L2 检测分支。生产 ordering 问题（29 hook 在禁动清单），独立 change 处理
+- 修复: 重排：L2-missing 检测应在 L3-model-missing 之前。建议独立 change `fix-29-hook-mock-mismatch`
+- 状态: ✅ resolved 2026-08-03 · `cleanup-debt-batch-2026-08` T03 · L2-first quick gate 移到 L3 model check 之前（lines 60-73）+ 旧 D1 块删除 + mock workaround 移除
+
+## cleanup-debt-batch-2026-08（2026-08-03 · 债务清理）
+
+### TD-071-A · brooks-lint Part F 打包漏配（pre-existing）
+- 严重度: 🟢 Minor
+- 位置: `package-flow-kit.sh` Part F + `flow-kit-bundle/brooks-lint/plugin/skills/`
+- 问题: validate 报 `brooks-audit/SKILL.md` + `brooks-test/SKILL.md` 未被 Part F 覆盖。Pre-existing，与本 change 无关。
+- 修复: Part F 加 cp 覆盖新增 SKILL.md 文件
+- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3
+
+### TD-071-B · A-evolve.md 源缺失（pre-existing）
+- 严重度: 🟢 Minor
+- 位置: `flow-kit-bundle/flow-kit/prompts/A-evolve.md`
+- 问题: validate 期望文件存在但源缺失（可能在 archive 时遗漏）
+- 修复: 调查 archive/prompts 一致性
+- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3

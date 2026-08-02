@@ -1,5 +1,8 @@
 # 阶段 7 · INTEGRATION — 集成验证 + UAT + 失败诊断 + 归档
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+> @see `flow-kit/reference/terse-contract.md` — integration report 输出遵守 terse contract
+
 ## 角色
 
 你是 Verifier + Release。
@@ -259,6 +262,19 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 - 在 `.specs/CHANGELOG.md` 里追加一行（日期 / change-id / 一句话摘要 / LESSONS 条目编号）。**LESSONS 列强制**：回读步骤 4 的产出——若步骤 4 向 `LESSONS.md` 追加了 `L-NNN`，则此列填入 `L-NNN`；若步骤 4 判定无提名，则填 `—`。**禁止步骤 4 有产出但此处写 `—`**
 - 更新仓库根的 `STATE.md`
 - **不要归档 `.specs/LESSONS.md`**——它是项目级常驻文件，跨 change 累积
+
+### MINOR-DEFERRED Triage（如存在）
+
+归档前检查 `.specs/<id>/MINOR-DEFERRED.md` 是否存在：
+- 存在 → 列出所有 deferred findings，提示用户决定：
+  - (a) 全部转为技术债登记到 `.specs/LESSONS.md`
+  - (b) 部分转技术债，部分删除（需说明理由）
+  - (c) 全部删除（aggressive，需说明理由）
+- 不存在 → 跳过本步
+
+```bash
+test -f .specs/<id>/MINOR-DEFERRED.md && echo "需 triage" || echo "无 deferred findings"
+```
 
 #### 5.0 归档后清理与扫描（L-013 双向校验 · 强制）
 

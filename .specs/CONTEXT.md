@@ -226,6 +226,18 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | L3 思考吃满预算（L3 thinking budget exhaustion） | deepseek-v4-pro 扩展思考模式失败：在产生结论前把全部 max_tokens 预算花在 thinking block 上 → 无 text block → `jq select(.type=="text")` 返空 → rc=3。区别于 glm-4.7 时代的"幻觉 critical"失败模式。根因在工具层（l3-review.sh 硬编码 max_tokens:8000 + curl --max-time 90 无配置入口），非模型层 |
 | FLOW_KIT_L3_MAX_TOKENS / FLOW_KIT_L3_TIMEOUT / FLOW_KIT_L3_THINKING | 三个新增 env var，覆盖 l3-review.sh::_l3_call_api() 的硬编码上限。默认值：max_tokens=32000 / timeout=300s / thinking=enabled。遵循 env-var-first config 策略。disabled 时请求体加 `thinking:{type:"disabled"}`（L3 子 agent 实测 58.4s 返 3334 token 含 text block） |
 <!-- l3-review-timeout-token 追加 ↑ -->
+<!-- superpowers-v6-absorb 追加 ↓ -->
+| review-package | flow-kit-bundle/flow-kit/scripts/review-package（新）· 预烤 git diff/metadata 到文件的 bash 脚本。借自 superpowers v6.0 B2，使 reviewer 单次 Read 取代多次 shell 调用，diff bytes 不进 controller context |
+| task-brief | flow-kit-bundle/flow-kit/scripts/task-brief（新）· 从 TASK.md 提取单个 task XML block 到文件的 awk 脚本。借自 superpowers v6.0 B3。配套 4-dev.md 改造：从"读整个 TASK.md"变为"读 task-brief 输出" |
+| terse contract（terse reviewer contract）| review 类 prompt 顶部的硬性输出 schema 约束：verdict-first / no preamble / no process narration / no closing summary / every line is verdict-or-finding-with-file:line-or-check。借自 superpowers v6.0 B4。预期 -41% reviewer output |
+| narration constraint | phase prompts 顶部的"between tool calls, narrate at most one short line"约束。借自 superpowers v6.0 B5。预期 -54% controller output |
+| severity gating | review findings 三档分类：Critical（必须 fix）/ Important（入 fix loop）/ Minor（写入 deferred ledger，最终审查时 triage，不入 loop）。借自 superpowers v6.0 B7。配套文件：`.specs/<id>/MINOR-DEFERRED.md` 或 T<N>-SUMMARY.md 的 deferred 段 |
+| model-tier | TASK.md XML 的 task 块新属性：`<task id="T03" model-tier="cheap|standard|top">`。借自 superpowers v6.0 B6/C2。OpenCode 实际生效路径在 DESIGN § 6 验证（task-level switching vs dispatch prompt hint） |
+| task_progress（progress ledger）| `.flow-active.goal.task_progress[]` 新字段。每项含 `{id, commit_sha, fix_rounds, deferred[], completed_at}`。借自 superpowers v6.0 C4。防 compaction 后重新分派已完成 task（superpowers 文档称"single most expensive failure"）。与 T<N>-SUMMARY.md 并存——task_progress 机器读实时，SUMMARY 人读事后 |
+| plan-conflict-scan | phase 3 末段新子步骤：扫 TASK.md 内部矛盾 + 与 CONTEXT.md 禁动清单冲突 + 与既有 ADR 冲突。借自 superpowers v6.0 C3。冲突一次性 batch 给用户，避免 mid-run interrupt |
+| bootstrap compression | prompt 体积削减实践。借自 superpowers v6.1 把 using-superpowers 从 121 → 62 行：graphviz DOT → prose / 删 per-platform 工具表 / 折叠 Instruction-Priority 段。flow-kit 应用对象：GO.md（目标 473 → ≤350 行） |
+| cross-model spot-check（CMSC）| review phase 的独立第 2 轮外部模型盲审。借自 superpowers v6.0 概念但 flow-kit 加强：仅 Critical-finding 触发（不每次跑）。触发标志：`.flow-active.goal.task_progress.spot_check_triggered` |
+<!-- superpowers-v6-absorb 追加 ↑ -->
 
 ## 已锁决策
 
@@ -300,6 +312,13 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- l3-pipeline-fix-2026-07 追加 ↓ -->
 - `[2026-07-11]` L3 管线 5 项限制修复 v1 范围 — 一次性修复 L-040 的 5 项系统限制：① git diff 上限 5000→50000（或动态 token 估算）② diff 收集覆盖 untracked + staged ③ 智能截断改为头+尾保留 ④ 积压扫描补齐历史 L3 ⑤ L3 prompt 上下文注入。外加 Stop hook 性能优化 ≥30%。不改变 L3 API 调用方式、不新增 hook 模块、不改 gate_config schema。来自 `l3-pipeline-fix-2026-07`
 <!-- l3-pipeline-fix-2026-07 追加 ↑ -->
+<!-- superpowers-v6-absorb 追加 ↓ -->
+- `[2026-08-02]` superpowers v6.0 经验吸收范围确认 —— G1-G10 全量大包，10 项优化（review 合并 / review-package + task-brief 脚本 / terse contract / narration / severity gating / progress ledger / model-tier / plan-conflict-scan / GO.md 压缩）。允许破坏性变更（.flow-active schema / TASK.md XML / gate_config）。来自 `superpowers-v6-absorb` Phase 0
+- `[2026-08-02]` Cross-model spot-check 触发策略 —— Critical-finding 触发（不每次跑）。理由：spot-check 物理上是独立 subagent 调用，无法合并到 review 第一轮；但每次跑多花 ~10-15K tokens/change，仅 Critical 时触发可在 token 经济与安全之间平衡。来自 `superpowers-v6-absorb` Phase 1（用户选项）
+- `[2026-08-02]` Token 测量协议 —— 结构性 + 参考性双轨。结构性 AC 是硬门槛（review 轮数 4→2 / 4-dev reload 34KB→≤15KB / GO.md 473→≤350 行），参考性 AC 跑一次 pre/post 样例作证（pipeline -25% / review -40% 不卡 toll-gate）。理由：superpowers 自报 50% 独立 benchmark 只复现 14-30%，端到端 token 测量误差大不适合做硬门槛。来自 `superpowers-v6-absorb` Phase 1（设计判断）
+- `[2026-08-02]` task_progress 与 T<N>-SUMMARY.md 并存策略 —— 机器读实时 vs 人读事后，两者职责不重叠。task_progress = jq 友好、hook 自动写、固定 schema（id/commit_sha/fix_rounds/deferred/completed_at）。SUMMARY = markdown、4-dev 完成时写、自由格式（"做了什么/为什么/偏离 DESIGN 哪里"）。否决"合并为单一 PROGRESS.md"和"废弃 SUMMARY"两个方案。来自 `superpowers-v6-absorb` Phase 1（用户选项）
+- `[2026-08-02]` 向后兼容契约 —— 旧 TASK.md（无 model-tier）→ fallback standard tier；旧 .flow-active（无 task_progress）→ 视为 []；旧 REVIEW.md（无 severity）→ 视为 Important。所有破坏性变更必须提供 fallback，否则既有用户的 pipeline 会死锁。来自 `superpowers-v6-absorb` Phase 1
+<!-- superpowers-v6-absorb 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
@@ -397,6 +416,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 > 这些是与新 change 通常无关、改坏会出事的高风险模块。每个 change 的 DESIGN 0.5.1 会复用这清单。
 
 - `package-flow-kit.sh`（打包脚本核心逻辑，改动影响分发流程）
+  - **例外（superpowers-v6-absorb · 2026-08-02）**：Part D 允许新增 `scripts/` 到 cp 清单（仅本 change 一次性例外，后续 change 仍按原禁动）
 - `flow-kit-bundle.tar.gz`（已生成的分发包，`.gitignore` 排除，不应手动修改或 git add）
 - `.gitignore`（手动维护；禁 AI "顺手重写"或增删排除规则）
 <!-- A-evolve 2026-07-08 第1轮追加 ↓ -->
@@ -417,6 +437,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- A-evolve 2026-07-08 第2轮追加 ↓ -->
 - `33-flow-active-integrity.sh` — 后续不应被无关 change 修改（.flow-active 完整性检测模块）
 - `independent-review-gate.sh` + `29-independent-review.sh` + `fk_validate_done_marker` — gate 校验核心链
+  - **例外（cleanup-debt-batch-2026-08 · L-072 fix · 2026-08-03）**：`29-independent-review.sh` 允许重排 L58-65（L3 model check）与 L181-185（L2-missing detection）的位置——L2 detection 移到 L3 check 之前，防 model-missing exit 3 短路 L2 detection。仅本次 change 范围内允许，重排后 L2 detection 块在新位置仍受保护。
 - `install_hooks.sh` PreToolUse matcher — 改回仅 Bash = D7 path-guard 失效
 - `.specs/<id>/.goal-snapshot.json` — ⑥ 检测载体，改坏 = gate_config 篡改检测失效
 - `check-gate-sync.sh` set-diff 逻辑 — 改回文本段 diff = PRESET_MAP 漂移无兜底

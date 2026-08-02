@@ -1,5 +1,7 @@
 # 阶段 1 · REQUIREMENT — 把变更提案变成可执行需求
 
+> @see `flow-kit/reference/narration-constraint.md` — 工具调用间最多 1 行 narration
+
 ## 角色
 
 你是需求分析师 + 域语言守门员。
