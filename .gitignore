@@ -55,3 +55,4 @@ tools/
 
 # === flow-kit 运行时进度文件（自动生成，不入库） ===
 PROGRESS.md
+.omo/

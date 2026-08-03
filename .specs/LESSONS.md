@@ -13,8 +13,15 @@
 
 ## M-health 巡检观察（监控级 · 不阻塞）
 
-> 最后更新: 2026-07-25（全量 Sweep · 98/100）
+> 最后更新: 2026-08-03（全量 Sweep · 89/100 · ↓9 单源退化）
 > 格式：日期 | 严重度 | 位置 | 观察 | 建议操作
+
+<!-- 2026-08-03 Full Sweep ↓ -->
+| 2026-08-03 | 🔴 | `flow-kit-bundle/lib/install_hooks.sh:97` | **install_hooks.sh:97 user-scope 回归**：commit `0c79f1c`（双平台拆分）把 `"$project/.claude/stop-hook.json"` 改为 `"${project}/${PROJECT_DIR_NAME}/stop-hook.json"` 但未处理直接 source 路径（PROJECT_DIR_NAME 仅 `lib/paths.sh` 定义 · 仅 install.sh 主入口 source）。单元测试和 `--user` 直调不 source paths.sh → `set -u` exit 1。症状：4 bats fail + `--user` 安装链路断 + 副作用阻断 runtime-edit-guard.sh 安装（L177-183 位于 L97 之后，永不执行）。 | **已修复**（`health-fix-2026-08` · Fix A paths.sh 自加载守卫 · 非 scope guard — DESIGN L2 审查确认 stop-hook.json 在 user-scope 是运行时回退依赖 `common.sh:107-108`，移除致 module_enabled 恒 false）。修复后 692/0 测试通过，评分 89→≥98。 |
+| 2026-08-03 | 🟢 | 5 个 Bash 文件（jscpd 检测） | **Bash 样板代码相似率 0.37%**（vs 上次 0.43% · 略降）。5 处克隆均为 6-11 行的 shebang + source 初始化段。TD-008/017/018 拆分未引入新重复。 | 不处理。沿用 2026-07-25 决议。 |
+| 2026-08-03 | 🟢 | `flow-kit-bundle/lib/paths.sh`（新增） | **lib/paths.sh 是 0c79f1c 新增的共享变量 lib**（PLATFORM / PROJECT_DIR_NAME / USER_HOOKS_DIR 等平台抽象）。是合理的双平台兼容设计，但**未登记到 CONTEXT.md「既有抽象索引」**，未来 AI 可能重复实现类似平台抽象。 | 下次 A-evolve 同步时登记到 CONTEXT.md § 既有抽象索引。同时建议加 install_hooks.sh 文件头注释明确「依赖 paths.sh · user-scope 不依赖 PROJECT_DIR_NAME」边界。 |
+| 2026-08-03 | 🟢 | 全局（流程教训） | **commit-time 测试门禁缺失**：`0c79f1c` 提交时 4 个 bats fail 测试已存在，但 commit 被允许通过（未跑 `make test` 或结果被忽略）。若 commit 前置硬门禁（pre-commit hook 跑 `make test`），此回归可在入库前捕获。 | 建议未来在 .git/hooks/pre-commit 或 Makefile pre-push target 加 `make test` 硬门禁。本项不阻塞 health-fix-2026-08，作为流程改进建议记录。 |
+<!-- 2026-08-03 Full Sweep ↑ -->
 
 <!-- 2026-07-25 Full Sweep ↓ -->
 | 2026-07-25 | 🟢 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh` | **l3-review.sh 持续增长至 875 行**（+65 vs 上次 810）。增长来自合法功能（`l3-review-timeout-token` 可配置化：FLOW_KIT_L3_MAX_TOKENS / TIMEOUT / THINKING）。12 函数结构良好，主编排函数 `l3_review_run()` 已从上上次 307 行拆至 ~90 行。 | 若未来突破 1000 行或新增第 5 种职责，触发 TD-008（拆为 l3-detect / l3-dispatch / l3-format 子库） |

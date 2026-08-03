@@ -119,6 +119,18 @@ teardown() {
   [[ "$output" =~ ".claude/hooks" || "$output" =~ hooks ]]
 }
 
+@test "install_hooks DRY_RUN user scope: output mentions stop-hook.json (regression guard for install line)" {
+  DRY_RUN=true \
+  SCRIPT_DIR="$FK_ROOT/flow-kit-bundle" \
+  HOME="$TEST_TMPDIR" \
+  run bash -c "
+    source '$FK_ROOT/flow-kit-bundle/lib/install_hooks.sh'
+    install_hooks '$TEST_TMPDIR' user
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ "stop-hook.json" ]]
+}
+
 # ── install_brooks_lint jq fallback ──
 
 @test "install_brooks_lint DRY_RUN: exit 0 and output contains [DRY-RUN]" {

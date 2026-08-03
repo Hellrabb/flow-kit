@@ -3,6 +3,8 @@
 # 由 install.sh source，不可独立执行
 # 依赖：lib/paths.sh（PLATFORM, USER_HOOKS_DIR, PROJECT_DIR_NAME, HOOKS_PROJECT_VAR_REF,
 #                     HOOKS_USER_VAR_REF, USER_HOOKS_DIR, settings_file_for）
+# 自加载：被直接 source 时（测试 / 独立调用）install_hooks() 内部自动 source paths.sh
+# 环境变量 FLOW_KIT_PLATFORM 可覆盖平台（claude|opencode · 非法值→claude 默认）
 #
 # 平台行为：
 #   claude
@@ -34,6 +36,19 @@ install_file() {
 install_hooks() {
   local project="$1"
   local scope="${2:-project}"   # "user" or "project"
+
+  # ── 依赖自加载 ──────────────────────────────────────────────
+  # install.sh 调用: resolve_paths 已在 install.sh:153 执行 → 此块 no-op
+  # 直接 source（测试/独立）: paths.sh 未加载 → 自动加载
+  if [ -z "${PROJECT_DIR_NAME:-}" ] && [ -n "${SCRIPT_DIR:-}" ]; then
+    # shellcheck source=/dev/null
+    source "${SCRIPT_DIR}/lib/paths.sh"
+    case "${FLOW_KIT_PLATFORM:-claude}" in
+      claude|opencode) resolve_paths "${FLOW_KIT_PLATFORM:-claude}" ;;
+      *) resolve_paths claude ;;
+    esac
+  fi
+
   echo ""
   echo "═══ 安装 Hook 系统 [${PLATFORM}/${scope}] ═══"
 
