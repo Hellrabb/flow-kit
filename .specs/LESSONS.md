@@ -562,3 +562,16 @@
 - **影响**：REQUIREMENT AC-E1/E2 原始目标过于严格，长函数已拆分但文件级目标未达
 - **建议**：v2 进一步拆 l3-api.sh（抽 callparse）+ gate-helpers.sh（按 file/types/state 分组）
 - **登记时间**：2026-08-03
+
+## test-failures-fixup-2026-08 Resolved ✅ (2026-08-03)
+
+### Pre-existing bats fails resolved (5)
+- Test 250 (gate regex) → split-aware grep rewrite
+- Test 507 (AC-5 npx bats 指令) → OR 双文件 assertion
+- Test 509 (AC-6 失败阻断) → assertion 重写 pattern
+- Test 515 (子段编号 1.8.4.x) → grep tdd-workflow.md 4 个 #### 标题
+- Test 577 (make lint SC2148) → 7 hook lib 加 `# shellcheck shell=bash` 指令
+
+### Lessons learned
+- **TD-073**: L-068 后内容迁移时，test grep assertion 必须同步重写（不只是 grep 范围扩大）。Split-aware test 设计原则
+- **TD-074**: shellcheck SC2148 对 sourced lib 的标准修复是 `# shellcheck shell=bash`（非 shebang）

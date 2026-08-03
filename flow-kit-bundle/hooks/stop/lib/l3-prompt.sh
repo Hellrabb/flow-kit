@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # l3-prompt.sh — L3 审查 prompt 构造 + 格式化（分拆自 l3-review.sh）
 #
 # 来源: split from l3-review.sh

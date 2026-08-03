@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # gate-checks-review.sh — phase transition orchestrator + deny logic
 # source: split from independent-review-gate.sh
 # change: final-debt-cleanup-2026-08

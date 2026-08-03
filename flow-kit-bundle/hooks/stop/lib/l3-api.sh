@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # l3-api.sh — L3 外部模型 API 调用 + 解析（分拆自 l3-review.sh）
 #
 # 来源: split from l3-review.sh
