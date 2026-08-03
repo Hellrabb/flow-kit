@@ -116,3 +116,126 @@ skip_if_no_jq() {
   echo "{{{ broken json" > "$PROJECT_ROOT/.flow-active"
   ! fk_validate_flow
 }
+
+# ── fk_auto_phase (gate decision · 三道防线核心 · unit coverage gap) ─────
+
+# Stub: gate-not-active so fk_auto_phase proceeds to case dispatch
+fk_independent_review_gate_active() { return 1; }
+
+@test "fk_auto_phase: phase=1 + REQUIREMENT with AC → echoes '2'" {
+  skip_if_no_jq
+  local cid="test-change"
+  mkdir -p "$PROJECT_ROOT/.specs/${cid}"
+  # fk_file_nonempty requires lines > MIN_MEANINGFUL_LINES (=6) → 7+ lines
+  printf '# Requirement\n\n## 背景\n\nSome context.\n\n## 验收标准\n\n- AC-1: condition\n- AC-2: condition\n' > "$PROJECT_ROOT/.specs/${cid}/REQUIREMENT.md"
+  result=$(fk_auto_phase "$cid" "1")
+  [[ "$result" == "2" ]]
+}
+
+@test "fk_auto_phase: phase=1 + REQUIREMENT without AC → empty (blocked)" {
+  skip_if_no_jq
+  local cid="test-change"
+  mkdir -p "$PROJECT_ROOT/.specs/${cid}"
+  printf '# Requirement\n\n## 背景\n\nSome context here.\n\nMore background.\n\nNo AC section.\n' > "$PROJECT_ROOT/.specs/${cid}/REQUIREMENT.md"
+  result=$(fk_auto_phase "$cid" "1")
+  [[ -z "$result" ]]
+}
+
+@test "fk_auto_phase: phase=4 + all T SUMMARY present → echoes '5'" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '<tasks>\n\n<task id="T01" />\n\n<task id="T02" />\n\n</tasks>\n' > "$spec/TASK.md"
+  touch "$spec/T01-SUMMARY.md" "$spec/T02-SUMMARY.md"
+  result=$(fk_auto_phase "$cid" "4")
+  [[ "$result" == "5" ]]
+}
+
+@test "fk_auto_phase: phase=4 + missing SUMMARY → empty (blocked)" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '<tasks>\n\n<task id="T01" />\n\n<task id="T02" />\n\n</tasks>\n' > "$spec/TASK.md"
+  touch "$spec/T01-SUMMARY.md"
+  # T02-SUMMARY.md intentionally missing
+  result=$(fk_auto_phase "$cid" "4" 2>/dev/null)
+  [[ -z "$result" ]]
+}
+
+@test "fk_auto_phase: phase=6 + REVIEW with 🔴 → empty (blocked)" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '# Review\n\n## Verdict\n\n## Findings\n\n🔴 R1 Critical finding.\n\nNeeds fix.\n' > "$spec/REVIEW.md"
+  result=$(fk_auto_phase "$cid" "6")
+  [[ -z "$result" ]]
+}
+
+@test "fk_auto_phase: phase=6 + REVIEW clean → echoes '7'" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '# Review\n\n## Verdict\n\nPASS all ✅\n\nClean.\n\nShip it.\n' > "$spec/REVIEW.md"
+  result=$(fk_auto_phase "$cid" "6")
+  [[ "$result" == "7" ]]
+}
+
+# ── fk_boundary_check (write_files scope guard · unit coverage gap) ──────
+
+@test "fk_boundary_check: phase != 4 → silent return 0" {
+  skip_if_no_jq
+  jq -n '{phase: "3"}' > "$PROJECT_ROOT/.flow-active"
+  result=$(fk_boundary_check "test-change" "T01")
+  [[ -z "$result" ]]
+}
+
+@test "fk_boundary_check: phase=4 + no task_id → silent return 0" {
+  skip_if_no_jq
+  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+  result=$(fk_boundary_check "test-change" "none")
+  [[ -z "$result" ]]
+}
+
+@test "fk_boundary_check: phase=4 + change inside write_files glob → silent" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '<tasks>\n\n<task id="T01" write_files="src/*.ts">\n\ndesc\n\n</task>\n\n</tasks>\n' > "$spec/TASK.md"
+  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+  git -C "$PROJECT_ROOT" init -q 2>/dev/null || { skip "git unavailable"; }
+  git -C "$PROJECT_ROOT" config user.email t@t >/dev/null
+  git -C "$PROJECT_ROOT" config user.name t >/dev/null
+  git -C "$PROJECT_ROOT" add -A >/dev/null 2>&1
+  git -C "$PROJECT_ROOT" commit -q -m base >/dev/null 2>&1
+  # Change INSIDE boundary
+  mkdir -p "$PROJECT_ROOT/src"
+  echo "code" > "$PROJECT_ROOT/src/a.ts"
+  result=$(fk_boundary_check "$cid" "T01")
+  [[ -z "$result" ]]
+}
+
+@test "fk_boundary_check: phase=4 + change OUTSIDE write_files → suggestion" {
+  skip_if_no_jq
+  local cid="test-change"
+  local spec="$PROJECT_ROOT/.specs/${cid}"
+  mkdir -p "$spec"
+  printf '<tasks>\n\n<task id="T01" write_files="src/*.ts">\n\ndesc\n\n</task>\n\n</tasks>\n' > "$spec/TASK.md"
+  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+  git -C "$PROJECT_ROOT" init -q 2>/dev/null || { skip "git unavailable"; }
+  git -C "$PROJECT_ROOT" config user.email t@t >/dev/null
+  git -C "$PROJECT_ROOT" config user.name t >/dev/null
+  git -C "$PROJECT_ROOT" add -A >/dev/null 2>&1
+  git -C "$PROJECT_ROOT" commit -q -m base >/dev/null 2>&1
+  # Change OUTSIDE boundary — git add so `git diff --cached` catches it
+  mkdir -p "$PROJECT_ROOT/lib"
+  echo "out" > "$PROJECT_ROOT/lib/outside.ts"
+  git -C "$PROJECT_ROOT" add -A >/dev/null 2>&1
+  result=$(fk_boundary_check "$cid" "T01")
+  [[ "$result" =~ "suggestion|G1" ]]
+  [[ "$result" =~ "outside.ts" ]]
+}
