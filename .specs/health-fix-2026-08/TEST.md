@@ -11,8 +11,8 @@
 | 套件 | 命令 | 结果 | 时长 |
 |---|---|---|---|
 | **全量 bats** | `make test` | ✅ 692 ok / 0 fail / 0 skip | ~3 min |
-| **install_coverage** | `npx bats test/test_install_coverage.bats` | ✅ 18 ok / 0 fail | <5s |
-| **install_dry_run** | `npx bats test/test_install_dry_run.bats` | ✅ 3 ok / 0 fail | <5s |
+| **install_coverage** | `npx bats test/test_install_coverage.bats` | ✅ 17 ok / 0 fail | <5s |
+| **install_dry_run** | `npx bats test/test_install_dry_run.bats` | ✅ 4 ok / 0 fail | <5s |
 | **shellcheck** | `make lint` | ✅ 0 errors | <2s |
 | **bash -n** | `bash -n install_hooks.sh` | ✅ exit 0 | <1s |
 | **双源 diff** | `diff test/ flow-kit-bundle/test/` (install_coverage) | ✅ identical | <1s |
@@ -28,7 +28,7 @@
 | AC | 验证方式 | 验证命令 | 结果 |
 |---|---|---|---|
 | AC-A1 | `make test` exit 0 | `make test 2>&1 \| tail -5` → `✅ bats: all tests passed` | ✅ PASS |
-| AC-A2 | 4 原失败 case 全 pass | `npx bats test_install_coverage.bats test_install_dry_run.bats` → 0 `not ok` | ✅ PASS |
+| AC-A2 | 4 原失败 case 全 pass + case-title 锚点 grep | `npx bats test_install_coverage.bats test_install_dry_run.bats` → 0 `not ok`；全量日志 grep 4 条 case 标题各 ≥1 次 | ✅ PASS |
 
 **AC-A2 详情**（原 4 fail case 全部修复）:
 - `test_install_coverage.bats::install_hooks DRY_RUN user scope: exit 0 and output contains [DRY-RUN]` — **PASS**（原 fail: PROJECT_DIR_NAME 未绑定 exit 1）

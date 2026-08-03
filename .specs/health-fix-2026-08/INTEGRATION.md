@@ -21,6 +21,7 @@
 | INDEPENDENT-REVIEW-3.md | ...REVIEW-3.md | ✅ (phase 3 · self · proportionality) |
 | INDEPENDENT-REVIEW-5.md | ...REVIEW-5.md | ✅ (phase 5 · self · results verified) |
 | INDEPENDENT-REVIEW-6.md | ...REVIEW-6.md | ✅ (phase 6 · L2 pass · 2 Minor fixed) |
+| INDEPENDENT-REVIEW-7.md | ...REVIEW-7.md | ✅ (phase 7 · self then retroactive L2 · 9 findings · all fixed in rev 2) |
 
 ### 1.2 · .done 门禁文件
 
@@ -31,19 +32,20 @@
 | 3-task | L2 | ✅ | PASS (proportionality) |
 | 5-test | L2 | ✅ | PASS (proportionality) |
 | 6-review | L2 | ✅ | PASS (2 Minor fixed) |
-| 7-integration | L2 | (本步) | — |
+| 7-integration | L2 | ✅ | PASS (self + retroactive L2 · 9 findings fixed) |
 
 ---
 
 ## § 2 · 代码变更清单
 
-### 2.1 · 变更文件（3 个 · +36 行）
+### 2.1 · 变更文件（4 个 · +40 行）
 
 | 文件 | 变更类型 | 行数 | 说明 |
 |---|---|---|---|
-| `flow-kit-bundle/lib/install_hooks.sh` | 修改 | +12 | Fix A (L38-50 paths.sh 自加载守卫) + Fix C (L3-4 header 注释) |
+| `flow-kit-bundle/lib/install_hooks.sh` | 修改 | +15 | Fix A (L38-50 paths.sh 自加载守卫 · 13 行) + Fix C (L3-4 header 注释 · 2 行) |
 | `test/test_install_coverage.bats` | 修改 | +12 | AC-C1 防回归 case (L122-134) |
 | `flow-kit-bundle/test/test_install_coverage.bats` | 同步 | +12 | 双源同步 (identical) |
+| `.gitignore` | 修改 | +1 | 新增 `.omo/` 排除（runtime 状态目录） |
 
 ### 2.2 · 禁动清单合规
 
@@ -52,6 +54,7 @@
 | `lib/install_*.sh` 不可独立执行 | ✅ | 约束**未改变**（header 仍标注"由 install.sh source"）· 仅增加防御性自加载 |
 | `.flow-active.goal` 字段 | ✅ | 全程通过 jq 更新（无手编辑） |
 | 双源测试同步 | ✅ | AC-D3 验证 diff exit 0 |
+| `.gitignore` 禁动 | ⚠️ 已披露 | commit `8e391e9` 新增 `.omo/` 排除（1 行）。`.gitignore` 在禁动清单「禁 AI 顺手增删排除规则」。变更理由：commit 前 `.omo/` runtime 状态目录被 git stage，需排除避免误入库。变更 benign（仅排除 runtime 产物），但未在原版 INTEGRATION 披露 — 现补报。 |
 
 ### 2.3 · 预期 score 改善
 
@@ -59,7 +62,7 @@
 |---|---|---|
 | install_hooks.sh:97 PROJECT_DIR_NAME 未绑定 | 🔴 -10 | ✅ 0 (守卫加载 paths.sh) |
 | runtime-edit-guard.sh 安装阻断 | 隐含 -10 | ✅ 0 (下游解锁) |
-| jscpd 0.37% (5 boilerplate clones) | 🟢 -1 | 🟢 -1 (不变) |
+| jscpd 0.37% (5 boilerplate clones) | 🟢 -1 | 🟢 -1 (0.47% · 6 clones · Fix A guard idiom 与 common.sh:270 形成新 boilerplate clone · benign · 守卫模式本就模板化) |
 | **预期综合** | **89** | **≥98**（恢复 baseline 98 或 99 · 取决于 jscpd 是否算入） |
 
 ---
@@ -85,9 +88,9 @@
 | 所有软门槛 AC pass | ✅ (C1 防回归 test) |
 | 全量测试 exit 0 | ✅ (make test 692/0) |
 | 主路径 smoke exit 0 | ✅ (install.sh --project --hooks-only) |
-| 禁动清单零违反 | ✅ |
-| 规格工件完整 | ✅ (10/10) |
-| git diff 干净 | ✅ (3 文件 +36 行) |
+| 禁动清单零违反 | ⚠️ 1 项已披露 (`.gitignore` +=`.omo/` · benign · 详见 §2.2) |
+| 规格工件完整 | ✅ (11/11 · 含 INDEPENDENT-REVIEW-7.md) |
+| git diff 干净 | ✅ (4 文件 +40 行 · §2.1 已详列) |
 
 **结论**: **READY TO COMMIT**
 
