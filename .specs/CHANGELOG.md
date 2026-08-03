@@ -147,3 +147,4 @@ setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 
 | 2026-08-03 | test-failures-fixup-2026-08 | 5 pre-existing bats fail 全部修复 (gate regex + 4-dev §1.8.4 + shellcheck SC2148) | TD-073/074 |
 | 2026-08-03 | td072-lib-split-2026-08 | l3-api.sh + gate-helpers.sh 职责拆分（聚合入口模式）· 662→666 tests | - |
 | 2026-08-04 | test-coverage-gap-2026-08 | 闭合 TD-002 v2 deferred：补 4 coord module smoke (01/20/21/25) + fk_auto_phase + fk_boundary_check unit tests (16 tests 新增) | L-058/060/062/063 闭合 |
+| 2026-08-04 | debt-audit-resolve-2026-08 | 老债务审计：8 项已隐式解决（TD-004/005/019/020/021/022 + L-019/021/022 标记 ✅），新增 phase-prompt-template.md 文档化结构性 PCSC 模板 | TD-004/005/019/020/021/022 + L-019/021/022 |
