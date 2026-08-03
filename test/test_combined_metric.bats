@@ -21,7 +21,7 @@
   fi
 
   echo "Combined bytes: $COMBINED_BYTES (threshold: 20480)"
-  [ "$COMBINED_BYTES" -le 20480 ]
+  [ "$COMBINED_BYTES" -le 20000 ]  # actual 19037; DESIGN aspirational 17000 not met, v2 restructure
 
   rm -f "$TASK_BRIEF_OUT"
 }
