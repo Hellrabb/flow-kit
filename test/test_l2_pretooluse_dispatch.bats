@@ -22,6 +22,7 @@ setup() {
   L2_DETECT="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib/l2-detect.sh"
   GATE_SH="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh"
   L3_REVIEW="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib/l3-review.sh"
+  L3_LIB_DIR="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib"
   STOP_29="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/29-independent-review.sh"
 }
 
@@ -159,13 +160,13 @@ DONE
 # AC-11: L3 原子写入 + 写入后验证
 # ═══════════════════════════════════════════════════════════════
 @test "AC-11: l3-review.sh uses atomic write (tmp + mv)" {
-  # 验证原子写入模式
-  grep -q 'tmp_review.*tmp' "$L3_REVIEW"
-  grep -q 'mv.*tmp_review.*review_md' "$L3_REVIEW"
+  # 验证原子写入模式（phase 4 拆分后分布在 l3-api.sh / l3-done.sh 中）
+  grep -q 'tmp_review.*tmp' "$L3_LIB_DIR"/l3-*.sh
+  grep -q 'mv.*tmp_review.*review_md' "$L3_LIB_DIR"/l3-*.sh
   # 验证写入后检查
-  grep -q 'L3 content not persisted' "$L3_REVIEW"
+  grep -q 'L3 content not persisted' "$L3_LIB_DIR"/l3-*.sh
   # 验证 _l3_write_done 防御
-  grep -q 'done deferred.*L3 content not found' "$L3_REVIEW"
+  grep -q 'done deferred.*L3 content not found' "$L3_LIB_DIR"/l3-*.sh
 }
 
 # ═══════════════════════════════════════════════════════════════

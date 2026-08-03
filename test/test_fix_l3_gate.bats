@@ -14,6 +14,7 @@ setup() {
   done
   BUNDLE_ROOT="$d/flow-kit-bundle"
   L3_REVIEW_SH="$BUNDLE_ROOT/hooks/stop/lib/l3-review.sh"
+  L3_LIB_DIR="$BUNDLE_ROOT/hooks/stop/lib"
   AUTO_ADVANCE_SH="$BUNDLE_ROOT/hooks/stop/31-auto-advance.sh"
 
   # 模拟 specs 目录结构
@@ -235,29 +236,29 @@ EOF
 # ═══════════════════════════════════════════════
 
 @test "l3-review append mode: ## L3 重审 section header present in modified script" {
-  # 验证修改后的 l3-review.sh 含有重审相关逻辑
-  run grep -q 'is_review' "$L3_REVIEW_SH" 2>/dev/null
+  # 验证修改后的 l3 libs 含有重审相关逻辑（phase 4 拆分后分布在 l3-*.sh 中）
+  run grep -q 'is_review' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 
-  run grep -q '## L3 重审' "$L3_REVIEW_SH" 2>/dev/null
+  run grep -q '## L3 重审' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 
   # 验证不再使用 awk 覆写旧 L3 段（已改为追加模式）
-  run grep -q "awk '/^## L3 盲审/{stop=1}" "$L3_REVIEW_SH" 2>/dev/null
+  run grep -q "awk '/^## L3 盲审/{stop=1}" "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 1 ]
 }
 
 @test "l3-review .done conditional: only writes .done on pass" {
   # 验证 .done 写入逻辑包含条件判断
-  run grep -q 'L3 pass.*\.done written' "$L3_REVIEW_SH" 2>/dev/null
+  run grep -q 'L3 pass.*\.done written' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 
-  run grep -q '\.done NOT written' "$L3_REVIEW_SH" 2>/dev/null
+  run grep -q '\.done NOT written' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
 @test "l3-review file size warning: 50KB threshold check present" {
-  run grep -q '51200' "$L3_REVIEW_SH" 2>/dev/null
+  run grep -q '51200' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
