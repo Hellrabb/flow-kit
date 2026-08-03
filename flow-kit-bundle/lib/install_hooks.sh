@@ -208,6 +208,51 @@ install_hooks() {
     echo "   ✅ ${settings_target} 已写入 PreToolUse hook (auto-checkpoint) 接线"
   fi
 
+  # ═══ PreToolUse hook 文件部署（runtime-edit-guard · L-015 闭合）═══
+  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" ]; then
+    install_file "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" "$hook_dst/pre-tool-use/runtime-edit-guard.sh"
+    chmod +x "$hook_dst/pre-tool-use/runtime-edit-guard.sh" 2>/dev/null || true
+  fi
+
+  # ═══ 自动写入 PreToolUse hook 接线（runtime-edit-guard · L-015 闭合）═══
+  # 防 AI 改 ~/.claude/ 运行时副本而非 flow-kit-bundle/ 维护源
+  local reg_cmd="bash \"${settings_hook_path}/pre-tool-use/runtime-edit-guard.sh\""
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] 写入 PreToolUse hook (runtime-edit-guard) 到 ${settings_target}: command=${reg_cmd}"
+  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
+    if jq -e --arg cmd "$reg_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
+      echo "   ✅ PreToolUse hook (runtime-edit-guard) 已存在于 ${settings_target}，跳过"
+    else
+      local merged_reg
+      merged_reg=$(jq --arg cmd "$reg_cmd" '
+        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
+          "matcher": "Write|Edit",
+          "hooks": [{
+            "type": "command",
+            "command": $cmd
+          }]
+        }]
+      ' "$settings_target" 2>/dev/null)
+      if [ -n "$merged_reg" ]; then
+        echo "$merged_reg" > "$settings_target"
+        echo "   ✅ ${settings_target} 已追加 PreToolUse hook (runtime-edit-guard) 接线"
+      else
+        echo "   ⚠️  ${settings_target} PreToolUse (runtime-edit-guard) 合并失败，请手动检查"
+      fi
+    fi
+  else
+    jq -n --arg cmd "$reg_cmd" '
+      { hooks: { PreToolUse: [{
+        "matcher": "Write|Edit",
+        "hooks": [{
+          "type": "command",
+          "command": $cmd
+        }]
+      }] } }
+    ' > "$settings_target" 2>/dev/null
+    echo "   ✅ ${settings_target} 已写入 PreToolUse hook (runtime-edit-guard) 接线"
+  fi
+
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
   # 此处不再重复写入，避免同一 hook 触发两次。
   echo "   ℹ️  SessionStart hooks 由全局配置管理，无需项目级重复接线"
