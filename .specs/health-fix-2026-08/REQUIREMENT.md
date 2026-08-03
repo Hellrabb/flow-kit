@@ -39,7 +39,7 @@
 `When` 分两文件执行（各自取 exit code + 全量日志）：
 - `npx bats test/test_install_coverage.bats` → exit code + 全量输出
 - `npx bats test/test_install_dry_run.bats` → exit code + 全量输出
-`Then` 两文件 exit code 均 = 0，各自全量输出中无 `not ok`
+`Then` 两文件 exit code 均 = 0，各自全量输出中无 `not ok`，且 grep 4 条 case 标题锚点各 ≥1 次（防 case 被删/改名后假绿）
 `验证方式`: 全量日志 grep case 标题为唯一锚点（行号标注仅供参考，文件可能漂移）：
 - `test_install_coverage.bats` L98: `"install_hooks DRY_RUN user scope: exit 0 and output contains [DRY-RUN]"`
 - `test_install_coverage.bats` L110: `"install_hooks DRY_RUN user scope: mentions .claude/hooks"`（注：非 L105，实测在 L110）
@@ -77,9 +77,9 @@ DRY_RUN=true SCRIPT_DIR=$(pwd)/flow-kit-bundle \
 ### 类别 C · 防回归（软门槛 · 建议但不卡门禁）
 
 #### AC-C1 · 补 bats 测试：user-scope install 正确写入 stop-hook.json（防回归）
-`Given` 新 case `"install_hooks DRY_RUN user scope: writes stop-hook.json to user config dir"` 已写入 `test/test_install_coverage.bats`（+ `flow-kit-bundle/test/` 双源同步）
-`When` 执行 `npx bats test/test_install_coverage.bats --filter "writes stop-hook.json"`
-`Then` exit code = 0，输出含 `ok` 且不含 `not ok`（断言 user-scope dry-run 输出**含** `stop-hook.json` —— 保护运行时 `common.sh:107-108` 的 user-scope 回退依赖）
+`Given` 新 case `"install_hooks DRY_RUN user scope: output mentions stop-hook.json (regression guard for install line)"` 已写入 `test/test_install_coverage.bats`（+ `flow-kit-bundle/test/` 双源同步）
+`When` 执行 `npx bats test/test_install_coverage.bats --filter "stop-hook.json"`
+`Then` exit code = 0，输出含 `ok 1` 且不含 `not ok`（断言 user-scope dry-run 输出**含** `stop-hook.json` —— 保护运行时 `common.sh:107-108` 的 user-scope 回退依赖。filter 至少匹配 1 case，避免假绿）
 `验证方式`: bats --filter 单 case 执行
 
 > **注**: 原 AC-C1 断言"user-scope 不写 stop-hook.json"。经 DESIGN L2 FINDING-1 发现 stop-hook.json 在 user-scope 是运行时回退依赖（`common.sh:103-110`），移除会导致 module_enabled 恒 false。AC-C1 已反向修正。

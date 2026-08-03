@@ -48,7 +48,7 @@
 **步骤**:
 1. 在 `test/test_install_coverage.bats` 末尾新增 case:
 ```bash
-@test "install_hooks DRY_RUN user scope: writes stop-hook.json to user config dir" {
+@test "install_hooks DRY_RUN user scope: output mentions stop-hook.json (regression guard for install line)" {
   DRY_RUN=true \
   SCRIPT_DIR="$FK_ROOT/flow-kit-bundle" \
   HOME="$TEST_TMPDIR" \
@@ -64,7 +64,7 @@
 3. `diff test/test_install_coverage.bats flow-kit-bundle/test/test_install_coverage.bats` exit 0 (AC-D3)
 
 **验证**:
-- `npx bats test/test_install_coverage.bats --filter "writes stop-hook.json"` exit 0
+- `npx bats test/test_install_coverage.bats --filter "stop-hook.json"` exit 0（filter 至少匹配 1 case · 防假绿）
 - `diff test/test_install_coverage.bats flow-kit-bundle/test/test_install_coverage.bats` exit 0
 
 **done 条件**: 新 case pass + 双源 diff exit 0

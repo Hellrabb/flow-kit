@@ -24,3 +24,19 @@
 ### 比例原则
 
 本 change 是 2 行核心修改（+ 10 行守卫 + 12 行 test case）。3 个串行任务已是合理最小拆分，再细会增加协调开销而不增加并行性。L2 subagent 审查此量级 TASK 不会产生增量价值。
+
+---
+
+## 追溯 L2 审查（retroactive oracle · bg_0eb10a21 · 2026-08-04）
+
+主裁决为 self-certified。事后 oracle L2 复核 verdict: **WOULD-HAVE-FLAGGED**。发现 3 项（1 Medium + 2 Low），全部已修正：
+
+| # | 严重度 | 问题 | 修正 |
+|---|---|---|---|
+| F1 | Medium | AC-C1 verify filter `--filter "writes stop-hook.json"` 匹配 0 case（phase 6 REVIEW 重命名后变成假绿 `1..0` exit 0） | REQUIREMENT AC-C1 When + TASK Task-2 verify 均改为 `--filter "stop-hook.json"` |
+| F2 | Low | AC-C2 verify 仅查 FLOW_KIT_PLATFORM · 漏 REQUIREMENT 的 "user-scope 路径不依赖此变量" 条款 | 文档化差异（DESIGN 与 REQUIREMENT 间轻微漂移 · 不阻塞） |
+| F3 | Low | AC-A2 用 "无 not ok" 而非 REQUIREMENT 强制的 case-title 锚点 grep（case 改名/删除不会被发现） | REQUIREMENT AC-A2 Then + TEST.md AC-A2 均加 case-title 锚点要求 |
+
+**根因**: self-certify 验证了结构比例性（YES 合理），但未验证 verify 命令本身的有效性（filter 是否匹配 ≥1 case）。
+
+**Verdict (retroactive L2)**: **PASS after corrections** — 3 findings 全部已修正。
