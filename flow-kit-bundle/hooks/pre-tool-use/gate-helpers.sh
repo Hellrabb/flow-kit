@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # gate-helpers.sh — 独立 review gate 辅助函数库
 # source: split from independent-review-gate.sh
 # change: final-debt-cleanup-2026-08

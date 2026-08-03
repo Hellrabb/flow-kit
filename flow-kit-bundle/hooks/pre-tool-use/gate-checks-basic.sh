@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # gate-checks-basic.sh — L2/L3 gate check 核心函数
 # source: split from independent-review-gate.sh
 # change: final-debt-cleanup-2026-08

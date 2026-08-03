@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # l3-done.sh — L3 .done 写入 + 超时降级（分拆自 l3-review.sh）
 #
 # 来源: split from l3-review.sh

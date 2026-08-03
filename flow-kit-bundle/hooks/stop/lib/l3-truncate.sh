@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # l3-truncate.sh — L3 重审检测/跳过逻辑（分拆自 l3-review.sh）
 #
 # 来源: split from l3-review.sh

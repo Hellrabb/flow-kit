@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-08-03` (`cleanup-debt-batch-2026-08` · L-068/069/071/072 债务清理 · 4-dev.md 781→352 + 3 ref · review-package ref validation · 29 hook reorder · M-health.md cp · L-070 non-bug · 657/657 bats · gate_config=L2 all 6 phases · LESSONS L-068~072 ✅ + TD-071-A/B · CONTEXT.md 29 hook exception)
+- **last_change_archived**: `2026-08-03` (`test-failures-fixup-2026-08` · 5 pre-existing bats fail 修复 · gate regex split-aware grep + 4-dev §1.8.4 assertion 重写 + shellcheck SC2148 修复 · 全量 662/662 0 fail 基线恢复)
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo

@@ -546,3 +546,8 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | INT-COMBINED-1 | task-brief + 4-dev.md 合并加载 token 友好性测试（≤20KB），关闭 L-066 (AC-B4 测试深度补齐)。位于 test/test_combined_metric.bats |
 | writing principles (ADR-019) | flow-kit 写作 3 原则：① AC 必须确定性（条件 AC 拆 hard+soft）② 范围决策属 DESIGN 非 REQUIREMENT ③ 图表须引用可验证产物。新 change 的 REQUIREMENT/DESIGN 必须遵守 |
 <!-- final-debt-cleanup-2026-08 追加 ↑ -->
+
+<!-- test-failures-fixup-2026-08 追加 ↓ -->
+| split-aware test 设计原则 | 测试 assertion 应反映 split 后的实际代码组织，跨多文件 grep 而非死板指向单一文件 | test-failures-fixup-2026-08 |
+| shellcheck shell=bash 指令 | sourced lib（无 shebang）的标准 SC2148 修复：首行加 `# shellcheck shell=bash` | test-failures-fixup-2026-08 |
+<!-- test-failures-fixup-2026-08 追加 ↑ -->

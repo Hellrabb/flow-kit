@@ -150,9 +150,24 @@ REOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-3 · 5 站点: gate.sh 正则含 3/5/7" {
-  run grep -cE '\^\(1\|2\|3\|5\|6\|7\)\$' "$GATE_SH"
-  [ "$status" -eq 0 ]
-  [ "$output" -ge 1 ]
+  # L-068 hook lib split 后 regex 散到 sub-libs，需 grep 4 文件
+  # test-failures-fixup-2026-08: assertion 重写为「恰好 N 处命中」兼查 DRY 重复
+  # 注：HOOK_BASE_DIR 指向 hooks/stop；pre-tool-use 在同级，故用 ${BUNDLE_ROOT}/hooks/pre-tool-use
+  local pretool_dir="$BUNDLE_ROOT/hooks/pre-tool-use"
+  local gate_files=(
+    "$pretool_dir/independent-review-gate.sh"
+    "$pretool_dir/gate-helpers.sh"
+    "$pretool_dir/gate-checks-basic.sh"
+    "$pretool_dir/gate-checks-review.sh"
+  )
+  local total_matches=0
+  for f in "${gate_files[@]}"; do
+    local cnt=0
+    cnt=$(grep -cE '\^\(1\|2\|3\|5\|6\|7\)\$' "$f" 2>/dev/null) || cnt=0
+    total_matches=$((total_matches + cnt))
+  done
+  [ "$total_matches" -ge 1 ]  # 至少一处（防沉默消失）
+  [ "$total_matches" -le 2 ]  # 最多两处（容忍合理重复，防 DRY 违反）
 }
 
 @test "AC-3 · 5 站点: PHASE_GATE_KEY_MAP in common.sh 含 3-task/5-test/7-integration" {
