@@ -171,14 +171,15 @@ cat > "$STAGING/README.md" << 'READEOF'
 | 组件 | 路径 | 说明 |
 |---|---|---|
 | flow-kit 核心引擎 | `flow-kit/` | GO.md, prompts/, templates/, reference/, RULES.md, SYSTEM.md |
-| flow-* 技能包装器 | `skills/flow-*/` | 16 个 Claude Code skill，委托到 flow-kit 核心 |
-| Stop Hook 系统 | `hooks/stop/` | 11 个模块化后处理脚本 + 3 个库文件 |
+| flow-* 技能包装器 | `skills/flow-*/` | 17 个工作流 skill（claude + opencode 双平台） |
+| Stop Hook 系统 | `hooks/stop/` | 18 个模块化后处理脚本 + 库文件 |
 | SessionStart Hook | `hooks/session-start/` | flow-kit-resume + stop-report-reminder |
+| PreToolUse hooks | `hooks/pre-tool-use/` | independent-review-gate + auto-checkpoint + runtime-edit-guard |
 | 配置文件 | `hooks/config/` | settings.json 模板 + stop-hook.json 模板 |
 | SPEC 模板 | `specs-template/` | STATE.md 模板 |
 | brooks-lint 插件 | `brooks-lint/` | 6 个代码审查 skill（review/audit/debt/test/health/sweep） |
-| brooks-lint 工具 | `brooks-tools/` | depcheck / jscpd / knip / ts-prune 离线可用（linux-x64） |
-| 安装脚本 | `install.sh` | 自动安装到目标环境 |
+| 安装脚本 | `install.sh` | 双平台兼容安装器（claude | opencode） |
+| opencode 安装指南 | `OPENCODE-INSTALL.md` | opencode 平台详细安装/桥接文档 |
 
 ## 源信息
 
@@ -188,6 +189,8 @@ cat > "$STAGING/README.md" << 'READEOF'
 - brooks-lint 插件来自: https://github.com/hyhmrright/brooks-lint (v1.3.0)
 
 ## 安装
+
+### Claude Code（默认平台）
 
 ```bash
 # 首次安装 / 全新安装
@@ -210,8 +213,24 @@ cat > "$STAGING/README.md" << 'READEOF'
 ./install.sh --global --no-hooks        # 不装 stop hook
 ./install.sh --global --no-skills       # 不装 skills
 ./install.sh --global --no-brooks       # 不装 brooks-lint
-./install.sh --project . --hooks-only   # 仅装 stop hook
+./install.sh --project . --hooks-only   # 仅装 hooks
 ```
+
+### opencode
+
+```bash
+# 全局安装到 ~/.config/opencode/
+./install.sh --platform opencode --global
+
+# 项目级 hooks（依赖桥接插件，详见 OPENCODE-INSTALL.md）
+./install.sh --platform opencode --project . --hooks-only
+
+# 自动检测平台（基于 ~/.config/opencode/opencode.json 存在性）
+./install.sh --platform auto --global
+```
+
+> opencode 平台的 hooks 需要 `opencode-claude-hooks` 或 `opencode-hooks-plugin` 桥接插件，
+> 详见 `OPENCODE-INSTALL.md`。
 
 ## 更新 / 重装
 
@@ -225,7 +244,16 @@ cat > "$STAGING/README.md" << 'READEOF'
 ./install.sh --reinstall
 ```
 
-> ⚠️ 不要在 `~/.claude/flow-kit/` 里手动 git pull — bundle 版本管理走 `.flow-kit-version` 版本标记。
+> ⚠️ 不要在 `~/.claude/flow-kit/` 或 `~/.config/opencode/flow-kit/` 里手动 git pull — bundle 版本管理走 `.flow-kit-version` 版本标记。
+
+## 双平台共存
+
+Claude Code 和 opencode 可同时安装在同一台机器，互不干扰：
+
+| 平台 | 数据目录 | 版本标记 |
+|---|---|---|
+| Claude Code | `~/.claude/` | `~/.claude/.flow-kit-version` |
+| opencode | `~/.config/opencode/` | `~/.config/opencode/.flow-kit-version` |
 ```
 READEOF
 
@@ -233,6 +261,12 @@ READEOF
 cp "$SCRIPT_DIR/flow-kit-bundle/install.sh" "$STAGING/install.sh"
 cp -r "$SCRIPT_DIR/flow-kit-bundle/lib" "$STAGING/"
 echo "   ✅ install.sh + lib/ 已打包 (from flow-kit-bundle/)"
+
+# ── opencode 安装文档 ──
+if [ -f "$SCRIPT_DIR/flow-kit-bundle/OPENCODE-INSTALL.md" ]; then
+  cp "$SCRIPT_DIR/flow-kit-bundle/OPENCODE-INSTALL.md" "$STAGING/"
+  echo "   ✅ OPENCODE-INSTALL.md 已打包"
+fi
 
 chmod +x "$STAGING/install.sh"
 

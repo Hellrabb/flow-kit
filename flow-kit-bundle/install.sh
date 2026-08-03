@@ -1,10 +1,12 @@
 #!/bin/bash
 # ============================================================================
-# flow-kit 安装脚本
-# 用法: ./install.sh [--global|--project <path>] [--no-hooks] [--no-skills] [--hooks-only]
+# flow-kit 安装脚本（claude | opencode 双平台兼容）
+# 用法: ./install.sh [--platform claude|opencode] [--global|--project <path>]
+#                    [--no-hooks] [--no-skills] [--hooks-only]
 # ============================================================================
 set -euo pipefail
 
+PLATFORM="claude"          # 默认 claude（向后兼容）
 MODE=""
 TARGET_PROJECT=""
 NO_HOOKS=false
@@ -18,44 +20,79 @@ BROOKS_SRC=""
 DRY_RUN=false
 SELF_TEST=false
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VERSION_FILE="$HOME/.claude/.flow-kit-version"
-BUNDLE_VERSION_FILE="$SCRIPT_DIR/.flow-kit-version"
 
-# ── 加载 lib 模块 ────────────────────────────────────────────────────
-source "$SCRIPT_DIR/lib/install_hooks.sh"   # install_file(), install_hooks(), install_specs_template()
-source "$SCRIPT_DIR/lib/install_core.sh"    # install_flow_kit_core()
-source "$SCRIPT_DIR/lib/install_skills.sh"  # install_skills()
-source "$SCRIPT_DIR/lib/install_brooks.sh"  # install_brooks_lint()
-source "$SCRIPT_DIR/lib/install_brooks_tools.sh"  # install_brooks_tools()
+# ── 加载 lib 模块（顺序敏感：paths.sh 必须在所有 install_*.sh 之前）────
+source "$SCRIPT_DIR/lib/paths.sh"               # resolve_paths() + project_dir_for() + settings_file_for()
+source "$SCRIPT_DIR/lib/install_hooks.sh"        # install_file(), install_hooks(), install_specs_template()
+source "$SCRIPT_DIR/lib/install_core.sh"         # install_flow_kit_core()
+source "$SCRIPT_DIR/lib/install_skills.sh"       # install_skills()
+source "$SCRIPT_DIR/lib/install_brooks.sh"       # install_brooks_lint()
+source "$SCRIPT_DIR/lib/install_brooks_tools.sh" # install_brooks_tools()
+source "$SCRIPT_DIR/lib/install_agents_md.sh"    # install_agents_md_injection()
 # NOTE: 新增 lib/ 文件时必须在此添加 source 声明，否则运行时 "command not found"
+
+# ── auto_detect_platform ──────────────────────────────────────────────
+# 启发式：~/.config/opencode/opencode.json 存在 且 ~/.claude/ 不存在 → opencode
+#        否则 → claude（Claude Code 仍是默认）
+# =====================================================================
+auto_detect_platform() {
+  if [ -f "$HOME/.config/opencode/opencode.json" ] && [ ! -d "$HOME/.claude" ]; then
+    echo "opencode"
+  elif [ -f "$HOME/.config/opencode/opencode.json" ] && [ -d "$HOME/.claude" ]; then
+    # 两者都存在 → 优先 claude（向后兼容）；用户可用 --platform opencode 强制
+    echo "claude"
+  else
+    echo "claude"
+  fi
+}
 
 # ── usage ─────────────────────────────────────────────────────────────
 usage() {
   cat << EOF
 用法: $0 [选项]
 
-选项:
-  --global              全局安装（~/.claude/flow-kit + ~/.claude/skills/flow-* + brooks-lint）
+平台选择:
+  --platform <name>     目标平台：claude (默认) | opencode | auto
+                        claude   → 安装到 ~/.claude/（Claude Code 原生）
+                        opencode → 安装到 ~/.config/opencode/（opencode 原生）
+                                   注：hooks 依赖桥接插件（见 OPENCODE-INSTALL.md）
+
+模式:
+  --global              全局安装（核心 + skills + brooks-lint + 可选用户级 hooks）
   --update              智能更新（版本比对 · bundle 版本 > 已装版本才执行）
-  --reinstall           彻底重装（先 rm -rf 既有安装 → 再全新 --global）
-  --project <path>      安装到指定项目（hooks + settings.json + .specs 模板）
-  --user                安装 hooks 到用户目录 ~/.claude/（全局生效，所有项目共用）
+  --reinstall           彻底重装（先清理 → 再全新 --global）
+  --project <path>      安装到指定项目（hooks + settings + .specs 模板）
+  --user                安装 hooks 到用户目录（所有项目共用）
+  --hooks-only          仅安装 hooks（需配合 --project）
+
+跳过项:
   --no-hooks            跳过 stop hook 安装
   --no-skills           跳过 skills 安装
   --no-brooks           跳过 brooks-lint 安装
   --no-brooks-tools     跳过 brooks-lint npm 工具安装
-  --hooks-only          仅安装 hooks（需配合 --project）
+
+其他:
   --dry-run             仅打印将要执行的操作，不实际执行
   --self-test           安装后自动运行 bats 测试验证安装完整性
+  --brooks-src <path>   指定 brooks-lint 源目录（开发用）
+  -h, --help            显示本帮助
 
 示例:
+  # Claude Code（默认）
   $0 --global                              # 全局安装全部组件
   $0 --update                              # 智能更新（仅当 bundle 更新）
   $0 --reinstall                           # 彻底重装
   $0 --project /path/to/myproject          # 项目级安装
-  $0 --global --no-hooks                   # 仅全局 flow-kit + skills + brooks-lint，不装 hooks
+  $0 --global --no-hooks                   # 仅核心 + skills + brooks，不装 hooks
   $0 --project . --hooks-only              # 仅装 hooks 到当前项目
-  $0 --global --user                       # 全局安装 + hooks 用户目录（所有项目生效）
+
+  # opencode
+  $0 --platform opencode --global          # opencode 全局安装
+  $0 --platform opencode --project .       # opencode 项目级安装
+  $0 --platform opencode --global --no-brooks   # 跳过 brooks-lint
+
+  # 自动检测平台
+  $0 --platform auto --global              # 自动判断 claude/opencode
 EOF
   exit 0
 }
@@ -75,6 +112,7 @@ check_node() {
 # ── 解析参数 ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --platform)    PLATFORM="$2"; shift 2 ;;
     --global)      MODE="global"; shift ;;
     --project)     MODE="project"; TARGET_PROJECT="$2"; shift 2 ;;
     --no-hooks)    NO_HOOKS=true; shift ;;
@@ -97,6 +135,29 @@ if [ -z "$MODE" ]; then
   echo "❌ 必须指定 --global 或 --project <path>"
   usage
 fi
+
+# ── 平台解析 + 路径变量初始化 ────────────────────────────────────────
+if [ "$PLATFORM" = "auto" ]; then
+  PLATFORM=$(auto_detect_platform)
+  echo "ℹ️  自动检测平台: $PLATFORM"
+fi
+
+case "$PLATFORM" in
+  claude|opencode) ;;
+  *)
+    echo "❌ 无效平台: $PLATFORM（应为 claude | opencode | auto）"
+    exit 1
+    ;;
+esac
+
+resolve_paths "$PLATFORM" || exit 1
+VERSION_FILE="${PLATFORM_CONFIG_DIR}/.flow-kit-version"
+BUNDLE_VERSION_FILE="$SCRIPT_DIR/.flow-kit-version"
+
+echo "╔═══════════════════════════════════════════════════════════════╗"
+echo "║  flow-kit 安装器 (平台: ${PLATFORM})"
+echo "║  配置目录: ${PLATFORM_CONFIG_DIR}"
+echo "╚═══════════════════════════════════════════════════════════════╝"
 
 # ── --update: 版本比对 ───────────────────────────────────────────────
 if [ "$MODE" = "update" ]; then
@@ -129,30 +190,21 @@ fi
 
 # ── --reinstall: 清空重装 ─────────────────────────────────────────────
 if [ "$REINSTALL" = true ]; then
-  echo "🧹 彻底重装：清理既有安装..."
+  echo "🧹 彻底重装：清理既有安装 [${PLATFORM}]..."
   if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] rm -rf ~/.claude/flow-kit ~/.claude/skills/flow-* ~/.claude/plugins/cache/brooks-lint-marketplace ~/.claude/plugins/marketplaces/brooks-lint-marketplace"
+    echo "   [DRY-RUN] rm -rf $FLOW_KIT_HOME $USER_SKILLS_DIR/flow-* ${USER_PLUGINS_DIR:-/dev/null}/cache/brooks-lint-marketplace ${USER_PLUGINS_DIR:-/dev/null}/marketplaces/brooks-lint-marketplace"
   else
-    rm -rf "$HOME/.claude/flow-kit"
-    rm -rf "$HOME/.claude/plugins/cache/brooks-lint-marketplace"
-    rm -rf "$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
-    rm -f "$HOME/.claude/commands"/brooks-*.md
-    rm -f "$HOME/.claude/commands"/.brooks-lint-v*
-    for d in "$HOME/.claude/skills"/flow-*; do
+    rm -rf "$FLOW_KIT_HOME"
+    if [ -n "$USER_PLUGINS_DIR" ]; then
+      rm -rf "$USER_PLUGINS_DIR/cache/brooks-lint-marketplace"
+      rm -rf "$USER_PLUGINS_DIR/marketplaces/brooks-lint-marketplace"
+      rm -f "$USER_PLUGINS_DIR/installed_plugins.json" 2>/dev/null || true
+    fi
+    rm -f "$HOME/.claude/commands"/brooks-*.md 2>/dev/null || true
+    rm -f "$HOME/.claude/commands"/.brooks-lint-v* 2>/dev/null || true
+    for d in "$USER_SKILLS_DIR"/flow-* "$USER_SKILLS_DIR"/brooks-*; do
       [ -d "$d" ] && rm -rf "$d"
     done 2>/dev/null || true
-    # 从 installed_plugins.json 中移除 brooks-lint 条目（幂等）
-    INSTALL_JSON="$HOME/.claude/plugins/installed_plugins.json"
-    if [ -f "$INSTALL_JSON" ] && command -v jq &>/dev/null; then
-      jq 'del(.plugins["brooks-lint@brooks-lint-marketplace"])' "$INSTALL_JSON" > "${INSTALL_JSON}.tmp" 2>/dev/null && \
-        mv "${INSTALL_JSON}.tmp" "$INSTALL_JSON" || true
-    fi
-    # 从 known_marketplaces.json 中移除 brooks-lint-marketplace（幂等）
-    KNOWN_JSON="$HOME/.claude/plugins/known_marketplaces.json"
-    if [ -f "$KNOWN_JSON" ] && command -v jq &>/dev/null; then
-      jq 'del(.["brooks-lint-marketplace"])' "$KNOWN_JSON" > "${KNOWN_JSON}.tmp" 2>/dev/null && \
-        mv "${KNOWN_JSON}.tmp" "$KNOWN_JSON" || true
-    fi
     rm -f "$VERSION_FILE"
     echo "   ✅ 已清理既有安装"
   fi
@@ -181,14 +233,18 @@ else
           install_brooks_tools
         fi
       fi
+      # opencode: 注入 AGENTS.md
+      if [ "$PLATFORM" = "opencode" ]; then
+        install_agents_md_injection
+      fi
       # --global --user: 同时安装用户级 hooks
       if [ "$HOOK_SCOPE" = "user" ]; then
         install_hooks "$HOME" "user"
       else
         echo ""
         echo "💡 如需 hooks，请运行:"
-        echo "   $0 --project <你的项目路径> --hooks-only        # 项目级"
-        echo "   $0 --global --user                               # 用户级（所有项目生效）"
+        echo "   $0 --platform $PLATFORM --project <你的项目路径> --hooks-only        # 项目级"
+        echo "   $0 --platform $PLATFORM --global --user                               # 用户级（所有项目生效）"
       fi
       ;;
     project)
@@ -199,7 +255,7 @@ else
       if [ "$NO_SKILLS" = false ]; then
         echo ""
         echo "💡 Skills 需全局安装，请单独运行:"
-        echo "   $0 --global --no-hooks"
+        echo "   $0 --platform $PLATFORM --global --no-hooks"
       fi
       ;;
   esac
@@ -237,12 +293,20 @@ fi
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║  ✅ flow-kit 安装完成!                                       ║"
-echo "║                                                              ║"
-echo "║  下一步:                                                     ║"
-echo "║  1. 检查 .claude/settings.local.json（Stop hook 已自动接线） ║"
-echo "║  2. 根据需要调整 stop-hook.json 中的模块开关                 ║"
-echo "║  3. 在项目目录运行 /flow-go 初始化                            ║"
+echo "║  ✅ flow-kit 安装完成! [${PLATFORM}]"
+echo "║"
+echo "║  下一步:"
+if [ "$PLATFORM" = "claude" ]; then
+  echo "║  1. 检查 ${PROJECT_DIR_NAME}/settings.local.json（hook 已自动接线）"
+  echo "║  2. 根据需要调整 stop-hook.json 中的模块开关"
+  echo "║  3. 在项目目录运行 /flow-go 初始化"
+else
+  echo "║  1. 检查 ~/.config/opencode/skills/flow-* （skills 已安装）"
+  echo "║  2. 启用 hooks（详见 OPENCODE-INSTALL.md）："
+  echo "║     npm install -g opencode-claude-hooks  # 桥接插件"
+  echo "║  3. 重启 opencode 让 skills 生效"
+  echo "║  4. 在项目目录运行 /flow-go 初始化"
+fi
 echo "╚═══════════════════════════════════════════════════════════════╝"
 
 # 写入版本标记
@@ -251,6 +315,7 @@ if [ "$MODE" = "global" ] || [ "$REINSTALL" = true ]; then
     if [ "${DRY_RUN:-false}" = true ]; then
       echo "   [DRY-RUN] cp .flow-kit-version -> $VERSION_FILE"
     else
+      mkdir -p "$(dirname "$VERSION_FILE")"
       cp "$BUNDLE_VERSION_FILE" "$VERSION_FILE"
       echo "   📌 版本标记: $(cat "$VERSION_FILE")"
     fi

@@ -1,6 +1,20 @@
 # lib/install_hooks.sh — Stop Hook + SessionStart 安装 + .specs 模板
 # shellcheck shell=bash
 # 由 install.sh source，不可独立执行
+# 依赖：lib/paths.sh（PLATFORM, USER_HOOKS_DIR, PROJECT_DIR_NAME, HOOKS_PROJECT_VAR_REF,
+#                     HOOKS_USER_VAR_REF, USER_HOOKS_DIR, settings_file_for）
+#
+# 平台行为：
+#   claude
+#     - hooks 装到 ~/.claude/hooks (user) 或 $project/.claude/hooks (project)
+#     - settings 写 ~/.claude/settings.json (user) 或 $project/.claude/settings.local.json
+#     - hook 命令引用 ${CLAUDE_PROJECT_DIR} (Claude Code 原生 env)
+#   opencode
+#     - hooks 装到 ~/.config/opencode/hooks (user) 或 $project/.opencode/hooks (project)
+#     - settings 写 ~/.claude/settings.json (user) 或 $project/.claude/settings.local.json
+#       ↑ opencode 不读 settings.json，但 opencode-claude-hooks 桥接插件读
+#         保持 Claude 格式让用户安装桥接插件即可启用
+#     - hook 命令仍引用 ${CLAUDE_PROJECT_DIR}（桥接插件会注入此 env）
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────
 install_file() {
@@ -15,30 +29,35 @@ install_file() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# install_hooks — Stop Hook + SessionStart → user (~/.claude/) or project
+# install_hooks — Stop Hook + SessionStart → user or project scope
 # ═══════════════════════════════════════════════════════════════════════
 install_hooks() {
   local project="$1"
   local scope="${2:-project}"   # "user" or "project"
   echo ""
-  echo "═══ 安装 Hook 系统（scope: ${scope}）═══"
+  echo "═══ 安装 Hook 系统 [${PLATFORM}/${scope}] ═══"
 
-  local hook_dst
-  local settings_hook_path   # path used in settings.json command
+  local hook_dst          # 实际安装目录（绝对路径）
+  local settings_hook_path  # settings.json 命令字符串中的路径引用
 
   if [ "$scope" = "user" ]; then
-    hook_dst="$HOME/.claude/hooks"
-    settings_hook_path="\${HOME}/.claude/hooks"
+    hook_dst="$USER_HOOKS_DIR"
+    # ~/.claude/hooks → ${HOME}/.claude/hooks
+    # ~/.config/opencode/hooks → ${HOME}/.config/opencode/hooks
+    settings_hook_path="${HOOKS_USER_VAR_REF}${USER_HOOKS_DIR#"$HOME"}"
   else
     if [ ! -d "$project" ]; then
       echo "   ❌ 项目目录不存在: $project"
       return 1
     fi
-    hook_dst="$project/.claude/hooks"
-    settings_hook_path="\${CLAUDE_PROJECT_DIR}/.claude/hooks"
+    hook_dst="${project}/${PROJECT_DIR_NAME}/hooks"
+    # $project/.claude/hooks → ${CLAUDE_PROJECT_DIR}/.claude/hooks
+    # $project/.opencode/hooks → ${CLAUDE_PROJECT_DIR}/.opencode/hooks
+    settings_hook_path="${HOOKS_PROJECT_VAR_REF}/${PROJECT_DIR_NAME}/hooks"
   fi
 
   echo "   安装到: $hook_dst"
+  echo "   settings.json 命令路径: ${settings_hook_path}/stop/00-gate.sh"
 
   # Stop hook 模块（来源: common.sh::HOOK_MODULE_NAMES — 单一来源）
   # shellcheck source=/dev/null
@@ -52,11 +71,10 @@ install_hooks() {
   done
   unset HOOK_MODULE_NAMES
 
-  # Stop hook 库文件
-	  # Stop hook 库文件（通配符自动包含全部 .sh，防止新增 lib 时漏加）
-	  for lib_sh in "$SCRIPT_DIR/hooks/stop/lib/"*.sh; do
-	    install_file "$lib_sh" "$hook_dst/stop/lib/$(basename "$lib_sh")"
-	  done
+  # Stop hook 库文件（通配符自动包含全部 .sh，防止新增 lib 时漏加）
+  for lib_sh in "$SCRIPT_DIR/hooks/stop/lib/"*.sh; do
+    install_file "$lib_sh" "$hook_dst/stop/lib/$(basename "$lib_sh")"
+  done
 
   # SessionStart hooks
   for script in flow-kit-resume stop-report-reminder; do
@@ -75,32 +93,44 @@ install_hooks() {
     chmod +x "$hook_dst/pre-tool-use/auto-checkpoint.sh" 2>/dev/null || true
   fi
 
-  # 配置文件
-  install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "$project/.claude/stop-hook.json"
+  # 配置文件（项目级 stop-hook.json 开关）
+  install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"
 
-  # ═══ 自动写入 Stop hook 接线 ═══
-  # user scope → 写全局 ~/.claude/settings.json（所有项目共用）
-  # project scope → 写项目 .claude/settings.local.json（仅当前项目）
+  # ═══ 自动写入 hook 接线 ═══
   local settings_target
-  if [ "$scope" = "user" ]; then
-    settings_target="$HOME/.claude/settings.json"
-  else
-    settings_target="$project/.claude/settings.local.json"
-  fi
-  local stop_cmd="bash \"${settings_hook_path}/stop/00-gate.sh\""
-
+  settings_target=$(settings_file_for "$scope" "$project")
   echo ""
-  if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] 写入 Stop hook 到 ${settings_target}: command=${stop_cmd}"
-  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
-    # 已存在 → 检查是否已有 flow-kit stop hook，没有则追加
-    if jq -e --arg cmd "$stop_cmd" '(.hooks.Stop // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
-      echo "   ✅ Stop hook 已存在于 ${settings_target}，跳过"
-    else
+  echo "   settings 文件: $settings_target"
+
+  # ── 通用接线函数：往 settings_target 写入一个 hook ──────────────
+  # 参数: event  matcher  cmd  label
+  # -------------------------------------------------------------------
+  _install_hook_wiring() {
+    local event="$1"
+    local matcher="$2"
+    local cmd="$3"
+    local label="$4"
+
+    if [ "${DRY_RUN:-false}" = true ]; then
+      echo "   [DRY-RUN] 写入 ${event} hook (${label}) 到 ${settings_target}: command=${cmd}"
+      return
+    fi
+
+    if [ -f "$settings_target" ] && command -v jq &>/dev/null; then
+      # 已存在 → 检查是否已有此 hook，没有则追加
+      if jq -e --arg cmd "$cmd" \
+          --arg event "$event" \
+          '(.hooks[$event] // []) | any(.[].hooks[].command; . == $cmd)' \
+          "$settings_target" >/dev/null 2>&1; then
+        echo "   ✅ ${event} hook (${label}) 已存在于 ${settings_target}，跳过"
+        return
+      fi
       local merged
-      merged=$(jq --arg cmd "$stop_cmd" '
-        .hooks.Stop = (.hooks.Stop // []) + [{
-          "matcher": "",
+      merged=$(jq --arg event "$event" \
+                  --arg matcher "$matcher" \
+                  --arg cmd "$cmd" '
+        .hooks[$event] = (.hooks[$event] // []) + [{
+          "matcher": $matcher,
           "hooks": [{
             "type": "command",
             "command": $cmd
@@ -109,153 +139,63 @@ install_hooks() {
       ' "$settings_target" 2>/dev/null)
       if [ -n "$merged" ]; then
         echo "$merged" > "$settings_target"
-        echo "   ✅ ${settings_target} 已追加 Stop hook 接线"
+        echo "   ✅ ${settings_target} 已追加 ${event} hook (${label})"
       else
-        echo "   ⚠️  ${settings_target} 合并失败，请手动检查"
+        echo "   ⚠️  ${settings_target} ${event} (${label}) 合并失败，请手动检查"
       fi
-    fi
-  else
-    # 新建
-    mkdir -p "$(dirname "$settings_target")"
-    jq -n --arg cmd "$stop_cmd" '
-      { hooks: { Stop: [{
-        "matcher": "",
-        "hooks": [{
-          "type": "command",
-          "command": $cmd
-        }]
-      }] } }
-    ' > "$settings_target" 2>/dev/null
-    echo "   ✅ ${settings_target} 已写入 Stop hook 接线"
-  fi
-
-  # ═══ 自动写入 PreToolUse hook 接线（独立 review gate）═══
-  local pre_cmd="bash \"${settings_hook_path}/pre-tool-use/independent-review-gate.sh\""
-  if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] 写入 PreToolUse hook 到 ${settings_target}: command=${pre_cmd}"
-  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
-    if jq -e --arg cmd "$pre_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
-      echo "   ✅ PreToolUse hook 已存在于 ${settings_target}，跳过"
     else
-      local merged_pre
-      merged_pre=$(jq --arg cmd "$pre_cmd" '
-        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
-          "matcher": "Bash|Write|Edit",
+      # 新建
+      mkdir -p "$(dirname "$settings_target")"
+      jq -n --arg event "$event" \
+            --arg matcher "$matcher" \
+            --arg cmd "$cmd" '
+        { hooks: { ($event): [{
+          "matcher": $matcher,
           "hooks": [{
             "type": "command",
             "command": $cmd
           }]
-        }]
-      ' "$settings_target" 2>/dev/null)
-      if [ -n "$merged_pre" ]; then
-        echo "$merged_pre" > "$settings_target"
-        echo "   ✅ ${settings_target} 已追加 PreToolUse hook 接线"
-      else
-        echo "   ⚠️  ${settings_target} PreToolUse 合并失败，请手动检查"
-      fi
+        }] } }
+      ' > "$settings_target" 2>/dev/null
+      echo "   ✅ ${settings_target} 已写入 ${event} hook (${label})"
     fi
-  else
-    jq -n --arg cmd "$pre_cmd" '
-      { hooks: { PreToolUse: [{
-        "matcher": "Bash|Write|Edit",
-        "hooks": [{
-          "type": "command",
-          "command": $cmd
-        }]
-      }] } }
-    ' > "$settings_target" 2>/dev/null
-    echo "   ✅ ${settings_target} 已写入 PreToolUse hook 接线"
-  fi
+  }
 
-  # ═══ 自动写入 PreToolUse hook 接线（auto-checkpoint · Write/Edit 前自动更新 interrupt）═══
-  # NOTE: 本段与 gate 注册段（L132-168）结构相似但非简单复制——matcher/命令路径/日志消息均不同。
-  # 若未来新增第三个 PreToolUse hook，考虑抽取 _install_pretool_hook() 公共函数。
-  # 当前两个 hook 的差异化参数 > 共性参数，抽函数不如直写清晰。
+  # ── Stop hook ──────────────────────────────────────────────────
+  local stop_cmd="bash \"${settings_hook_path}/stop/00-gate.sh\""
+  _install_hook_wiring "Stop" "" "$stop_cmd" "00-gate"
+
+  # ── PreToolUse independent-review-gate ─────────────────────────
+  local gate_cmd="bash \"${settings_hook_path}/pre-tool-use/independent-review-gate.sh\""
+  _install_hook_wiring "PreToolUse" "Bash|Write|Edit" "$gate_cmd" "independent-review-gate"
+
+  # ── PreToolUse auto-checkpoint ─────────────────────────────────
   local ck_cmd="bash \"${settings_hook_path}/pre-tool-use/auto-checkpoint.sh\""
-  if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] 写入 PreToolUse hook 到 ${settings_target}: command=${ck_cmd}"
-  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
-    if jq -e --arg cmd "$ck_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
-      echo "   ✅ PreToolUse hook (auto-checkpoint) 已存在于 ${settings_target}，跳过"
-    else
-      local merged_ck
-      merged_ck=$(jq --arg cmd "$ck_cmd" '
-        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
-          "matcher": "Write|Edit",
-          "hooks": [{
-            "type": "command",
-            "command": $cmd
-          }]
-        }]
-      ' "$settings_target" 2>/dev/null)
-      if [ -n "$merged_ck" ]; then
-        echo "$merged_ck" > "$settings_target"
-        echo "   ✅ ${settings_target} 已追加 PreToolUse hook (auto-checkpoint) 接线"
-      else
-        echo "   ⚠️  ${settings_target} PreToolUse (auto-checkpoint) 合并失败，请手动检查"
-      fi
-    fi
-  else
-    jq -n --arg cmd "$ck_cmd" '
-      { hooks: { PreToolUse: [{
-        "matcher": "Write|Edit",
-        "hooks": [{
-          "type": "command",
-          "command": $cmd
-        }]
-      }] } }
-    ' > "$settings_target" 2>/dev/null
-    echo "   ✅ ${settings_target} 已写入 PreToolUse hook (auto-checkpoint) 接线"
-  fi
+  _install_hook_wiring "PreToolUse" "Write|Edit" "$ck_cmd" "auto-checkpoint"
 
-  # ═══ PreToolUse hook 文件部署（runtime-edit-guard · L-015 闭合）═══
+  # ── PreToolUse runtime-edit-guard ──────────────────────────────
   if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" ]; then
     install_file "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" "$hook_dst/pre-tool-use/runtime-edit-guard.sh"
     chmod +x "$hook_dst/pre-tool-use/runtime-edit-guard.sh" 2>/dev/null || true
-  fi
 
-  # ═══ 自动写入 PreToolUse hook 接线（runtime-edit-guard · L-015 闭合）═══
-  # 防 AI 改 ~/.claude/ 运行时副本而非 flow-kit-bundle/ 维护源
-  local reg_cmd="bash \"${settings_hook_path}/pre-tool-use/runtime-edit-guard.sh\""
-  if [ "${DRY_RUN:-false}" = true ]; then
-    echo "   [DRY-RUN] 写入 PreToolUse hook (runtime-edit-guard) 到 ${settings_target}: command=${reg_cmd}"
-  elif [ -f "$settings_target" ] && command -v jq &>/dev/null; then
-    if jq -e --arg cmd "$reg_cmd" '(.hooks.PreToolUse // []) | any(.[].hooks[].command; . == $cmd)' "$settings_target" >/dev/null 2>&1; then
-      echo "   ✅ PreToolUse hook (runtime-edit-guard) 已存在于 ${settings_target}，跳过"
-    else
-      local merged_reg
-      merged_reg=$(jq --arg cmd "$reg_cmd" '
-        .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
-          "matcher": "Write|Edit",
-          "hooks": [{
-            "type": "command",
-            "command": $cmd
-          }]
-        }]
-      ' "$settings_target" 2>/dev/null)
-      if [ -n "$merged_reg" ]; then
-        echo "$merged_reg" > "$settings_target"
-        echo "   ✅ ${settings_target} 已追加 PreToolUse hook (runtime-edit-guard) 接线"
-      else
-        echo "   ⚠️  ${settings_target} PreToolUse (runtime-edit-guard) 合并失败，请手动检查"
-      fi
-    fi
-  else
-    jq -n --arg cmd "$reg_cmd" '
-      { hooks: { PreToolUse: [{
-        "matcher": "Write|Edit",
-        "hooks": [{
-          "type": "command",
-          "command": $cmd
-        }]
-      }] } }
-    ' > "$settings_target" 2>/dev/null
-    echo "   ✅ ${settings_target} 已写入 PreToolUse hook (runtime-edit-guard) 接线"
+    local reg_cmd="bash \"${settings_hook_path}/pre-tool-use/runtime-edit-guard.sh\""
+    _install_hook_wiring "PreToolUse" "Write|Edit" "$reg_cmd" "runtime-edit-guard"
   fi
 
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
   # 此处不再重复写入，避免同一 hook 触发两次。
   echo "   ℹ️  SessionStart hooks 由全局配置管理，无需项目级重复接线"
+
+  # ── opencode 桥接提示 ──────────────────────────────────────────
+  if [ "$PLATFORM" = "opencode" ]; then
+    echo ""
+    echo "   ⚠️  [opencode] settings.json 桥接提示:"
+    echo "       opencode 不原生读 ~/.claude/settings.json，hooks 默认不触发。"
+    echo "       启用方式（任选其一）:"
+    echo "         (A) npm install -g opencode-claude-hooks  # 自动桥接 .claude/settings.json"
+    echo "         (B) 在 ~/.config/opencode/opencode.json plugin 数组加入 'opencode-claude-hooks'"
+    echo "       详见 OPENCODE-INSTALL.md"
+  fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════
