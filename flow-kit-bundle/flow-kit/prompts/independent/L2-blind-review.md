@@ -65,6 +65,22 @@ MINOR-DEFERRED.md 格式：
 
 调用方会指明阶段。只执行对应段的 checklist。
 
+### 通用 · 跨阶段必查项（L-031 闭合）
+
+**L-031 教训**：DESIGN.md §0.5.1「触碰模块」清单可能不完整，AI 按清单执行导致漏改跨文件批量修改点。L2 必须独立做全仓扫描，不信 DESIGN 清单。
+
+执行方式（所有阶段都必须做）：
+1. 找出本次 change 的"跨文件一致性 grep 锚点"——某些关键字符串/模式（如 transition jq `.phase`、特定 jq 字段、函数签名、错误消息）
+2. 对每个锚点跑 `grep -rn "<pattern>" flow-kit-bundle/` 列出所有命中
+3. 对比 git diff 实际改的文件，标记"DESIGN 列出且已改"、"DESIGN 漏列但已改（OK）"、"DESIGN 列出但未改"、"DESIGN 漏列且未改（🔴 漏改）"
+4. 第 4 类 = 🔴 Critical finding（L-031 漏改 class）
+
+**典型场景**：
+- transition jq 同步（`.phase` / `.goal.current_phase` / `phases_done`）：所有 prompts + 31-auto-advance.sh + pipeline-gates.md 必须一致
+- 新增字段名（如 `task_progress`）：所有读取该字段的 hook + prompt 必须同步
+- 删除/重命名函数：所有调用方必须同步
+- 新增 hook 模块：00-gate.sh + common.sh HOOK_MODULE_NAMES + stop-hook.json 必须三处接线（L-020）
+
 ### 阶段 1 · 需求审查（1-requirement）
 工件：`.specs/<id>/REQUIREMENT.md`（参考：`CHANGE.md`）
 重点：
