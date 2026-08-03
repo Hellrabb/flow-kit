@@ -188,3 +188,71 @@ STOP_DIR="flow-kit-bundle/hooks/stop"
   run grep -q "_flow_active_integrity_main\|_fai_check" "$STOP_DIR/33-flow-active-integrity.sh"
   [ "$status" -eq 0 ]
 }
+
+# ── 01-transcript-parse.sh (coord · TD-002 deferred) ─────────────────────
+
+@test "smoke: 01-transcript-parse.sh 语法正确" {
+  run bash -n "$STOP_DIR/01-transcript-parse.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 01-transcript-parse.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/01-transcript-parse.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 01-transcript-parse.sh 含 transcript 解析调度" {
+  run grep -q "parse_transcript\|transcript-parser.sh" "$STOP_DIR/01-transcript-parse.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 20-claude-md.sh (coord · TD-002 deferred) ────────────────────────────
+
+@test "smoke: 20-claude-md.sh 语法正确" {
+  run bash -n "$STOP_DIR/20-claude-md.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 20-claude-md.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/20-claude-md.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 20-claude-md.sh 含 CLAUDE.md 检查函数" {
+  run grep -q "check_a1\|claude-md" "$STOP_DIR/20-claude-md.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 21-memory.sh (coord · TD-002 deferred) ───────────────────────────────
+
+@test "smoke: 21-memory.sh 语法正确" {
+  run bash -n "$STOP_DIR/21-memory.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 21-memory.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/21-memory.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 21-memory.sh 含 memory 检查函数" {
+  run grep -q "check_b1\|memory" "$STOP_DIR/21-memory.sh"
+  [ "$status" -eq 0 ]
+}
+
+# ── 25-project.sh (coord · TD-002 deferred) ──────────────────────────────
+
+@test "smoke: 25-project.sh 语法正确" {
+  run bash -n "$STOP_DIR/25-project.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "smoke: 25-project.sh 非空且含 shebang" {
+  run head -1 "$STOP_DIR/25-project.sh"
+  [[ "$output" =~ ^#!/bin/bash ]]
+}
+
+@test "smoke: 25-project.sh 含 project 检查函数" {
+  run grep -q "check_f1\|project" "$STOP_DIR/25-project.sh"
+  [ "$status" -eq 0 ]
+}
