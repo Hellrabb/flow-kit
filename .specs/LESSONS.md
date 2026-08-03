@@ -562,6 +562,7 @@
 - **影响**：REQUIREMENT AC-E1/E2 原始目标过于严格，长函数已拆分但文件级目标未达
 - **建议**：v2 进一步拆 l3-api.sh（抽 callparse）+ gate-helpers.sh（按 file/types/state 分组）
 - **登记时间**：2026-08-03
+- **状态**: ✅ Resolved (td072-lib-split-2026-08) — l3-api.sh 371→218 (smart_truncate → l3-truncate.sh 54→202)；gate-helpers.sh 253→139 + 新建 gate-helpers-types.sh 92 (聚合入口模式)。4 metrics bats 加。662→666 tests / 0 fail
 
 ## test-failures-fixup-2026-08 Resolved ✅ (2026-08-03)
 
