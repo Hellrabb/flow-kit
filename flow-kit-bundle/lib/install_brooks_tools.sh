@@ -8,7 +8,7 @@ install_brooks_tools() {
 
   # ── 工具定义 ──
   local tools_src="$SCRIPT_DIR/brooks-tools"
-  local tools_dst="$HOME/.claude/tools/brooks-lint"
+  local tools_dst="$USER_TOOLS_DIR"
   local bin_dst="$HOME/.local/bin"
 
   # ── 1. Node.js 前置检测 ──
@@ -34,7 +34,7 @@ install_brooks_tools() {
     return
   fi
 
-  # ── 3. 复制工具到 ~/.claude/tools/brooks-lint/ ──
+  # ── 3. 复制工具到 $USER_TOOLS_DIR ──
   mkdir -p "$tools_dst"
   if command -v rsync &>/dev/null; then
     rsync -a "$tools_src/" "$tools_dst/"

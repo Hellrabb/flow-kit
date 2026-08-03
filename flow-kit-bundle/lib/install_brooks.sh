@@ -1,14 +1,25 @@
 # lib/install_brooks.sh — brooks-lint 代码审查插件安装
 # shellcheck shell=bash
 # 由 install.sh source，不可独立执行
+# 依赖：lib/paths.sh（PLATFORM, USER_SKILLS_DIR, USER_PLUGINS_DIR）
+#
+# 平台行为：
+#   claude
+#     - 完整 Claude Code 插件流程：plugins/cache + marketplaces + installed_plugins.json
+#     - 注册到 known_marketplaces.json
+#     - 修补 SessionStart hook
+#   opencode
+#     - 仅安装 6 个 brooks-* skills 到 ~/.config/opencode/skills/（含 _shared/）
+#     - 跳过 Claude Code marketplace/cache/installed_plugins 机制
+#     - 不修补 SessionStart hook（无插件 runtime）
 
 install_brooks_lint() {
   echo ""
-  echo "═══ 安装 brooks-lint 代码审查插件 ═══"
+  echo "═══ 安装 brooks-lint 代码审查插件 [${PLATFORM}] ═══"
 
   local plugin_src="$SCRIPT_DIR/brooks-lint/plugin"
 
-  # 动态读取 brooks-lint 版本号（D7）
+  # 动态读取 brooks-lint 版本号
   local brooks_version
   if command -v jq &>/dev/null && [ -f "$plugin_src/.claude-plugin/plugin.json" ]; then
     brooks_version=$(jq -r '.version' "$plugin_src/.claude-plugin/plugin.json" 2>/dev/null) || true
@@ -19,31 +30,80 @@ install_brooks_lint() {
   fi
   brooks_version="${brooks_version:-unknown}"
 
-  local plugin_dst="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint/${brooks_version}"
-
   if [ ! -d "$plugin_src" ]; then
     echo "   ⚠️  brooks-lint 插件源目录不存在，跳过"
     return
   fi
 
+  # ══════════════════════════════════════════════════════════════════
+  # opencode 分支：仅装 skills（无 marketplace 机制）
+  # ══════════════════════════════════════════════════════════════════
+  if [ "$PLATFORM" = "opencode" ]; then
+    _install_brooks_opencode "$plugin_src" "$brooks_version"
+    return $?
+  fi
+
+  # ══════════════════════════════════════════════════════════════════
+  # claude 分支：完整插件流程（保持原逻辑）
+  # ══════════════════════════════════════════════════════════════════
+  _install_brooks_claude "$plugin_src" "$brooks_version"
+}
+
+# ── opencode: 仅装 skills + _shared/ ──────────────────────────────────
+_install_brooks_opencode() {
+  local plugin_src="$1"
+  local brooks_version="$2"
+  local skills_dst="$USER_SKILLS_DIR"
+  local count=0
+
+  if [ "${DRY_RUN:-false}" = true ]; then
+    echo "   [DRY-RUN] 安装 brooks-* skills 到 $skills_dst/"
+    return
+  fi
+
+  # 安装 6 个 brooks-* skills
+  for skill_dir in "$plugin_src/skills/brooks-"*/; do
+    [ -d "$skill_dir" ] || continue
+    local skill_name
+    skill_name=$(basename "$skill_dir")
+    install_file "${skill_dir}SKILL.md" "$skills_dst/${skill_name}/SKILL.md"
+    count=$((count + 1))
+  done
+
+  # 安装 _shared/ 目录（skills 引用其内部辅助文件）
+  if [ -d "$plugin_src/skills/_shared" ]; then
+    mkdir -p "$skills_dst/_shared"
+    rsync -a --exclude='.git' "$plugin_src/skills/_shared/" "$skills_dst/_shared/"
+    echo "   ✅ _shared/ 已同步到 $skills_dst/_shared/"
+  fi
+
+  echo "   ✅ ${count} 个 brooks-* skills 已安装 (v${brooks_version})"
+  echo "   ℹ️  [opencode] 已跳过 Claude Code marketplace/cache 注册（opencode 无此机制）"
+}
+
+# ── claude: 完整插件流程 ──────────────────────────────────────────────
+_install_brooks_claude() {
+  local plugin_src="$1"
+  local brooks_version="$2"
+
+  local plugin_dst="$USER_PLUGINS_DIR/cache/brooks-lint-marketplace/brooks-lint/${brooks_version}"
+
   if [ "${DRY_RUN:-false}" = true ]; then
     echo "   [DRY-RUN] rsync $plugin_src/ -> $plugin_dst/"
-    echo "   [DRY-RUN] rsync $plugin_src/ -> $HOME/.claude/plugins/marketplaces/brooks-lint-marketplace/"
+    echo "   [DRY-RUN] rsync $plugin_src/ -> $USER_PLUGINS_DIR/marketplaces/brooks-lint-marketplace/"
     return
   fi
 
   # F2: 插件主体 → cache/（CC 运行时加载 + /plugin 列表识别）
   #     同时写一份到 marketplaces/（marketplace 源目录，备查 / 手工重装）
-  if [ -d "$plugin_src" ]; then
-    mkdir -p "$plugin_dst"
-    rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$plugin_dst/"
-    echo "   ✅ brooks-lint 插件已安装到 $plugin_dst"
+  mkdir -p "$plugin_dst"
+  rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$plugin_dst/"
+  echo "   ✅ brooks-lint 插件已安装到 $plugin_dst"
 
-    local mkt_dst="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
-    mkdir -p "$mkt_dst"
-    rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$mkt_dst/"
-    echo "   ✅ brooks-lint 已同步到 $mkt_dst（marketplace 源副本）"
-  fi
+  local mkt_dst="$USER_PLUGINS_DIR/marketplaces/brooks-lint-marketplace"
+  mkdir -p "$mkt_dst"
+  rsync -a --exclude='.git' --exclude='commands' "$plugin_src/" "$mkt_dst/"
+  echo "   ✅ brooks-lint 已同步到 $mkt_dst（marketplace 源副本）"
 
   # 清理 commands/ 目录：防止无前缀 stub 导致的重复 skill 注册
   for dir in "$plugin_dst" "$mkt_dst"; do
@@ -68,7 +128,7 @@ install_brooks_lint() {
   done
 
   # F3: 注册到 installed_plugins.json（幂等合并 · Claude Code v2 格式）
-  local install_json="$HOME/.claude/plugins/installed_plugins.json"
+  local install_json="$USER_PLUGINS_DIR/installed_plugins.json"
   local now_iso
   now_iso=$(date -Iseconds 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
   local plugin_key="brooks-lint@brooks-lint-marketplace"
@@ -113,7 +173,7 @@ EOF
   fi
 
   # F4: 注册 marketplace 到 known_marketplaces.json
-  local known_json="$HOME/.claude/plugins/known_marketplaces.json"
+  local known_json="$USER_PLUGINS_DIR/known_marketplaces.json"
   local mkt_key="brooks-lint-marketplace"
   local mkt_entry
   mkt_entry=$(cat <<EOF
@@ -142,7 +202,7 @@ EOF
           echo "   ⚠️  known_marketplaces.json 注册失败"
         fi
       else
-        echo "   ℹ️  brooks-lint-marketplace 已存在于 known_marketplaces.json，跳过"
+        echo "   ℹ️  brooks-lint-marketplace 已存在于 known_marketplaces.json，跳过注册"
       fi
     else
       echo "   ⚠️  jq 未安装，跳过 known_marketplaces.json 注册（插件仍可用）"
