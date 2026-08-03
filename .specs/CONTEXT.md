@@ -551,3 +551,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | split-aware test 设计原则 | 测试 assertion 应反映 split 后的实际代码组织，跨多文件 grep 而非死板指向单一文件 | test-failures-fixup-2026-08 |
 | shellcheck shell=bash 指令 | sourced lib（无 shebang）的标准 SC2148 修复：首行加 `# shellcheck shell=bash` | test-failures-fixup-2026-08 |
 <!-- test-failures-fixup-2026-08 追加 ↑ -->
+
+<!-- td072-lib-split-2026-08 追加 ↓ -->
+| gate-helpers-types.sh | gate 类型谓词聚合入口子文件（6 函数：_is_dotdone_write / _gate_is_l2_only / is_phase_write / _fk_phase_direction / _command_has_write_context / is_git_commit）。gate-helpers.sh 内部 source 本文件 + re-export，调用方零变更。TD-072 fix | td072-lib-split-2026-08 |
+<!-- td072-lib-split-2026-08 追加 ↑ -->
