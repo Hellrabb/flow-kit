@@ -555,3 +555,10 @@
 - 问题: validate 期望文件存在但源缺失（可能在 archive 时遗漏）
 - 修复: 调查 archive/prompts 一致性
 - 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3 ✅ Resolved (final-debt-cleanup-2026-08 / verified non-bug)
+
+## TD-072 🟡 — hook lib 文件级行数超标（final-debt-cleanup-2026-08 遗留）
+- **位置**：`flow-kit-bundle/hooks/stop/lib/l3-api.sh` (371 行) + `flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh` (253 行)
+- **来源**：final-debt-cleanup-2026-08 L2 phase 5 R2/R3 finding
+- **影响**：REQUIREMENT AC-E1/E2 原始目标过于严格，长函数已拆分但文件级目标未达
+- **建议**：v2 进一步拆 l3-api.sh（抽 callparse）+ gate-helpers.sh（按 file/types/state 分组）
+- **登记时间**：2026-08-03
