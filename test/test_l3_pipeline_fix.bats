@@ -13,6 +13,7 @@ setup() {
   HOOK_BASE_DIR="$d/flow-kit-bundle/hooks"
   COMMON_SH="${HOOK_BASE_DIR}/stop/lib/common.sh"
   L3_REVIEW_SH="${HOOK_BASE_DIR}/stop/lib/l3-review.sh"
+  L3_LIB_DIR="${HOOK_BASE_DIR}/stop/lib"
   REVIEW_29="${HOOK_BASE_DIR}/stop/29-independent-review.sh"
 
   # source common.sh (always available)
@@ -26,12 +27,12 @@ teardown() {
 # ══ AC-1: git diff 并集策略 ══
 
 @test "AC-1: _l3_build_prompt phase 6 uses both git diff HEAD and --cached" {
-  # 验证 l3-review.sh 中 phase 6 同时使用了 git diff HEAD 和 git diff --cached
+  # 验证 _l3_build_prompt（在 l3-prompt.sh 中）phase 6 同时使用了 git diff HEAD 和 git diff --cached
   source "$L3_REVIEW_SH" 2>/dev/null || true
 
-  # 检查 phase 6 的 case 块含两种 diff 命令
+  # 检查 phase 6 的 case 块含两种 diff 命令（_l3_build_prompt 在 l3-prompt.sh 中）
   local phase6_block
-  phase6_block=$(sed -n '/case "\$phase" in/,/^[[:space:]]*esac/p' "$L3_REVIEW_SH" 2>/dev/null || echo "")
+  phase6_block=$(sed -n '/case "\$phase" in/,/^[[:space:]]*esac/p' "$L3_LIB_DIR/l3-prompt.sh" 2>/dev/null || echo "")
 
   local has_head has_cached
   has_head=$(echo "$phase6_block" | grep -c 'git diff HEAD' 2>/dev/null || echo "0")
@@ -48,9 +49,9 @@ teardown() {
 
   # 全文件不应再出现 hardcoded head -c 5000
   local has_5000
-  has_5000=$(grep -c 'head -c 5000' "$L3_REVIEW_SH" 2>/dev/null) || has_5000=0
+  has_5000=$(grep -ch 'head -c 5000' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null | awk '{s+=$1} END {print s+0}') || has_5000=0
   local has_dynamic
-  has_dynamic=$(grep -c '_new_limit' "$L3_REVIEW_SH" 2>/dev/null) || has_dynamic=0
+  has_dynamic=$(grep -ch '_new_limit' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null | awk '{s+=$1} END {print s+0}') || has_dynamic=0
 
   [[ "$has_5000" -eq 0 ]]
   [[ "$has_dynamic" -ge 1 ]]
@@ -135,14 +136,14 @@ EOF
 @test "AC-8: _l3_call_api captures HTTP status code and handles non-200" {
   source "$L3_REVIEW_SH" 2>/dev/null || true
 
-  # 验证 curl 调用含 -w '%{http_code}'
+  # 验证 curl 调用含 -w '%{http_code}'（_l3_call_api 在 l3-api.sh 中）
   local has_http_code
-  has_http_code=$(grep -c '%{http_code}' "$L3_REVIEW_SH" 2>/dev/null || echo "0")
+  has_http_code=$(grep -ch '%{http_code}' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null | awk '{s+=$1} END {print s+0}' || echo "0")
   [[ "$has_http_code" -ge 1 ]]
 
   # 验证非 200 状态码处理
   local has_error_case
-  has_error_case=$(grep -c '\[45\]\?\?\|verdict=error\|HTTP.*return 3' "$L3_REVIEW_SH" 2>/dev/null || echo "0")
+  has_error_case=$(grep -ch '\[45\]\?\?\|verdict=error\|HTTP.*return 3' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null | awk '{s+=$1} END {print s+0}' || echo "0")
   [[ "$has_error_case" -ge 1 ]]
 }
 

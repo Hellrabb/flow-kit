@@ -15,6 +15,7 @@ setup() {
     d="$(dirname "$d")"
   done
   L3_LIB="$d/flow-kit-bundle/hooks/stop/lib/l3-review.sh"
+  L3_LIB_DIR="$d/flow-kit-bundle/hooks/stop/lib"
   DONE_VAL_LIB="$d/flow-kit-bundle/hooks/stop/lib/done-validation.sh"
 
   # Source done-validation lib（提供 fk_validate_done_marker 等）
@@ -45,12 +46,12 @@ teardown() {
   echo "Verdict: pass" >> "$review_md"
 
   # 本测试验证 D3 保护逻辑的存在性：代码中包含 gate 检查
-  run grep -q "L2 not yet complete" "$L3_LIB" 2>/dev/null
+  run grep -q "L2 not yet complete" "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
 @test "AC-4: .done deferred message exists in l3-review.sh" {
-  run grep -q "deferred" "$L3_LIB" 2>/dev/null
+  run grep -q "deferred" "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
@@ -165,9 +166,10 @@ EOF
 }
 
 @test "AC-1: independent-review-gate.sh contains L2-wait gating for PreToolUse path" {
+  # TD-018 refactor: _gate_check_l2 moved to gate-checks-basic.sh (sourced by independent-review-gate.sh)
   local fk_root
   fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
-  gate_script="$fk_root/hooks/pre-tool-use/independent-review-gate.sh"
+  gate_script="$fk_root/hooks/pre-tool-use/gate-checks-basic.sh"
 
   run grep -q "L2 尚未完成" "$gate_script" 2>/dev/null
   [ "$status" -eq 0 ]
@@ -242,7 +244,7 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-3: l3-review.sh preserves >> append logic" {
-  run grep -q '>>' "$L3_LIB" 2>/dev/null
+  run grep -q '>>' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
   [ "$status" -eq 0 ]
 }
 

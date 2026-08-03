@@ -438,7 +438,7 @@
 - 位置: REQUIREMENT.md AC-A3
 - 问题: "如可用"使 macOS 不可用时 AC 自动退化为 Linux-only，违反 Given/When/Then 确定性原则
 - 修复: 拆为 AC-A3a (Linux 硬) + AC-A3b (macOS 软)。下次 REQUIREMENT 重构时处理。
-- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2 ✅ Resolved (final-debt-cleanup-2026-08 / ADR-019 principle)
 
 ### L-059 · 多条 AC 验证方式含"人工"（来自 Phase 1 L2 R8）
 - 严重度: 🟢 Minor
@@ -452,28 +452,28 @@
 - 位置: REQUIREMENT.md 范围决策框
 - 问题: 设计决策（双轨测量 / 加强语义 / 并存策略）属 how 层级，嵌入 what 层级文档模糊边界
 - 修复: 移到 CHANGE.md 验收线段或独立 DESIGN-NOTES.md
-- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 1 L2 ✅ Resolved (final-debt-cleanup-2026-08 / ADR-019 principle)
 
 ### L-061 · ADR-016 探测脚本路径未验证（来自 Phase 2 L2 R5）
 - 严重度: 🟢 Minor
 - 位置: `.specs/adr/016-model-tier-dispatch.md` detect_opencode_tier_support
 - 问题: 缓存路径 `.specs/<id>/.opencode-capability.json` 来自未验证假设
 - 修复: 实测时确认路径或改临时文件
-- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2 ✅ Resolved (final-debt-cleanup-2026-08 / ADR-020 capability snapshot)
 
 ### L-062 · task_progress lifecycle 图细节缺失（来自 Phase 2 L2 R6）
 - 严重度: 🟢 Minor
 - 位置: DESIGN.md § 2 task_progress lifecycle 图
 - 问题: 图未展示 skip 任务时 task-brief 是否仍需提取
 - 修复: 完善图注释
-- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2 ✅ Resolved (final-debt-cleanup-2026-08 / ADR-019 principle)
 
 ### L-063 · D5/D6 弱模型缓解引用 ADR-001 不适配（来自 Phase 2 L2 R7）
 - 严重度: 🟢 Minor
 - 位置: DESIGN.md D5/D6
 - 问题: terse contract + narration constraint 在弱模型场景的退化问题引用 ADR-001 gate（输出风格约束 ≠ gate）
 - 修复: 弱模型场景实测后补 ADR
-- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2
+- 状态: active · 来源 `superpowers-v6-absorb` Phase 2 L2 ✅ Resolved (final-debt-cleanup-2026-08 / ADR-021 prompt degradation protocol)
 
 ### L-064 · 安全注入测试缺失（来自 Phase 5 L2 R8）
 - 严重度: 🟢 Minor
@@ -547,11 +547,11 @@
 - 位置: `package-flow-kit.sh` Part F + `flow-kit-bundle/brooks-lint/plugin/skills/`
 - 问题: validate 报 `brooks-audit/SKILL.md` + `brooks-test/SKILL.md` 未被 Part F 覆盖。Pre-existing，与本 change 无关。
 - 修复: Part F 加 cp 覆盖新增 SKILL.md 文件
-- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3
+- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3 ✅ Resolved (final-debt-cleanup-2026-08 / verified non-bug)
 
 ### TD-071-B · A-evolve.md 源缺失（pre-existing）
 - 严重度: 🟢 Minor
 - 位置: `flow-kit-bundle/flow-kit/prompts/A-evolve.md`
 - 问题: validate 期望文件存在但源缺失（可能在 archive 时遗漏）
 - 修复: 调查 archive/prompts 一致性
-- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3
+- 状态: open · 来源 `cleanup-debt-batch-2026-08` Phase 6 REVIEW.md § 4.3 ✅ Resolved (final-debt-cleanup-2026-08 / verified non-bug)

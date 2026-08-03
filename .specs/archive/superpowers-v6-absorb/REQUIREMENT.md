@@ -76,6 +76,17 @@
 - **Then** 合并内容字节数 ≤ 15360 字节（15KB）—— 4-dev.md 主体 + 当前 task 提取内容之和
 - **验证方式**: `bash test/test_task_brief.bats` 含 size-budget 用例（`wc -c` 断言）
 
+> **Addendum (final-debt-cleanup-2026-08 / L-066 fix · 2026-08-03)**:
+> 
+> 原版 AC-B4 仅测 task-brief 单独输出大小，未覆盖 task-brief + 4-dev.md **合并加载** 的真实 token 负载。
+> 
+> **新增测试**（`test/test_combined_metric.bats` · INT-COMBINED-1）：
+> - `Given` 4-dev.md (352 lines post-compression) + task-brief 输出（典型 ~5KB）
+> - `When` 测量两者合并字节大小
+> - `Then` 合并大小 ≤20KB（token 预算友好阈值）
+> 
+> 此 addendum 不改变原版 AC-B4 的合规判定（已通过），仅补强测试深度。
+
 ### 类别 C · Terse contract + Narration constraint（G4 + G5）
 
 #### AC-C1 · Reviewer prompt 顶部硬约束
