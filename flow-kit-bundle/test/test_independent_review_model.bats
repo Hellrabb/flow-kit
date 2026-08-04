@@ -90,9 +90,10 @@ teardown() {
 
 # ── API 路径优先级 smoke test ─────────────────────────────────────────
 
-@test "API path: direct curl before legacy key in l3-review.sh (pipeline-fallback-fix: 迁移到共享lib)" {
+@test "API path: direct curl before legacy key in l3-api.sh (pipeline-fallback-fix: 迁移到共享lib · final-debt-cleanup: split to l3-api.sh)" {
   # 直连代码块应该在 legacy API key 之前出现
-  script="$HOME/.claude/hooks/stop/lib/l3-review.sh"
+  # final-debt-cleanup-2026-08 将 API 路径逻辑从 l3-review.sh 拆到 l3-api.sh
+  script="$HOME/.claude/hooks/stop/lib/l3-api.sh"
   direct_line=$(grep -n 'env-var-first 直连' "$script" | head -1 | cut -d: -f1)
   legacy_line=$(grep -n 'Path 2.*Legacy' "$script" | head -1 | cut -d: -f1)
   [ -n "$direct_line" ]
