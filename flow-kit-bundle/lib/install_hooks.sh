@@ -97,16 +97,15 @@ install_hooks() {
     chmod +x "$hook_dst/session-start/${script}.sh" 2>/dev/null || true
   done
 
-  # PreToolUse hooks（独立 review gate · 硬拦截 commit/PR/阶段切换）
-  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/independent-review-gate.sh" ]; then
-    install_file "$SCRIPT_DIR/hooks/pre-tool-use/independent-review-gate.sh" "$hook_dst/pre-tool-use/independent-review-gate.sh"
-    chmod +x "$hook_dst/pre-tool-use/independent-review-gate.sh" 2>/dev/null || true
-  fi
-  # PreToolUse hooks（auto-checkpoint · Write/Edit 前自动保存中断恢复上下文）
-  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/auto-checkpoint.sh" ]; then
-    install_file "$SCRIPT_DIR/hooks/pre-tool-use/auto-checkpoint.sh" "$hook_dst/pre-tool-use/auto-checkpoint.sh"
-    chmod +x "$hook_dst/pre-tool-use/auto-checkpoint.sh" 2>/dev/null || true
-  fi
+  # PreToolUse hooks + lib 子库（独立 review gate · 硬拦截 commit/PR/阶段切换）
+  # 部署 pre-tool-use/ 下所有 .sh 文件（主 hook + 拆分后的 gate-helpers*.sh 子库）
+  mkdir -p "$hook_dst/pre-tool-use"
+  while IFS= read -r ptu_script; do
+    local ptu_base
+    ptu_base=$(basename "$ptu_script")
+    install_file "$ptu_script" "$hook_dst/pre-tool-use/${ptu_base}"
+    chmod +x "$hook_dst/pre-tool-use/${ptu_base}" 2>/dev/null || true
+  done < <(ls "$SCRIPT_DIR/hooks/pre-tool-use"/*.sh 2>/dev/null)
 
   # 配置文件（项目级 stop-hook.json 开关）
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"
@@ -188,14 +187,10 @@ install_hooks() {
   local ck_cmd="bash \"${settings_hook_path}/pre-tool-use/auto-checkpoint.sh\""
   _install_hook_wiring "PreToolUse" "Write|Edit" "$ck_cmd" "auto-checkpoint"
 
-  # ── PreToolUse runtime-edit-guard ──────────────────────────────
-  if [ -f "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" ]; then
-    install_file "$SCRIPT_DIR/hooks/pre-tool-use/runtime-edit-guard.sh" "$hook_dst/pre-tool-use/runtime-edit-guard.sh"
-    chmod +x "$hook_dst/pre-tool-use/runtime-edit-guard.sh" 2>/dev/null || true
-
-    local reg_cmd="bash \"${settings_hook_path}/pre-tool-use/runtime-edit-guard.sh\""
-    _install_hook_wiring "PreToolUse" "Write|Edit" "$reg_cmd" "runtime-edit-guard"
-  fi
+  # ── PreToolUse runtime-edit-guard (L-015) ─────────────────────
+  # 文件部署已在 PreToolUse 目录循环中完成（L100-110），此处仅写 settings.json matcher
+  local reg_cmd="bash \"${settings_hook_path}/pre-tool-use/runtime-edit-guard.sh\""
+  _install_hook_wiring "PreToolUse" "Write|Edit" "$reg_cmd" "runtime-edit-guard"
 
   # SessionStart hooks 由全局 ~/.claude/settings.json 管理（--global 安装时已写入），
   # 此处不再重复写入，避免同一 hook 触发两次。
