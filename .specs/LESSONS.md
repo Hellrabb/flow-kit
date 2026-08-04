@@ -22,6 +22,9 @@
 | 2026-08-03 | 🟢 | `flow-kit-bundle/lib/paths.sh`（新增） | **lib/paths.sh 是 0c79f1c 新增的共享变量 lib**（PLATFORM / PROJECT_DIR_NAME / USER_HOOKS_DIR 等平台抽象）。是合理的双平台兼容设计，但**未登记到 CONTEXT.md「既有抽象索引」**，未来 AI 可能重复实现类似平台抽象。 | 下次 A-evolve 同步时登记到 CONTEXT.md § 既有抽象索引。同时建议加 install_hooks.sh 文件头注释明确「依赖 paths.sh · user-scope 不依赖 PROJECT_DIR_NAME」边界。 |
 | 2026-08-03 | 🟢 | 全局（流程教训） | **commit-time 测试门禁缺失**：`0c79f1c` 提交时 4 个 bats fail 测试已存在，但 commit 被允许通过（未跑 `make test` 或结果被忽略）。若 commit 前置硬门禁（pre-commit hook 跑 `make test`），此回归可在入库前捕获。 | 建议未来在 .git/hooks/pre-commit 或 Makefile pre-push target 加 `make test` 硬门禁。本项不阻塞 health-fix-2026-08，作为流程改进建议记录。 |
 <!-- 2026-08-03 Full Sweep ↑ -->
+<!-- 2026-08-04 health-fix-2026-08 ↓ -->
+| 2026-08-04 | 🟡 | 全局（流程教训） | **L-064 · self-certify 系统性不如 oracle review**：health-fix-2026-08 pipeline 中 phases 3/5/7 用 self-certify（D7 例外 · gate_config=all 热修复到 all-L2），phases 1/2/6 用 oracle L2。事后对 3/5/7 派 retroactive oracle L2 → **3/3 全部 WOULD-HAVE-FLAGGED**（12 项 finding 含 3 High）：phase 3 filter 假绿（`--filter "writes..."` 匹配 0 case）· phase 5 per-file 计数错（18→17, 3→4）· phase 7 diff stats 错（+36→+40）+ artifact count 错（10→11）+ .gitignore 禁动假 PASS。对比 phases 1/2/6 的 oracle 审查发现 real value（phase 2 拒绝 Fix B 致命错误）。**结论**：gate_config=all 不可用 self-certify shortcut · oracle 的独立核验（尤其可验证数字：行数/计数/matcher 有效性）是 self-certify 盲区。 | gate_config=all 的所有 gated phase 必须用 oracle L2。self-certify 仅限 D7 例外（且事后需 retroactive L2 补审）。 |
+<!-- 2026-08-04 health-fix-2026-08 ↑ -->
 
 <!-- 2026-07-25 Full Sweep ↓ -->
 | 2026-07-25 | 🟢 | `flow-kit-bundle/hooks/stop/lib/l3-review.sh` | **l3-review.sh 持续增长至 875 行**（+65 vs 上次 810）。增长来自合法功能（`l3-review-timeout-token` 可配置化：FLOW_KIT_L3_MAX_TOKENS / TIMEOUT / THINKING）。12 函数结构良好，主编排函数 `l3_review_run()` 已从上上次 307 行拆至 ~90 行。 | 若未来突破 1000 行或新增第 5 种职责，触发 TD-008（拆为 l3-detect / l3-dispatch / l3-format 子库） |
