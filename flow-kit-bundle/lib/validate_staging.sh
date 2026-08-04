@@ -104,7 +104,8 @@ validate_staging_coverage() {
   done <<< "$EXPECTED"
 
   # 已知非打包文件（bundle 根级别元数据，不被 Part A~G 显式覆盖）
-  local KNOWN_SKIP="\.git\|node_modules\|\.DS_Store\|/\.gitignore$\|/\.flow-kit-version$\|/README\.md$\|/FLOW-KIT-用户指南\.md$\|/MODULE_IDEAS\.md$"
+  # OPENCODE-INSTALL.md 由 Part E L266-267 条件 cp（if [-f]），validate 解析不到
+  local KNOWN_SKIP="\.git\|node_modules\|\.DS_Store\|/\.gitignore$\|/\.flow-kit-version$\|/README\.md$\|/FLOW-KIT-用户指南\.md$\|/MODULE_IDEAS\.md$\|/OPENCODE-INSTALL\.md$"
 
   while IFS= read -r actual_file; do
     [ -z "$actual_file" ] && continue
