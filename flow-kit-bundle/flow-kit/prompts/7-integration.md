@@ -263,6 +263,42 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 - 更新仓库根的 `STATE.md`
 - **不要归档 `.specs/LESSONS.md`**——它是项目级常驻文件，跨 change 累积
 
+#### 5.1 归档 commit（AC-1 · D6 · L-023 修复）
+
+归档 mv 完成后，**立即**将归档内容提交到 git。
+
+**记录归档起点**（D7 · AC-1 Given 锚点）：
+
+```bash
+ARCHIVE_BASE_SHA=$(git rev-parse HEAD)
+echo "ARCHIVE_BASE_SHA=$ARCHIVE_BASE_SHA" >> .specs/STATE.md
+```
+
+**按类型拆分原子提交**（fix / docs / chore ≤ 3 个 commit）：
+
+```bash
+git add .specs/archive/<YYYY-MM-DD>-<change-id>/
+git add .specs/CHANGELOG.md .specs/CONTEXT.md .specs/STATE.md .specs/LESSONS.md
+git commit -m "fix(<id>): <一句话摘要>"   # 或 docs / chore
+```
+
+**PCSC 硬检查**（34 号 hook 兜底）：
+
+```bash
+git status --porcelain   # 输出必须为空
+git log $ARCHIVE_BASE_SHA..HEAD --oneline   # 确认归档 commit 已记录
+```
+
+**弱模型防护**（结构化自检清单）：
+
+- [ ] 归档目录已 `git add`（`git diff --cached --name-only | grep archive`）
+- [ ] 元数据文件已 `git add`（CHANGELOG / CONTEXT / STATE / LESSONS）
+- [ ] 原子提交 ≤ 3 个（`git log $ARCHIVE_BASE_SHA..HEAD --oneline | wc -l`）
+- [ ] `git status --porcelain` 输出为空
+- [ ] 无 fix/docs/chore 之外的类型
+
+> ⚠️ 若 `git status --porcelain` 非空，Stop hook 34（archive-commit-check）会写 `.flow-active.correction`，下一轮 SessionStart 展示 `⚠️ 归档后 git status 非干净` banner。
+
 ### MINOR-DEFERRED Triage（如存在）
 
 归档前检查 `.specs/<id>/MINOR-DEFERRED.md` 是否存在：
