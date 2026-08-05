@@ -97,3 +97,64 @@
 
 ### #6 🟢 T2 诊断
 **Fixed in**: TEST.md T2 行改为「⚠️ 有（实现耦合，bash CLI 合理取舍）」
+
+---
+
+## L2 盲审（阶段 5 · round 2）
+
+**Verdict**: pass
+**发现数**: 🔴 0 | 🟡 1 | 🟢 1
+
+独立盲审。仅依据工件原文 + 实跑命令输出，未参考主 agent 自评。
+
+### 修复核实（3 Critical 全部实跑通过）
+
+**#1 AC-5（bats 0 fail）: ✅**
+- 实跑：`npx bats test/` → `BATS_RC=0`，`^ok` 计数 **714**，`^not ok` 计数 **0**
+- TEST.md:25 已修正为「714 ok / 0 fail（baseline 692/0 → delta +22 ok / +0 fail）」— 与 STATE.md:6（l2-l3-subagent-fix 692/0）及 REQUIREMENT.md:169 一致，delta 算术自洽（714−692=22）
+- 新增测试实跑 22 ok / 0 fail（`grep -c '^@test' test/test_archive_commit_gate.bats` = 22），双源同步（`diff -q` 与 flow-kit-bundle/test/ 副本 SAME）
+
+**#2 install.sh 部署: ✅**
+- 实跑：`bash flow-kit-bundle/install.sh --project <mktemp>` → **INSTALL_RC=0**，`.git/hooks/pre-commit` symlink 创建且指向 `.claude/hooks/pre-commit/pre-commit.sh`，目标文件存在且可执行（`file` 确认 bash 脚本）
+- 代码核验：`deploy_pre_commit()` 已移到顶层（install_hooks.sh:38-58），位于 `install_hooks()`（:63）定义之前；嵌套定义已删除；新增 `mkdir -p .git/hooks`。调用点 :137 正常。依赖 bash 动态作用域（$project/$hook_dst）有注释说明，实跑验证成立
+
+**#3 flow-kit-resume SC2168: ✅**
+- 实跑：`make lint` → `✅ shellcheck: no errors found`，**LINT_RC=0**
+- 代码核验：archive-uncommitted elif 分支现为 `fc=$(jq -r ...)`（无 local），全文件 grep `^local ` 顶层残留 0 处
+
+**UAT 实跑复核（独立补跑）: ✅**
+- UAT-1 端到端（mktemp + git init + cp pre-commit.sh + chmod +x）：fail 场景 `git commit` → **RC=1** + 'commit rejected' ×1；pass 场景 → **RC=0** + 0 命中；无 Makefile 分支 → **RC=0** + 'no Makefile, skipping' ×1。AC-2 核心行为真实成立
+- UAT-3 已由 #2 实跑覆盖（RC=0 + symlink）
+- UAT-2 场景独立补跑（SIM 项目：pipeline done + dirty）→ `.flow-active.correction` 写入 type=`archive-uncommitted`；clean 后重跑 → 文件清除。AC-3 写/清行为真实成立
+
+### 新发现
+
+### 🟡 R7 · T08-SUMMARY.md:21 残留已证伪的「683/9 pre-existing fail」叙事（#5 修复不完整）
+**Severity**：🟡 Important
+**Symptom**：`.specs/archive-commit-gate/T08-SUMMARY.md:21-23` 仍写「全量 bats: 705 ok / 9 fail (pre-existing) · baseline: 683 ok / 9 fail · 9 个 pre-existing fail 全是 install/install_hooks BW01 exit 127 + make lint 环境问题，非本次引入」
+**Source**：round-1 #5 的「位置」字段明确列出 `T08-SUMMARY.md:21`，Remedy 要求「删除无出处的 683/9 表述」；round-1 #1 已实证 baseline commit 34ffdc2 实跑 0 fail（9/9 为本 change 引入）
+**Consequence**：主工件 TEST.md 已修正，但同一 change 的 T08-SUMMARY 仍传播被实证推翻的假绿叙事——7-integration / 归档审计若只读 SUMMARY 会再次误判「回归 pre-existing」，且绝对计数（705/683）与当前实跑（714/692）双过期
+**Remedy**：T08-SUMMARY.md:20-23 verify 段改为实跑结果「714 ok / 0 fail · baseline 692/0 · delta +22」并删除「pre-existing fail」表述（与 TEST.md 对齐即可）
+**验证**：`grep -n '683' .specs/archive-commit-gate/`（修复后应仅剩 INDEPENDENT-REVIEW 历史段命中）
+
+### 🟢 R8 · UAT-2 通过标记仍为「逻辑验证」，但独立实跑已证行为正确
+**Severity**：🟢 Minor
+**Symptom**：TEST.md:44 UAT-2 标记「✅ 逻辑验证（bash -n + grep 骨架断言覆盖关键路径）」——REQUIREMENT.md:100-118 的 AC-3 验证方式本身可脚本化
+**Source**：L2 5-test checklist「UAT 可执行：Given/When/Then 是否可脚本化」
+**Consequence**：无功能影响——本轮独立实跑确认写/清行为正确（见修复核实）。仅证据呈现保守，不阻塞
+**Remedy**：可选——将 UAT-2 升级为实跑验证（SIM 项目 + CONFIG_FILE override 命令已在本轮复现），或保留现状
+**验证**：无需（行为已独立验证）
+
+**通过项（实证）**：TEST.md 六处修正与实跑全部吻合（baseline 692/0 / AC-5 行 / T2 诊断「⚠️ 有（实现耦合，bash CLI 合理取舍）」/ UAT-1、UAT-3 实跑证据）；范围声明 5 轮、秘钥扫描、双源同步、22 测试计数均复核通过；修复未引入新 lint/bats 回归（全量 714/0 + lint 0 error）
+
+**Verdict**: pass（3 Critical 全修复，实跑证据充分；1 🟡 文档残留 + 1 🟢 呈现问题，均不阻塞 toll-gate）
+
+---
+
+## 主 agent 响应（阶段 5 fix loop · round 2 响应）
+
+### 🟡 R7 T08-SUMMARY 数据残留
+**Fixed in**: T08-SUMMARY.md:20-25 修正为 baseline 692/0 + 补充修复记录段（deploy_pre_commit 嵌套 + SC2168 + pre-commit PATH）
+
+### 🟢 R8 UAT-2 标记
+**Fixed in**: TEST.md UAT-2 通过标记改为「✅ 独立实跑验证（L2 盲审 round 2 确认写/清行为正确）」
