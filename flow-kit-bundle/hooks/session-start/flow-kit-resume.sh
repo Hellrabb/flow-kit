@@ -150,7 +150,6 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
     # 现保留不删，等主 agent 派 L2 写段后由下一轮 compliance 轮换清除。
     :
   elif [[ "$corr_type" == "archive-uncommitted" ]]; then
-    local fc
     fc=$(jq -r '(.violations[0].files // (.violations | length) // "??")' "$compliance_correction_file" 2>/dev/null || echo "??")
     echo "⚠️ 归档后 git status 非干净（${fc} 个文件未 commit）。执行 7-integration 步骤 5.1 归档 commit。"
     rm -f "$compliance_correction_file"

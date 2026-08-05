@@ -31,6 +31,33 @@ install_file() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
+# deploy_pre_commit — pre-commit symlink 部署（archive-commit-gate）
+# 必须定义在 install_hooks() 之前：install_hooks() 体内调用此函数
+# 依赖 $project / $hook_dst（bash 动态作用域：从 install_hooks() 内调用时可见）
+# ═══════════════════════════════════════════════════════════════════════
+deploy_pre_commit() {
+  [[ -d "${project}/.git" ]] || return 0
+
+  local target="${project}/.git/hooks/pre-commit"
+  mkdir -p "${project}/.git/hooks" "$hook_dst/pre-commit"
+  install_file "$SCRIPT_DIR/hooks/pre-commit/pre-commit.sh" "$hook_dst/pre-commit/pre-commit.sh"
+
+  if [[ -e "$target" && ! -L "$target" ]]; then
+    if [[ "${FLOW_KIT_YES:-0}" == "1" ]]; then
+      echo "   [archive-commit-gate] existing pre-commit: $target, skipped"
+      return 0
+    fi
+    local ans
+    read -p "flow-kit: 既有 pre-commit 存在，覆盖？(y/N) " ans
+    [[ "$ans" == "y" ]] || { echo "   skipped"; return 0; }
+    rm -f "$target"
+  fi
+
+  ln -sf "$hook_dst/pre-commit/pre-commit.sh" "$target"
+  echo "   ✅ pre-commit symlink → $target"
+}
+
+# ═══════════════════════════════════════════════════════════════════════
 # install_hooks — Stop Hook + SessionStart → user or project scope
 # ═══════════════════════════════════════════════════════════════════════
 install_hooks() {
@@ -175,28 +202,6 @@ install_hooks() {
       ' > "$settings_target" 2>/dev/null
       echo "   ✅ ${settings_target} 已写入 ${event} hook (${label})"
   fi
-}
-
-deploy_pre_commit() {
-  [[ -d "${project}/.git" ]] || return 0
-
-  local target="${project}/.git/hooks/pre-commit"
-  mkdir -p "$hook_dst/pre-commit"
-  install_file "$SCRIPT_DIR/hooks/pre-commit/pre-commit.sh" "$hook_dst/pre-commit/pre-commit.sh"
-
-  if [[ -e "$target" && ! -L "$target" ]]; then
-    if [[ "${FLOW_KIT_YES:-0}" == "1" ]]; then
-      echo "   [archive-commit-gate] existing pre-commit: $target, skipped"
-      return 0
-    fi
-    local ans
-    read -p "flow-kit: 既有 pre-commit 存在，覆盖？(y/N) " ans
-    [[ "$ans" == "y" ]] || { echo "   skipped"; return 0; }
-    rm -f "$target"
-  fi
-
-  ln -sf "$hook_dst/pre-commit/pre-commit.sh" "$target"
-  echo "   ✅ pre-commit symlink → $target"
 }
 
 
