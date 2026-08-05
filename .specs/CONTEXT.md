@@ -560,4 +560,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 根因报告（ROOT-CAUSE.md） | 调查型 change 的核心交付物（`.specs/<id>/ROOT-CAUSE.md`），五段结构：现象矩阵 / 根因链 / 双平台差异矩阵 / 风险分级修复方案 / 受影响模块清单。每条根因须附双平台实测证据 + 文件:行号，禁止无证据猜测。来自 l2-l3-subagent-fix |
 | risk 分级修复方案 | 根因报告「修复方案」段的条目分级：risk: low（本次 v1 可实施）/ risk: high（触及 gate 核心链或 CONTEXT 禁动清单 → v2）。high 项 v1 禁止实施。来自 l2-l3-subagent-fix |
 <!-- l2-l3-subagent-fix 追加 ↑ -->
+<!-- archive-commit-gate 追加 ↓ -->
+| 归档 commit（archive commit） | 7-integration 步骤 5.1 归档完成后按类型拆分的原子提交（fix 源码 / docs 归档产物 / chore 元数据）。区别于 4-dev 任务级 commit（commit-protocol.md）。来自 archive-commit-gate |
+| pre-commit 门禁（pre-commit gate） | git commit 前跑 `make test` 的硬门禁——bats 非零退出码拒绝 commit。闭合 LESSONS L-023（commit-time 测试门禁缺失）。通过 symlink `.git/hooks/pre-commit` → 已安装 hooks 目录部署（ADR-022）。来自 archive-commit-gate |
+| git hook symlink 部署 | flow-kit 通过 symlink `.git/hooks/<hook>` → 已安装 hooks 目录（user: `~/.claude/hooks/` / project: `.claude/hooks/`）部署 git hook，最小侵入不碰用户既有 hook。install.sh 设置，既有 pre-commit 文件检测+询问不静默覆盖。ADR-022。来自 archive-commit-gate |
+| archive-uncommitted correction | 归档完成（goal.status=done）但 git status 非干净时，新 Stop hook 模块写的 correction file 类型（type=archive-uncommitted）。SessionStart 收割提示补 commit。来自 archive-commit-gate |
+| PreToolUse 桥接（claude-code-hooks 模块） | oh-my-opencode 4.19.4+ 内置的 `dist/hooks/claude-code-hooks/` 模块，将 Claude Code hooks 概念映射到 OpenCode 插件事件。types.d.ts 定义 12 种事件（PreToolUse/PostToolUse/Stop/SessionStart/...）；config-loader.d.ts 读 `~/.claude/settings.json` hooks 配置；pre-tool-use.d.ts `executePreToolUseHooks()` 执行匹配的 hook 命令。**此发现修正 l2-l3-subagent-fix EVIDENCE-2 根因 #1 + 证伪 L-074**（原结论「opencode 下 PreToolUse 结构性不触发」基于旧版 oh-my-opencode，4.19.4 后不再成立）。来自 archive-commit-gate 阶段 1 桥接调查 |
+| opencode-acp | 「Active Context Pruning」——model-driven 上下文管理插件（DCP 硬化 fork · 35 bug fixes · v1.14.12），与 hooks 桥接**无关**。桥接调查中曾列为候选载体，经源码 grep 证伪（0 匹配 settings.json/PreToolUse/hooks）。来自 archive-commit-gate 阶段 1 桥接调查 |
+<!-- archive-commit-gate 追加 ↑ -->
 <!-- td072-lib-split-2026-08 追加 ↑ -->

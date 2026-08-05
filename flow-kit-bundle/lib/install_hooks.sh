@@ -107,6 +107,8 @@ install_hooks() {
     chmod +x "$hook_dst/pre-tool-use/${ptu_base}" 2>/dev/null || true
   done < <(ls "$SCRIPT_DIR/hooks/pre-tool-use"/*.sh 2>/dev/null)
 
+  deploy_pre_commit
+
   # 配置文件（项目级 stop-hook.json 开关）
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"
 
@@ -172,8 +174,31 @@ install_hooks() {
         }] } }
       ' > "$settings_target" 2>/dev/null
       echo "   ✅ ${settings_target} 已写入 ${event} hook (${label})"
+  fi
+}
+
+deploy_pre_commit() {
+  [[ -d "${project}/.git" ]] || return 0
+
+  local target="${project}/.git/hooks/pre-commit"
+  mkdir -p "$hook_dst/pre-commit"
+  install_file "$SCRIPT_DIR/hooks/pre-commit/pre-commit.sh" "$hook_dst/pre-commit/pre-commit.sh"
+
+  if [[ -e "$target" && ! -L "$target" ]]; then
+    if [[ "${FLOW_KIT_YES:-0}" == "1" ]]; then
+      echo "   [archive-commit-gate] existing pre-commit: $target, skipped"
+      return 0
     fi
-  }
+    local ans
+    read -p "flow-kit: 既有 pre-commit 存在，覆盖？(y/N) " ans
+    [[ "$ans" == "y" ]] || { echo "   skipped"; return 0; }
+    rm -f "$target"
+  fi
+
+  ln -sf "$hook_dst/pre-commit/pre-commit.sh" "$target"
+  echo "   ✅ pre-commit symlink → $target"
+}
+
 
   # ── Stop hook ──────────────────────────────────────────────────
   local stop_cmd="bash \"${settings_hook_path}/stop/00-gate.sh\""

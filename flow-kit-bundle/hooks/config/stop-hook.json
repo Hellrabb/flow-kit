@@ -86,6 +86,10 @@
       "enabled": true,
       "description": ".flow-active state integrity cross-validation (L3)"
     },
+    "archive_commit_check": {
+      "enabled": true,
+      "description": "归档后未 commit 检测 (AC-3)"
+    },
     "independent_review": {
       "enabled": true,
       "checks": [

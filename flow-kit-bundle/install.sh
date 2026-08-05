@@ -123,6 +123,7 @@ while [[ $# -gt 0 ]]; do
     --update)      MODE="update"; shift ;;
     --reinstall)   REINSTALL=true; MODE="global"; shift ;;
     --user)        HOOK_SCOPE="user"; shift ;;
+    --yes)         FLOW_KIT_YES=1; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
     --self-test)   SELF_TEST=true; shift ;;
     --brooks-src)  BROOKS_SRC="$2"; shift 2 ;;
