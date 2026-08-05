@@ -191,7 +191,7 @@ Wave 4:            T08 (←T07)
   <depends_on>T04, T05, T06</depends_on>
 </task>
 
-<task id="T08" status="pending" model-tier="standard">
+<task id="T08" status="done" model-tier="standard">
   <name>bats 回归测试（34 + pre-commit + resume 分支 + 基线 0 fail）</name>
   <read_files>
     test/*.bats
