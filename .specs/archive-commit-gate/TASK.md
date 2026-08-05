@@ -38,7 +38,7 @@ Wave 4:            T08 (←T07)
   <depends_on></depends_on>
 </task>
 
-<task id="T02" status="pending" model-tier="standard">
+<task id="T02" status="done" model-tier="standard">
   <name>新增 Stop hook 模块 34（D3 归档后未 commit 检测）</name>
   <read_files>
     flow-kit-bundle/hooks/stop/34-archive-commit-check.sh
