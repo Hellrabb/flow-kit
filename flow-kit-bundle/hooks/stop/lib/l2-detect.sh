@@ -166,10 +166,25 @@ l2_dispatch_agent() {
   fi
 
   # ── 凭证检查 ──────────────────────────────────────────────────
+  # 凭证缺失时给出降级指引，而非静默失败。
+  # 运行时判定：OPENCODE_BIN 是 opencode 运行时显式注入的 env（可靠信号）；
+  # 不用 `command -v opencode` —— 那只证明机器装了 opencode，本机 claude code
+  # 会话同样命中，会拿到对 CC Agent 工具无意义的 category 指引（l2-l3-subagent-fix
+  # 阶段6 L2 盲审 R6）。生产可达场景=claude code PreToolUse hook 链（opencode 下
+  # PreToolUse 结构性不触发，见根因 #1），opencode 场景仅供手动调用或未来桥接插件。
   local auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
   local api_key="${ANTHROPIC_API_KEY:-}"
   if [ -z "$auth_token" ] && [ -z "$api_key" ]; then
+    local _model_hint="或 /flow model l2=<model> 配置持久化兜底"
+    local _hint
+    if [ -n "${OPENCODE_BIN:-}" ]; then
+      _hint="opencode 检测到：子 agent 模型绑定走 category 路由，请用 category= 派发（如 unspecified-high）；${_model_hint}"
+    else
+      # 默认分支：claude code（生产可达主路径）+ opencode 备选（手动调用/未来桥接场景）
+      _hint="claude code 检测到：请确认 ANTHROPIC_AUTH_TOKEN 已注入（env-var-first）；若当前为 opencode 环境，请用 category= 派发（如 unspecified-high）；${_model_hint}"
+    fi
     echo "[l2-dispatch] no API credentials (ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY)" >&2
+    echo "[l2-dispatch] ${_hint}" >&2
     return 1
   fi
 
