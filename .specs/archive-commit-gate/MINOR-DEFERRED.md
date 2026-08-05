@@ -16,3 +16,13 @@
 | R12 | 风险表 R1 提到 `--deploy-pre-commit` 参数凭空出现（无既有 install.sh 模式支撑），与实际改为既有 `--project <path>` 模式不一致 | DESIGN.md §4 R1（原版） | deferred → DESIGN.md v2 已改为既有 `--project <path>` 模式；6-review 校验风险表 R1 文案与 D1/D8 实现一致 |
 | R13 | `commit-protocol.md` 在 §0.5.1 原归「复用（不改）」但实际 D6 扩展归档级段 = 修改，分类漂移 | DESIGN.md §0.5.1（原版） | deferred → DESIGN.md v2 已移到「既有·修改」段；6-review 校验分类一致性 |
 | R14 | `7-integration.md` PCSC 自检表漏列「git status 干净」检查项（D6 新增 5.1 段提到但 PCSC 表未同步） | DESIGN.md D6 / 7-integration.md PCSC 表 | deferred → 4-dev 实施 D6 时同步补 PCSC 检查项；6-review 校验 |
+
+## 阶段 6 审查（6-review）
+
+| # | 维度 | Finding | Suggested Action |
+|---|------|---------|------------------|
+| M6-1 | R1 | deploy_pre_commit() 函数化（install_hooks.sh:180） | 无需修复（良好实践） |
+| M6-2 | R2 | CORRECTION_TYPE 常量化（correction-types.sh:23） | 无需修复 |
+| M6-3 | R3 | 34/resume type 对称引用 | 无需修复 |
+| M6-4 | R4 | 双模式检测分支 | 无需修复 |
+| M6-5 | R6 | correction_file_write 2 参对齐 lib | 无需修复 |

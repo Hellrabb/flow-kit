@@ -57,7 +57,9 @@ _check_archive_commit_body() {
     json=$(jq -n \
       --arg type "$CORRECTION_TYPE_ARCHIVE_UNCOMMITTED" \
       --arg ts "$(date -Iseconds)" \
-      '{type: $type, message: "archive completed but uncommitted changes remain", written_at: $ts, violations: []}')
+      --argjson files "$(git -C "$PROJECT_ROOT" status --porcelain | wc -l)" \
+      --arg hint "归档后存在未提交变更，请执行步骤 5.1 归档 commit" \
+      '{type: $type, message: "archive completed but uncommitted changes remain", written_at: $ts, violations: [{files: $files, hint: $hint}]}')
     correction_file_write "$correction_path" "$json"
   else
     # 干净 → type-guarded clear（对齐 write_model_missing_clear:132-152 先例）
