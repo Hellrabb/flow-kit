@@ -554,4 +554,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 <!-- td072-lib-split-2026-08 追加 ↓ -->
 | gate-helpers-types.sh | gate 类型谓词聚合入口子文件（6 函数：_is_dotdone_write / _gate_is_l2_only / is_phase_write / _fk_phase_direction / _command_has_write_context / is_git_commit）。gate-helpers.sh 内部 source 本文件 + re-export，调用方零变更。TD-072 fix | td072-lib-split-2026-08 |
+<!-- l2-l3-subagent-fix 追加 ↓ -->
+| 双平台派发兼容（dual-platform dispatch compatibility） | L2/L3 子 agent 派发在 opencode / claude code 两个运行时下的兼容性。两平台 agent 架构不同（task tool 参数 / 子 agent 类型名 / 派发方式）且 env var 传递链路不同（`ANTHROPIC_*` / `FLOW_KIT_*` 是否透传子进程），导致既有派发命令在 opencode 下"拉不起来"。来自 l2-l3-subagent-fix |
+| 拉起失败（spawn failure） | L2/L3 子 agent 无法在目标运行时启动的统称。两类现象：① 派发命令 / 架构不兼容报错 ② 子 agent 进程缺 env var 致模型配置 / API 鉴权解析失败。来自 l2-l3-subagent-fix |
+| 根因报告（ROOT-CAUSE.md） | 调查型 change 的核心交付物（`.specs/<id>/ROOT-CAUSE.md`），五段结构：现象矩阵 / 根因链 / 双平台差异矩阵 / 风险分级修复方案 / 受影响模块清单。每条根因须附双平台实测证据 + 文件:行号，禁止无证据猜测。来自 l2-l3-subagent-fix |
+| risk 分级修复方案 | 根因报告「修复方案」段的条目分级：risk: low（本次 v1 可实施）/ risk: high（触及 gate 核心链或 CONTEXT 禁动清单 → v2）。high 项 v1 禁止实施。来自 l2-l3-subagent-fix |
+<!-- l2-l3-subagent-fix 追加 ↑ -->
 <!-- td072-lib-split-2026-08 追加 ↑ -->
