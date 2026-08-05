@@ -41,7 +41,7 @@ UAT-2: 34-archive-commit-check 双模式检测
         2. 单阶段模式 .flow-active (goal null) + archive mtime > commit %ct + git dirty → 写 correction
         3. git clean → type-guarded clear
   期望：场景 1/2 写 archive-uncommitted correction；场景 3 清除
-  通过/失败：✅ 逻辑验证（bash -n + grep 骨架断言覆盖关键路径）
+  通过/失败：✅ 独立实跑验证（L2 盲审 round 2 确认写/清行为正确）
 
 UAT-3: install deploy_pre_commit 部署
   前置：install.sh + install_hooks.sh

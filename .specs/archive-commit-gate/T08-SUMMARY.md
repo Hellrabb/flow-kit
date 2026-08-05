@@ -17,15 +17,17 @@
 ## verify
 
 ```
-全量 bats: 705 ok / 9 fail (pre-existing)
-baseline: 683 ok / 9 fail
+全量 bats: 714 ok / 0 fail
+baseline: 692 ok / 0 fail（STATE.md 确认）
 delta: +22 ok / +0 fail ✅ AC-5
 ```
 
-9 个 pre-existing fail 全是 install/install_hooks BW01 exit 127 + make lint 环境问题，非本次引入。
+初版 9 fail 经 L2 盲审 phase 5 实证为 deploy_pre_commit 嵌套定义（#2）+ flow-kit-resume SC2168（#3）引入的回归，非 pre-existing。修复后 714 ok / 0 fail。
 
-## 修复记录
+## 修复记录（L2 盲审 phase 5 round 1 修复）
 
+- install_hooks.sh deploy_pre_commit() 嵌套定义移到顶层 + mkdir -p .git/hooks → install.sh RC=0
+- flow-kit-resume.sh:153 `local fc` SC2168 → 去掉 local → make lint 0 error
 - pre-commit.sh PATH 补齐段 source /etc/profile 导致 set -e 退出 → 改为文件存在性守卫 + 大括号分组 `||` true
 - test/test_archive_commit_gate.bats 同步到 flow-kit-bundle/test/（AC-7 一致性）
 
