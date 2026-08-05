@@ -6,10 +6,10 @@ set -euo pipefail
 # 部署：install_hooks.sh deploy_pre_commit() → symlink .git/hooks/pre-commit → 已安装 hooks 目录
 
 # PATH 补齐（D2 R9 修复 · npx/node 可见性）
-source /etc/profile 2>/dev/null || true
-source ~/.profile 2>/dev/null || true
-[ -n "${NVM_DIR:-}" ] && source "$NVM_DIR/nvm.sh" 2>/dev/null || true
-export PATH="$HOME/.local/bin:$PATH"
+[ -f "$HOME/.profile" ] && { source "$HOME/.profile" 2>/dev/null || true; }
+[ -n "${NVM_DIR:-}" ] && [ -f "$NVM_DIR/nvm.sh" ] && { source "$NVM_DIR/nvm.sh" 2>/dev/null || true; }
+[ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
+[ -d /usr/local/bin ] && export PATH="/usr/local/bin:$PATH"
 
 # 无 Makefile → 跳过
 if [ ! -f Makefile ]; then
