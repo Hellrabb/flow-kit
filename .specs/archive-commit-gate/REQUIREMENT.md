@@ -106,8 +106,10 @@ jq '.goal.status = "done" | .goal.scope = "pipeline"' /tmp/test-flow-active > /t
 mkdir -p .specs/archive/test-archive && touch .specs/archive/test-archive/marker.md
 # 制造未提交变更
 echo "uncommitted" > .specs/temp-test.md
-# 用 PROJECT_ROOT + FLOW_ACTIVE override（如 hook 支持）或直接测 hook 函数
-PROJECT_ROOT=$(pwd) FLOW_ACTIVE=/tmp/test-flow-active bash flow-kit-bundle/hooks/stop/34-archive-commit-check.sh 2>&1
+# 用正确的 env 变量跑 hook（CONFIG_FILE + STOP_HOOK_CONFIG 让 module_enabled=true）
+CONFIG_FILE=.claude/stop-hook.json STOP_HOOK_CONFIG='{"modules":{"workflow":{"enabled":true}}}' PROJECT_ROOT=$(pwd) bash flow-kit-bundle/hooks/stop/34-archive-commit-check.sh 2>&1
+# 验证 correction 写入
+test -f .flow-active.correction && jq -r '.type' .flow-active.correction
 test -f .flow-active.correction && jq -r '.type' .flow-active.correction   # archive-uncommitted
 # hook 自清除测试：git status 干净时
 rm .specs/temp-test.md .specs/archive/test-archive/marker.md && rmdir .specs/archive/test-archive
@@ -139,7 +141,7 @@ trap '[ -n "$OLD_PRECOMMIT" ] && printf "%s" "$OLD_PRECOMMIT" > .git/hooks/pre-c
 git commit --allow-empty -m "test deploy" 2>&1   # pre-commit 应被触发
 # Stop hook 注册（三处接线 + settings）
 grep -q '34-archive-commit-check' flow-kit-bundle/hooks/stop/lib/common.sh   # HOOK_MODULE_NAMES
-grep -q '34-archive-commit-check' flow-kit-bundle/install.sh                  # install 接线
+grep -q '34-archive-commit-check' flow-kit-bundle/lib/install_hooks.sh       # install 接线（fallback list + deploy_pre_commit）
 # 既有 pre-commit 文件检测（精确文案）
 echo '# user custom pre-commit' > .git/hooks/pre-commit
 install.sh --yes 2>&1 | grep -qF '[archive-commit-gate] existing pre-commit: .git/hooks/pre-commit, skipped'

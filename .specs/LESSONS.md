@@ -606,3 +606,32 @@
 - 适用栈: flow-kit L2-only 模式（gate_config 含 L2 的阶段，主 agent 写 .done）
 - 关键词: path-guard, _is_dotdone_write, .independent-review-N.done, Write tool, L2-only
 - 状态: open · 来源 `l2-l3-subagent-fix`（阶段 1 首次撞，阶段 2-7 持续应用 workaround）
+
+## archive-commit-gate Lessons learned (2026-08-06)
+
+### L-075 · bash 嵌套函数定义顺序：调用点必须在定义之后（否则 RC=127 "command not found"）
+- 严重度: 🔴 Critical（生产断裂 · install.sh RC=127 · AC-4 完全失效）
+- 位置: `flow-kit-bundle/lib/install_hooks.sh:110`（调用）vs `:180`（定义）
+- 问题: `deploy_pre_commit()` 定义在 `install_hooks()` 函数体内部 L180，但 L110（install_hooks 体内更早位置）先于定义调用它。bash 顺序执行 install_hooks() 时 deploy_pre_commit 尚未定义 → "未找到命令" RC=127。install.sh 顶部 `set -euo pipefail` → 安装中断。
+- 修复: 嵌套函数定义移到**调用点之前**（或提到顶层非嵌套）。bash 函数定义是顺序执行的语句——不像 C/JS 有 hoisting。
+- 适用栈: bash（任何使用嵌套函数定义的项目）
+- 关键词: nested function, definition order, command not found, RC=127, set -euo pipefail
+- 状态: open · 来源 `archive-commit-gate`（L2 盲审 phase 5 round 1 #2 发现 · 调试 > 30min · git worktree baseline 对比定位）
+
+### L-076 · bash `local` 仅函数内合法：顶层使用 → SC2168 + set -e 运行时退出
+- 严重度: 🟡 Major（make lint 硬门禁失败 + 运行时报错）
+- 位置: `flow-kit-bundle/hooks/session-start/flow-kit-resume.sh:153`
+- 问题: elif 分支位于脚本顶层（非函数内），`local fc\nfc=$(...)` 中 `local` 关键字在函数外非法 → ShellCheck SC2168 error + `set -euo pipefail` 下运行时立即报错退出。SessionStart banner 路径不可达。
+- 修复: 去 `local`（顶层赋值合法，变量自动全局）或将整段移入函数
+- 适用栈: bash（所有脚本顶层代码）
+- 关键词: local outside function, SC2168, set -e, SessionStart, top-level
+- 状态: open · 来源 `archive-commit-gate`（L2 盲审 phase 5 round 1 #3 发现）
+
+### L-077 · `source <file>` + `set -euo pipefail`：被 source 文件内部非零退出 → 脚本中止
+- 严重度: 🟡 Major（pre-commit 门禁静默失效）
+- 位置: `flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（PATH 补齐段 · 已修复）
+- 问题: `source /etc/profile` 在 `set -euo pipefail` 下，profile 文件内部任何语句返回非零 → set -e 触发 → source 中止 → 脚本退出。pre-commit.sh 在补齐 PATH 时 source /etc/profile → 静默 exit 1 → git commit 被拒（pre-commit 非零退出）或跳过测试（取决于退出时机）。
+- 修复: `source /etc/profile 2>/dev/null || true`（容错）或避免 source profile（改用显式 PATH 补齐 + 文件存在性守卫）
+- 适用栈: bash（任何 source 外部文件 + set -e 的脚本）
+- 关键词: source, set -e, /etc/profile, PATH, pre-commit, silent exit
+- 状态: open · 来源 `archive-commit-gate`（T08 执行中发现 · 修复为文件存在性守卫 + 大括号分组）
