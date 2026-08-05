@@ -87,7 +87,7 @@ Wave 4:            T08 (←T07)
   <depends_on></depends_on>
 </task>
 
-<task id="T04" parallel="true" status="pending" model-tier="standard">
+<task id="T04" parallel="true" status="done" model-tier="standard">
   <name>注册 34 到 00-gate + stop-hook.json + HOOK_MODULE_NAMES（D3 接线）</name>
   <read_files>
     flow-kit-bundle/hooks/stop/00-gate.sh
@@ -110,7 +110,7 @@ Wave 4:            T08 (←T07)
   <depends_on>T02, T03</depends_on>
 </task>
 
-<task id="T05" parallel="true" status="pending" model-tier="standard">
+<task id="T05" parallel="true" status="done" model-tier="standard">
   <name>install.sh pre-commit symlink 部署 + --yes flag + HOOK_MODULE_NAMES 同步（D1/D8/N2）</name>
   <read_files>
     flow-kit-bundle/install.sh
@@ -144,7 +144,7 @@ Wave 4:            T08 (←T07)
   <depends_on>T01</depends_on>
 </task>
 
-<task id="T06" parallel="true" status="pending" model-tier="standard">
+<task id="T06" parallel="true" status="done" model-tier="standard">
   <name>flow-kit-resume.sh type-dispatch 追加 archive-uncommitted 分支（D4）</name>
   <read_files>
     flow-kit-bundle/hooks/session-start/flow-kit-resume.sh

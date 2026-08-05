@@ -119,6 +119,9 @@ run_module "${HOOK_BASE_DIR}/32-fallback-guard.sh" "fallback-guard"
 # 33 — .flow-active state integrity cross-validation (L3)
 run_module "${HOOK_BASE_DIR}/33-flow-active-integrity.sh" "flow_active_integrity"
 
+# 34 — Archive commit check (归档后未 commit 检测)
+run_module "${HOOK_BASE_DIR}/34-archive-commit-check.sh" "archive_commit_check"
+
 # 99 — Report generation
 run_module "${HOOK_BASE_DIR}/99-report.sh" "report"
 

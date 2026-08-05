@@ -51,7 +51,7 @@ validate_staging_coverage() {
   done
 
   echo "   解析 Part C (Hook 系统)..."
-  for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh "$BUNDLE_DIR/hooks/pre-tool-use/"*.sh; do
+  for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh "$BUNDLE_DIR/hooks/pre-tool-use/"*.sh "$BUNDLE_DIR/hooks/pre-commit/"*.sh; do
     [ -f "$pattern" ] && echo "$pattern" >> "$EXPECTED_FILE_LIST"
   done
 

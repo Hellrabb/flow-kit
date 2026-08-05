@@ -107,7 +107,7 @@ else
   for name in 00-gate 01-transcript-parse 20-claude-md 21-memory 22-git \
               23-quality 24-session 25-project 26-workflow 27-interactive-ui-check \
               28-weak-model-compliance 29-independent-review 30-ai-analyze \
-             31-auto-advance 32-fallback-guard 33-flow-active-integrity 99-report; do
+             31-auto-advance 32-fallback-guard 33-flow-active-integrity 34-archive-commit-check 99-report; do
     cp "$HOOK_SRC/stop/${name}.sh" "$STAGING/hooks/stop/"
     HOOK_COUNT=$((HOOK_COUNT + 1))
   done
@@ -126,6 +126,10 @@ cp "$HOOK_SRC/session-start/stop-report-reminder.sh"   "$STAGING/hooks/session-s
 # PreToolUse hook 脚本
 mkdir -p "$STAGING/hooks/pre-tool-use"
 cp "$HOOK_SRC/pre-tool-use/"*.sh "$STAGING/hooks/pre-tool-use/"
+
+# pre-commit hook 脚本（归档 commit 门禁 · archive-commit-gate change · 禁动例外声明：Part C glob 扩展）
+mkdir -p "$STAGING/hooks/pre-commit"
+cp "$HOOK_SRC/pre-commit/"*.sh "$STAGING/hooks/pre-commit/"
 
 # 模块设计文档
 if [ -f "$HOOK_SRC/MODULE_IDEAS.md" ]; then
