@@ -52,6 +52,14 @@ _check_archive_commit_body() {
   # 归档未 commit 检测到
   uncommitted=$(cd "${PROJECT_ROOT:-}" && git status --porcelain 2>/dev/null || echo "")
   if [[ -n "$uncommitted" ]]; then
+    # 写侧共存 guard：已有其他 type correction → skip（不覆写 compliance / interactive-ui 等）
+    if [[ -f "$correction_path" ]]; then
+      local existing_type
+      existing_type=$(jq -r '.type // ""' "$correction_path" 2>/dev/null || echo "")
+      if [[ -n "$existing_type" && "$existing_type" != "$CORRECTION_TYPE_ARCHIVE_UNCOMMITTED" ]]; then
+        return 0
+      fi
+    fi
     # 写 correction（type-guarded · 对齐 write_model_missing_correction 先例）
     local json
     json=$(jq -n \
