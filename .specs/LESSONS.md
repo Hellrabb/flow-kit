@@ -586,3 +586,23 @@
 ### Lessons learned
 - **TD-073**: L-068 后内容迁移时，test grep assertion 必须同步重写（不只是 grep 范围扩大）。Split-aware test 设计原则
 - **TD-074**: shellcheck SC2148 对 sourced lib 的标准修复是 `# shellcheck shell=bash`（非 shebang）
+
+## l2-l3-subagent-fix Lessons learned (2026-08-05)
+
+### L-073 · opencode subagent_type 路由创建的子会话 agent/model 未绑定（与 model 字段无关）
+- 严重度: 🟡 Major（影响所有 subagent_type 派发，category 路由可用作 workaround）
+- 位置: opencode 1.18.9 task tool subagent_type 路由路径（非 flow-kit 代码，平台行为）
+- 问题: `task(subagent_type=<any>)` 创建的子会话 `agent=undefined model=undefined`（opencode.log 实测），无论 agent 文件 model 字段是 sonnet 还是 inherit 均挂起至 30min 超时。鉴别实验：qa-expert(sonnet) 与 architect-reviewer(inherit，阶段 2/3 成功用过) 均超时；阶段 2/3 成功实为 category=unspecified-high 路由派发。
+- 修复: L2/L3 盲审派发在本环境改用 `category=` 路由（category 路由绑定 model 正常，4s 完成）；subagent_type agent 绑定修复属平台层（out 范围）
+- 适用栈: opencode + OhMyOpenCode task tool 环境
+- 关键词: subagent_type, agent=undefined, category routing, L2 dispatch, 30min timeout
+- 状态: open · 来源 `l2-l3-subagent-fix`（调查型 change，根因 #2 已定位，v1 workaround=category 路由）
+
+### L-074 · .independent-review-<N>.done 必须用 Write 工具写（path-guard 拦 Bash 重定向）
+- 严重度: 🟢 Minor（已知陷阱，有明确 workaround）
+- 位置: `flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh::_is_dotdone_write` (gate-helpers-types.sh:18-32)
+- 问题: PreToolUse path-guard D7 拦截 Bash 命令写 `.independent-review-*.done*`（匹配重定向 `>`、tee、cp、mv、sed -i、printf、dd、install、awk、cat<<）——即使命令是 ls 带 `2>/dev/null` 也被误判拦截。L2-only 模式主 agent 写 .done 时若用 Bash 重定向必被拦。
+- 修复: 用 Write 工具写 `.done` 文件（路径含 phase 号 → `_gate_is_l2_only` 读 gate_config 放行）。Write 工具不被 _is_dotdone_write 匹配（仅检测 Bash 命令文本）。
+- 适用栈: flow-kit L2-only 模式（gate_config 含 L2 的阶段，主 agent 写 .done）
+- 关键词: path-guard, _is_dotdone_write, .independent-review-N.done, Write tool, L2-only
+- 状态: open · 来源 `l2-l3-subagent-fix`（阶段 1 首次撞，阶段 2-7 持续应用 workaround）

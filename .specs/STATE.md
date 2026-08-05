@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `2026-08-03` (`test-failures-fixup-2026-08` · 5 pre-existing bats fail 修复 · gate regex split-aware grep + 4-dev §1.8.4 assertion 重写 + shellcheck SC2148 修复 · 全量 662/662 0 fail 基线恢复)
+- **last_change_archived**: `l2-l3-subagent-fix`（2026-08-05 · 调查型 · 6 阶段 L2 全 pass · 692/0 bats）
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
