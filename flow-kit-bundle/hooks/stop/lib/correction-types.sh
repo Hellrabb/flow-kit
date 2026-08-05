@@ -19,6 +19,7 @@
 # Correction file type constants
 readonly CORRECTION_TYPE_COMPLIANCE="compliance"
 readonly CORRECTION_TYPE_INTERACTIVE_UI="interactive-ui"
+readonly CORRECTION_TYPE_ARCHIVE_UNCOMMITTED="archive-uncommitted"
 
 # Maximum retry count before stopping automatic correction injection
 readonly CORRECTION_MAX_RETRY=2
