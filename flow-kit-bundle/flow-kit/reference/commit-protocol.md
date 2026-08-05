@@ -128,4 +128,14 @@ jq --arg id "$current_task" \
 
 ---
 
-> **协议源声明**：本文件由 `cleanup-debt-batch-2026-08` change (2026-08-03) L-068 从 `flow-kit/prompts/4-dev.md` 抽取创建。原 4-dev.md `### 5.`-`### 7.2` 段内容。
+## 归档 commit（7-integration 步骤 5.1 · 非任务级 commit）
+
+归档 commit 是 7-integration 阶段专属，**不属于任务级 commit**（4-dev 的本协议主体）。分类规则：
+
+- **fix**：归档的 change 产出包含 bug 修复 / 行为变更
+- **docs**：归档的 change 产出仅含文档 / prompt / 配置变更
+- **chore**：归档元数据（CHANGELOG / STATE / LESSONS sync）
+
+拆分上限：≤ 3 个原子提交。AC-1 验证方式：`git log $ARCHIVE_BASE_SHA..HEAD --oneline` 行数 ≤ 3 且类型 ∈ {fix, docs, chore}。
+
+> **协议源声明补充**（archive-commit-gate change · L-023）：归档 commit 分类从「复用任务级 commit 协议」明确移到「7-integration 阶段专属修改段」，消除分类漂移。

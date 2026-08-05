@@ -166,7 +166,7 @@ Wave 4:            T08 (←T07)
   <depends_on>T02, T03</depends_on>
 </task>
 
-<task id="T07" status="pending" model-tier="standard">
+<task id="T07" status="done" model-tier="standard">
   <name>7-integration.md 步骤 5.1 归档 commit 指令 + commit-protocol.md 分类移修改段（D6/R13）</name>
   <read_files>
     flow-kit-bundle/flow-kit/prompts/7-integration.md
