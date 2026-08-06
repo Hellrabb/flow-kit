@@ -6,3 +6,4 @@
 | P5-#3 | L2 phase5 🟢 | 新测试断言失败路径不清理 tmp 目录（bats 无 set -e，rm 在断言后）| 极小影响（/tmp 泄漏）。可在测试加 `trap 'rm -rf "$tmp_home" EXIT` 或移到 teardown |
 | P6-#1 | L2 phase6 🟢 | deploy_pre_commit `ln -sf` 无 DRY_RUN guard（既有缺陷·DRY_RUN 模式下仍创建 symlink）| 既有缺陷非本次引入，scope 外。可在 DRY_RUN 统一治理 change 处理 |
 | P6-#2 | L2 phase6 🟢 | REVIEW 未披露 DRY_RUN 副作用收敛（旧代码 DRY_RUN 创建目录→新代码不创建）| 行为更正确，无测试依赖。可选 REVIEW 补注 |
+| P7-#3 | L2 phase7 🟡 | 归档 commit f68cab3 夹带 ~30 个 .claude/hooks/ 运行时副本（未声明），与 be0e8f6 清理先例 + 唯一源已锁决策张力 | .gitignore 禁动手改 → 需独立 change 处理 .claude/hooks git 跟踪策略（git rm --cached + .gitignore 补规则 or ADR 显式声明保留）|
