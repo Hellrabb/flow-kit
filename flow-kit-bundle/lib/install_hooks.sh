@@ -36,11 +36,14 @@ install_file() {
 # 依赖 $project / $hook_dst（bash 动态作用域：从 install_hooks() 内调用时可见）
 # ═══════════════════════════════════════════════════════════════════════
 deploy_pre_commit() {
+  # 1. 无条件装源文件（user + project scope 都装）
+  install_file "$SCRIPT_DIR/hooks/pre-commit/pre-commit.sh" "$hook_dst/pre-commit/pre-commit.sh"
+
+  # 2. 项目级才创建 symlink（user scope 无 .git → 只装源文件）
   [[ -d "${project}/.git" ]] || return 0
 
   local target="${project}/.git/hooks/pre-commit"
-  mkdir -p "${project}/.git/hooks" "$hook_dst/pre-commit"
-  install_file "$SCRIPT_DIR/hooks/pre-commit/pre-commit.sh" "$hook_dst/pre-commit/pre-commit.sh"
+  mkdir -p "${project}/.git/hooks"
 
   if [[ -e "$target" && ! -L "$target" ]]; then
     if [[ "${FLOW_KIT_YES:-0}" == "1" ]]; then
