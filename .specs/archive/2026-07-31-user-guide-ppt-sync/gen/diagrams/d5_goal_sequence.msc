@@ -1,0 +1,18 @@
+msc {
+  arcgradient = 8;
+  Agent [label="主 Agent"], GO [label="GO 路由"], TG [label="Toll-Gate"],
+  L2 [label="L2 盲审子agent"], L3 [label="L3 外部模型"], SS [label="SessionStart"];
+  Agent => GO [label="/flow-go 描述意图"];
+  GO >> Agent [label="路由到阶段 N + Preflight Gate"];
+  Agent => Agent [label="产出阶段 N 工件"];
+  Agent box TG [label="PCSC 自检 7 项"];
+  Agent => TG [label="请求 transition"];
+  TG >> Agent [label="暂停，等用户确认"];
+  Agent => L2 [label="派固化盲审子agent"];
+  L2 >> Agent [label="四要素报告写 INDEPENDENT-REVIEW"];
+  Agent => L3 [label="Stop 29 异步调度"];
+  L3 >> SS [label="结果写 INDEPENDENT-REVIEW L3 段"];
+  SS => Agent [label="下次会话注入 L3 摘要 banner"];
+  |||;
+  Agent box L3 [label="L3 模型由 fk_resolve_model 三级链解析；空则降级写 model-missing correction（持续提示）"];
+}

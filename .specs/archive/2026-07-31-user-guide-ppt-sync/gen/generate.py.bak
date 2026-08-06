@@ -1,0 +1,281 @@
+# -*- coding: utf-8 -*-
+"""generate.py — flow-kit 技术设计 PPT v2（17 张，去重 + 讲透 + 纠正定位）。
+基于三份调研报告（13 ADR + 6 brooks-lint + 17 hook 脚本 + 4 SessionStart/PreToolUse）的准确素材。
+遵循 ppt-diagram-pipeline skill 全管线。"""
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pptx import Presentation
+from pptx.util import Inches
+import theme
+from masters import LAYOUTS
+from utils import render_diagrams
+
+ROOT = "/home/hellrabbit/unisoc/flow-kit"
+OUT = os.path.join(ROOT, "flow-kit-技术设计.pptx")
+C = theme.HEX_COLORS
+B = theme.SIZE_BODY
+S = theme.SIZE_SMALL
+
+DIAGS = {
+    "d0": "d0_three_layer_arch.png",
+    "d1": "d1_go_routing.png",
+    "d2": "d2_pipeline.png",
+    "d4": "d4_three_layer_gate.png",
+    "d5": "d5_goal_sequence.png",
+    "d6": "d6_fk_resolve_model.png",
+    "d7": "d7_adr_evolution.png",
+}
+
+SLIDES = [
+    # ── 1. 封面 ──
+    dict(layout="cover", title="flow-kit 技术设计", subtitle="AI 驱动的软件开发流程框架 · 设计理念与重要技术细节",
+         taglines=["三层架构 · artifact-first · protect-the-weakest · 三层门禁 · 双轮独立审查"],
+         date="2026-07-24 | github.com/hellrabb/flow-kit"),
+
+    # ── 2. 三层架构 ──
+    dict(layout="text_image", image_side="right", image=DIAGS["d0"],
+         title='flow-kit 不是什么"纯 markdown"',
+         subtitle="三层架构：核心引擎 + Hook 运行时 + Skill 包装",
+         body=[
+             dict(text="flow-kit 不是纯 markdown 文档集——它有运行时。三层架构各司其职：", size=B, space_after=6),
+             dict(text="核心引擎层（markdown）", bold=True, color=C["primary"]),
+             dict(text="GO.md 统一入口路由 + prompts/ 各阶段指令 + reference/ 查阅型参考 + templates/ 产物模板", level=1, size=S),
+             dict(text="无运行时依赖——不被工具更新坑到。改哪条编程约定就改哪个 md。", level=1, size=S, color=C["muted"]),
+             dict(text="Hook 运行时层（bash）", bold=True, color=C["accent"], space_before=4),
+             dict(text="每次 Stop 事件链式执行 17 个模块化脚本——从 transcript 解析到状态完整性交叉验证", level=1, size=S),
+             dict(text="PreToolUse 2 个：每次 Write/Edit/Bash 前自动 checkpoint + 硬拦截未经 review 的 commit/PR", level=1, size=S),
+             dict(text="SessionStart 2 个：会话启动时恢复状态 + 注入矫正指令 + 显示审查结果", level=1, size=S),
+             dict(text="Skill 包装层（IDE 适配）", bold=True, color=C["success"], space_before=4),
+             dict(text="17 个 flow-* skills 将核心引擎暴露为 Claude Code 的 /flow-go、/flow 等斜杠命令", level=1, size=S),
+             dict(text="brooks-lint 6 skills 将 12 本软件工程经典书籍的诊断框架暴露为可调用 skill", level=1, size=S),
+         ]),
+
+    # ── 3. 设计理念 ──
+    dict(layout="cards", cols=3, title="设计理念", subtitle="artifact-first · protect-the-weakest · 6 条设计原则",
+         cards=[
+             dict(title="artifact-first", color="primary", body=["阶段可压缩可回炉", "关键 .md 不能缺席", "不是 phase-gated"]),
+             dict(title="protect-the-weakest", color="danger", body=["默认按最弱模型能扛住写", "只加结构刚性护栏", "不加重复唠叨"]),
+             dict(title="fresh context / 阶段", color="accent", body=["阶段切换 = 清窗", "靠 .md 传状态", "不靠对话堆叠"]),
+             dict(title="task 必带 verify", color="success", body=["TASK.md 每项含可执行验证", "verify 未通过 = 未完成"]),
+             dict(title="审查至少两轮", color="warning", body=["spec 合规 + 代码质量", "建议一轮跨模型 spot-check"]),
+             dict(title="失败是输入", color="danger", body=["UAT 失败 → fix-plan", "回 4-dev，最多 3 轮"]),
+         ]),
+
+    # ── 4. 8 阶段流水线 ──
+    dict(layout="split", image=DIAGS["d2"], img_first=False,
+         title="8 阶段流水线", subtitle="CHANGE → REQUIREMENT → DESIGN → [2a UI-DESIGN] → TASK → DEV → TEST → REVIEW → INTEGRATION → ARCHIVE",
+         body=[
+             dict(text="每阶段产出明确 .md 工件。阶段 2a（UI-DESIGN）仅前端触发——非前端从 2 跳过 2a 直接进 3。", size=S),
+             dict(text="注：图中 2 列布局——左列（0→1→2→3）为规划链，Toll-Gate 过渡到右列（4→5→6→7→ARCHIVE）为执行链。", size=S, color=C["muted"]),
+         ]),
+
+    # ── 5. 入口系统 ──
+    dict(layout="text_image", image_side="right", image=DIAGS["d1"],
+         title="入口系统：意图 → 路由 → 命令", subtitle="/flow-go 自动路由 + /flow 手动状态管理",
+         body=[
+             dict(text="/flow-go — 一句话意图，AI 自动解析关键词、路由到阶段、生成 change-id、输出预算估算。", size=B, color=C["primary"], space_after=4),
+             dict(text="/flow — 操作 .flow-active 状态文件：start / stop / phase / task / goal / checkpoint / doctor / model", size=B, space_after=4),
+             dict(text="/flow model [l2=...] [l3=...] — 查询/设置 L2/L3 审查模型，写 .flow-active.goal.l*_model 持久化层", size=S, color=C["accent"]),
+             dict(text="/flow goal \"条件\" --pipeline --from 0 --gate-config all — Pipeline 模式跨阶段全链自动推进", size=S, color=C["muted"]),
+             dict(text="典型顺序：先 /flow start 初始化 .flow-active，再用 /flow-go 描述意图。", size=S),
+         ]),
+
+    # ── 6. 文件体系 + 角色红线 ──
+    dict(layout="standard", title=".specs/ 文件体系 + 四角色红线", subtitle="产物即状态，无隐式记忆。同会话同时只扮一个角色，切换必清窗。",
+         body=[
+             dict(text="每 change 一个目录 `.specs/<change-id>/`：CHANGE.md → REQUIREMENT.md → DESIGN.md → [UI-DESIGN.md] → TASK.md → *-SUMMARY.md → TEST.md → REVIEW.md", size=B, space_after=3, color=C["primary"]),
+             dict(text="跨 change 共享 `.specs/` 根：STATE.md(会话状态) · CONTEXT.md(术语/决策) · LESSONS.md(失败知识库) · ARCHITECTURE.md · CHANGELOG.md · adr/ · archive/ · health/", size=S, space_after=6),
+             dict(text="四角色红线：", bold=True, color=C["danger"]),
+             dict(text="Architect 不写实现代码   |   Dev 不改 REQUIREMENT / DESIGN（发现问题开新 CHANGE）", bold=True, level=1, color=C["danger"]),
+             dict(text="Reviewer 不修代码（只产报告+修复task）   |   切换角色必清窗，禁止同会话同时扮多角", bold=True, level=1, color=C["danger"]),
+         ]),
+
+    # ── 7. 安装 + 10 步典型工作流 ──
+    dict(layout="standard", title="安装 + 10 步典型工作流", subtitle="bundle → 全局/项目级安装 → /flow start → /flow-go",
+         body=[
+             dict(text="安装：bash install.sh --global --user <项目路径>（user-scope 共享，推荐）或 --project <路径>（项目级锁定版本）。", size=B, space_after=4),
+             dict(text="10 步新功能开发流水线：", bold=True, color=C["primary"]),
+             dict(text="① /flow start（仅首次）→ ② /flow-go 我想加 X → AI 路由到 0-change，生成 change-id + CHANGE.md", level=1),
+             dict(text="③ /flow-go 写需求 → 阶段 1，REQUIREMENT.md（Given/When/Then + v1/v2/out 范围）", level=1),
+             dict(text="④ /flow-go 做技术设计 → 阶段 2，DESIGN.md + 可选 ADR", level=1),
+             dict(text="⑤ [前端] /flow-go UI 设计 → 阶段 2a，UI-DESIGN.md（design tokens + 美学方向）", level=1),
+             dict(text="⑥ /flow-go 拆任务 → 阶段 3，TASK.md（XML 原子任务 + 波次 + 依赖 + verify）", level=1),
+             dict(text="⑦ /flow-go 执行 T<NN> → 阶段 4，每任务 fresh context + TDD + 原子提交 + SUMMARY", level=1),
+             dict(text="⑧ /flow-go 测试 → 阶段 5，5 轮金字塔测试矩阵 + UAT", level=1),
+             dict(text="⑨ /flow-go 审查 → 阶段 6，L2 盲审 + L3 外部模型审查 + 跨模型 spot-check", level=1),
+             dict(text="⑩ /flow-go 集成 → 阶段 7，UAT + 集成 smoke + 归档到 archive/", level=1),
+         ]),
+
+    # ── 8. 门禁体系 ──
+    dict(layout="text_image", image_side="right", image=DIAGS["d4"],
+         title="三层门禁体系", subtitle="PCSC 自检 → Toll-Gate 人工确认 → Transition 前置查 → 7 个 gate key",
+         body=[
+             dict(text="① PCSC — Phase Completion Self-Check", bold=True, color=C["accent"]),
+             dict(text="Prompt 内置 7 项产物/行为自检——task 全 done、SUMMARY 齐、verify 通过、diff 不越界、既有抽象 grep、sub-goal、bats 0 fail。任一 ❌ 禁进 toll-gate。", size=S, level=1),
+             dict(text="② Toll-Gate — 人工确认暂停点", bold=True, color=C["warning"], space_before=4),
+             dict(text="PCSC 全 ✅ 后输出 TOLL-GATE，停下来等用户回复（auto_advance=false）。用户选继续 → 执行 transition jq。", size=S, level=1),
+             dict(text="③ Transition 前置查 — hook 强制", bold=True, color=C["danger"], space_before=4),
+             dict(text="transition jq 执行前，hook 查 `gates[N→N+1]` 是否为 `passed`。passed 只能由合法 review 子进程产出的 `.done` 触发（fk_validate_done_marker 真实性校验：拒空文件 / 假内容 / 跳过子进程）。", size=S, level=1),
+             dict(text="7 个 gate key 覆盖全链 0→1...6→7，gate 开启的阶段 transition 前置查 passed；未开启仅查产物门禁。", size=S, color=C["muted"]),
+         ]),
+
+    # ── 9. Goal + Pipeline 执行模型 ──
+    dict(layout="standard", title="/flow goal — Goal 系统与 Pipeline 执行模型", subtitle="设定完成条件 → AI 跨 turn 自主迭代 → Toll-Gate 确认 → transition 推进",
+         body=[
+             dict(text="/flow goal \"pnpm test && lint clean\" — 单阶段模式。Pipeline 模式：--pipeline --from 0 --gate-config all。", size=B, space_after=4),
+             dict(text="goal 字段结构（.flow-active.goal）：scope(phase|pipeline) · start_phase · current_phase · phases_done[] · gates{} · gate_config · auto_advance · phase_sub_goals{} · mode(pending|native|fallback)", size=S, color=C["muted"], space_after=4),
+             dict(text="Pipeline 执行流：Goal 设定 → 每轮 PCSC 自检 → Toll-Gate 暂停确认 → transition jq 推进（current_phase++ / phases_done+= / gate=passed）→ 下一阶段 → ... → ARCHIVE → goal.status=done", size=B, color=C["primary"], space_after=4),
+             dict(text="auto_advance=false（默认）：全 ✅ 进 toll-gate 等用户。=true：全 ✅ 自动 transition，有 ❌ 暂停 pipeline。", level=1),
+             dict(text="回退（目标 < 当前）：放行，不要求 .done——允许从失败中恢复。pipeline rollback jq 移除失败阶段及之后的 phases_done。", level=1),
+             dict(text="自迭代上限 ≤3 轮——任何阶段（plan/dev/verify）自动重试超限停下来让人决策，禁止死循环。", level=1, color=C["danger"]),
+         ]),
+
+    # ── 10. 模型配置三级优先级链 ──
+    dict(layout="text_image", image_side="right", image=DIAGS["d6"],
+         title="L2/L3 模型配置三级优先级链", subtitle="fk_resolve_model — ADR-012/013 · 每级取非空即停 · 全空优雅降级",
+         body=[
+             dict(text="公共函数 fk_resolve_model <layer>（common.sh）——pure query，不写文件，始终 return 0。空 stdout = 三级全未配置。", size=B, space_after=4),
+             dict(text="三级链（各层第一个非空值命中即停）：", bold=True, color=C["primary"]),
+             dict(text="L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .goal.l3_model > 降级", level=1, size=S, color=C["accent"]),
+             dict(text="L2: ANTHROPIC_L2_MODEL > FLOW_KIT_L2_MODEL > .goal.l2_model > 降级", level=1, size=S, color=C["accent"]),
+             dict(text="跨平台：非 CC 平台（OpenCode/Codex/Gemini）经 FLOW_KIT_* env 或 .flow-active 配置。L2 已移除 claude-sonnet-5 fallback。", size=S, color=C["success"]),
+             dict(text="降级：caller（l2-detect/l3-review/29）调 write_model_missing_correction 写 correction + 29 顶层 exit 3。", size=S, color=C["danger"], space_after=2),
+             dict(text="ADR-013 覆盖写：compliance > model-missing。当前 correction 若为 compliance 且 violations 非空→ 不覆盖（保安全信息）。", size=S, color=C["danger"]),
+             dict(text="退场：write_model_missing_clear <layer>（仅当 type 匹配才 rm）。SessionStart 收割：compliance/未知删，model-missing/l2-missing 持续提示。", size=S),
+         ]),
+
+    # ── 11. L2+L3 双轮独立审查 ──
+    dict(layout="text_image", image_side="right", image=DIAGS["d5"],
+         title="L2 盲审 + L3 异步外部审查", subtitle="为主 agent self-review 提供第二意见 · 覆盖六阶段 · 默认关闭（/flow gate-config 开启）",
+         body=[
+             dict(text="L2（子 agent 同步盲审）— 零网络延迟", bold=True, color=C["accent"]),
+             dict(text="主 agent 用 Agent tool 派固化盲审子 agent（qa-expert/architect-reviewer/code-reviewer），注入 L2-blind-review.md 模板，禁喂主 agent 自评/草稿。产四要素报告（Symptom→Source→Consequence→Remedy + 🔴🟡🟢）写入 INDEPENDENT-REVIEW-<phase>.md 的 L2 段。", size=S, level=1),
+             dict(text="L3（外部模型异步审查）— 三道防线", bold=True, color=C["danger"], space_before=4),
+             dict(text="① PreToolUse 硬拦截：commit/PR/切阶段无 .done → exit 2 deny", level=1, size=S),
+             dict(text="② fk_auto_phase gate：阻断 Stop hook 内自动推进", level=1, size=S),
+             dict(text="③ pipeline auto_advance=false：强制人工确认", level=1, size=S),
+             dict(text="L2-first 顺序契约（ADR-009）：gate_config=both 时，主 agent 必须先派 L2 写 ## L2 盲审 段，Stop hook 29 的 D4 门才触发 L3。done 标志 = L2+L3 都完成后 touch，三道防线全放行。", size=S, color=C["muted"]),
+             dict(text="PreToolUse 实时拦截 + Stop hook 29 兜底——两路共享同一 l3-review.sh 编排器。降级兜底：L3 连续失败 ≥3 次允许手动绕过。", size=S),
+         ]),
+
+    # ── 12. Hook 系统深入 ──
+    dict(layout="standard", title="Hook 系统：17 模块 Stop 链 + 4 个 SessionStart/PreToolUse",
+         subtitle="每次 Stop：00→01→20→21→22→23→24→25→26→27→28→29→30→31→32→33→99 · 各脚本独立 exit 0 不断链",
+         body=[
+             dict(text="基础设施 (00-01)：00 入口门禁（子 agent 隔离 + transcript/config 存在检查）→ 01 transcript 解析为结构化中间文件（下游全部模块数据源）", size=S, space_after=3),
+             dict(text="通用卫生 (20-25)：20 CLAUDE.md 智能管理（新命令/踩坑/过期）· 21 记忆同步（规则/教训检测）· 22 Git 卫生 · 23 代码质量守卫（测试/lint/构建）· 24 会话分析（工具统计/RTK/时长）· 25 项目守卫", size=S, space_after=3),
+             dict(text="flow-kit 核心 (26-29)：", bold=True, color=C["accent"]),
+             dict(text="26 workflow — 状态文件验证 + 产物完整性 + PROGRESS 追加 + token 累积（为 29/31/32 提供 gate 基础函数）", level=1, size=S),
+             dict(text="27 交互 UI 检测 — 用 GATE_MAP（8 组关键词→工具名）检测弱模型跳过 AskUserQuestion/EnterPlanMode → 写 .interactive-ui-fix；连续跳过 3 次停矫正", level=1, size=S),
+             dict(text="28 弱模型合规 — W1 禁动文件扫描 + W2 自检表空白检测 + W3 证据链交叉验证（引用路径 vs tool-call 历史）→ 写 .correction(type=compliance)", level=1, size=S),
+             dict(text="29 独立审查 L3 — 9 步编排（5 gate + 积压扫描 + L2-first 契约 + 防线 2 + l3_review_run）→ 写 L3 段 + 6 键 KVP .done", level=1, size=S),
+             dict(text="兜底扩展 (30-33)：30 AI 分析（频率门控 N=5）· 31 自动推进（auto_advance=true + gate 合规 → jq transition）· 32 fallback 终点兜底（phase 7 → done）· 33 状态完整性交叉验证（5 项：change_id/phase/pipeline/staleness/token）", size=S, space_after=2),
+             dict(text="99 报告聚合：收集所有模块输出，按 suggestion/warning/error/info 分类 → stop-hook-report.md + suggestions.md", size=S),
+             dict(text="PreToolUse 层：auto-checkpoint（每次 Write/Edit 前写 interrupt）+ independent-review-gate（path-guard 防伪造 + commit/PR 硬拦截 exit 2）", size=S, color=C["warning"]),
+             dict(text="SessionStart 层：flow-kit-resume（状态恢复 + correction 注入 + L3 就绪通知）+ stop-report-reminder（未审阅报告提醒 ≤3 次）", size=S, color=C["success"]),
+         ]),
+
+    # ── 13. brooks-lint 深入 ──
+    dict(layout="standard", title="brooks-lint：6 skills 基于 12 本经典软件工程书籍",
+         subtitle="Iron Law：NEVER suggest fixes before risk diagnosis。每个 finding = Symptom→Source→Consequence→Remedy + 书本引用",
+         body=[
+             dict(text="每个 skill 都遵循 auto scope detection（git diff → diff main...HEAD → 全项目） + Health Score（起始 100 / Critical -15 / Warning -5 / Suggestion -1）", size=S, color=C["muted"], space_after=4),
+             dict(text="brooks-review — PR 代码审查", bold=True, color=C["primary"]),
+             dict(text="6 维生产代码衰退风险诊断（R1-R6）。触发词：review code / check PR / "does this look right?"。输入 git diff → 产出四要素 Finding + Health Score。不该用于：写新代码/语言语法问题。4-dev 步骤 4 提交前 self-review 调用；6-review 2.1 代码质量输出贴入 REVIEW.md。未装时内置回退约 16% 发现率。", size=S, level=1),
+             dict(text="brooks-audit — 架构审计", bold=True, color=C["primary"], space_before=3),
+             dict(text="Mermaid 模块依赖图 + 分层完整性 + 循环依赖 + Conway's Law 检查。触发词：audit architecture / circular imports / clean architecture?。Onboarding 模式输出导游而非诊断。6-review 2.2 对大型变更（≥5 模块/新中间件）调用。", size=S, level=1),
+             dict(text="brooks-debt — 技术债评估", bold=True, color=C["primary"], space_before=3),
+             dict(text="Pain×Spread 优先级矩阵 + Critical/Scheduled/Monitored 三级还债路线图。触发词：tech debt / "why is our velocity dropping?"。6-review 4.1 对里程碑/季度版本调用；Critical 追为 fix 任务，Monitored 记入 LESSONS.md。", size=S, level=1),
+             dict(text="brooks-test — 测试质量审查", bold=True, color=C["primary"], space_before=3),
+             dict(text="T1-T6 六维测试衰退诊断（Obscurity/Brittleness/Duplication/Mock Abuse/Coverage Illusion/Architecture Mismatch）。触发词：test quality / tests keep breaking。5-test 1.4 测试自检输出贴入 TEST.md；命中 ≥3 项则本次 release 前必修。", size=S, level=1),
+             dict(text="brooks-health — 4 维健康仪表盘（PR+架构+债+测试）+ 趋势对比。brooks-sweep — 全扫 + 自动修复 Safe 项 + 收敛到 clean round。触发词见 flow-go 路由表 M-health。", size=S),
+         ]),
+
+    # ── 14. 弱模型护栏 ──
+    dict(layout="cards", cols=2, title="弱模型护栏（protect-the-weakest 落地的 4 条硬约束）",
+         subtitle="结构刚性护栏——弱模型缺它崩溃，强模型多几条也几乎无感（AC-7 限 < 20% 增量）",
+         cards=[
+             dict(title="R3.5 · 禁跳反问", color="danger", body=["阶段 0/1/2 反问 gate 未完成", "禁止产出最终方案或进入实现", "弱模型最易跳过反问直接写代码"]),
+             dict(title="R6.1 · 引用前证据链", color="danger", body=["引用文件/库/API/字段/既有抽象前", "必先 grep/read 验证存在", "弱模型最高频幻觉源 = L3 证据链机制"]),
+             dict(title="R7.4 · 动手前复述边界", color="danger", body=["4-dev 执行任务前必复述", "read_files / write_files 边界", "+ CHANGE 范围排除段。防 scope drift"]),
+             dict(title="R1.5 · 重启协议", color="warning", body=["清窗前写 *-PROGRESS.md", "含「已排除方案」反重复段", "更新 STATE 中断字段 + 输出重启指令"]),
+         ]),
+
+    # ── 15. ADR 全景 ──
+    dict(layout="standard", title="13 ADR 全景", subtitle="架构决策记录（.specs/adr/）——每次关键设计决策的背景→决策→后果",
+         table=dict(
+             headers=["#", "标题", "决策要点"],
+             col_widths=[1, 3, 7],
+             rows=[
+                 ["001", "protect-the-weakest", "默认按最弱模型写，加结构刚性护栏不加唠叨；否决运行时探测（弱模型自报不可靠）"],
+                 ["002", "L3 调用策略", "L3 从 Stop hook 前置到 PreToolUse（transition 点同步执行），解 L2+L3 异步死锁；超时 30s"],
+                 ["003", "L2 自动派发", "curl + Anthropic API fire-and-forget 异步派 L2 agent；派发失败降级手动命令提示"],
+                 ["004", "gate 返回值语义", "调用方改显式 if cmd; then exit 0; fi 判定 rc，不再依赖 || exit 0 惯例（修 BUG-A/B）"],
+                 ["005", "done-validation source", "_gate_active_check source done-validation.sh（函数真正定义处）修 gate 全失效（BUG-E）"],
+                 ["006", "L3 env-first", "被 ADR-012 取代：扩为三级链 + 优雅降级，L3 不再 :? 报错"],
+                 ["007", "PHASE_GATE_KEY pure fn", "case 替代 declare -A，单一来源 common.sh；消除 2 处重复 declare（BUG-F 温床）"],
+                 ["008", "is_git_commit 结构判定", "token 序列匹配替代正则——识 quoting/heredoc；含 heredoc 保守放行不误拦（BUG-H）"],
+                 ["009", "L2-first 顺序契约", "gate_config=both 时主 agent 须先派 L2 写段，Stop 29 D4 才触发 L3（设计内，非 bug）"],
+                 ["010", "_l3_check_rerun 内容标记", "mtime→hash 迁移；artifact hash 存 INDEPENDENT-REVIEW 末尾元数据行，不触 .done KVP"],
+                 ["011", "G1 不 auto-advance", "pipeline scope 时不调 fk_auto_phase 写 .phase，推进权归 toll-gate（修 phase 不一致）"],
+                 ["012", "L2/L3 模型三级链", "fk_resolve_model 三级优先级链 + 优雅降级（取代 006）；L2 移除 claude-sonnet-5"],
+                 ["013", "correction 覆盖写", "compliance > model-missing 优先规则；单步 jq 条件 pass + mktemp 原子 mv"],
+             ]),
+         body=[dict(text="ADR 演进链：001 哲学基础 → 006 env-first（被 012 取代）→ 012 三级链 → 013 降级路径。每个 ADR 显式标注 Supersedes + 未来推翻条件。", size=S, color=C["muted"])]),
+
+    # ── 16. PreToolUse + SessionStart ──
+    dict(layout="standard", title="PreToolUse + SessionStart：实时拦截 + 兜底互补",
+         subtitle="两条审查触发路径共享同一 l3-review.sh 编排器——PreToolUse 实时 + Stop 兜底",
+         body=[
+             dict(text="PreToolUse 层（每次 Bash/Write/Edit 工具调用前触发）：", bold=True, color=C["accent"], space_after=3),
+             dict(text="auto-checkpoint：每次 Write/Edit 前自动写 .flow-active.interrupt（active_file + last_action + checkpoint_at）。fail-open（不阻断工具调用），全阶段 0-7 生效。", level=1, size=S),
+             dict(text="independent-review-gate：path-guard 防伪造握手文件（exit 2 deny）+ handshake write 同步触发 L3 + gate_config 篡改检测 + phase write 时 .done 校验 + commit/PR 硬拦截。fail-close（gate 不通过 exit 2 deny）。", level=1, size=S),
+             dict(text="两路互补：PreToolUse gate 处理正常 transition 实时拦截；Stop 29 兜底 session 异常终止时补齐。", level=1, size=S, color=C["muted"]),
+             dict(text="SessionStart 层（每次新会话启动）：", bold=True, color=C["success"], space_before=4, space_after=2),
+             dict(text="flow-kit-resume.sh：子 agent 隔离 gate → 向上遍历目录树找 .flow-active → 显示 ASCII art 恢复 banner（含 change_id/phase/task/goal/interrupt/token/staleness）→ 按 correction 类型分类型注入：compliance 显示违规清单（读后清）/ model-missing 提示配置（持续）/ interactive-ui-fix 注入 AskUserQuestion 调用指令（retry≥2 人工介入）/ L3 review 就绪显示 verdict+summary。", level=1, size=S),
+             dict(text="stop-report-reminder.sh：提醒审阅未读 stop hook 报告（错误/警告/建议计数）≤3 次/3 天。", level=1, size=S),
+         ]),
+
+    # ── 17. 总结 ──
+    dict(layout="standard", title="总结：flow-kit 的四个支柱",
+         subtitle="纯 markdown 核心 · bash Hook 运行时 · Skill 包装层",
+         body=[
+             dict(text="① artifact-first — 阶段可压缩可回炉，关键 .md 不能缺席；状态在文件里不在对话里。", size=B, bold=True, color=C["primary"], space_after=5),
+             dict(text="② protect-the-weakest — 默认按最弱模型写，结构刚性护栏兜底（R3.5/R6.1/R7.4）；Hook 自动检测跳过交互 gate + 违规 + 幻觉证据链断裂。", bold=True, color=C["primary"], space_after=5),
+             dict(text="③ 三层门禁 — PCSC 自检（7 项）→ Toll-Gate 人工确认 → Transition 前置查 hook 强制；passed 依赖合法 .done 真实性校验（拒空/假/跳子进程）。", bold=True, color=C["primary"], space_after=5),
+             dict(text="④ 双轮独立审查 — L2 子 agent 同步盲审 + L3 外部模型异步审查；PreToolUse 实时拦截 + Stop hook 兜底；模型由 fk_resolve_model 三级链解析，空则优雅降级不阻塞。", bold=True, color=C["primary"], space_after=5),
+             dict(text="三层架构：markdown 核心不被工具更新坑到 · bash Hook 自动兜底门禁 · Skill 包装跨 IDE 一致。改哪条约定就改哪个 md。", size=S, color=C["muted"], space_before=3),
+         ]),
+]
+
+
+def main():
+    print("=== Step 1: 渲染图表 ===")
+    render_diagrams.render_all()
+
+    print("=== Step 2: 校验图表 ===")
+    referenced = [s["image"] for s in SLIDES if s.get("image")]
+    for img in referenced:
+        p = os.path.join(render_diagrams.DIAG_DIR, img)
+        assert os.path.exists(p), f"MISSING: {p}"
+        r = render_diagrams.aspect_ratio(p)
+        print(f"  {img}  r={r:.2f}:1  {render_diagrams.fold_verdict(r)}")
+
+    print(f"=== Step 3: 构建 {len(SLIDES)} 张 slide ===")
+    prs = Presentation()
+    prs.slide_width = theme.SLIDE_W
+    prs.slide_height = theme.SLIDE_H
+    for i, spec in enumerate(SLIDES, 1):
+        LAYOUTS[spec["layout"]](prs, spec)
+        print(f"  {i:>2}  {spec['layout']:<11}  {spec.get('title','')[:42]}")
+
+    prs.save(OUT)
+    print(f"\n✅ saved: {OUT}  slides={len(prs.slides)}")
+    from pptx import Presentation as P2
+    P2(OUT)
+    print("   P0-5 输出可重开 ✓")
+
+
+if __name__ == "__main__":
+    main()

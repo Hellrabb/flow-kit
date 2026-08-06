@@ -1,0 +1,22 @@
+digraph pipeline {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=15, fillcolor="#2E86AB", fontcolor=white];
+  edge [fontname="Noto Sans CJK SC", fontsize=11];
+  C0 [label="0 · CHANGE\n变更提案"];
+  C1 [label="1 · REQ\n需求+AC"];
+  C2 [label="2 · DESIGN\n技术设计"];
+  C3 [label="3 · TASK\n任务拆解"];
+  C4 [label="4 · DEV\n开发 TDD"];
+  C5 [label="5 · TEST\n5轮金字塔"];
+  C6 [label="6 · REVIEW\n双轮审查"];
+  C7 [label="7 · INTEG\n集成归档"];
+  C8 [label="ARCHIVE\n折叠进主spec", fillcolor="#6C757D"];
+  C2a [label="2a · UI\n仅前端", fillcolor="#E9A23B"];
+  C0 -> C1 -> C2 -> C3 [constraint=false];
+  C2 -> C2a [constraint=false, style=dashed, color="#E9A23B", arrowhead=none];
+  C2a -> C3 [constraint=false, style=dashed, color="#E9A23B"];
+  C4 -> C5 -> C6 -> C7 -> C8 [constraint=false];
+  C3 -> C4 [label="Toll-Gate"];
+  {rank=same; C0;C1;C2;C2a;C3;}
+  {rank=same; C4;C5;C6;C7;C8;}
+}

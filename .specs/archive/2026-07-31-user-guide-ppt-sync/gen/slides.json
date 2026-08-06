@@ -1,0 +1,1245 @@
+[
+  {
+    "layout": "cover",
+    "title": "flow-kit 技术设计",
+    "subtitle": "AI 驱动的软件开发流程框架 · 设计理念与重要技术细节",
+    "taglines": [
+      "① 三层架构与设计理念 — 不是纯 markdown，有 Hook 运行时 + Skill 包装",
+      "② 基本架构 — 8 阶段流水线 · GO 路由 · .specs 文件体系 · 四角色",
+      "③ 基本使用 — /flow-go · /flow · 安装 · 10 步工作流",
+      "④ 基本技术设计 — 三层门禁 · Pipeline Goal · L2/L3 双轮审查",
+      "⑤ 重要技术细节 — 17 模块 Hook · brooks-lint · 13 ADR"
+    ],
+    "date": "2026-07-24 | github.com/hellrabb/flow-kit"
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d0_three_layer_arch.png",
+    "title": "flow-kit 不是什么「纯 markdown」",
+    "subtitle": "三层架构：核心引擎 + Hook 运行时 + Skill 包装",
+    "body": [
+      {
+        "text": "flow-kit 不是纯 markdown 文档集——它有运行时。三层架构各司其职：",
+        "size": 15,
+        "space_after": 6
+      },
+      {
+        "text": "核心引擎层（markdown，无运行时依赖）",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "GO.md 统一入口路由 + prompts/ 阶段指令 + reference/ 查阅型参考 + templates/ 产物模板",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "不被工具更新坑到。改哪条编程约定就改哪个 md。",
+        "color": "6C757D",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "Hook 运行时层（bash，自动门禁与兜底）",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 4
+      },
+      {
+        "text": "Stop 链式执行 17 个模块化脚本：从 transcript 解析到状态完整性交叉验证",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "PreToolUse 2 个：每次 Write/Edit/Bash 前自动 checkpoint + 硬拦截未经 review 的 commit/PR",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "SessionStart 2 个：会话启动时恢复状态 + 注入矫正指令 + 显示审查结果",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "Skill 包装层（IDE 适配，跨 IDE 一致）",
+        "bold": true,
+        "color": "2A9D8F",
+        "space_before": 4
+      },
+      {
+        "text": "17 个 flow-* skills 将核心引擎暴露为 /flow-go、/flow 等斜杠命令",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "brooks-lint 6 skills 将 12 本软件工程经典书籍的诊断框架暴露为可调用 skill",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "cards",
+    "cols": 3,
+    "title": "设计理念",
+    "subtitle": "artifact-first · protect-the-weakest · 6 条设计原则",
+    "cards": [
+      {
+        "title": "artifact-first",
+        "color": "primary",
+        "body": [
+          "阶段可压缩可回炉",
+          "关键 .md 不能缺席",
+          "不是 phase-gated；是 artifact-gated"
+        ]
+      },
+      {
+        "title": "protect-the-weakest",
+        "color": "danger",
+        "body": [
+          "默认按最弱模型能扛住写",
+          "降级才 opt-out",
+          "只加结构刚性护栏，不加唠叨"
+        ]
+      },
+      {
+        "title": "fresh context / 阶段",
+        "color": "accent",
+        "body": [
+          "阶段切换 = 清窗",
+          "靠 .md 工件传递状态",
+          "不靠对话堆叠，无「AI 记得」"
+        ]
+      },
+      {
+        "title": "task 必带 verify",
+        "color": "success",
+        "body": [
+          "TASK.md 每项含可执行验证命令",
+          "verify 未通过 = 标记未完成",
+          "R2.4 / R4.4 硬约束"
+        ]
+      },
+      {
+        "title": "审查至少两轮",
+        "color": "warning",
+        "body": [
+          "spec 合规 + 代码质量",
+          "建议一轮跨模型 spot-check",
+          "L2 子 agent 盲审 + L3 外部模型审查"
+        ]
+      },
+      {
+        "title": "失败是输入而不是终点",
+        "color": "danger",
+        "body": [
+          "UAT 失败 → 自动产 fix-plan",
+          "回 4-dev，最多 3 轮",
+          "超限人工介入（R2.6）"
+        ]
+      }
+    ]
+  },
+  {
+    "layout": "split",
+    "image": "d2_pipeline.png",
+    "img_first": false,
+    "title": "8 阶段流水线总览",
+    "subtitle": "CHANGE → REQUIREMENT → DESIGN → [2a UI-DESIGN] → TASK → DEV → TEST → REVIEW → INTEGRATION → ARCHIVE",
+    "body": [
+      {
+        "text": "每阶段产出明确 .md 工件，通过 Toll-Gate 门禁过渡。阶段 2a（UI-DESIGN）仅前端触发——非前端从 2 跳过 2a。",
+        "size": 12,
+        "space_after": 3
+      },
+      {
+        "text": "上图 2 列布局：左列 0-1-2-3 为规划链，Toll-Gate 过渡到右列 4-5-6-7-ARCHIVE 为执行链。",
+        "color": "6C757D",
+        "size": 12
+      },
+      {
+        "text": "MVP 路径：REQUIREMENT → DESIGN-lite → TASK → DEV（阶段可压缩，关键工件不能缺）。",
+        "color": "E9A23B",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "规划链详解：阶段 0 → 1 → 2 → 3",
+    "subtitle": "从模糊想法到可执行任务清单",
+    "body": [
+      {
+        "text": "阶段 0 · CHANGE — 变更提案",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "AI 反问澄清 + 影响面判定 → 自动生成 change-id → 产出 CHANGE.md（Why/What/影响面/v1/v2/out）",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 1 · REQUIREMENT — 需求 + AC",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "AI 主笔用户故事 + Given/When/Then + v1/v2/out 范围切分 + 术语提取 → CONTEXT.md",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 2 · DESIGN — 技术设计 + ADR",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "技术栈预选(5-6卡)→架构预检(拆模块/换DB/改契约→反问)→产出 DESIGN.md+ADR",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 3 · TASK — 任务拆解",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "原子任务(XML:id/wave/depends_on/read_files/write_files/verify/done)→TASK.md。按文件冲突切，标注[P]并行",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "执行链详解：阶段 4 → 5 → 6 → 7",
+    "subtitle": "每任务 fresh context + TDD + 5轮金字塔 + 双轮审查 + 集成归档",
+    "body": [
+      {
+        "text": "阶段 4 · DEV — 开发执行",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "每任务 fresh subagent + TDD + atomic commit。提交前 brooks-review self-review。8 步：LESSONS→读DESIGN→复述边界→写测试→实现→verify→review→SUMMARY",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 5 · TEST — 5 轮测试金字塔",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "功能(矩阵+UAT+覆盖率)/性能/安全(OWASP Top10)/兼容/可观测。brooks-test 审查测试质量",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 6 · REVIEW — 双轮审查",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "轮1 spec合规(对照AC打勾)。轮2 代码质量(brooks-review R1-R6)。大变更+brooks-audit。里程碑+brooks-debt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "阶段 7 · INTEGRATION — 集成归档",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "全自动化→人工UAT逐条AC→失败诊断→提名LESSONS→归档archive/。L2+L3双pass→done",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d1_go_routing.png",
+    "title": "入口系统：意图 → 路由 → 命令",
+    "subtitle": "/flow-go 自动路由 + /flow 手动状态管理",
+    "body": [
+      {
+        "text": "/flow-go —— 一句话意图，AI 解析关键词、路由阶段、生成 change-id、输出预算。",
+        "color": "1F3A5F",
+        "size": 15,
+        "space_after": 4
+      },
+      {
+        "text": "/flow —— 操作 .flow-active 状态：start/stop/phase/task/goal/checkpoint/doctor/model",
+        "size": 15,
+        "space_after": 4
+      },
+      {
+        "text": "/flow model [l2=] [l3=] —— 查询/设置审查模型，持久化 .goal.l*_model",
+        "color": "2E86AB",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "/flow goal <条件> --pipeline --from 0 --gate-config all —— Pipeline 全链自动推进",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "典型顺序：先 /flow start，再 /flow-go 描述意图。",
+        "color": "6C757D",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": ".specs/ 文件体系 + 四角色红线",
+    "subtitle": "产物即状态，无隐式记忆。同会话同时只扮一角，切换必清窗",
+    "body": [
+      {
+        "text": ".specs/<change-id>/：CHANGE→REQUIREMENT→DESIGN→[UI-DESIGN]→TASK→SUMMARY→TEST→REVIEW",
+        "color": "1F3A5F",
+        "size": 15,
+        "space_after": 3
+      },
+      {
+        "text": "跨 change：STATE.md · CONTEXT.md · LESSONS.md · ARCHITECTURE.md · CHANGELOG.md · adr/ · archive/ · health/",
+        "color": "6C757D",
+        "size": 12,
+        "space_after": 6
+      },
+      {
+        "text": "四角色红线：",
+        "bold": true,
+        "color": "C7463B"
+      },
+      {
+        "text": "Architect 不写实现代码 | Dev 不改 REQUIREMENT/DESIGN(发现问题开新 CHANGE)",
+        "bold": true,
+        "color": "C7463B",
+        "level": 1
+      },
+      {
+        "text": "Reviewer 不修代码(只产报告+修复task) | 切换角色必清窗，禁同会话扮多角",
+        "bold": true,
+        "color": "C7463B",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "安装（30 秒）",
+    "subtitle": "bash install.sh --global --user <项目路径>  或   --project <路径>",
+    "body": [
+      {
+        "text": "全局安装（推荐 user-scope）：一次安装所有项目共享。项目级安装：每项目一份锁定版本。",
+        "color": "1F3A5F",
+        "size": 15,
+        "space_after": 4
+      },
+      {
+        "text": "your-project/flow-kit/ → GO.md · METHODOLOGY.md · RULES.md · prompts/ · reference/ · templates/",
+        "bold": true,
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": ".claude/skills/ → 17 个 flow-* skills(斜杠命令) | .claude/hooks/ → Stop 17 + PreToolUse 2 + SessionStart 2",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "更新：/flow-kit-update --check → --upgrade 增量更新（改动文件替换，用户定制保留）。",
+        "color": "6C757D",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "10 步典型工作流（新功能开发）",
+    "subtitle": "/flow start → /flow-go 描述意图 → AI 自动路由全链",
+    "body": [
+      {
+        "text": "Pipeline 一行启动：/flow goal 「完成 X 功能」 --pipeline --from 0 --gate-config all",
+        "color": "1F3A5F",
+        "size": 15,
+        "space_after": 4
+      },
+      {
+        "text": "① /flow start → ② /flow-go 我想加 X → 0-change + CHANGE.md",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "③ /flow-go 写需求 → 1-requirement · ④ /flow-go 技术设计 → 2-design + ADR",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "⑤ [前端] /flow-go UI设计 → 2a · ⑥ /flow-go 拆任务 → 3-task",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "⑦ /flow-go 执行 T<NN> → 4-dev(TDD+SUMMARY) · ⑧ /flow-go 测试 → 5-test(5轮金字塔)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "⑨ /flow-go 审查 → 6-review(L2盲审+L3) · ⑩ /flow-go 集成 → 7-integration(归档archive/)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "状态在 .flow-active 和 .md 工件里，不在对话里。中断恢复：/flow-go 继续。",
+        "color": "6C757D",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d4_three_layer_gate.png",
+    "title": "三层门禁体系：PCSC → Toll-Gate → Transition 前置查",
+    "subtitle": "PCSC 自检(Prompt 内置) → Toll-Gate(人工确认) → Transition 前置查(Hook 强制)",
+    "body": [
+      {
+        "text": "① PCSC — Phase Completion Self-Check",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "7 项自检：task全done/SUMMARY齐/verify通过/diff不越界/既有抽象grep/sub-goal/bats 0 fail。任一❌禁进toll-gate",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "② Toll-Gate — 人工确认暂停点",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 3
+      },
+      {
+        "text": "全✅后输出 TOLL-GATE 等用户确认。auto_advance=true → 自动transition",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "③ Transition 前置查 — Hook 强制",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 3
+      },
+      {
+        "text": "transition jq 前查 gates[N→N+1]=passed。passed 由合法 .done 触发，fk_validate_done_marker 6键KVP真实性校验",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "拒：空.done(touch/echo)/假内容(AI写「已完成」但未派子agent)/跳过子进程直接写.done",
+        "color": "C7463B",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "7 gate key 全链 Transition 校验",
+    "subtitle": "gate 开启→前置查 passed(依赖合法 .done)；未开启→仅查产物门禁",
+    "table": {
+      "headers": [
+        "gate key",
+        "from → to",
+        "前置条件（产物门禁）"
+      ],
+      "col_widths": [
+        2,
+        3,
+        6
+      ],
+      "rows": [
+        [
+          "0→1",
+          "0-change → 1-requirement",
+          "CHANGE.md 存在"
+        ],
+        [
+          "1→2",
+          "1-requirement → 2-design",
+          "REQUIREMENT.md 存在（可开L2/L3/both）"
+        ],
+        [
+          "2→3",
+          "2-design → 3-task",
+          "DESIGN.md 存在"
+        ],
+        [
+          "3→4",
+          "3-task → 4-dev",
+          "TASK.md 存在"
+        ],
+        [
+          "4→5",
+          "4-dev → 5-test",
+          "所有task done(SUMMARY齐+verify全过)"
+        ],
+        [
+          "5→6",
+          "5-test → 6-review",
+          "TEST.md 存在"
+        ],
+        [
+          "6→7",
+          "6-review → 7-integration",
+          "REVIEW 无🔴Critical（强烈推荐L2+L3）"
+        ]
+      ]
+    },
+    "body": [
+      {
+        "text": "前进(目标>当前)→正常gate检查；回退(目标<当前)→放行(不要求.done，允许从失败恢复)。",
+        "color": "2E86AB",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d5_goal_sequence.png",
+    "title": "/flow goal — Pipeline 跨阶段自动推进",
+    "subtitle": "Goal 设定 → AI 跨 turn 迭代 → Toll-Gate 确认 → Transition jq 推进",
+    "body": [
+      {
+        "text": "/flow goal 「pnpm test && lint clean」—— 单阶段。加 --pipeline --from 0 --gate-config all → Pipeline 全链",
+        "size": 15,
+        "space_after": 3
+      },
+      {
+        "text": "goal字段：scope · start_phase · current_phase · phases_done[] · gates{} · gate_config · auto_advance · mode",
+        "color": "6C757D",
+        "size": 12
+      },
+      {
+        "text": "执行流：Goal→PCSC自检→Toll-Gate→确认→jq transition(current_phase++/phases_done+=/gate=passed)→下一阶段→...→done",
+        "bold": true,
+        "color": "2E86AB",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "auto_advance=false(默认)：等用户。=true：31-auto-advance.sh hook 兜底自动推进",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "回退：jq 移除失败阶段及之后 phases_done。自迭代≤3——超限人工介入",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "L2 盲审 + L3 异步外部审查",
+    "subtitle": "为主 agent self-review 提供第二意见 · 覆盖六阶段 · 默认关闭(/flow gate-config 开启)",
+    "body": [
+      {
+        "text": "L2 — 子 agent 同步盲审（零网络延迟）",
+        "bold": true,
+        "color": "2E86AB"
+      },
+      {
+        "text": "Agent tool 派固化盲审子 agent(qa-expert/architect-reviewer/code-reviewer)，注入 L2-blind-review.md",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "禁喂主 agent 自评/草稿。输出Iron Law四要素+🔴🟡🟢→INDEPENDENT-REVIEW L2段",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "L3 — 外部模型异步审查（三道防线）",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 3
+      },
+      {
+        "text": "①PreToolUse硬拦截(commit/PR无.done→exit2) ②fk_auto_phase阻断 ③auto_advance=false",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "L2-first 契约(ADR-009)：gate_config=both时主agent须先派L2写段→Stop 29 D4才触L3",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 3
+      },
+      {
+        "text": "done标志=L2+L3都完成→touch三道防线全放行。PreToolUse实时拦截+Stop 29兜底互补。连续失败≥3次可手动绕过",
+        "color": "6C757D",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d6_fk_resolve_model.png",
+    "title": "L2/L3 模型配置：fk_resolve_model 三级优先级链",
+    "subtitle": "ADR-012/013 · 每级取非空即停 · 全空优雅降级不崩溃",
+    "body": [
+      {
+        "text": "公共函数 fk_resolve_model <layer>（common.sh）—— pure query，不写文件，始终 return 0。",
+        "size": 15,
+        "space_after": 3
+      },
+      {
+        "text": "三级优先级链（各层第一个非空值命中即停）：",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .goal.l3_model > 降级",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "L2: ANTHROPIC_L2_MODEL > FLOW_KIT_L2_MODEL > .goal.l2_model > 降级",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "跨平台：非CC经 FLOW_KIT_* env 配置。L2 已移除 claude-sonnet-5 fallback。",
+        "color": "2A9D8F",
+        "size": 12,
+        "space_after": 3
+      },
+      {
+        "text": "降级路径（全空不崩溃）",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 2
+      },
+      {
+        "text": "caller→fk_resolve_model空→write_model_missing_correction写.correction→29 exit 3(fail-open)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "ADR-013覆盖写：compliance>model-missing。当前若compliance+violations非空则不覆盖",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "退场：write_model_missing_clear（type匹配才rm）。SessionStart收割：compliance删，model-missing留。",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "Hook 全景 — 编号设计逻辑",
+    "subtitle": "Stop 链 00→01→20→...→33→99 · PreToolUse 2 · SessionStart 2 · 共 21 脚本",
+    "body": [
+      {
+        "text": "编号设计：基础设施(00-01)→通用卫生(20-25)→flow-kit核心(26-29)→兜底扩展(30-33)→报告聚合(99)",
+        "color": "1F3A5F",
+        "size": 15,
+        "space_after": 4
+      },
+      {
+        "text": "所有 Stop 脚本共享 lib/common.sh，通过 stop-hook.json 可配置开关。每个独立 exit 0 不断链，失败写入 $HOOK_TMP_DIR 供 99-report 聚合。",
+        "color": "6C757D",
+        "size": 12
+      },
+      {
+        "text": "00-01 基础设施",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 3
+      },
+      {
+        "text": "00 入口门禁：子agent隔离+transcript存在+config存在→任一不过静默退出。01 transcript解析：JSONL→结构化中间文件",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "20-25 通用卫生",
+        "bold": true,
+        "color": "2A9D8F",
+        "space_before": 3
+      },
+      {
+        "text": "20 CLAUDE.md/21 Memory/22 Git(C1-C4)/23 质量(D1-D4 微变<50行豁免)/24 会话分析/25 项目守卫",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "26-29 flow-kit 核心（下页详述）",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 3
+      },
+      {
+        "text": "30-33+99 兜底扩展+报告（下下页详述）",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 3
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "Hook 基础设施(00-01) + 通用卫生(20-25)",
+    "subtitle": "数据采集 + 基础检查——全非阻塞，纯建议，为 flow-kit 核心打底",
+    "body": [
+      {
+        "text": "00-gate — 入口门禁",
+        "bold": true,
+        "color": "2E86AB"
+      },
+      {
+        "text": "三层 gate：is_subagent()→exit 0；transcript 空→exit 0；stop-hook.json 不存在→exit 0。静默退出",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "01-transcript-parse — 结构化数据源",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 3
+      },
+      {
+        "text": "依赖 lib/transcript-parser.sh。产出 tool-calls.txt/batch-commands.txt/written-files.txt/edited-files.txt/messages.txt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "20-25 通用卫生（全非阻塞，仅建议）",
+        "bold": true,
+        "color": "2A9D8F",
+        "space_before": 4
+      },
+      {
+        "text": "20 CLAUDE.md：A1新命令/A2踩坑/A3新文件/A6过期→claude-md.txt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "21 Memory：B1规则教训检测/B2规则违反/B4重复→memory.txt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "22 Git：C1工作区/C2大文件/C3 commit建议/C4密钥泄露→git.txt。非git仓库静默退出",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "23 质量：D1测试/D2类型/D3构建/D4 lint→quality.txt。微变<50行豁免",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "24 会话：E1工具统计/E2 RTK建议/E3子agent/E4>2h警告/E5 context-mode→session.txt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "25 项目守卫：F1容器/F2 pnpm供应链/F3 migration/F4 hook冲突/F5 worktree→project.txt",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "Hook flow-kit 核心（26-29）",
+    "subtitle": "状态验证 + 交互矫正 + 合规扫描 + 独立审查——hook 层质量保证主力",
+    "body": [
+      {
+        "text": "26-workflow — 工作流状态+会话记录(G模块)",
+        "bold": true,
+        "color": "2E86AB"
+      },
+      {
+        "text": "G1:fk_validate_flow+fk_artifact_check+fk_auto_phase+fk_stale_check(>7d建议/>30d警告)+fk_boundary_check",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "G5:fk_snapshot_interrupt(自动写.interrupt)+fk_log_progress(PROGRESS.md追加)+fk_accumulate_tokens(跨会话)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "关键lib:flow-kit-artifacts.sh(内部source done-validation.sh)，为29/31/32打底",
+        "color": "6C757D",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "27-interactive-ui-check — 交互UI矫正",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 4
+      },
+      {
+        "text": "GATE_MAP(8组中文关键词→工具名)检测弱模型跳过AskUserQuestion/EnterPlanMode→写.interactive-ui-fix",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "连续跳过3次停止矫正→人工介入。包裹在(check_i1)||true 不断链",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "28-weak-model-compliance — 三层合规扫描",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 4
+      },
+      {
+        "text": "W1:L1规则合规(读CONTEXT禁动清单+通用规则→交叉tool-call文件列表)。W2:L2自检空白检测。W3:L3证据链(引用vs tool-call历史)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "产出 type=compliance 的 .correction。依赖01的 messages/written-files/edited-files。无违规时清除",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "29-independent-review — 独立审查L3(Stop兜底)",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 4
+      },
+      {
+        "text": "9步编排：5gate→积压扫描(≤3个)→L2检测(D4 fix)→防线2→l3_review_run。产出L3段+6键.done。任何路径exit 0(fail-open)",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "Hook 兜底扩展(30-33/99) + PreToolUse + SessionStart",
+    "subtitle": "自动推进兜底 · fallback终点标记 · 状态交叉验证 · 双路审查互补 · 会话恢复",
+    "body": [
+      {
+        "text": "30-ai-analyze（频率门控，每N=5次Stop）用小模型分析transcript→建议CLAUDE.md更新",
+        "bold": true,
+        "color": "2E86AB",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "31-auto-advance：auto_advance=true+phase∈{4,5,6,7}+PCSC全过+gate合规(.done有效)→jq transition。依赖29在前(编号29<31)",
+        "color": "2A9D8F",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "32-fallback-guard：mode=fallback+scope=pipeline+phase=7+PCSC全过→goal.status=done。仅覆盖终点；中间阶段依赖GO.md路由",
+        "color": "2A9D8F",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "33-flow-active-integrity：5项交叉验证(change_id一致性/phase产物一致性/pipeline完整性/staleness>24h/token维护)→state-integrity correction",
+        "color": "E9A23B",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "99-report：收集所有.txt→分类(suggestion/warning/error/info)→stop-hook-report.md+suggestions.md",
+        "color": "6C757D",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "PreToolUse层（每次Bash/Write/Edit前）",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 4
+      },
+      {
+        "text": "auto-checkpoint：每次Write/Edit自动写.interrupt(fail-open)。independent-review-gate：path-guard防伪造+commit/PR硬拦截exit 2 deny",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "SessionStart层（每次新会话启动）",
+        "bold": true,
+        "color": "2A9D8F",
+        "space_before": 3
+      },
+      {
+        "text": "flow-kit-resume：遍历找.flow-active→ASCII恢复banner→分type注入矫正(compliance/UI-fix/model-missing/L3 ready)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "stop-report-reminder：提醒审阅stop报告(错误/警告/建议计数，≤3次/3天)",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "brooks-lint：review / audit / debt",
+    "subtitle": "Iron Law — NEVER suggest fixes before risk diagnosis。Health Score 100起始(Critical -15/Warning -5/Suggestion -1)",
+    "body": [
+      {
+        "text": "brooks-review — PR 代码审查",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "6维生产代码衰退诊断(R1-R6)。触发词：review code / check PR。输入git diff→四要素+书本引用",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "4-dev步骤4提交前self-review；6-review 2.1贴入REVIEW.md。不该用于：写新代码/语言语法/框架工具",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "brooks-audit — 架构审计",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "Mermaid模块依赖图+分层完整性+循环依赖+Conway Law对齐+Testability Seam",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "onboarding模式输出导游(无Health Score)。6-review 2.2大变更(≥5模块/新中间件)调用",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "brooks-debt — 技术债评估",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "Pain×Spread优先级矩阵+Critical(本月)/Scheduled(1-3迭代)/Monitored 三级路线图",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "6-review 4.1里程碑调用；Critical追fix，Monitored记LESSONS。不该用于：HTTP /health/K8s probes",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "brooks-lint：test / health / sweep + gate 集成",
+    "subtitle": "测试质量 · 4维健康仪表盘 · 全扫自动修 · flow-kit L2/L3 调用链",
+    "body": [
+      {
+        "text": "brooks-test — 测试质量审查",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "T1-T6六维：Obscurity/Brittleness/Duplication/Mock Abuse/Coverage Illusion/Architecture Mismatch",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "5-test 1.4调用；命中≥3项→release前必修。不该用于：从零写新测试",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "brooks-health — 4维健康仪表盘",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_before": 3
+      },
+      {
+        "text": "PR质量+架构+债+测试+加权综合分+趋势对比。flow-health快速体检调用(5-10分钟)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "brooks-sweep — 全扫+自动修",
+        "bold": true,
+        "color": "C7463B",
+        "space_before": 3
+      },
+      {
+        "text": "4维统一扫描→Safe/Extended-Safe自动应用→verify→迭代重扫→收敛clean round→3次失败入unresolvable",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "flow-kit gate 集成总结",
+        "bold": true,
+        "color": "E9A23B",
+        "space_before": 5
+      },
+      {
+        "text": "4-dev步骤4→brooks-review | 5-test 1.4→brooks-test | 6-review 2.1→brooks-review | 2.2→brooks-audit | 4.1→brooks-debt",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "flow-health→brooks-health(快速)或brooks-sweep(完整审计)。未装时内置回退约16%发现率",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "cards",
+    "cols": 2,
+    "title": "弱模型护栏（protect-the-weakest 落地 4 条硬约束）",
+    "subtitle": "结构刚性护栏——弱模型缺它崩溃，强模型多几条几乎无感(AC-7限<20%增量)",
+    "cards": [
+      {
+        "title": "R3.5 · 禁跳反问",
+        "color": "danger",
+        "body": [
+          "阶段0/1/2反问gate未完成",
+          "禁止产出最终方案或进入实现",
+          "弱模型最易跳过反问直接写代码"
+        ]
+      },
+      {
+        "title": "R6.1 · 引用前证据链",
+        "color": "danger",
+        "body": [
+          "引用前必先grep/read验证存在",
+          "未验证须标注「未找到」",
+          "L3证据链机制——弱模型最高频幻觉源"
+        ]
+      },
+      {
+        "title": "R7.4 · 动手前复述边界",
+        "color": "danger",
+        "body": [
+          "4-dev执行任务前必复述",
+          "read_files/write_files边界",
+          "+CHANGE范围排除段——防scope drift"
+        ]
+      },
+      {
+        "title": "R1.5 · 重启协议",
+        "color": "warning",
+        "body": [
+          "清窗前写*-PROGRESS.md",
+          "含「已排除方案」反重复段",
+          "更新STATE中断字段+输出重启指令"
+        ]
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "三个关键 ADR 深入",
+    "subtitle": "protect-the-weakest 哲学基础 · fk_resolve_model 三级链 · correction 覆盖写策略",
+    "body": [
+      {
+        "text": "ADR-001 · protect-the-weakest（2026-06-25 · accepted）",
+        "bold": true,
+        "color": "1F3A5F"
+      },
+      {
+        "text": "原规则按强模型设计(靠「自觉」)，弱模型出现全套失败：跳反问/幻觉API/不读RULES/范围漂移/中途漂移",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "决策：3方向中选protect the weakest。①默认全含加严(不需opt-in)②降级才opt-out(v2/L4)③只加结构刚性不加唠叨",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "否决运行时模型探测(弱模型自报不可靠)+否决维持现状。风险不对称：崩溃代价≫多余约束代价(AC-7<20%)",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "ADR-012 · fk_resolve_model 三级链（2026-07-23 · accepted · supersede 006）",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 5
+      },
+      {
+        "text": "006的L3 :?报错终止session，非CC平台不可用；L2 fallback跨平台不存在→012三级链+优雅降级+L2移除fallback",
+        "level": 1,
+        "size": 12
+      },
+      {
+        "text": "ADR-013 · correction 覆盖写策略（2026-07-23 · accepted）",
+        "bold": true,
+        "color": "2E86AB",
+        "space_before": 4
+      },
+      {
+        "text": ".correction单文件两类写入→新增model-missing选compliance>model-missing优先级→mktemp原子mv",
+        "level": 1,
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "text_image",
+    "image_side": "right",
+    "image": "d7_adr_evolution.png",
+    "title": "13 ADR 全表 + 演进链",
+    "subtitle": "架构决策记录（.specs/adr/）——每次关键设计决策的背景→决策→后果",
+    "table": {
+      "headers": [
+        "#",
+        "标题",
+        "核心决策"
+      ],
+      "col_widths": [
+        1,
+        3,
+        7
+      ],
+      "rows": [
+        [
+          "001",
+          "protect-the-weakest",
+          "默认按最弱模型写，加结构刚性不加唠叨；否决运行时探测"
+        ],
+        [
+          "002",
+          "L3 调用策略",
+          "L3 从 Stop 前置到 PreToolUse(同步执行)解死锁；超时30s"
+        ],
+        [
+          "003",
+          "L2 自动派发",
+          "curl+Anthropic API fire-and-forget；fail降级手动提示"
+        ],
+        [
+          "004",
+          "gate 返回值语义",
+          "if cmd;then exit 0;fi 显式rc判定(修BUG-A/B，rc系统性反转)"
+        ],
+        [
+          "005",
+          "done-validation source",
+          "source done-validation.sh 修 gate 全失效(BUG-E)"
+        ],
+        [
+          "006",
+          "L3 env-first",
+          "被012取代：:?报错→三级链+优雅降级"
+        ],
+        [
+          "007",
+          "PHASE_GATE_KEY pure fn",
+          "case替代declare -A，单一来源common.sh(BUG-F温床消除)"
+        ],
+        [
+          "008",
+          "is_git_commit 结构判定",
+          "token序列匹配替代正则——识quoting/heredoc(BUG-H)"
+        ],
+        [
+          "009",
+          "L2-first 顺序契约",
+          "gate_config=both时主agent先派L2写段，Stop 29 D4才触L3(设计内非bug)"
+        ],
+        [
+          "010",
+          "_l3_check_rerun 内容标记",
+          "mtime→hash；artifact hash存元数据行，不触.done KVP"
+        ],
+        [
+          "011",
+          "G1 不 auto-advance",
+          "pipeline scope时不调fk_auto_phase写.phase，推进权归toll-gate"
+        ],
+        [
+          "012",
+          "L2/L3 模型三级链",
+          "fk_resolve_model三级优先级链+降级(取代006)；L2移除fallback"
+        ],
+        [
+          "013",
+          "correction 覆盖写",
+          "compliance>model-missing优先规则；mktemp原子mv"
+        ]
+      ]
+    },
+    "body": [
+      {
+        "text": "演进链：001哲学基础→006 env-first(被012取代)→012三级链→013降级路径。每个ADR标注Status+Supersedes+未来推翻条件。",
+        "color": "6C757D",
+        "size": 12
+      }
+    ]
+  },
+  {
+    "layout": "standard",
+    "title": "总结：flow-kit 的四个支柱",
+    "subtitle": "markdown 核心引擎 · bash Hook 运行时 · Skill 包装层",
+    "body": [
+      {
+        "text": "① artifact-first —— 阶段可压缩可回炉，关键 .md 不能缺席；状态在文件里不在对话里。",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_after": 5
+      },
+      {
+        "text": "② protect-the-weakest —— 默认按最弱模型写，结构刚性护栏兜底(R3.5/R6.1/R7.4)；Hook自动检测跳gate+违规+幻觉。",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_after": 5
+      },
+      {
+        "text": "③ 三层门禁 —— PCSC自检(7项)→Toll-Gate人工确认→Transition前置查hook强制；passed依赖合法.done真实性校验。",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_after": 5
+      },
+      {
+        "text": "④ 双轮独立审查 —— L2盲审+L3外部审查；PreToolUse实时拦截+Stop兜底；fk_resolve_model三级链，空则降级不阻塞。",
+        "bold": true,
+        "color": "1F3A5F",
+        "space_after": 5
+      },
+      {
+        "text": "三层架构：markdown核心不被工具更新坑到 · bash Hook自动兜底门禁矫正 · Skill包装跨IDE一致。改哪条约定就改哪个md。",
+        "color": "6C757D",
+        "size": 12,
+        "space_before": 3
+      }
+    ]
+  }
+]

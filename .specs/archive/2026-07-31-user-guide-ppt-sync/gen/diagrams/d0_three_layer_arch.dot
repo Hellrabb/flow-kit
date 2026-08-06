@@ -1,0 +1,10 @@
+digraph arch {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=16, fontcolor=white];
+  edge [fontname="Noto Sans CJK SC", fontsize=12, color="#6C757D"];
+  L1 [label="核心引擎层\nmarkdown · 无运行时依赖\nGO.md · prompts/ · reference/ · templates/", fillcolor="#1F3A5F"];
+  L2 [label="Hook 运行时层\nbash · 自动门禁\nStop 17模块 · PreToolUse 2个\nSessionStart 2个", fillcolor="#2E86AB"];
+  L3 [label="Skill 包装层\nClaude Code IDE 适配\n17 flow-* skills\nbrooks-lint 6 skills", fillcolor="#2A9D8F"];
+  L1 -> L2 [label="hook 对 prompt/reference/template\n定义的产物门禁做自动执行与兜底"];
+  L2 -> L3 [label="hook 产出的 .done / correction 文件\n供 skill 层做 gate 检查与状态管理"];
+}

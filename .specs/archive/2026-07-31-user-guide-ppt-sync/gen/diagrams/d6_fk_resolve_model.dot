@@ -1,0 +1,18 @@
+digraph resolve {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=14];
+  edge [fontname="Noto Sans CJK SC", fontsize=11, color="#6C757D"];
+  H [label="fk_resolve_model <layer>\n公共函数 · common.sh\npure query · 不写文件", fillcolor="#1F3A5F", fontcolor=white];
+  T1 [label="优先级 1 · ANTHROPIC_*_MODEL\nCC 原生 env（CC 用户优先命中，行为不变）", fillcolor="#2E86AB", fontcolor=white];
+  T2 [label="优先级 2 · FLOW_KIT_L*_MODEL\n新增 · 临时覆盖（export 即生效）", fillcolor="#2E86AB", fontcolor=white];
+  T3 [label="优先级 3 · .flow-active.goal.l*_model\n持久化 · 由 /flow model l*=<模型> 写入", fillcolor="#2E86AB", fontcolor=white];
+  D [label="全空 → 优雅降级\n不崩溃 · 不阻塞 session\n写 .flow-active.correction\n(l3-model-missing / l2-model-missing)", fillcolor="#C7463B", fontcolor=white];
+  H -> T1 [label="取非空即停"];
+  T1 -> T2 [label="空 ↓"];
+  T2 -> T3 [label="空 ↓"];
+  T3 -> D [label="空 ↓"];
+  R [label="caller: l2-detect.sh / l3-review.sh / 29-independent-review.sh\n模型空 → write_model_missing_correction + 29 顶层 exit 3 降级退出", shape=note, fillcolor="#FFF9E6"];
+  D -> R [style=dashed, arrow=none];
+  C [label="ADR-013 覆盖写优先级：compliance > model-missing\n当前若为 compliance 且 violations 非空 → 不覆盖（保安全信息）", shape=note, fillcolor="#FFF9E6"];
+  D -> C [style=dashed, arrow=none, constraint=false];
+}
