@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `l2-l3-subagent-fix`（2026-08-05 · 调查型 · 6 阶段 L2 全 pass · 692/0 bats）
+- **last_change_archived**: `pre-commit-user-scope`（2026-08-06 · 修复型 · 7 阶段 L2 全 pass · 716/0 bats）
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
