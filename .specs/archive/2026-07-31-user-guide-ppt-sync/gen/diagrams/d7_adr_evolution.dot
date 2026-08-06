@@ -1,0 +1,13 @@
+digraph adr {
+  rankdir=TB; newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13];
+  edge [fontname="Noto Sans CJK SC", fontsize=11, color="#6C757D"];
+  A001 [label="ADR-001\nprotect-the-weakest\n弱模型鲁棒性哲学", fillcolor="#2A9D8F", fontcolor=white];
+  A006 [label="ADR-006\nL3 env-first\n:? 报错（被取代）", fillcolor="#6C757D", fontcolor=white];
+  A012 [label="ADR-012\n三级优先级链 + 优雅降级\n(supersede ADR-006)", fillcolor="#2E86AB", fontcolor=white];
+  A013 [label="ADR-013\ncorrection 覆盖写策略\n(compliance 优先)", fillcolor="#2E86AB", fontcolor=white];
+  A001 -> A012 [style=dashed, label="哲学基础"];
+  A006 -> A012 [label="supersede"];
+  A012 -> A013 [label="降级路径"];
+  {rank=same; A001; A006;}
+}

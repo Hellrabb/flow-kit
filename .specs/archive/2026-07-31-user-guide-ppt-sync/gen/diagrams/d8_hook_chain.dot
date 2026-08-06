@@ -1,0 +1,39 @@
+digraph hooks {
+  rankdir=TB; newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=12];
+  edge [fontname="Noto Sans CJK SC", fontsize=9, color="#6C757D"];
+  n00 [label="00 入口门禁", fillcolor="#1F3A5F", fontcolor=white];
+  n01 [label="01 转录解析", fillcolor="#1F3A5F", fontcolor=white];
+  n20 [label="20 CLAUDE.md", fillcolor="#2E86AB", fontcolor=white];
+  n21 [label="21 Memory", fillcolor="#2E86AB", fontcolor=white];
+  n22 [label="22 Git", fillcolor="#2E86AB", fontcolor=white];
+  n23 [label="23 质量", fillcolor="#2E86AB", fontcolor=white];
+  n24 [label="24 会话", fillcolor="#2E86AB", fontcolor=white];
+  n25 [label="25 项目", fillcolor="#2E86AB", fontcolor=white];
+  n26 [label="26 工作流", fillcolor="#2E86AB", fontcolor=white];
+  n27 [label="27 交互UI检测", fillcolor="#E9A23B"];
+  n28 [label="28 弱模型合规", fillcolor="#E9A23B"];
+  n29 [label="29 独立审查L3", fillcolor="#E9A23B"];
+  n30 [label="30 AI分析", fillcolor="#2A9D8F", fontcolor=white];
+  n31 [label="31 自动推进", fillcolor="#2A9D8F", fontcolor=white];
+  n32 [label="32 回退兜底", fillcolor="#2A9D8F", fontcolor=white];
+  n33 [label="33 状态完整性", fillcolor="#2A9D8F", fontcolor=white];
+  n99 [label="99 报告", fillcolor="#6C757D", fontcolor=white];
+  # 组内 constraint=false
+  n00 -> n01 [constraint=false];
+  n20 -> n21 -> n22 -> n23 [constraint=false];
+  n24 -> n25 -> n26 [constraint=false];
+  n27 -> n28 -> n29 [constraint=false];
+  n30 -> n31 -> n32 -> n33 [constraint=false];
+  # 跨行 constraint=true 建立纵向序
+  n01 -> n20;
+  n23 -> n24;
+  n26 -> n27;
+  n29 -> n30;
+  n33 -> n99;
+  {rank=same; n00; n01;}
+  {rank=same; n20; n21; n22; n23;}
+  {rank=same; n24; n25; n26;}
+  {rank=same; n27; n28; n29;}
+  {rank=same; n30; n31; n32; n33;}
+}

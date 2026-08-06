@@ -1,0 +1,12 @@
+digraph gate {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=14];
+  edge [fontname="Noto Sans CJK SC", fontsize=11, color="#6C757D"];
+  L1 [label="① PCSC · Phase Completion Self-Check\nPhase 完成前的产物/行为自检（7 项）\n任一 ❌ → 禁止进入 toll-gate", fillcolor="#2E86AB", fontcolor=white];
+  L2 [label="② Toll-Gate · 人工确认暂停点\nPCSC 全 ✅ 后输出 TOLL-GATE\n停下来等用户回复（auto_advance=false）", fillcolor="#E9A23B"];
+  L3 [label="③ Transition 前置查 · hook 强制\n覆盖 7 个 gate key：gates[N→N+1]=passed\n才允许 transition jq 推进", fillcolor="#C7463B", fontcolor=white];
+  L1 -> L2 [label="全 ✅"];
+  L2 -> L3 [label="用户选继续"];
+  N [label="passed 只能由合法 review 子进程产出的 .done 触发\nfk_validate_done_marker 真实性校验：拒空文件 / 假内容 / 跳过子进程", shape=note, fillcolor="#FFF9E6"];
+  L3 -> N [style=dashed, arrow=none];
+}

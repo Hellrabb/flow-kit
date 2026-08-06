@@ -1,0 +1,23 @@
+digraph GO {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=14];
+  edge [fontname="Noto Sans CJK SC", fontsize=10, color="#6C757D"];
+  U [label="用户意图 /flow-go + 一句话", fillcolor="#1F3A5F", fontcolor=white];
+  P [label="Preflight Gate\n检查上游工件是否齐全", fillcolor="#F4F6F8"];
+  C0 [label="新事物描述\n→ 0-change", fillcolor="#2E86AB", fontcolor=white];
+  C4 [label="继续 / 执行 T<NN>\n→ 4-dev", fillcolor="#2E86AB", fontcolor=white];
+  C6 [label="审查 / review\n→ 6-review", fillcolor="#2E86AB", fontcolor=white];
+  C5 [label="测试 / UAT\n→ 5-test", fillcolor="#2E86AB", fontcolor=white];
+  C3 [label="拆任务\n→ 3-task", fillcolor="#2E86AB", fontcolor=white];
+  C2 [label="设计 / 架构\n→ 2-design", fillcolor="#2E86AB", fontcolor=white];
+  C2a [label="UI / 视觉\n→ 2a-ui-design", fillcolor="#E9A23B"];
+  C7 [label="上线 / 归档\n→ 7-integration", fillcolor="#2E86AB", fontcolor=white];
+  H [label="横向: I-intel · M-health · A-architect · A-evolve · L-restyle", fillcolor="#2A9D8F", fontcolor=white];
+  U -> P;
+  P -> C0; P -> C4; P -> C6; P -> C5;
+  P -> C3 [constraint=false]; P -> C2 [constraint=false]; P -> C2a [constraint=false]; P -> C7 [constraint=false];
+  C0 -> C3 [style=invis];
+  C5 -> H [constraint=false];
+  {rank=same; C0; C4; C6; C5;}
+  {rank=same; C3; C2; C2a; C7;}
+}

@@ -1,0 +1,14 @@
+digraph specs {
+  rankdir=LR; newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13];
+  edge [fontname="Noto Sans CJK SC", fontsize=10, color="#6C757D"];
+  R [label=".specs/", fillcolor="#1F3A5F", fontcolor=white];
+  S [label="项目级常驻\nSTATE.md\nCONTEXT.md\nLESSONS.md\nARCHITECTURE.md\nCHANGELOG.md", fillcolor="#F4F6F8"];
+  C [label="<change-id>/", fillcolor="#2E86AB", fontcolor=white];
+  A [label="adr/\narchive/\nhealth/", fillcolor="#F4F6F8"];
+  F [label="CHANGE.md\nREQUIREMENT.md\nDESIGN.md\nUI-DESIGN.md(前端)\nTASK.md\n*-SUMMARY.md\nTEST.md\nREVIEW.md", fillcolor="#F4F6F8"];
+  R -> S;
+  R -> C;
+  R -> A;
+  C -> F [label="每 change 一个目录"];
+}
