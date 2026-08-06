@@ -125,3 +125,34 @@ EOF
 @test "commit-protocol.md: archive commit classification present" {
   grep -q '归档 commit' "$BATS_TEST_DIRNAME/../flow-kit-bundle/flow-kit/reference/commit-protocol.md"
 }
+
+# ── T05+: deploy_pre_commit user/project scope 行为测试（pre-commit-user-scope）──
+
+@test "deploy_pre_commit: user scope (no .git) installs source file only" {
+  local tmp_home=$(mktemp -d)
+  local bundle_dir="${BATS_TEST_DIRNAME}/../flow-kit-bundle"
+  export SCRIPT_DIR="$bundle_dir"
+  source "$bundle_dir/lib/install_hooks.sh"
+  local project="$tmp_home"
+  local hook_dst="$tmp_home/.claude/hooks"
+  deploy_pre_commit
+  [ -f "$tmp_home/.claude/hooks/pre-commit/pre-commit.sh" ]
+  [ ! -d "$tmp_home/.git" ]
+  [ ! -e "$tmp_home/.git/hooks/pre-commit" ]
+  rm -rf "$tmp_home"
+}
+
+@test "deploy_pre_commit: project scope (has .git) creates symlink → source" {
+  local tmp_repo=$(mktemp -d)
+  mkdir -p "$tmp_repo/.git/hooks"
+  local bundle_dir="${BATS_TEST_DIRNAME}/../flow-kit-bundle"
+  export SCRIPT_DIR="$bundle_dir"
+  source "$bundle_dir/lib/install_hooks.sh"
+  local project="$tmp_repo"
+  local hook_dst="$tmp_repo/.claude/hooks"
+  deploy_pre_commit
+  [ -f "$tmp_repo/.claude/hooks/pre-commit/pre-commit.sh" ]
+  [ -L "$tmp_repo/.git/hooks/pre-commit" ]
+  readlink "$tmp_repo/.git/hooks/pre-commit" | grep -q 'pre-commit/pre-commit.sh'
+  rm -rf "$tmp_repo"
+}
