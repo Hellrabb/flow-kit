@@ -152,3 +152,4 @@ setup 去 set+e + 补 HOOK_BASE_DIR（fk_validate_done_marker 加载）+ helper 
 | 2026-08-04 | debt-audit-resolve-2026-08 | 老债务审计：8 项已隐式解决（TD-004/005/019/020/021/022 + L-019/021/022 标记 ✅），新增 phase-prompt-template.md 文档化结构性 PCSC 模板 | TD-004/005/019/020/021/022 + L-019/021/022 |
 | 2026-08-04 | debt-audit-resolve-2026-08 (round 2) | 4 项流程规范类债务技术闭合：L-015 PreToolUse guard / L-020 dispatch smoke / L-031 L2 cross-file grep / L-004 obsolete | L-015/020/031/004 |
 | 2026-08-06 | archive-commit-gate | 归档流程完成后自动 commit 加入 flow-kit（pre-commit 门禁 + Stop hook 34 + SessionStart + install deploy + bats 714/0）| L-075,L-076,L-077 |
+| 2026-08-06 | pre-commit-user-scope | deploy_pre_commit guard 后移修复 user scope 源文件安装（install_file 无条件前置 + guard 后移只控 symlink）| — |
