@@ -20,6 +20,8 @@
 #   ANTHROPIC_AUTH_TOKEN — 鉴权 token (env-var-first, 优先)
 #   ANTHROPIC_API_KEY    — 鉴权 key (向后兼容)
 #   ANTHROPIC_DEFAULT_HAIKU_MODEL — L3 审查模型 (默认 deepseek-v4-flash)
+#   FLOW_KIT_L3_BASE_URL   — L3 API endpoint（opencode 平台路径 · hook 子进程继承启动 env）
+#   FLOW_KIT_L3_AUTH_TOKEN — L3 鉴权 token（opencode 平台路径 · 凭证不落盘）
 #
 # 子模块（按依赖顺序 source）:
 #   l3-truncate.sh  — _l3_check_rerun
@@ -204,34 +206,39 @@ l3_dispatch_prompt() {
 ╔══════════════════════════════════════════════════════════════╗
 ║  ⚠️ L3 外部模型审查未完成（阶段 ${phase} · gate_config=${gate_val}） ║
 ║                                                              ║
-║  L3 不走同步超时（30s 不够外部模型响应）。                     ║
-║  请异步派发 L3 审查：                                          ║
+║  L3 不走同步超时（30s 不够外部模型响应）。                   ║
+║  请异步派发 L3 审查：                                        ║
 ║                                                              ║
-║  方式 1 — 子 agent（推荐，非阻塞）：                            ║
-║    Agent({                                                    ║
-║      subagent_type: "general-purpose",                        ║
-║      description: "L3 external review phase ${phase}",                 ║
-║      prompt: "运行 L3 独立审查:                                 ║
-║        source flow-kit-bundle/hooks/stop/lib/l3-review.sh      ║
-║        l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}   ║
-║        返回 verdict 和 summary"                                ║
-║    })                                                         ║
+║  方式 1 — 子 agent（推荐，非阻塞）：                         ║
+║    Agent({                                                   ║
+║      # claude code 平台: subagent_type 路由                  ║
+║      subagent_type: "general-purpose",                       ║
+║      # opencode 平台: task(category=...) 路由                ║
+║      category: "unspecified-high",                           ║
+║      description: "L3 external review phase ${phase}",       ║
+║      prompt: "运行 L3 独立审查:                              ║
+║      source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \ ║
+║        l3_review_run ${phase} ${change_id} ${specs_dir} \    ║
+║                      ${l2v} ${gate_val}                      ║
+║      返回 verdict 和 summary"                                ║
+║    })                                                        ║
 ║                                                              ║
-║  方式 2 — 直接 bash（阻塞但可控）：                              ║
-║    source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \     ║
-║    l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}        ║
+║  方式 2 — 直接 bash（阻塞但可控）：                          ║
+║    source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \   ║
+║    l3_review_run ${phase} ${change_id} ${specs_dir} \        ║
+║                  ${l2v} ${gate_val}                          ║
 ║                                                              ║
-║  参数说明:                                                     ║
-║    phase=${phase}  change_id=${change_id}                          ║
-║    specs_dir=${specs_dir}             ║
-║    L2_verdict=${l2v}  gate_config=${gate_val}                            ║
-║    artifacts: ${artifact_desc}        ║
+║  参数说明:                                                   ║
+║    phase=${phase}   change_id=${change_id}                   ║
+║    specs_dir=${specs_dir}                                    ║
+║    L2_verdict=${l2v}   gate_config=${gate_val}               ║
+║    artifacts: ${artifact_desc}                               ║
 ║                                                              ║
-║  完成后写入:                                                   ║
-║    .specs/${change_id}/.independent-review-${phase}.done             ║
-║    .specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md (追加 L3 段)   ║
+║  完成后写入:                                                 ║
+║    .specs/${change_id}/.independent-review-${phase}.done     ║
+║    INDEPENDENT-REVIEW-${phase}.md（追加 L3 段）              ║
 ║                                                              ║
-║  重试: L3 完成后重新执行 phase transition 即可放行。            ║
+║  重试: L3 完成后重新执行 phase transition 即可放行。         ║
 ╚══════════════════════════════════════════════════════════════╝
 DISPATCH_EOF
 

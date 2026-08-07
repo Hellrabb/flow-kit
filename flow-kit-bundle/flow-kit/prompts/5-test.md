@@ -50,6 +50,7 @@ jq -r '.goal | "\(.scope // "phase")|\(.start_phase // "4")|\(.current_phase // 
 
     Agent tool:
       subagent_type: qa-expert
+      # opencode 平台：改用 category 路由 → task(category="unspecified-high", ...)，subagent_type 在 opencode 下会挂起
       description: "L2 blind review phase 5"
       prompt: |
         <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 的完整内容>

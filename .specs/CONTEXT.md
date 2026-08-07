@@ -423,6 +423,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 - `package-flow-kit.sh`（打包脚本核心逻辑，改动影响分发流程）
   - **例外（superpowers-v6-absorb · 2026-08-02）**：Part D 允许新增 `scripts/` 到 cp 清单（仅本 change 一次性例外，后续 change 仍按原禁动）
+  - **例外（l2l3-cross-platform · 2026-08-06）**：Part A 覆盖范围允许新增 `.opencode/agent/` 打包点（agent 文件放 `flow-kit/` 下随 Part A rsync；仅本 change 一次性例外，后续 change 仍按原禁动）
 - `flow-kit-bundle.tar.gz`（已生成的分发包，`.gitignore` 排除，不应手动修改或 git add）
 - `.gitignore`（手动维护；禁 AI "顺手重写"或增删排除规则）
 <!-- A-evolve 2026-07-08 第1轮追加 ↓ -->
@@ -569,3 +570,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | opencode-acp | 「Active Context Pruning」——model-driven 上下文管理插件（DCP 硬化 fork · 35 bug fixes · v1.14.12），与 hooks 桥接**无关**。桥接调查中曾列为候选载体，经源码 grep 证伪（0 匹配 settings.json/PreToolUse/hooks）。来自 archive-commit-gate 阶段 1 桥接调查 |
 <!-- archive-commit-gate 追加 ↑ -->
 <!-- td072-lib-split-2026-08 追加 ↑ -->
+<!-- l2l3-cross-platform 追加 ↓ -->
+| 双平台凭证解析链（dual-platform credential resolution） | L3 API 凭证（base_url + auth_token）的运行时感知解析策略：claude code 下 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` 优先（零回归）；opencode 下回退 `FLOW_KIT_L3_BASE_URL` / `FLOW_KIT_L3_AUTH_TOKEN`（hook 子进程继承 opencode 启动 env，settings.json env 段不注入）。模型名沿用 fk_resolve_model 三级链。来自 l2l3-cross-platform |
+| FLOW_KIT_L3_BASE_URL / FLOW_KIT_L3_AUTH_TOKEN | 新增 L3 API 凭证 env var（opencode 平台一等配置路径）。凭证**绝不落盘**（不进 .flow-active / correction / 日志 / 报告），仅存在于 hook 子进程 env。与既有 FLOW_KIT_L3_MODEL / MAX_TOKENS / TIMEOUT / THINKING 同族。来自 l2l3-cross-platform |
+| 平台感知派发（platform-aware dispatch） | L2 子 agent 派发指引按运行时生成的策略：opencode（OPENCODE=1）下生成 `task(category=...)` 路由提示（如 unspecified-high，因 subagent_type 路由挂起 agent=undefined）；claude code 下保持 `subagent_type` 派发模板。来自 l2l3-cross-platform |
+| opencode reviewer agent 定义 | flow-kit 分发包新增的 opencode 专用盲审子 agent 定义（`.opencode/agent/`），使 `subagent_type` 路由在 opencode 下有可用目标。prompt 引用 L2-blind-review 指令。来自 l2l3-cross-platform |
+| credential source 日志 | hook 日志记录 L3 凭证解析源（`env` / `flow-kit`），不记录 token 值本身。可观测性约定。来自 l2l3-cross-platform |
+<!-- l2l3-cross-platform 追加 ↑ -->

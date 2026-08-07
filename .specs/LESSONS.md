@@ -635,3 +635,29 @@
 - 适用栈: bash（任何 source 外部文件 + set -e 的脚本）
 - 关键词: source, set -e, /etc/profile, PATH, pre-commit, silent exit
 - 状态: open · 来源 `archive-commit-gate`（T08 执行中发现 · 修复为文件存在性守卫 + 大括号分组）
+
+---
+
+### L-078 · `[ "$?" -eq N ] && return N` AND-list rc 传播模式（set -e 兼容）
+
+- **标签**: bash, set-e, return-code, and-list, multi-rc-function
+- **关键词**: `set -euo pipefail`, `cmd && return 0`, `$?`, rc=2, AND-list short-circuit, 条件上下文
+- **适用栈**: Bash（任何用 `set -e` + 多返回码函数的项目）
+- **状态**: active
+- **场景**: 函数 `fk_resolve_api_credentials()` 需返回三种 rc（0=就绪/1=无凭证/2=配置不完整）。调用方用 `_fk_api_try_path3 && return 0` 短路返回，但 path3 返回 2 时需显式传播 rc=2（不能静默落 Path2）。直接写 `_fk_api_try_path3 && return 0` 后 path3 rc=2 被 AND-list 吞掉，需追加 `[ "$?" -eq 2 ] && return 2`。
+- **错因**: `cmd && return 0` 的 AND-list 在 cmd 返回非零非1时（如 rc=2），`$?` 是 AND-list 的退出码（=cmd 的 rc），但无显式传播则继续执行下一语句。`[ "$?" -eq 2 ]` 在 `&&` 列表中是非末位命令 → set -e 豁免 → 安全。
+- **教训**: 多 rc 函数在 set -e 下的传播须用 `[ "$?" -eq N ] && return N` 模式（在 `cmd && return 0` 之后）。`$?` 取 AND-list 退出码（即 cmd 的 rc，因 return 0 未执行）。`[ ]` 在 `&&` 非末位 → set -e 豁免。
+- **反例**: 仅写 `_fk_api_try_path3 && return 0` 不加 rc=2 传播 → path3 不完整时静默落 Path2（安全漏洞：禁止的行为发生了）。
+- **来源**: l2l3-cross-platform Phase 2 L2 盲审（3 轮 fix loop 验证 rc=2 传播正确性）
+
+### L-079 · bats 断言 `[ -z "$output" ]` 替代 `$status -eq 1`（grep 缺文件 exit=2 陷阱）
+
+- **标签**: bats, grep, exit-code, missing-file, assertion-format
+- **关键词**: `grep -rsE`, `2>/dev/null`, exit=2, `[ -z "$output" ]`, AC-6, 红线断言
+- **适用栈**: bats-core（任何用 bats 跑 grep 断言的项目）
+- **状态**: active
+- **场景**: AC-6 红线断言需验证运行时文件不含 token/env 名。`grep -rsE pattern file1 file2 ...` 当部分文件不存在时 exit=2（不是 1）。原断言 `[[ $status -eq 1 ]]` 在缺文件时恒败（exit=2≠1）。`.flow-active.interactive-ui-fix` 当前不存在 → 断言正常状态恒败 → phase 5 假红或绕过（TD-016 模式）。
+- **错因**: grep 对缺失文件的 exit code 是 2（不是 1）。bats `$status` 捕获的是 grep 的 exit code。`[[ $status -eq 1 ]]` 假定"无匹配=1"，但缺失文件也导致非1 exit → 断言无法区分"有匹配"和"文件缺失"。
+- **教训**: bats 中断言 grep "无匹配"时用 `[ -z "$output" ]`（无输出=零命中=通过，无论 exit 0/1/2），不用 `$status -eq 1`。`2>/dev/null` 压制 stderr 后 `$output` 仅含 stdout 匹配行。
+- **反例**: `[[ $status -eq 1 ]]` → 缺文件 exit=2 → 断言恒败 → 要么测试被 skip（假绿）要么 CI 永红（假红）。
+- **来源**: l2l3-cross-platform Phase 2 L2 盲审 R-F-A1（3 轮 fix loop 定位根因 + 修复）

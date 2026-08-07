@@ -2,8 +2,13 @@
 # T06: Severity format enforcement tests for L2-blind-review.md
 
 setup() {
-  PROJECT_ROOT="$(dirname "$BATS_TEST_FILENAME")/.."
-  PROMPT_FILE="$PROJECT_ROOT/flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md"
+  # 向上查找 flow-kit-bundle/（对齐 test_fk_resolve_model.bats 模式 · TD-012）
+  BATS_ROOT="${BATS_TEST_DIRNAME:-.}"
+  while [ ! -d "$BATS_ROOT/flow-kit-bundle/flow-kit/prompts" ] && [ "$BATS_ROOT" != "/" ]; do
+    BATS_ROOT="$(dirname "$BATS_ROOT")"
+  done
+  PROJECT_ROOT="$BATS_ROOT"
+  PROMPT_FILE="$BATS_ROOT/flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md"
 }
 
 @test "severity marking rule is present (Critical, Important, Minor)" {
