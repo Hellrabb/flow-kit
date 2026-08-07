@@ -11,12 +11,15 @@
 #     - hooks 装到 ~/.claude/hooks (user) 或 $project/.claude/hooks (project)
 #     - settings 写 ~/.claude/settings.json (user) 或 $project/.claude/settings.local.json
 #     - hook 命令引用 ${CLAUDE_PROJECT_DIR} (Claude Code 原生 env)
+#     - agent 不装（CC 用 subagent_type 原生派发 L2 审查，无需独立 agent 文件）
 #   opencode
 #     - hooks 装到 ~/.config/opencode/hooks (user) 或 $project/.opencode/hooks (project)
 #     - settings 写 ~/.claude/settings.json (user) 或 $project/.claude/settings.local.json
 #       ↑ opencode 不读 settings.json，但 opencode-claude-hooks 桥接插件读
 #         保持 Claude 格式让用户安装桥接插件即可启用
 #     - hook 命令仍引用 ${CLAUDE_PROJECT_DIR}（桥接插件会注入此 env）
+#     - agent (flow-kit-l2-reviewer) 装到 ~/.config/opencode/agent/ (user)
+#       或 $project/.opencode/agent/ (project)
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────
 install_file() {
@@ -138,6 +141,32 @@ install_hooks() {
   done < <(ls "$SCRIPT_DIR/hooks/pre-tool-use"/*.sh 2>/dev/null)
 
   deploy_pre_commit
+
+  # ── flow-kit-l2-reviewer agent（DESIGN D6）─────────────────────────
+  # 仅 opencode 平台安装：claude 平台不装（CC 用 subagent_type 原生派发 L2 审查）
+  if [ "$PLATFORM" = "opencode" ]; then
+    local agent_src="$SCRIPT_DIR/flow-kit/.opencode/agent/flow-kit-l2-reviewer.md"
+    local agent_dst
+    if [ "$scope" = "user" ]; then
+      agent_dst="${PLATFORM_CONFIG_DIR}/agent/flow-kit-l2-reviewer.md"
+    else
+      agent_dst="${project}/${PROJECT_DIR_NAME}/agent/flow-kit-l2-reviewer.md"
+    fi
+
+    # 冲突检测：目标已存在且未明确确认（FLOW_KIT_YES != 1）→ 询问覆盖
+    local agent_skip=0
+    if [ -e "$agent_dst" ] && [ "${FLOW_KIT_YES:-0}" != "1" ]; then
+      local ans
+      read -p "flow-kit: 既有 flow-kit-l2-reviewer.md 存在，覆盖？(y/N) " ans
+      [[ "$ans" == "y" ]] || agent_skip=1
+    fi
+    if [ "$agent_skip" = 1 ]; then
+      echo "   [flow-kit-l2-reviewer] 已存在，skipped: $agent_dst"
+    else
+      install_file "$agent_src" "$agent_dst"
+      echo "   ✅ flow-kit-l2-reviewer agent → $agent_dst"
+    fi
+  fi
 
   # 配置文件（项目级 stop-hook.json 开关）
   install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"

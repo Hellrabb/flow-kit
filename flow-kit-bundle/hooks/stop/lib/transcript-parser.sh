@@ -93,10 +93,20 @@ parse_transcript() {
   rounds=$(jq -r 'select(.type == "user") | "x"' "$tpath" 2>/dev/null | wc -l)
   echo "$rounds" > "$HOOK_TMP_DIR/message-rounds"
 
-  # Detect subagent usage
+  # Detect subagent usage — dual-shape / dual-platform:
+  #   - CC 形状: {"type":"tool_use","tool":"Agent"} → .args.subagent_type
+  #     （.args.category 为兼容前缀）
+  #   - opencode 形状: {"type":"tool","tool":"task","state":{"input":{"category":...}}}
+  #     （AC-4/AC-4b 实测）→ .state.input.category（.args.category 兜底）
+  #   - 过滤: (.type=="tool_use" and .tool=="Agent") or (.type=="tool" and .tool=="task")
+  #   - 归类按工具名分流; 两分支各自 category 缺失 → general-purpose
   jq -r '
-    select(.type == "tool_use" and .tool == "Agent") |
-    .args.subagent_type // "general-purpose"
+    select((.type == "tool_use" and .tool == "Agent") or (.type == "tool" and .tool == "task")) |
+    (if .tool == "task" then
+       (.state.input.category // .args.category // "general-purpose")
+     else
+       (.args.category // .args.subagent_type // "general-purpose")
+     end)
   ' "$tpath" 2>/dev/null | sort | uniq -c | sort -rn > "$HOOK_TMP_DIR/subagent-usage.txt" || true
 
   return 0

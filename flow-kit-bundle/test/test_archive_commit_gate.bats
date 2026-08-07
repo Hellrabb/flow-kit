@@ -4,8 +4,13 @@
 # 覆盖：34-archive-commit-check.sh 骨架 + pre-commit.sh 四分支 + flow-kit-resume.sh archive-uncommitted elif
 
 setup() {
+  # 向上查找 flow-kit-bundle/hooks/（对齐 test_fk_resolve_model.bats 模式 · TD-012）
+  BATS_ROOT="${BATS_TEST_DIRNAME:-.}"
+  while [ ! -d "$BATS_ROOT/flow-kit-bundle/hooks" ] && [ "$BATS_ROOT" != "/" ]; do
+    BATS_ROOT="$(dirname "$BATS_ROOT")"
+  done
   export PROJECT_ROOT=$(mktemp -d)
-  export HOOK_BASE_DIR="${BATS_TEST_DIRNAME}/../flow-kit-bundle/hooks"
+  export HOOK_BASE_DIR="$BATS_ROOT/flow-kit-bundle/hooks"
 }
 
 teardown() {
@@ -93,44 +98,44 @@ EOF
 # ── T05: install.sh deploy_pre_commit ──
 
 @test "install.sh: --yes flag present" {
-  grep -q 'FLOW_KIT_YES' "$BATS_TEST_DIRNAME/../flow-kit-bundle/install.sh"
+  grep -q 'FLOW_KIT_YES' "$BATS_ROOT/flow-kit-bundle/install.sh"
 }
 
 @test "install_hooks.sh: deploy_pre_commit function defined" {
-  grep -q 'deploy_pre_commit' "$BATS_TEST_DIRNAME/../flow-kit-bundle/lib/install_hooks.sh"
+  grep -q 'deploy_pre_commit' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
 }
 
 @test "install_hooks.sh: deploy_pre_commit called in install_hooks body" {
-  sed -n '/^install_hooks()/,/^}/p' "$BATS_TEST_DIRNAME/../flow-kit-bundle/lib/install_hooks.sh" | grep -q 'deploy_pre_commit'
+  sed -n '/^install_hooks()/,/^}/p' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh" | grep -q 'deploy_pre_commit'
 }
 
 @test "package-flow-kit.sh: pre-commit glob in Part C" {
-  grep -q 'pre-commit' "$BATS_TEST_DIRNAME/../package-flow-kit.sh"
+  grep -q 'pre-commit' "$BATS_ROOT/package-flow-kit.sh"
 }
 
 @test "validate_staging.sh: pre-commit pattern in Part C" {
-  grep -q 'pre-commit' "$BATS_TEST_DIRNAME/../flow-kit-bundle/lib/validate_staging.sh"
+  grep -q 'pre-commit' "$BATS_ROOT/flow-kit-bundle/lib/validate_staging.sh"
 }
 
 # ── T07: 7-integration 步骤 5.1 + commit-protocol ──
 
 @test "7-integration.md: step 5.1 archive commit present" {
-  grep -q '5\.1.*归档' "$BATS_TEST_DIRNAME/../flow-kit-bundle/flow-kit/prompts/7-integration.md"
+  grep -q '5\.1.*归档' "$BATS_ROOT/flow-kit-bundle/flow-kit/prompts/7-integration.md"
 }
 
 @test "7-integration.md: ARCHIVE_BASE_SHA present" {
-  grep -q 'ARCHIVE_BASE_SHA' "$BATS_TEST_DIRNAME/../flow-kit-bundle/flow-kit/prompts/7-integration.md"
+  grep -q 'ARCHIVE_BASE_SHA' "$BATS_ROOT/flow-kit-bundle/flow-kit/prompts/7-integration.md"
 }
 
 @test "commit-protocol.md: archive commit classification present" {
-  grep -q '归档 commit' "$BATS_TEST_DIRNAME/../flow-kit-bundle/flow-kit/reference/commit-protocol.md"
+  grep -q '归档 commit' "$BATS_ROOT/flow-kit-bundle/flow-kit/reference/commit-protocol.md"
 }
 
 # ── T05+: deploy_pre_commit user/project scope 行为测试（pre-commit-user-scope）──
 
 @test "deploy_pre_commit: user scope (no .git) installs source file only" {
   local tmp_home=$(mktemp -d)
-  local bundle_dir="${BATS_TEST_DIRNAME}/../flow-kit-bundle"
+  local bundle_dir="$BATS_ROOT/flow-kit-bundle"
   export SCRIPT_DIR="$bundle_dir"
   source "$bundle_dir/lib/install_hooks.sh"
   local project="$tmp_home"
@@ -145,7 +150,7 @@ EOF
 @test "deploy_pre_commit: project scope (has .git) creates symlink → source" {
   local tmp_repo=$(mktemp -d)
   mkdir -p "$tmp_repo/.git/hooks"
-  local bundle_dir="${BATS_TEST_DIRNAME}/../flow-kit-bundle"
+  local bundle_dir="$BATS_ROOT/flow-kit-bundle"
   export SCRIPT_DIR="$bundle_dir"
   source "$bundle_dir/lib/install_hooks.sh"
   local project="$tmp_repo"

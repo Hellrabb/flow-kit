@@ -122,6 +122,11 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
     rm -f "$compliance_correction_file"   # compliance 读后清（一次性提示，既有语义）
   elif [[ "$corr_type" == "l3-model-missing" ]]; then
     # l2-l3-model-config (AC-6 入场)：L3 模型未配置，持续提示直到用户配置
+    # T06 平台感知凭证指引（D3 载体边界：resume banner 可含 env 完整名）：
+    # 平台判定单点封装 fk_platform_is_opencode()（D2 · common.sh），禁止内联
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
+    common_lib="${script_dir}/../stop/lib/common.sh"
+    [ -f "$common_lib" ] && source "$common_lib" 2>/dev/null || true
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  ⚙️ L3 审查模型未配置（L2/L3 配置解耦 · 降级中）       ║"
@@ -129,6 +134,12 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
     echo "║  设置方式（任选其一）：                                ║"
     echo "║    export FLOW_KIT_L3_MODEL=<模型名>                  ║"
     echo "║    或 /flow model l3=<模型名>                         ║"
+    if fk_platform_is_opencode; then
+      echo "║                                                    ║"
+      echo "║    同时确保 opencode 启动环境已 export                      ║"
+      echo "║    FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN   ║"
+      echo "║    （hook 子进程继承启动 env）                              ║"
+    fi
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
     # 不 rm —— 持续提示（caller 正常路径 write_model_missing_clear 清除）

@@ -103,6 +103,7 @@ jq --arg target "$TARGET" --argjson remove "$REMOVE" --arg ts "$(date -Iseconds)
 
     Agent tool:
       subagent_type: code-reviewer
+      # opencode 平台：改用 category 路由 → task(category="unspecified-high", ...)，subagent_type 在 opencode 下会挂起
       description: "L2 blind review phase 6"
       prompt: |
         <原样粘贴 @flow-kit/prompts/independent/L2-blind-review.md 完整内容>
@@ -299,7 +300,7 @@ verdict: pass|fail
 
 动作：
 1. 写 `.flow-active.goal.task_progress[].spot_check_triggered = true`（如适用）
-2. 派独立 subagent 用不同模型做盲审第 2 轮（subagent_type: oracle，不同 model tier）
+2. 派独立 subagent 用不同模型做盲审第 2 轮（subagent_type: oracle，不同 model tier）（opencode 平台改用 category 路由）
 3. 第 2 轮 verdict 写入 `INDEPENDENT-REVIEW-6.md` 末尾 `## Cross-Model Spot-Check` 段
 4. 第 2 轮 Critical findings 加入主 review 的 fix loop
 

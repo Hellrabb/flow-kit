@@ -263,6 +263,87 @@ fk_resolve_model() {
   echo "$model"
 }
 
+# ── fk_resolve_api_credentials() · 双平台 L3 凭证解析（DESIGN D1 · l2l3-cross-platform）──
+# 三 Path 优先级链（命中即停，短路语义；Path1/Path3 相对顺序随平台翻转 —— T01-rev）：
+#   claude code（fk_platform_is_opencode 假）: Path1 > Path3 > Path2（零回归）
+#     Path1: ANTHROPIC_AUTH_TOKEN → bearer（claude code 原生主路径，零回归）
+#   opencode（fk_platform_is_opencode 真）: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）
+#     Path3: FLOW_KIT_L3_AUTH_TOKEN + FLOW_KIT_L3_BASE_URL → bearer（opencode 一等路径，短路 Path2）
+#   Path2: ANTHROPIC_API_KEY → x-api-key（legacy 兜底，仅当 Path1/3 全空，端点 api.anthropic.com）
+# 输出（全局，调用方读这三个全局，不重读 env）：
+#   FK_API_BASE_URL / FK_API_AUTH_TOKEN / FK_API_AUTH_SCHEME（bearer | x-api-key）
+# rc 语义：0=凭证就绪 / 1=无任何凭证 / 2=Path3 配置不完整（token 已设但 base_url 空 → stderr 报错，禁止静默落 Path2）
+# AC-6 红线：凭证完整名/值绝不落盘——本函数不 echo 凭证到 stdout，只写全局变量；
+# stderr 提示只含 env 变量名（不含值），调用方可据此记录 credential source（env|flow-kit）。
+# 所有 env 用 ${VAR:-} 读取（set -u 兼容）。
+# 私有辅助（_fk_api_* 前缀 · 文件内可见 · 公共签名不变）：
+#   _fk_api_try_path1 / _fk_api_try_path3 — Path 命中判定（设置 FK_API_* 全局后 return 0；
+#     未命中 return 1；Path3 token 有 base_url 空 → stderr 报错 + 清空全局 + return 2）
+#   _fk_api_clear_outputs — 清空 FK_API_* 三全局（rc=2 / rc=1 分支复用）
+_fk_api_try_path1() {
+  [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ] || return 1
+  FK_API_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN}"
+  FK_API_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+  FK_API_AUTH_SCHEME="bearer"
+  return 0
+}
+
+_fk_api_try_path3() {
+  [ -n "${FLOW_KIT_L3_AUTH_TOKEN:-}" ] || return 1
+  if [ -n "${FLOW_KIT_L3_BASE_URL:-}" ]; then
+    FK_API_AUTH_TOKEN="${FLOW_KIT_L3_AUTH_TOKEN}"
+    FK_API_BASE_URL="${FLOW_KIT_L3_BASE_URL}"
+    FK_API_AUTH_SCHEME="bearer"
+    return 0
+  fi
+  echo "fk_resolve_api_credentials: FLOW_KIT_L3_AUTH_TOKEN 已设但 FLOW_KIT_L3_BASE_URL 为空（Path3 配置不完整，rc=2）" >&2
+  _fk_api_clear_outputs
+  return 2
+}
+
+_fk_api_clear_outputs() {
+  FK_API_AUTH_TOKEN=""
+  FK_API_BASE_URL=""
+  FK_API_AUTH_SCHEME=""
+}
+
+fk_resolve_api_credentials() {
+  # 平台感知优先级（DESIGN D1 · F-B 修订）：两平台仅 Path1/Path3 相对顺序不同；
+  # 公共规则（Path1/3 任一命中短路 Path2；Path3 配置不完整 rc=2 禁落 Path2；Path2 仅当 Path1/3 全空）一致。
+  if fk_platform_is_opencode; then
+    # ── opencode 平台: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）──
+    _fk_api_try_path3 && return 0
+    [ "$?" -eq 2 ] && return 2
+    _fk_api_try_path1 && return 0
+  else
+    # ── claude code 平台: Path1 > Path3 > Path2（零回归）──
+    _fk_api_try_path1 && return 0
+    _fk_api_try_path3 && return 0
+    [ "$?" -eq 2 ] && return 2
+  fi
+
+  # Path2: legacy 兜底（ANTHROPIC_API_KEY，两平台共享 · 仅当 Path1/3 全空）
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    FK_API_AUTH_TOKEN="${ANTHROPIC_API_KEY}"
+    FK_API_BASE_URL="https://api.anthropic.com"
+    FK_API_AUTH_SCHEME="x-api-key"
+    return 0
+  fi
+
+  # 全空 → rc=1，清空全局
+  _fk_api_clear_outputs
+  return 1
+}
+
+# ── fk_platform_is_opencode() · 双平台检测（DESIGN D2 · l2l3-cross-platform）──
+# OPENCODE_BIN / OPENCODE 任一非空 → opencode 平台；否则 claude code。
+# 两信号等价无优先级（既有代码锚点 OPENCODE_BIN + 当前环境实测 OPENCODE 双覆盖）。
+# 纯查询零副作用：不写全局、不落盘、不调用外部命令。
+# 用法: if fk_platform_is_opencode; then ...; fi  （返回 0=opencode / 1=claude code）
+fk_platform_is_opencode() {
+  [ -n "${OPENCODE_BIN:-}" ] || [ -n "${OPENCODE:-}" ]
+}
+
 # ── Hook module registry (single source of truth) ────────────────────
 # All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
 # Single source for install_hooks.sh, package-flow-kit.sh, and any
