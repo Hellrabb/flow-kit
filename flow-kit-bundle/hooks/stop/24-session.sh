@@ -207,8 +207,8 @@ check_e5_body() {
     return 0
   fi
 
-  # Record stop count in state for trend analysis
-  local trend_file="${PROJECT_ROOT}/.claude/stop-hook-trend.json"
+  # Record stop count in state for trend analysis (runtime-aware · dsh-flow-kit)
+  local trend_file="${PROJECT_ROOT}/$(fk_runtime_config_dir 2>/dev/null || echo .claude)/stop-hook-trend.json"
   local current_date
   current_date=$(date '+%Y-%m-%d')
 

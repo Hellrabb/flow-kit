@@ -1,0 +1,16 @@
+# dsh-flow-kit bundle patch — applied after the profile's bundle layers, before
+# the user's own cordis.patch.yml.
+#
+# Mounts the flow-kit code row. The row injects `commands` (for `/flow`) and
+# `skills` (for the bundled flow-*/brooks-* skill registry), and listens to
+# dsh tool/session events to dispatch the decoupled shell hook chain
+# (PreToolUse gate, stop-hook equivalents, session resume).
+#
+# The full shell hook suite lives in hooks/ and is runtime-agnostic: it reads a
+# Claude-shaped JSON event on stdin, which this plugin synthesizes from dsh
+# events. No Claude Code installation or .claude directory is required.
+
+- insert:
+    - id: flow-kit
+      name: 'dsh-flow-kit'
+      inject: [commands, skills]

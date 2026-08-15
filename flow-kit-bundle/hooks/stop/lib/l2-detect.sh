@@ -111,6 +111,9 @@ l2_dispatch_prompt() {
 ║    opencode:     category: unspecified-high              ║
 ║                 （task(category=...) 路由，subagent_type ║
 ║                  在 opencode 下会挂起）                  ║
+║    dsh:          subagent tool（description="L2 blind   ║
+║                 review phase ${phase}", prompt=注入      ║
+║                 L2-blind-review.md 全文 + 审查参数）      ║
 ║    description: "L2 blind review phase ${phase}"                ║
 ║    prompt: |                                             ║
 ║      原样注入 flow-kit/prompts/independent/L2-blind-review.md  ║
@@ -194,7 +197,9 @@ l2_dispatch_agent() {
   if [ "$_cred_rc" -eq 1 ]; then
     local _model_hint="或 /flow model l2=<model> 配置持久化兜底"
     local _hint
-    if fk_platform_is_opencode; then
+    if fk_platform_is_dsh; then
+      _hint="dsh 检测到：请用 subagent tool 派发 L2 盲审（description=L2 blind review，prompt 注入 L2-blind-review.md）；凭证请 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN；${_model_hint}"
+    elif fk_platform_is_opencode; then
       _hint="opencode 检测到：子 agent 模型绑定走 category 路由，请用 category= 派发（如 unspecified-high）；凭证请 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN；${_model_hint}"
     else
       # 默认分支：claude code（生产可达主路径）+ opencode 备选

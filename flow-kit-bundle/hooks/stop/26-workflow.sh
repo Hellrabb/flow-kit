@@ -152,7 +152,7 @@ _fk_check_g2_body() {
       [[ -z "$f" ]] && continue
       # Skip files inside node_modules or .git
       case "$f" in
-        */node_modules/*|*/.git/*|*/.claude/worktrees/*) continue ;;
+        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/.flow-kit/worktrees/*) continue ;;
       esac
       stash_files+=("$f")
     done < <(find "$PROJECT_ROOT" -maxdepth 3 -name "$pat" -type f 2>/dev/null | head -10)
@@ -186,7 +186,7 @@ _fk_check_g3_body() {
     while IFS= read -r f; do
       [[ -z "$f" ]] && continue
       case "$f" in
-        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/ARCHITECTURE.md|*/SPEC.md) continue ;;
+        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/.flow-kit/worktrees/*|*/ARCHITECTURE.md|*/SPEC.md) continue ;;
       esac
 
       local age
@@ -211,7 +211,7 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 _fk_check_g4_body() {
 
-  local pua_dir="${HOME}/.claude/pua"
+  local pua_dir="$(fk_runtime_home_dir 2>/dev/null || echo "$HOME/.claude")/pua"
   if [[ ! -d "$pua_dir" ]]; then
     return 0
   fi

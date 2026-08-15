@@ -19,11 +19,14 @@ description: flow-kit 统一入口 — 自动路由到对应阶段（新需求/�
 1. **项目级优先**：检查项目根目录是否存在 `flow-kit/GO.md`
    - 存在（物理目录 或 symlink）→ `FLOW_KIT_ROOT = "flow-kit"`（相对路径）
    - 这是默认行为——项目级 flow-kit 锁定版本，不受 user-scope 升级影响
-2. **user-scope 回退**：检查 `~/.claude/flow-kit/GO.md`
+2. **user-scope 回退（claude/opencode）**：检查 `~/.claude/flow-kit/GO.md`
    - 存在 → `FLOW_KIT_ROOT = "~/.claude/flow-kit"`（绝对路径）
    - 说明：项目未安装项目级 flow-kit，但用户已在全局安装
+3. **dsh 插件回退**：当前会话若由 `dsh-flow-kit` 插件提供技能（`/flow` 命令可用），
+   - `FLOW_KIT_ROOT` 取 skill `resourceBase` 指向的包目录（例如
+     `~/.dsh/profiles/<profile>/node_modules/dsh-flow-kit/flow-kit`）
    - 后续所有 `Read("flow-kit/...")` 调用都替换为 `Read("${FLOW_KIT_ROOT}/...")`
-3. **均不存在 → 报错并停止**：
+4. **均不存在 → 报错并停止**：
    ```
    ❌ 未找到 flow-kit 核心引擎。
 

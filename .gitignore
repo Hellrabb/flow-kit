@@ -56,3 +56,9 @@ tools/
 # === flow-kit 运行时进度文件（自动生成，不入库） ===
 PROGRESS.md
 .omo/
+
+# === dsh-flow-kit 构建产物（由 package-dsh-plugin.sh 生成，不入库） ===
+dist/
+
+# === dsh 运行时目录（插件在项目内生成的 .flow-kit 配置/报告，不入库） ===
+.flow-kit/

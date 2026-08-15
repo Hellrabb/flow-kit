@@ -180,7 +180,7 @@ Wave 3:            T05 (depends on T03, T04)
 
 > ⚠️ L2 盲审必须在本阶段产物完成后、toll-gate 前完成。跳过 L2 = gate deny transition。
 
-> **检测**：`.flow-active.goal.gate_config["3-task"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或 `.claude/stop-hook.json` 的 `independent_review.phases` 含 `"3-task"`。未开启 → 跳过本段，直接进「阶段完成自检」。
+> **检测**：`.flow-active.goal.gate_config["3-task"]` ∈ {`L2`,`both`}（`independent`/`true` 向后兼容映射为 `both`），或运行时 stop-hook.json（dsh：`.flow-kit/stop-hook.json`；claude/opencode：`.claude/stop-hook.json`）的 `independent_review.phases` 含 `"3-task"`。未开启 → 跳过本段，直接进「阶段完成自检」。
 
 本阶段产物必须通过两层独立 review 才能切阶段 / commit / 开 PR。开启时这三项操作被 PreToolUse hook 硬拦，直到你写 done 标志。
 

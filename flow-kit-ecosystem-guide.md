@@ -215,3 +215,29 @@ brooks-lint 依赖 4 个 npm 工具（depcheck / jscpd / knip / ts-prune），�
 │  → brooks-lint SessionStart 注入     │
 └──────────────────────────────────────┘
 ```
+
+---
+
+## 层 5：dsh-flow-kit 插件（DeepSeek Harness）
+
+> 与 claude_code 解耦的 dsh 分发形态。由 `package-dsh-plugin.sh` 组装
+> `dist/dsh-flow-kit/`（npm 包目录）+ `dist/dsh-flow-kit-<ver>.tgz`。
+
+| 组件 | 位置 | 承载方式 |
+|---|---|---|
+| `/flow` 命令（start/stop/phase/task/checkpoint/goal/gate-config/model/doctor） | `lib/flow-state.js` | dsh `commands` 服务注册 |
+| 23 个 flow-*/brooks-* skills | `lib/skill-loader.js` | dsh `skills.register()` 运行时注册 |
+| PreToolUse 硬拦截（L2/L3 gate / auto-checkpoint / runtime-edit-guard） | `lib/hook-bridge.js` → `tools/pre-execute` | shell hook 链原样复用，exit 2 → deny |
+| Stop 链（00→01→20…99） | `lib/hook-bridge.js` → `agent/status(idle)` | dsh session 日志合成 transcript JSONL 后喂给 00-gate |
+| SessionStart（resume / report reminder） | `lib/hook-bridge.js` → `agent/created` | 异步触发 |
+| 平台解耦层 | `hooks/stop/lib/runtime-adapter.sh` | `.flow-kit/`、`~/.dsh/projects…`、`AGENTS.md` |
+| 原始 bundle 完整副本（零丢失） | `vendor/flow-kit-bundle/` | 含 install.sh + lib + test，claude/opencode 安装路径仍可用 |
+
+安装：
+
+```bash
+dsh plugin --profile <profile> add file:/path/to/dist/dsh-flow-kit
+```
+
+验证：`dsh --profile <profile> --dump-config | grep -A 7 'dsh-flow-kit'` 应看到
+`- id: flow-kit`，`inject: [commands, skills]`。
