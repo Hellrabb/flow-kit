@@ -73,7 +73,7 @@ agent 直写被 path-guard 拦截；Tier1/Tier2 校验 + D8 篡改检测 + `.goa
 | PreToolUse（Bash\|Write\|Edit） | `tools/pre-execute` | 同步瀑布，可 deny | `hooks/pre-tool-use/independent-review-gate.sh` |
 | PreToolUse（Write\|Edit） | `tools/pre-execute` | 同步瀑布，可 deny | `auto-checkpoint.sh`、`runtime-edit-guard.sh` |
 | Stop（主 agent 回合结束） | `agent/status` → `{status:"idle"}` 且非 subagent | 异步链 | `hooks/stop/00-gate.sh`（→01..99 全模块） |
-| SessionStart（startup） | `agent/created` 且非 subagent | 异步 | `stop-report-reminder.sh`、`flow-kit-resume.sh` |
+| SessionStart（startup） | `agent/created` 且非 subagent | 同步（保证首轮 prompt 可见） | `stop-report-reminder.sh`、`flow-kit-resume.sh`；stdout → `ctx.systemPrompt.context` 一次性 banner |
 | PostToolUse（未来扩展） | `tools/post-execute` | 异步 | `hooks/post-tool-use/*.sh`（若存在，按名排序） |
 
 dsh 工具名映射：`bash→Bash`、`write→Write`、`edit→Edit`、`read→Read`。

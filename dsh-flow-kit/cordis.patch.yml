@@ -1,8 +1,9 @@
 # dsh-flow-kit bundle patch — applied after the profile's bundle layers, before
 # the user's own cordis.patch.yml.
 #
-# Mounts the flow-kit code row. The row injects `commands` (for `/flow`) and
-# `skills` (for the bundled flow-*/brooks-* skill registry), and listens to
+# Mounts the flow-kit code row. The row injects `commands` (for `/flow`),
+# `skills` (for the bundled flow-*/brooks-* skill registry), and
+# `systemPrompt` (for one-shot SessionStart banner injection), then listens to
 # dsh tool/session events to dispatch the decoupled shell hook chain
 # (PreToolUse gate, stop-hook equivalents, session resume).
 #
@@ -13,4 +14,4 @@
 - insert:
     - id: flow-kit
       name: 'dsh-flow-kit'
-      inject: [commands, skills]
+      inject: [commands, skills, systemPrompt]

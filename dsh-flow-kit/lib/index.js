@@ -20,7 +20,7 @@ import { HookBridge } from "./hook-bridge.js";
 import { loadBundledSkills, registerBundledSkills } from "./skill-loader.js";
 
 const name = "flow-kit";
-const inject = ["commands", "skills"];
+const inject = ["commands", "skills", "systemPrompt"];
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 

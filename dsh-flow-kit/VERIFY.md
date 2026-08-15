@@ -73,3 +73,16 @@ dsh --profile flowkit-test --dump-config | grep -A 7 'dsh-flow-kit'
     契约满足后报告结论（真实演示了独立性硬约束 #2 的污染标注）
 - node 单测增至 18/18（新增 l2-review 4 用例）
 - make check 持续全绿
+
+## round 4 新增验证
+
+- SessionStart hook stdout 注入：hook-bridge 同步执行 SessionStart 脚本
+  （agent/created 回调内），banner 写入 `ctx.systemPrompt.context`
+  （flow-kit:session-banner），真机 headless 模型在 system prompt 中
+  原样引用「上次 Stop Hook 报告待 Review」banner，exit 0
+- 修复真机暴露的 `cannot get property "systemPrompt" without inject`：
+  cordis inject 增加 systemPrompt
+- codegraph 已 sync 到最新插件源码：32 files / 407 nodes / 1011 edges，
+  `query runL2Review` / `explore "L2 review dispatch"` 可查到 l2-review.js
+  全部符号与调用点
+- node 单测 19/19
