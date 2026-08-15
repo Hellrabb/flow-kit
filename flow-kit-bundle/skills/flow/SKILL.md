@@ -255,6 +255,16 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 5. **优先级链提示**：解析顺序 `ANTHROPIC_*` env var > `FLOW_KIT_*` env var > `.flow-active.goal.l*_model` > 降级。env var 优先；此处设置的是持久化兜底。
 6. **字段边界**：仅写 `.goal.l2_model` / `.goal.l3_model`，**不触碰** `.goal.condition` / `gates` / `gate_config` 等 `/flow goal` 字段（平行配置维度，DESIGN §5）。
 
+### `/flow l2-review <phase>`（dsh 专用）
+dsh 平台一键派发 L2 盲审子代理（等价于 claude code 的 subagent_type 派发 /
+opencode 的 category 路由；由 dsh-flow-kit 插件 `lib/l2-review.js` 实现）。动作：
+1. 读取 `.flow-active`，校验 `change_id` 与 `goal.gate_config[<phase-key>]` ∈ {`L2`,`both`}
+2. 若 `.specs/<id>/INDEPENDENT-REVIEW-<phase>.md` 已含 `## L2 盲审` → 幂等返回
+3. 通过 dsh `ctx.subagents`（provider=spawn）派发子代理，prompt 原样注入
+   `flow-kit/prompts/independent/L2-blind-review.md` + 阶段/change_id/工件/输出路径
+4. 子代理结束后校验文件真实落盘；未写 `## L2 盲审` → 报错（L2-first 契约）
+5. `FLOW_KIT_L2_MOCK=1` 时写 mock L2 段（与 shell l2_dispatch_agent 同约定）
+
 ### 自动 checkpoint（PreToolUse hook）
 
 **无需手动操作**。每当 AI 调用 Write 或 Edit 工具前，`auto-checkpoint.sh` PreToolUse hook 自动更新 `.flow-active` 的 `interrupt` 字段：

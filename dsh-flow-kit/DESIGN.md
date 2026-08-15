@@ -50,11 +50,14 @@ flow-kit 的独立审查是四层架构，dsh 化时**一层都不动**：
    - `Stop` = dsh `agent/status → idle`（主 agent 回合结束）。`00-gate.sh`
      分发 01-transcript-parse → 20..34 → 99-report 全链；dsh session 日志被
      `synthesizeTranscript()` 转成 Claude transcript 形状供 01 解析。
-4. **L2-blind-review 层**：dsh 下用 `subagent` tool 派发
-   （`description="L2 blind review phase <n>"`，`prompt` 注入
-   `L2-blind-review.md` 全文 + 阶段/change_id/工件/输出路径）。`l2_dispatch_prompt()`
-   已输出 dsh 专用派发模板；`l2_dispatch_agent()` 在 dsh 下沿用
-   `FLOW_KIT_L3_BASE_URL/FLOW_KIT_L3_AUTH_TOKEN` Path3 凭证链。
+4. **L2-blind-review 层**：dsh 下首选 `/flow l2-review <phase>` 命令
+   （`lib/l2-review.js` → `ctx.subagents.start(provider="spawn", …)`），prompt
+   原样注入 `L2-blind-review.md` 全文 + 阶段/change_id/工件/输出路径；子代理
+   结束后校验 `.specs/<id>/INDEPENDENT-REVIEW-<phase>.md` 真实落盘，未写
+   `## L2 盲审` 段则 L2-first 契约报错。无 subagents 服务时回退 `subagent`
+   tool 手动派发模板；`l2_dispatch_prompt()` 已输出 dsh 专用派发模板；
+   `l2_dispatch_agent()` 在 dsh 下沿用 `FLOW_KIT_L3_BASE_URL/FLOW_KIT_L3_AUTH_TOKEN`
+   Path3 凭证链。
 
 **L2-first 契约不变**：`gate_config=both` 时先 L2 段（`## L2 盲审`）再 L3，
 缺失时写 `.flow-active.correction`（`type=l2-missing`），L3 跳过。
@@ -98,6 +101,7 @@ dsh-flow-kit/
 ├── lib/
 │   ├── index.js            # apply(): 注册 skills + /flow + 挂 hook bridge
 │   ├── flow-state.js       # /flow 状态机（.flow-active 全子命令 + PRESET_MAP）
+│   ├── l2-review.js        # /flow l2-review：dsh 子代理 L2 盲审派发 + 契约校验
 │   ├── hook-bridge.js      # dsh 事件 → Claude 形状 JSON → shell hook 链
 │   └── skill-loader.js     # 扫描 SKILL.md frontmatter → ctx.skills.register()
 ├── skills/                 # flow-kit 17 个 skill（原样）

@@ -13,7 +13,7 @@ import { dirname, join, resolve } from "node:path";
 
 // ── Constants (single source, mirrors fk_phase_gate_key in hooks/stop/lib/common.sh) ──
 const VALID_PHASES = ["0", "1", "2", "2a", "3", "4", "5", "6", "7"];
-const GATE_PHASES = { "1": "1-requirement", "2": "2-design", "3": "3-task", "5": "5-test", "6": "6-review", "7": "7-integration" };
+export const GATE_PHASES = { "1": "1-requirement", "2": "2-design", "3": "3-task", "5": "5-test", "6": "6-review", "7": "7-integration" };
 
 // PRESET_MAP — identical to the skill/installation presets. Values are
 // normalized to "both" (L2+L3 dual-layer), matching fk_normalize_gate_val().
@@ -395,7 +395,7 @@ export async function runFlowCommand(rawInput, agent) {
       }
 
       default:
-        return { kind: "error", text: `未知 /flow 子命令: ${sub}。可用: start|stop|phase|task|checkpoint|goal|gate-config|model|doctor` };
+        return { kind: "error", text: `未知 /flow 子命令: ${sub}。可用: start|stop|phase|task|checkpoint|goal|gate-config|model|l2-review|doctor` };
     }
   } catch (err) {
     if (err instanceof FlowError) return { kind: "error", text: `❌ ${err.message}` };

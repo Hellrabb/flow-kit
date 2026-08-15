@@ -7,7 +7,8 @@ brooks-lint）打成一个可 `dsh plugin add` 的包，**与 Claude Code 解耦
 ## 特性
 
 - `/flow` 命令：start / stop / phase / task / checkpoint / goal（含 `--pipeline`、
-  `--from`、`--gate-config` 预设与 L2/L3 细粒度开关）/ gate-config / model / doctor
+  `--from`、`--gate-config` 预设与 L2/L3 细粒度开关）/ gate-config / model /
+  **l2-review（dsh 子代理 L2 盲审派发）** / doctor
 - Hook 桥：dsh `tools/pre-execute`（原 PreToolUse 硬拦截）→ shell gate 链；
   `agent/status → idle`（原 Stop）→ 00-gate 全模块链；
   `agent/created`（原 SessionStart）→ resume/reminder
