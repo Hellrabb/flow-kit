@@ -1,22 +1,23 @@
-# lib/paths.sh — 平台路径抽象层（claude | opencode）
+# lib/paths.sh — 平台路径抽象层（claude | opencode | dsh）
 # shellcheck shell=bash
 # 由 install.sh 在所有 install_*.sh 之前 source，不可独立执行
 #
 # 设计原则：
-#   - 单一来源：所有 ~/.claude/* 或 ~/.config/opencode/* 路径在此文件解析
-#   - 平台分支：PLATFORM=claude 走 ~/.claude/，PLATFORM=opencode 走 ~/.config/opencode/
+#   - 单一来源：所有 ~/.claude/*、~/.config/opencode/*、~/.dsh/* 路径在此文件解析
+#   - 平台分支：PLATFORM=claude 走 ~/.claude/，PLATFORM=opencode 走 ~/.config/opencode/，
+#     PLATFORM=dsh 走 ~/.dsh/（dsh 平台 install.sh 不落盘，仅保证路径抽象完整）
 #   - 跨平台兼容：opencode 原生读取 ~/.claude/skills 但本安装器显式安装到平台规范路径
 #   - 项目级路径仍按平台约定（.claude/ 或 .opencode/）
 #
 # 暴露变量（global scope，source 后即可使用）：
-#   PLATFORM                   — 当前目标平台 (claude | opencode)
+#   PLATFORM                   — 当前目标平台 (claude | opencode | dsh)
 #   PLATFORM_CONFIG_DIR        — 用户级配置根 ($HOME/.claude 或 $HOME/.config/opencode)
 #   FLOW_KIT_HOME              — flow-kit 核心安装目录
 #   USER_SKILLS_DIR            — 用户级 skills 根目录
 #   USER_HOOKS_DIR             — 用户级 hooks 根目录（user scope）
 #   USER_SETTINGS_FILE         — 用户级 settings 文件路径
 #   USER_SETTINGS_PROJECT_VAR  — settings 文件中用于项目路径占位的 env 变量名
-#   PROJECT_DIR_NAME           — 项目内配置目录名 (.claude 或 .opencode)
+#   PROJECT_DIR_NAME           — 项目内配置目录名 (.claude / .opencode / .flow-kit)
 #   USER_PLUGINS_DIR           — 用户级 plugins 目录（仅 claude；opencode 为空）
 #   USER_TOOLS_DIR             — 用户级 brooks-lint npm 工具目录（claude: ~/.claude/tools/brooks-lint）
 #   USER_AGENTS_MD             — 用户级 AGENTS.md 路径（仅 opencode 用；claude 不写）
@@ -28,7 +29,7 @@
 #                                opencode: ${HOME}（opencode 无原生 user hooks，但仍走桥接）
 
 # ── resolve_paths PLATFORM ────────────────────────────────────────────
-# 根据平台设置上述所有全局变量。PLATFORM 必须是 "claude" 或 "opencode"。
+# 根据平台设置上述所有全局变量。PLATFORM 支持 "claude"、"opencode"、"dsh"。
 # =======================================================================
 resolve_paths() {
   local platform="${1:-claude}"
@@ -66,8 +67,23 @@ resolve_paths() {
       HOOKS_PROJECT_VAR_REF='${CLAUDE_PROJECT_DIR}'
       HOOKS_USER_VAR_REF='${HOME}'
       ;;
+    dsh)
+      PLATFORM="dsh"
+      PLATFORM_CONFIG_DIR="$HOME/.dsh"
+      FLOW_KIT_HOME=""   # dsh 核心由 dsh-flow-kit 插件包提供，无独立 HOME 安装
+      USER_SKILLS_DIR="$HOME/.dsh/skills"
+      USER_HOOKS_DIR="$HOME/.dsh/hooks"
+      USER_SETTINGS_FILE=""   # dsh 无 Claude settings.json 承载面
+      PROJECT_DIR_NAME=".flow-kit"
+      USER_PLUGINS_DIR=""
+      USER_TOOLS_DIR=""
+      USER_AGENTS_MD="$HOME/.dsh/AGENTS.md"
+      # dsh hooks 由插件 hook-bridge 监听 dsh 事件触发；无 settings.json 变量占位
+      HOOKS_PROJECT_VAR_REF='${FLOW_KIT_PROJECT_DIR:-${CWD:-$PWD}}'
+      HOOKS_USER_VAR_REF='${HOME}'
+      ;;
     *)
-      echo "❌ resolve_paths: 未知平台 '$platform'（应为 claude 或 opencode）" >&2
+      echo "❌ resolve_paths: 未知平台 '$platform'（应为 claude | opencode | dsh）" >&2
       return 1
       ;;
   esac

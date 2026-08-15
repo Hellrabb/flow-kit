@@ -169,6 +169,7 @@ copy flow-kit\prompts\*.md .windsurf\workflows\
 | Windsurf | 项目根 `.windsurfrules` 或全局 rules |
 | Cursor | 项目根 `.cursorrules` |
 | Claude Code | 项目根 `CLAUDE.md` 或 `~/.claude/CLAUDE.md`（全局） |
+| dsh | 无需复制——安装 `dsh-flow-kit` 插件后 `/flow` + flow-* skills 自动可用 |
 | Aider | `.aider.conf.yml` 加 `read: [flow-kit/SYSTEM.md]` |
 | Cline / Continue | 各自规则文件 |
 
