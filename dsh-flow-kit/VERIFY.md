@@ -63,3 +63,13 @@ dsh --profile flowkit-test --dump-config | grep -A 7 'dsh-flow-kit'
 - 曾暴露并被修复：runtime skill 注册缺少 `source` 字段导致 dsh 启动报
   `loaded skill "flow" source must be a string` → `skill-loader.js` 已补
   `source: "bundled"`，修复后 headless 启动零报错
+
+## round 3 新增验证
+
+- `/flow l2-review`：dsh 原生 L2 派发（ctx.subagents provider=spawn）
+  - mock：真机 headless 执行后落盘 `## L2 盲审（mock）`，exit 0
+  - 真实：真机 headless 派发 L2 子代理，子代理独立审查并写出
+    `## L2 盲审` + 4 项四要素 finding + **Verdict: fail**，父命令校验
+    契约满足后报告结论（真实演示了独立性硬约束 #2 的污染标注）
+- node 单测增至 18/18（新增 l2-review 4 用例）
+- make check 持续全绿

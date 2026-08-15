@@ -15,6 +15,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runFlowCommand } from "./flow-state.js";
+import { runL2Review } from "./l2-review.js";
 import { HookBridge } from "./hook-bridge.js";
 import { loadBundledSkills, registerBundledSkills } from "./skill-loader.js";
 
@@ -36,10 +37,14 @@ async function apply(ctx, config = {}) {
   // ── /flow command (state manager ported from skills/flow/SKILL.md) ──
   ctx.commands.register({
     name: "flow",
-    description: "flow-kit 状态管理 — start/stop/phase/task/checkpoint/goal/gate-config/model/doctor（管理 .flow-active 状态文件）",
-    input: { hint: "[start|stop|phase <n>|task <T>|checkpoint <file> <desc>|goal [...]|gate-config <phase>=<value>|model [l2=|l3=]|doctor]" },
+    description: "flow-kit 状态管理 — start/stop/phase/task/checkpoint/goal/gate-config/model/l2-review/doctor（管理 .flow-active 与 L2 盲审派发）",
+    input: { hint: "[start|stop|phase <n>|task <T>|checkpoint <file> <desc>|goal [...]|gate-config <phase>=<value>|model [l2=|l3=]|l2-review <phase>|doctor]" },
     handler(invocation) {
-      return runFlowCommand(invocation.rawInput ?? "", invocation.agent);
+      const raw = invocation.rawInput ?? "";
+      if (raw.trim().startsWith("l2-review")) {
+        return runL2Review(ctx, invocation, raw.trim().slice("l2-review".length).trim(), packageRoot);
+      }
+      return runFlowCommand(raw, invocation.agent);
     },
   });
 
