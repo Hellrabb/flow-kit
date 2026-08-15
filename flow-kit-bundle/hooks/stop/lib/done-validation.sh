@@ -29,7 +29,8 @@ unset _dv_dir
 # Returns: 0 (true) = gate 生效（应阻止阶段推进）；1 (false) = 放行
 # gate 生效当且仅当：phase∈{1,2,3,5,6,7} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
 # gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {L2,L3,both} 优先，
-#                 回退 .claude/stop-hook.json 的 independent_review.phases 数组含该阶段名（视为 both）。
+#                 回退 <runtime-config>/stop-hook.json（.flow-kit on dsh，.claude legacy）
+#                 的 independent_review.phases 数组含该阶段名（视为 both）。
 # 向后兼容：gate_config 值 "independent" / "true" 自动映射为 "both"。
 fk_independent_review_gate_active() {
   local phase="$1" tier="${2:-}"
@@ -53,7 +54,9 @@ fk_independent_review_gate_active() {
   gate_val=$(jq -r --arg pn "$phase_name" \
     '.goal.gate_config[$pn] // empty' "$flow_file" 2>/dev/null || echo "")
   if [[ -z "$gate_val" ]]; then
-    local cfg="${PROJECT_ROOT}/.claude/stop-hook.json"
+    local cfg_dir=".claude"
+    type fk_runtime_config_dir >/dev/null 2>&1 && cfg_dir="$(fk_runtime_config_dir)"
+    local cfg="${PROJECT_ROOT}/${cfg_dir}/stop-hook.json"
     if [[ -f "$cfg" ]] && jq -e --arg pn "$phase_name" \
         '.independent_review.phases // [] | index($pn)' "$cfg" >/dev/null 2>&1; then
       gate_val="both"  # stop-hook.json 配置视为 both（向后兼容）

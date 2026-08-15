@@ -72,8 +72,40 @@ jq -e '.hooks.Stop' <project_dir>/.claude/settings.json >/dev/null 2>&1 && echo 
   /flow-go <你的新需求>       ← 开始你的第一个 change
 ```
 
+## 安装到 dsh（DeepSeek Harness）——推荐 dsh 用户优先走此路径
+
+dsh 环境不需要 `install.sh`，flow-kit 已打包为 `dsh-flow-kit` npm 插件：
+
+```bash
+# 本地构建包（在 flow-kit 仓库内）
+bash package-dsh-plugin.sh
+
+# 安装到 profile（本质是 pnpm add）
+dsh plugin --profile <profile-name> add file:/path/to/dist/dsh-flow-kit
+# 或 npm 发布后：
+dsh plugin --profile <profile-name> add dsh-flow-kit
+```
+
+验证：
+
+```bash
+dsh --profile <profile-name> --dump-config | grep -A 7 'dsh-flow-kit'
+# 期望看到 - id: flow-kit，inject: [commands, skills]
+```
+
+- dsh 下 `/flow` 命令直接可用；23 个 flow-*/brooks-* skill 由插件自动注册
+- hooks 由插件内 `hook-bridge.js` 监听 `tools/pre-execute` / `agent/status` /
+  `agent/created` 自动触发，**不写 `.claude/settings.json`**
+- 项目内运行时配置落在 `.flow-kit/stop-hook.json`（首次运行时从包默认值落盘）
+- 完整 claude/opencode 安装路径见下文
+
+## 安装到 Claude Code / opencode（install.sh 路径）
+
+以下步骤适用于 claude code / opencode 项目：
+
 ## 实现细节
 
 - 安装脚本幂等：重复运行不会覆盖已有配置（settings.json hooks 除外）
-- skills 每次覆盖安装到 `~/.claude/skills/`
+- claude/opencode 的 skills 每次覆盖安装到 `~/.claude/skills/`
+- dsh 的 skills 由插件 `ctx.skills.register()` 注册，无需复制到用户目录
 - `25-project.sh`（模块 F）是项目特定检查模板，应根据项目需要修改或禁用

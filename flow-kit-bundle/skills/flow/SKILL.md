@@ -9,7 +9,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 
 ## 实现细节
 
-- `.flow-active` 放在项目根目录（`$CLAUDE_PROJECT_DIR`）
+- `.flow-active` 放在项目根目录：dsh 用 `$FLOW_KIT_PROJECT_DIR`（插件注入），claude code 用 `$CLAUDE_PROJECT_DIR`，opencode 用 `$OPENCODE_PROJECT_DIR`/`$CLAUDE_PROJECT_DIR`；未设置时回退当前工作目录
 - JSON 格式：
   ```json
   {
@@ -270,7 +270,7 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
   - 会话中断后，下一轮 SessionStart 的 `flow-kit-resume.sh` 检测到 `interrupt` 非空，在 banner 中展示"上次编辑: `<active_file>`"
   - `/flow`（无参数）查看当前状态时也会展示 `interrupt` 信息
 - **与手动 checkpoint 的关系**：互补不冲突。自动 hook 覆盖每次 Write/Edit；手动 `/flow checkpoint` 用于额外标注（测试失败、阶段切换等）。最后写入者覆盖。
-- **安装**：`install.sh` 安装时自动注册到 `.claude/settings.json` 的 `PreToolUse` 数组（matcher: `"Write|Edit"`）
+- **安装**：claude/opencode 由 `install.sh` 注册到 `.claude/settings.json` 的 `PreToolUse` 数组（matcher: `"Write|Edit"`）；dsh 由 `dsh-flow-kit` 插件 `hook-bridge.js` 监听 `tools/pre-execute` 自动触发，无需 settings.json
 
 ### `/flow checkpoint <file> <description>`
 手动保存中断恢复上下文。AI 应在关键操作后调用（如遇到测试失败、切换任务时）。自动 hook 已覆盖 Write/Edit，本命令用于额外标注。
@@ -291,11 +291,12 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 ### `/flow doctor`
 诊断 flow-kit hook 配置状态。动作：
 1. 检查 `.flow-active` JSON 格式是否有效（`jq empty .flow-active`），包括 goal 字段结构（如非 null，需含 condition/status/active_since/turns/mode；pipeline 模式还需含 scope/start_phase/current_phase/phases_done/gates/gate_config/auto_advance/phase_sub_goals；start_phase 缺失时默认 "4" 兼容旧数据）
-2. 检查 Stop Hook 配置：
-   - 读 `.claude/stop-hook.json`，检查 `modules.workflow.enabled` 是否为 `true`
+2. 检查 Stop Hook 配置（按运行时选择配置路径）：
+   - dsh：读 `.flow-kit/stop-hook.json`；claude/opencode：读 `.claude/stop-hook.json`；检查 `modules.workflow.enabled` 是否为 `true`
    - 检查 `26-workflow.sh` 是否存在且可执行
 3. 检查 SessionStart 是否包含 flow-kit resume hook：
-   - grep `.claude/settings.json` 中是否有 `flow-kit-resume.sh`
+   - dsh：确认 profile 已挂载 `dsh-flow-kit` 插件（`dsh --profile <name> --dump-config | grep flow-kit`）
+   - claude/opencode：grep `.claude/settings.json` 中是否有 `flow-kit-resume.sh`
 4. 检查 `.specs/STATE.md` 是否存在且字段完整
 5. 如果有活跃 change_id，检查 `.specs/<id>/` 产物完整性（与 phase 对照）
 6. 输出诊断报告，格式：

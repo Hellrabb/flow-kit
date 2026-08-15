@@ -47,7 +47,9 @@ L3_PATH_PREFIXES=(
   'lib/'
   'hooks/'
   '~/.claude/'
+  '~/.dsh/'
   '\.claude/'
+  '\.flow-kit/'
 )
 
 # ── Correction file management ─────────────────────────────────────────

@@ -93,9 +93,16 @@ teardown() {
 @test "API path: direct curl before legacy key in l3-api.sh (pipeline-fallback-fix: 迁移到共享lib · final-debt-cleanup: split to l3-api.sh)" {
   # 直连代码块应该在 legacy API key 之前出现
   # final-debt-cleanup-2026-08 将 API 路径逻辑从 l3-review.sh 拆到 l3-api.sh
-  script="$HOME/.claude/hooks/stop/lib/l3-api.sh"
-  direct_line=$(grep -n 'env-var-first 直连' "$script" | head -1 | cut -d: -f1)
-  legacy_line=$(grep -n 'Path 2.*Legacy' "$script" | head -1 | cut -d: -f1)
+  # 源码树读取（l3-api.sh 注释已随 split 更新为 Path1/Path2 中文注释，
+  # 旧 $HOME/.claude 安装副本会被陈旧副本卡住——同 AC-1 的 L2 R3' 修复）。
+  local d="${BATS_TEST_DIRNAME:-.}"
+  while [ "$d" != "/" ] && [ ! -f "$d/flow-kit-bundle/hooks/stop/lib/l3-api.sh" ]; do
+    d="$(dirname "$d")"
+  done
+  script="$d/flow-kit-bundle/hooks/stop/lib/l3-api.sh"
+  [ -f "$script" ] || script="$HOME/.claude/hooks/stop/lib/l3-api.sh"
+  direct_line=$(grep -n 'env-var-first（claude code 原生）' "$script" | head -1 | cut -d: -f1)
+  legacy_line=$(grep -n 'Path2 legacy 兜底' "$script" | head -1 | cut -d: -f1)
   [ -n "$direct_line" ]
   [ -n "$legacy_line" ]
   [ "$direct_line" -lt "$legacy_line" ]

@@ -4,6 +4,18 @@
 
 set -euo pipefail
 
+# ── Runtime adapter (platform decoupling · dsh-flow-kit) ─────────────
+# Single source for dsh|opencode|claude detection and path defaults.
+# Pure function definitions only — source-safe for every hook.
+# shellcheck source=/dev/null
+# 注意：必须用 BASH_SOURCE[0]（common.sh 自身位置）定位，而不是调用方可能
+# 已设为 session-start/ 的 HOOK_BASE_DIR（stop-report-reminder.sh 的调用形态）。
+_RUNTIME_ADAPTER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/runtime-adapter.sh"
+if [ -f "$_RUNTIME_ADAPTER" ]; then
+  source "$_RUNTIME_ADAPTER"
+fi
+unset _RUNTIME_ADAPTER
+
 # ── Config ──────────────────────────────────────────────────────────
 # CONFIG_FILE is resolved in init_paths() because it depends on PROJECT_ROOT.
 # Override via env var STOP_HOOK_CONFIG before sourcing; default: <project>/.claude/stop-hook.json
@@ -98,28 +110,40 @@ hook_init() {
 # ── Path initialization (call after hook_init) ───────────────────────
 # Paths that depend on CWD from stdin must be set after hook_init
 init_paths() {
-  PROJECT_ROOT="${CWD:-$PWD}"
+  # FLOW_KIT_PROJECT_DIR is the platform-agnostic override (dsh plugin sets it);
+  # CWD comes from the synthesized hook event on stdin. Legacy claude fallback
+  # keeps identical behavior when neither is set.
+  PROJECT_ROOT="${FLOW_KIT_PROJECT_DIR:-${CWD:-$PWD}}"
+
+  # Runtime-aware config directory: .flow-kit (dsh) | .claude (claude/opencode
+  # compatibility). FLOW_KIT_CONFIG_DIR lets a host pin an explicit override.
+  local config_dir runtime_home
+  config_dir="${FLOW_KIT_CONFIG_DIR:-$(fk_runtime_config_dir)}"
+  runtime_home="$(fk_runtime_home_dir)"
 
   # Derive CONFIG_FILE: env override > project-level > user-scope fallback
   # (gate-integrity dogfood: 项目级缺失时回退 user-scope，否则全局 enabled=true 未被读 → module_enabled 恒 false)
   if [[ -z "${CONFIG_FILE:-}" ]]; then
-    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/.claude/stop-hook.json}"
-    if [[ ! -f "$CONFIG_FILE" && -f "${HOME}/.claude/stop-hook.json" ]]; then
-      CONFIG_FILE="${HOME}/.claude/stop-hook.json"
+    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/${config_dir}/stop-hook.json}"
+    if [[ ! -f "$CONFIG_FILE" && -f "${runtime_home}/stop-hook.json" ]]; then
+      CONFIG_FILE="${runtime_home}/stop-hook.json"
     fi
   fi
 
-  CLAWDE_MD="${PROJECT_ROOT}/CLAUDE.md"
+  # Variable name kept for downstream-module compatibility; the path is
+  # runtime-aware (AGENTS.md on dsh, CLAUDE.md on claude/opencode).
+  CLAWDE_MD="${PROJECT_ROOT}/$(fk_runtime_md_file)"
 
-  # Derive memory dir from PROJECT_ROOT (Claude Code convention: / → -)
-  local project_slug
-  project_slug=$(echo "${PROJECT_ROOT}" | tr '/' '-')
-  MEMORY_DIR="${HOME}/.claude/projects${project_slug}/memory"
+  # Derive memory dir from PROJECT_ROOT (runtime-aware: ~/.dsh/projects… on dsh,
+  # legacy ~/.claude/projects… otherwise; / → - slug convention unchanged).
+  MEMORY_DIR="$(fk_runtime_memory_dir "$PROJECT_ROOT")"
   MEMORY_INDEX="${MEMORY_DIR}/MEMORY.md"
 
-  REPORT_FILE="${PROJECT_ROOT}/$(config_get '.output.report_file' '.claude/stop-hook-report.md')"
-  SUGGESTIONS_FILE="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' '.claude/stop-hook-suggestions.md')"
-  STATE_FILE="${PROJECT_ROOT}/.claude/stop-hook-state.json"
+  local output_default
+  output_default="${config_dir}/stop-hook-report.md"
+  REPORT_FILE="${PROJECT_ROOT}/$(config_get '.output.report_file' "$output_default")"
+  SUGGESTIONS_FILE="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' "${config_dir}/stop-hook-suggestions.md")"
+  STATE_FILE="${PROJECT_ROOT}/${config_dir}/stop-hook-state.json"
 
   export PROJECT_ROOT CONFIG_FILE CLAWDE_MD MEMORY_DIR MEMORY_INDEX
   export REPORT_FILE SUGGESTIONS_FILE STATE_FILE
@@ -263,12 +287,12 @@ fk_resolve_model() {
   echo "$model"
 }
 
-# ── fk_resolve_api_credentials() · 双平台 L3 凭证解析（DESIGN D1 · l2l3-cross-platform）──
+# ── fk_resolve_api_credentials() · 多平台 L3 凭证解析（DESIGN D1 · l2l3-cross-platform + dsh）──
 # 三 Path 优先级链（命中即停，短路语义；Path1/Path3 相对顺序随平台翻转 —— T01-rev）：
-#   claude code（fk_platform_is_opencode 假）: Path1 > Path3 > Path2（零回归）
+#   claude code（fk_platform_prefers_flowkit_credentials 假）: Path1 > Path3 > Path2（零回归）
 #     Path1: ANTHROPIC_AUTH_TOKEN → bearer（claude code 原生主路径，零回归）
-#   opencode（fk_platform_is_opencode 真）: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）
-#     Path3: FLOW_KIT_L3_AUTH_TOKEN + FLOW_KIT_L3_BASE_URL → bearer（opencode 一等路径，短路 Path2）
+#   opencode / dsh（fk_platform_prefers_flowkit_credentials 真）: Path3 > Path1 > Path2
+#     Path3: FLOW_KIT_L3_AUTH_TOKEN + FLOW_KIT_L3_BASE_URL → bearer（平台一等路径，短路 Path2）
 #   Path2: ANTHROPIC_API_KEY → x-api-key（legacy 兜底，仅当 Path1/3 全空，端点 api.anthropic.com）
 # 输出（全局，调用方读这三个全局，不重读 env）：
 #   FK_API_BASE_URL / FK_API_AUTH_TOKEN / FK_API_AUTH_SCHEME（bearer | x-api-key）
@@ -310,8 +334,8 @@ _fk_api_clear_outputs() {
 fk_resolve_api_credentials() {
   # 平台感知优先级（DESIGN D1 · F-B 修订）：两平台仅 Path1/Path3 相对顺序不同；
   # 公共规则（Path1/3 任一命中短路 Path2；Path3 配置不完整 rc=2 禁落 Path2；Path2 仅当 Path1/3 全空）一致。
-  if fk_platform_is_opencode; then
-    # ── opencode 平台: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）──
+  if fk_platform_prefers_flowkit_credentials; then
+    # ── opencode / dsh 平台: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）──
     _fk_api_try_path3 && return 0
     [ "$?" -eq 2 ] && return 2
     _fk_api_try_path1 && return 0
@@ -335,13 +359,14 @@ fk_resolve_api_credentials() {
   return 1
 }
 
-# ── fk_platform_is_opencode() · 双平台检测（DESIGN D2 · l2l3-cross-platform）──
-# OPENCODE_BIN / OPENCODE 任一非空 → opencode 平台；否则 claude code。
-# 两信号等价无优先级（既有代码锚点 OPENCODE_BIN + 当前环境实测 OPENCODE 双覆盖）。
+# ── fk_platform_is_opencode() · 多平台检测（DESIGN D2 · l2l3-cross-platform + dsh）──
+# Delegates to runtime-adapter.sh: FLOW_KIT_RUNTIME explicit > OPENCODE_BIN /
+# OPENCODE signals > claude default. dsh 通过 FLOW_KIT_RUNTIME=dsh 进入
+# fk_platform_is_dsh 分支，opencode 信号语义保持不变（零回归）。
 # 纯查询零副作用：不写全局、不落盘、不调用外部命令。
-# 用法: if fk_platform_is_opencode; then ...; fi  （返回 0=opencode / 1=claude code）
+# 用法: if fk_platform_is_opencode; then ...; fi  （返回 0=opencode / 1=非 opencode）
 fk_platform_is_opencode() {
-  [ -n "${OPENCODE_BIN:-}" ] || [ -n "${OPENCODE:-}" ]
+  [ "$(fk_runtime_detect)" = "opencode" ]
 }
 
 # ── Hook module registry (single source of truth) ────────────────────

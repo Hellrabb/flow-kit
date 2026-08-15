@@ -40,7 +40,9 @@ _l3_call_api() {
   fi
   if [ "$_fk_rc" -eq 1 ]; then
     # 降级提示（DESIGN D3）：平台感知，只含 env 变量名（AC-6 红线：凭证值绝不落盘）
-    if fk_platform_is_opencode; then
+    if fk_platform_is_dsh; then
+      echo "[l3-review] L3 凭证缺失：在 dsh 启动环境 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN（dsh 插件 hook bridge 子进程继承启动 env）" >&2
+    elif fk_platform_is_opencode; then
       echo "[l3-review] L3 凭证缺失：在 opencode 启动环境 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN（hook 子进程继承启动 env，settings.json 的 env 段不注入）" >&2
     else
       # env 名拆段书写（ANTHROPIC_AUTH_""TOKEN）：仅回显 env 名无 $ 展开（非直读），

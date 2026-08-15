@@ -224,7 +224,7 @@ tier=$(grep -oP 'model-tier="\K[^"]+' /tmp/current-task.xml 2>/dev/null || echo 
 
 注意：OpenCode 的 task tool 实际 model 选择由框架决定，hint 是契约层标志，主 agent 写入即可。
 
-### 1.0 动手前复述边界 + 关键节点 checkpoint + 证据链
+### 1.0 动手前复述边界 + 关键节点 checkpoint + 证据链（非每操作）
 @see `flow-kit/reference/checkpoint-protocol.md`（checkpoint · 入场恢复 · 中断 · auto-checkpoint hook 触发）
 
 ### 1.4 写前检查

@@ -109,6 +109,12 @@ check_f3_body() {
 # ═══════════════════════════════════════════════════════════════════════
 check_f4_body() {
 
+  # dsh: hook dispatch is owned by the dsh-flow-kit plugin (no settings.json
+  # matcher surface), so Claude-style hook-conflict detection does not apply.
+  if fk_platform_is_dsh; then
+    return 0
+  fi
+
   local settings_file="${PROJECT_ROOT}/.claude/settings.json"
   if [[ ! -f "$settings_file" ]]; then
     return 0
@@ -149,8 +155,8 @@ check_f5_body() {
     return 0
   fi
 
-  # Check .claude/worktrees/ directory
-  local wt_dir="${PROJECT_ROOT}/.claude/worktrees"
+  # Check runtime worktrees/ directory (.flow-kit on dsh, .claude legacy)
+  local wt_dir="${PROJECT_ROOT}/$(fk_runtime_config_dir 2>/dev/null || echo .claude)/worktrees"
   if [[ ! -d "$wt_dir" ]]; then
     return 0
   fi
@@ -172,7 +178,7 @@ check_f5_body() {
     local stale_list
     stale_list=$(printf '%s, ' "${stale[@]}" | sed 's/, $//')
     module_output "suggestion" "F5" "发现 ${#stale[@]} 个残留 worktree 目录: ${stale_list}
-建议清理: \`git worktree remove <name>\` 或手动 \`rm -rf .claude/worktrees/<name>\`"
+建议清理: \`git worktree remove <name>\` 或手动 \`rm -rf ${wt_dir}/<name>\`"
   fi
 
   # Also check git worktree list for stale entries

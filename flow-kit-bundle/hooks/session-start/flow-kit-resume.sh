@@ -134,7 +134,12 @@ if [[ -f "$compliance_correction_file" ]] && jq empty "$compliance_correction_fi
     echo "║  设置方式（任选其一）：                                ║"
     echo "║    export FLOW_KIT_L3_MODEL=<模型名>                  ║"
     echo "║    或 /flow model l3=<模型名>                         ║"
-    if fk_platform_is_opencode; then
+    if fk_platform_is_dsh; then
+      echo "║                                                    ║"
+      echo "║    同时确保 dsh 启动环境已 export                          ║"
+      echo "║    FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN   ║"
+      echo "║    （dsh 插件 hook bridge 子进程继承启动 env）             ║"
+    elif fk_platform_is_opencode; then
       echo "║                                                    ║"
       echo "║    同时确保 opencode 启动环境已 export                      ║"
       echo "║    FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN   ║"
