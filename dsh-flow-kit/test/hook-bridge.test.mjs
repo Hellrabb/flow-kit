@@ -151,3 +151,44 @@ test("Stop chain runs end-to-end on agent idle (00-gate → state file + report)
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("SessionStart hook stdout is injected once as a dsh prompt banner", async () => {
+  const root = await tempProject();
+  try {
+    const configDir = join(root, ".flow-kit");
+    await import("node:fs/promises").then(async ({ mkdir }) => mkdir(configDir, { recursive: true }));
+    await writeFile(join(configDir, "stop-hook.json"), JSON.stringify({
+      session_start: { remind_unreviewed: true },
+      output: { report_file: ".flow-kit/stop-hook-report.md", suggestions_file: ".flow-kit/stop-hook-suggestions.md" },
+      thresholds: { report_max_age_days: 3 },
+    }), "utf8");
+    await writeFile(join(configDir, "stop-hook-report.md"), "# Stop Hook Report\n", "utf8");
+    await writeFile(join(configDir, "stop-hook-state.json"), "{}", "utf8");
+
+    let promptContext;
+    const fake = stubCtx();
+    fake.systemPrompt = { context: (def) => { promptContext = def; } };
+    const bridge = new HookBridge({
+      ctx: fake,
+      packageRoot: BUNDLE_ROOT,
+      config: { hooks: { preToolUse: false, stop: false, sessionStart: true } },
+    });
+    bridge.attach();
+    const created = fake.handlers.get("agent/created");
+    assert.ok(created, "agent/created listener attached");
+    created({ agent: { session: { id: "banner-session", header: { cwd: root }, events: [] } } });
+
+    // SessionStart hooks run async via void promise — poll for the banner.
+    let banner = "";
+    for (let i = 0; i < 50 && !banner; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      banner = promptContext?.text({ agent: { session: { id: "banner-session" } } }) ?? "";
+    }
+    assert.ok(banner.length > 0, "SessionStart banner captured from hook stdout");
+    assert.match(banner, /Report|报告|待 Review|Stop Hook/i);
+    // Consumed after first read — no repeated injection on every step.
+    assert.equal(promptContext.text({ agent: { session: { id: "banner-session" } } }), "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

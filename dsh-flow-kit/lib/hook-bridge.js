@@ -15,7 +15,8 @@
 // auto-checkpoint, weak-model compliance, …) is reused unchanged. The only
 // runtime facts injected are FLOW_KIT_RUNTIME=dsh and FLOW_KIT_PROJECT_DIR.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, copyFileSync } from "node:fs";
 import { mkdtemp, writeFile, rm, copyFile, access, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -147,6 +148,32 @@ function runHook(scriptPath, eventJson, { timeoutMs = 30000, env = {} } = {}) {
   });
 }
 
+/**
+ * Synchronous variant used only by SessionStart: dsh assembles the first
+ * system prompt right after `agent/created`, so the resume/reminder banner
+ * must be captured before that callback returns (Claude Code SessionStart
+ * hooks are synchronous for the same reason).
+ */
+function runHookSync(scriptPath, eventJson, { timeoutMs = 10000, env = {} } = {}) {
+  try {
+    const result = spawnSync("bash", [scriptPath], {
+      input: JSON.stringify(eventJson),
+      env: buildEnv(env),
+      encoding: "utf8",
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024,
+    });
+    return {
+      code: result.status ?? (result.error ? -1 : 0),
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+      timedOut: result.error?.code === "ETIMEDOUT",
+    };
+  } catch (error) {
+    return { code: -1, stdout: "", stderr: String(error), timedOut: false };
+  }
+}
+
 /** Tail of stderr/stdout for a compact, human-readable deny reason. */
 function denyReason(result, fallback) {
   const text = `${result.stderr || ""}\n${result.stdout || ""}`.trim();
@@ -161,6 +188,8 @@ export class HookBridge {
     this.packageRoot = packageRoot;
     this.config = config;
     this.hooks = join(packageRoot, "hooks");
+    /** session id → SessionStart hook stdout (resume banner / report reminder). */
+    this.sessionBanners = new Map();
   }
 
   /** Install every dsh event listener. Called from apply(). */
@@ -169,6 +198,33 @@ export class HookBridge {
     if (this.config.hooks?.stop !== false) this.attachStop();
     if (this.config.hooks?.sessionStart !== false) this.attachSessionStart();
     this.attachPostToolUse();
+    this.registerPromptContext();
+  }
+
+  /**
+   * dsh 等价于 Claude Code SessionStart hook stdout 注入：SessionStart 脚本的
+   * stdout（resume banner / stop-report reminder）作为动态 system-prompt
+   * context 一次性注入下一次 prompt assembly，读完即清（避免每步重复）。
+   */
+  registerPromptContext() {
+    const systemPrompt = this.ctx?.systemPrompt ?? this.ctx?.get?.("systemPrompt");
+    if (!systemPrompt?.context) return;
+    try {
+      systemPrompt.context({
+        name: "flow-kit:session-banner",
+        order: 50,
+        text: (assembly) => {
+          const sessionId = assembly?.agent?.session?.id ?? assembly?.scope?.session?.id;
+          if (!sessionId) return "";
+          const banner = this.sessionBanners.get(sessionId);
+          if (!banner) return "";
+          this.sessionBanners.delete(sessionId);
+          return banner;
+        },
+      });
+    } catch (error) {
+      this.ctx.logger?.warn?.(`[flow-kit] systemPrompt banner context registration skipped: ${error.message}`);
+    }
   }
 
   attachPreToolUse() {
@@ -267,14 +323,22 @@ export class HookBridge {
         cwd,
         parent_session_id: "",
       };
-      void this.ensureProjectConfig(cwd).then(async () => {
-        for (const script of scripts) {
-          const result = await runHook(script, eventJson, { timeoutMs: Number(this.config.timeoutMs?.sessionStart ?? 30000) });
-          if (result.code !== 0) {
-            this.ctx.logger?.warn?.(`flow-kit SessionStart ${script} exited ${result.code}: ${denyReason(result, "")}`);
-          }
+      // Synchronous: the banner must be visible to the first system-prompt
+      // assembly, which happens immediately after agent/created.
+      this.ensureProjectConfigSync(cwd);
+      const banners = [];
+      for (const script of scripts) {
+        const result = runHookSync(script, eventJson, {
+          timeoutMs: Number(this.config.timeoutMs?.sessionStart ?? 10000),
+          env: { FLOW_KIT_PROJECT_DIR: cwd },
+        });
+        if (result.code !== 0) {
+          this.ctx.logger?.warn?.(`flow-kit SessionStart ${script} exited ${result.code}: ${denyReason(result, "")}`);
         }
-      }).catch((error) => this.ctx.logger?.warn?.(`flow-kit SessionStart failed: ${error.message}`));
+        const stdout = result.stdout?.trim();
+        if (stdout) banners.push(stdout);
+      }
+      if (banners.length > 0) this.sessionBanners.set(agent.session?.id, banners.join("\n"));
     });
   }
 
@@ -320,6 +384,21 @@ export class HookBridge {
     } finally {
       await rm(tmp, { recursive: true, force: true }).catch(() => {});
     }
+  }
+
+  /** Synchronous config materialization for SessionStart (see runHookSync). */
+  ensureProjectConfigSync(cwd) {
+    const targetDir = join(cwd, ".flow-kit");
+    const targetFile = join(targetDir, "stop-hook.json");
+    const source = join(this.hooks, "config", "stop-hook.json");
+    if (existsSync(targetFile)) return targetFile;
+    try {
+      mkdirSync(targetDir, { recursive: true });
+      copyFileSync(source, targetFile);
+    } catch (error) {
+      this.ctx.logger?.warn?.(`flow-kit could not materialize .flow-kit/stop-hook.json: ${error.message}`);
+    }
+    return null;
   }
 
   /** Materialize the dsh-runtime config dir (.flow-kit/) from package defaults. */
