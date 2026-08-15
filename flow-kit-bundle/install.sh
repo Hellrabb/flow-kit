@@ -52,10 +52,11 @@ usage() {
 用法: $0 [选项]
 
 平台选择:
-  --platform <name>     目标平台：claude (默认) | opencode | auto
+  --platform <name>     目标平台：claude (默认) | opencode | dsh | auto
                         claude   → 安装到 ~/.claude/（Claude Code 原生）
                         opencode → 安装到 ~/.config/opencode/（opencode 原生）
                                    注：hooks 依赖桥接插件（见 OPENCODE-INSTALL.md）
+                        dsh      → 不落盘安装；打印 dsh-flow-kit 插件安装指引
 
 模式:
   --global              全局安装（核心 + skills + brooks-lint + 可选用户级 hooks）
@@ -93,6 +94,9 @@ usage() {
 
   # 自动检测平台
   $0 --platform auto --global              # 自动判断 claude/opencode
+
+  # dsh（DeepSeek Harness）—— install.sh 不落盘，用插件包安装
+  $0 --platform dsh --global               # 打印 dsh-flow-kit 安装指引并退出
 EOF
   exit 0
 }
@@ -143,10 +147,34 @@ if [ "$PLATFORM" = "auto" ]; then
   echo "ℹ️  自动检测平台: $PLATFORM"
 fi
 
+# dsh 平台：install.sh 不落盘（hook 链和 skills 都内置于 dsh-flow-kit npm 包，
+# 由 hook-bridge.js / skill-loader.js 注册）。这里只给安装指引，与
+# package-dsh-plugin.sh 的打包产物保持一致。
+if [ "$PLATFORM" = "dsh" ]; then
+  cat <<'DSH_EOF'
+╔═══════════════════════════════════════════════════════════════════╗
+║  flow-kit 安装器 — dsh (DeepSeek Harness) 平台                     ║
+╠═══════════════════════════════════════════════════════════════════╣
+║  dsh 不需要 install.sh 落盘安装。请使用 dsh-flow-kit 插件包：       ║
+║                                                                    ║
+║    1) 打包：bash package-dsh-plugin.sh                             ║
+║    2) 安装：dsh plugin --profile <profile> add \                   ║
+║             file:/path/to/dist/dsh-flow-kit                        ║
+║       （或 npm 发布后：dsh plugin --profile <profile> \            ║
+║             add dsh-flow-kit）                                     ║
+║    3) 验证：dsh --profile <profile> --dump-config | grep flow-kit  ║
+║                                                                    ║
+║  运行期配置目录为 <project>/.flow-kit/（插件自动落盘默认配置），     ║
+║  与 claude 的 .claude/、opencode 的 .opencode/ 互不干扰。           ║
+╚═══════════════════════════════════════════════════════════════════╝
+DSH_EOF
+  exit 0
+fi
+
 case "$PLATFORM" in
   claude|opencode) ;;
   *)
-    echo "❌ 无效平台: $PLATFORM（应为 claude | opencode | auto）"
+    echo "❌ 无效平台: $PLATFORM（应为 claude | opencode | dsh | auto）"
     exit 1
     ;;
 esac
