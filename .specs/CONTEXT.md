@@ -577,3 +577,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | opencode reviewer agent 定义 | flow-kit 分发包新增的 opencode 专用盲审子 agent 定义（`.opencode/agent/`），使 `subagent_type` 路由在 opencode 下有可用目标。prompt 引用 L2-blind-review 指令。来自 l2l3-cross-platform |
 | credential source 日志 | hook 日志记录 L3 凭证解析源（`env` / `flow-kit`），不记录 token 值本身。可观测性约定。来自 l2l3-cross-platform |
 <!-- l2l3-cross-platform 追加 ↑ -->
+<!-- correction-hygiene-state-guard 追加 ↓ -->
+| 外来状态文件（foreign state file） | 非 flow-kit 写入的 `.flow-active`（如 chisel-skill 生态写入的 YAML 格式）。flow-kit hook 对其策略 = 让位（yield）：跳过 pipeline 检查、不转换/覆盖/删除、correction 写一条去重的 `foreign-state` note。jq empty 解析失败为唯一判据（语法错误同样按外来处理但 note 文案区分）。来自 correction-hygiene-state-guard |
+| 外来让位守卫（foreign-state yield guard） | F2 设计：29/33 号在 `jq empty` 失败时不再静默 exit 0 / 不再追加 corrupt_json，改为判定外来状态 → 跳过 + 清空陈旧 state-integrity violation + 去重 foreign-state note。31/32/34 号保持静默跳过（pipeline 专用，不写 note）。来自 correction-hygiene-state-guard |
+| state-integrity 类 violation | 33 号写入的 9 种 check 名集合：corrupt_json / change_id_dangling / change_id_null_with_dirs / phase_artifact_missing / pipeline_phase_artifact_missing / pipeline_gate_not_passed / pipeline_gate_phase_mismatch / stale_updated_at / token_spent_unmaintained。本 change 的去重/容量/健康清零/外来清空均以此集合为作用域边界。来自 correction-hygiene-state-guard |
+| 健康清零（health clear） | 33 号新增行为：`.flow-active` 为合法 flow-kit JSON 且本轮全部检查通过时，清空 correction 中的 state-integrity 类 violation。l2-missing / model-missing / foreign-state / compliance 条目保留。来自 correction-hygiene-state-guard |
+| l2-missing 退场（l2-missing retirement） | 29 号新增行为：确认 IR 文件已含 `## L2 盲审` 段（或 gate 非 both）时清除 l2-missing flag，对齐 `write_model_missing_clear` 既有范式（L3 的 model-missing 有退场机制，L2 的 l2-missing 原无设计内清除路径）。来自 correction-hygiene-state-guard |
+| correction 去重（dedup） | `_fai_append_violation` 增加同 `check`+`field` 只保留最新一条 + state-integrity 类容量上限 10 条 FIFO。作用域仅限 state-integrity 类，compliance 类（28 号）不参与（ADR-013 compliance-priority）。来自 correction-hygiene-state-guard |
+<!-- correction-hygiene-state-guard 追加 ↑ -->
