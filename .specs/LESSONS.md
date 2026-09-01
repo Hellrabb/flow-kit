@@ -661,3 +661,12 @@
 - **教训**: bats 中断言 grep "无匹配"时用 `[ -z "$output" ]`（无输出=零命中=通过，无论 exit 0/1/2），不用 `$status -eq 1`。`2>/dev/null` 压制 stderr 后 `$output` 仅含 stdout 匹配行。
 - **反例**: `[[ $status -eq 1 ]]` → 缺文件 exit=2 → 断言恒败 → 要么测试被 skip（假绿）要么 CI 永红（假红）。
 - **来源**: l2l3-cross-platform Phase 2 L2 盲审 R-F-A1（3 轮 fix loop 定位根因 + 修复）
+
+### L-080 · Stop hook 单测裸跑的 env 注入清单（source 副作用 + 隐式 main）
+- **标签**：hook-unit-test-env / bash source 副作用
+- **关键词**：29-independent-review、HOOK_BASE_DIR、CONFIG_FILE、implicit main、module_output
+- **适用栈**：Bash hooks（flow-kit stop 链）/ bats
+- **状态**：active
+- **教训**：单独跑 29 号 hook 脚本做单测时，source 链与隐式入口会吃掉大量时间排查。清单：① `CONFIG_FILE` 需显式 export（init_paths 不会自动跑）；② `PROJECT_ROOT`/`FLOW_KIT_PROJECT_DIR` 需 export（33 号读状态用）；③ `HOOK_BASE_DIR` 需 export（`flow-kit-artifacts.sh:13` 在 `set -u` 下引用，未绑定则 source 即死——生产无感因为 00-gate runner 注入）；④ `HOOK_TMP_DIR` 需 export（module_output 写 `$HOOK_TMP_DIR/`）；⑤ source 33 号会触发底部 implicit main，测试 harness 若在 source 行加 `2>/dev/null` 会连审计行 stderr 一起吞掉；⑥ `fk_phase_gate_key 1` 返回 `"1-requirement"`（gate_config 键名用阶段名非 `phase_1`）。
+- **来源**：correction-hygiene-state-guard · T03/T04 smoke harness 调试
+- **复核旧条目**：L-079（bats -z 断言）本次继续适用——hygiene 测试全程使用该模式，无重试必要。L-078（set -e AND-list rc 传播）适用——dedupe/trim rc 传播遵循。
