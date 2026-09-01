@@ -490,7 +490,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | TD-020 | ✅ | `flow-kit-bundle/hooks/stop/lib/common.sh` | ~~`write_failed_state()` 死代码~~ → ✅ resolved：grep 全仓 0 hits（包括定义），函数已在 `sweep-fix-2026-07-10` 中移除。 | ✅ 已完成（sweep-fix-2026-07-10） | `M-health 2026-07-10` · verified 2026-08-04 |
 | TD-021 | ✅ | 全局命名约定 | ~~5 种命名前缀无文档~~ → ✅ resolved by `sweep-fix-2026-07-10`：CONTEXT.md § 命名约定 → 函数命名前缀（L404-410）已文档化 6 种前缀（`fk_`/`_fk_`/`check_`/`l2_`/`l3_`/`_gate_`/`_fai_`）。 | ✅ 已完成（sweep-fix-2026-07-10） | `M-health 2026-07-10` · verified 2026-08-04 |
 | TD-022 | ✅ | `flow-kit-bundle/lib/install_brooks.sh` + `install_hooks.sh` | ~~0 单元测试~~ → ✅ resolved：3 个测试文件已存在（test_install_brooks_tools.bats / test_install_coverage.bats / test_install_dry_run.bats），覆盖 brooks_tools 安装 + 覆盖率校验 + dry-run 模式。 | ✅ 已完成 | `M-health 2026-07-10` · verified 2026-08-04 |
-| TD-023 | 🟡 | `flow-kit-bundle/hooks/stop/lib/l2-detect.sh` + `l3-prompt.sh` 等 | shellcheck warning 级卫生：SC2155×10（`local x=$(cmd)` 掩蔽返回值——l2-detect.sh:163、l3-prompt.sh:69/91/126 等，修法=declare 与 assign 分离）；SC2034×26 为 sourced-lib 假阳性池（correction-types.sh 常量等被消费于 source 后，建议加行内豁免注释）。error 级门禁（make lint）长期 0，属机械修，一个 health-fix change 可清。 | 🟡 Scheduled（下次清理窗口） | `M-health 2026-09-01 Full Sweep` |
+| TD-023 | ✅ | `flow-kit-bundle/hooks/stop/lib/l2-detect.sh` + `l3-prompt.sh` 等 | shellcheck warning 级卫生已清零：SC2155×10（declare/assign 分离）；SC2034 真死代码 14 处删除 + 跨文件消费豁免 6 处（独立指令行形式——本版 shellcheck 不支持行内指令，会报 SC1126）；CLI_PATTERNS/GOTCHA_PATTERNS 死块删除。warning 64→28（余量为 SC1090 动态 source 等 known-acceptable）。 | ✅ Resolved（2026-09-01 health-fix 当场清） | `TD-023-fix 2026-09-01（commits 5cc4502 + follow-up）` |
 
 ---
 

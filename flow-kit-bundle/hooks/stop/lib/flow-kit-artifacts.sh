@@ -340,12 +340,6 @@ fk_log_progress() {
 EOF
   fi
 
-  # Extract a summary of what was done this session from transcript
-  local summary="—"
-  if [[ -f "${HOOK_TMP_DIR}/tool-summary.txt" ]]; then
-    summary=$(head -3 "${HOOK_TMP_DIR}/tool-summary.txt" 2>/dev/null | tr '\n' ' ' | head -c 100 | sed 's/|/;/g' || echo "—")
-  fi
-
   local ts
   ts=$(date +"%Y-%m-%d %H:%M")
 

@@ -284,14 +284,12 @@ echo "   ✅ README.md + install.sh + .flow-kit-version 已生成 (${TIMESTAMP})
 echo ""
 echo "📦 Part F: 打包 brooks-lint 代码审查插件..."
 
-BROOKS_COMMAND_SRC="$HOME/.claude/commands"
 BROOKS_CACHE="$HOME/.claude/plugins/cache/brooks-lint-marketplace/brooks-lint"
 BROOKS_PLUGIN_SRC="$HOME/.claude/plugins/marketplaces/brooks-lint-marketplace"
 
 # F1: 命令入口文件已废弃 —— brooks-lint v1.3.0+ 插件 skills 自带 namespace 前缀
 #     (brooks-lint:brooks-review 等)，不再需要无前缀的 commands stub。
 #     旧版 commands stub 会导致 /brooks-review 和 /brooks-lint:brooks-review 重复注册。
-BROOKS_CMD_COUNT=0
 echo "   ℹ️  brooks-lint 命令入口已废弃，仅保留插件主体（skills 自带 brooks-lint: 命名空间）"
 
 # F2: 插件主体（优先级：--brooks-src > 本地缓存 > git archive fallback）

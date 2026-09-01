@@ -156,7 +156,8 @@ check_f5_body() {
   fi
 
   # Check runtime worktrees/ directory (.flow-kit on dsh, .claude legacy)
-  local wt_dir="${PROJECT_ROOT}/$(fk_runtime_config_dir 2>/dev/null || echo .claude)/worktrees"
+  local wt_dir
+  wt_dir="${PROJECT_ROOT}/$(fk_runtime_config_dir 2>/dev/null || echo .claude)/worktrees"
   if [[ ! -d "$wt_dir" ]]; then
     return 0
   fi

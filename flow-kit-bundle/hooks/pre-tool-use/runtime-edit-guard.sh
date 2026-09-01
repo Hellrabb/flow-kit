@@ -80,7 +80,6 @@ main() {
 
   # 维护源存在 → deny + redirect
   if [[ -f "$source_path" ]]; then
-    local runtime_label="$real_path"
     cat >&2 <<EOF
 ⛔ runtime-edit-guard: 检测到改运行时副本（${runtime_kind}）
 
