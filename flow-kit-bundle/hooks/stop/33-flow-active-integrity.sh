@@ -14,6 +14,7 @@ _flow_active_integrity_main() {
   local specs_dir="${2:-.specs}"
   local correction_file="${3:-.flow-active.correction}"
   local transcript_file="${4:-}"
+  local _FAI_APPENDED=0
 
   # ── Guard: skip if .flow-active doesn't exist ──
   [[ -f "$flow_active" ]] || return 0
@@ -22,10 +23,35 @@ _flow_active_integrity_main() {
   command -v jq >/dev/null 2>&1 || return 0
 
   # ── Guard: validate JSON ──
+  # 外来/损坏让位（AC-5/6/7 · D5/D6）：jq empty 失败 → 33 号单一 actor 让位。
+  # 全程只读 .flow-active 本体（AC-7），仅操作 correction 文件；不再追加 corrupt_json。
   if ! jq empty "$flow_active" 2>/dev/null; then
-    _fai_append_violation "$correction_file" "corrupt_json" \
-      ".flow-active is not valid JSON" \
-      ".flow-active"
+    _fai_ensure_correction_lib
+
+    # ① 清空白名单类 violation（l2-missing / model-missing / foreign_state /
+    #    compliance 条目保留 — AC-6/AC-10）
+    _fai_clear_whitelist "$correction_file" >/dev/null 2>&1 || true
+
+    # ② 合并标签含 state-integrity 段时剥离（l2-missing+state-integrity → l2-missing）。
+    #    纯 type（无 `+`）场景由本分支保留——correction-file.sh 边界契约：
+    #    剥离仅对合并标签有意义，no-op 返回非零 rc 忽略（fail-open）。
+    if type correction_file_strip_type >/dev/null 2>&1; then
+      correction_file_strip_type "$correction_file" "state-integrity" || true
+    fi
+
+    # ③ 追加 1 条去重 foreign_state note（去重键=check，D6；已存在则跳过）
+    local note_message
+    if LC_ALL=C grep -qE '^[[:space:]]*[\[{]' "$flow_active" 2>/dev/null; then
+      # 内容疑似 JSON 但 jq 解析失败 → 损坏措辞
+      note_message="状态文件已损坏（非 flow-kit JSON），已让位并清除 state-integrity 状态。如果你是 flow-kit，请重新 /flow 启动。"
+    else
+      # 非 JSON 内容（如 YAML）→ 外来措辞
+      note_message="外来的状态文件，已让位并清除 state-integrity 状态。如果你是 flow-kit，请重新 /flow 启动。"
+    fi
+    _fai_append_foreign_note "$correction_file" "$note_message"
+
+    # ④ stderr 提示一次（SessionStart 可收割）
+    echo "flow-active-integrity: .flow-active 非 flow-kit 状态文件（外来/损坏），已让位；foreign_state note 已写入 correction" >&2
     return 0
   fi
 
@@ -57,6 +83,20 @@ _flow_active_integrity_main() {
 
   # ── 5. check_token ──
   _fai_check_token "$flow_active" "$transcript_file"
+
+  # ── 健康清零 (AC-3 / D3) ──
+  # 触发条件：本轮全部检查通过（_FAI_APPENDED=0，9 处 check 均未置位）且
+  # .flow-active 为合法 flow-kit JSON（入口 jq empty 已通过）。清空白名单类
+  # violation，保留 l2-missing / model-missing / foreign_state / compliance
+  # （AC-10 · ADR-024）。幂等，fail-open，不阻塞 stop 链。
+  if [[ "${_FAI_APPENDED:-0}" -eq 0 ]] && [[ -f "$correction_file" ]] && \
+     jq empty "$correction_file" 2>/dev/null; then
+    local cleared
+    cleared=$(_fai_clear_whitelist "$correction_file")
+    if [[ "$cleared" -gt 0 ]]; then
+      echo "state-integrity cleared ${cleared} items" >&2
+    fi
+  fi
 }
 
 # ── check_change_id ──────────────────────────────────────────────
@@ -245,9 +285,110 @@ _fai_get_phase_artifacts() {
   esac
 }
 
+# ── State-integrity hygiene helpers (correction-hygiene-state-guard · ADR-024) ──
+
+# _fai_ensure_correction_lib — best-effort source of correction-file.sh helpers.
+# Idempotent (no-op when already sourced); fail-open — never breaks the stop chain.
+_fai_ensure_correction_lib() {
+  type correction_file_dedupe >/dev/null 2>&1 && return 0
+  local hook_base="${HOOK_BASE_DIR:-${BASH_SOURCE%/*}}"
+  local correction_lib="${hook_base}/lib/correction-file.sh"
+  [[ -f "$correction_lib" ]] && source "$correction_lib" 2>/dev/null || true
+}
+
+# _fai_clear_whitelist <correction_file> — remove ALL whitelist-class entries
+# from .violations[] (ADR-024 scope). Keeps l2-missing / model-missing /
+# foreign_state / compliance entries byte-identical with their relative order.
+# Idempotent; atomic (mktemp+mv); fail-open. Prints removed count to stdout
+# (0 on no-op / missing file / missing lib). Used by 健康清零 (AC-3/D3) and
+# 外来清空 (AC-6).
+_fai_clear_whitelist() {
+  local file="$1"
+  [[ -f "$file" ]] || { echo 0; return 0; }
+  if ! type _fk_ci_whitelist_json >/dev/null 2>&1; then
+    echo 0
+    return 0
+  fi
+
+  local wl_json
+  wl_json=$(_fk_ci_whitelist_json) || { echo 0; return 0; }
+
+  local plan removed kept_json
+  plan=$(jq -c --argjson wl "$wl_json" '
+      if (.violations | type) == "array" then
+        ([.violations[] | . as $e | select(
+            ((($e.check? // "") == "") or (($wl | index($e.check)) | not))
+         )]) as $kept |
+        {removed: ((.violations | length) - ($kept | length)), kept: $kept}
+      else
+        {removed: 0, kept: .violations}
+      end
+    ' "$file" 2>/dev/null) || plan=""
+  [[ -z "$plan" ]] && { echo 0; return 0; }
+
+  removed=$(printf '%s' "$plan" | jq -r '.removed' 2>/dev/null) || removed=0
+  [[ "$removed" -gt 0 ]] || { echo 0; return 0; }
+
+  kept_json=$(printf '%s' "$plan" | jq -c '.kept' 2>/dev/null) || kept_json="[]"
+
+  local tmp
+  tmp=$(mktemp "${file}.tmp.XXXXXX") || { echo "$removed"; return 0; }
+  if jq --argjson kept "$kept_json" '
+      if (.violations | type) == "array" then .violations = $kept else . end
+    ' "$file" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+  fi
+  echo "$removed"
+}
+
+# _fai_append_foreign_note <correction_file> <message> — append exactly one
+# foreign_state note, deduped by check name (D6: 去重键=check; already-present →
+# no-op, no rewrite → idempotent across repeated stops). Existing type/violations
+# preserved (compliance included, AC-10). New file / invalid JSON → fresh
+# type=state-integrity file. Fail-open; atomic (tmp+mv).
+_fai_append_foreign_note() {
+  local file="$1" note_message="$2"
+
+  if [[ -f "$file" ]] && jq empty "$file" 2>/dev/null; then
+    if jq -e 'any(.violations[]?; .check == "foreign_state")' "$file" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  local new_entry
+  new_entry=$(jq -n \
+    --arg msg "$note_message" \
+    --arg ts "$(date -Iseconds)" \
+    '{check: "foreign_state", message: $msg, field: "flow_active", detected_at: $ts}') || return 0
+
+  local merged
+  if [[ -f "$file" ]] && jq empty "$file" 2>/dev/null; then
+    merged=$(jq --argjson entry "$new_entry" --arg ts "$(date -Iseconds)" \
+      '.violations = ((.violations // []) + [$entry]) | .written_at = $ts' \
+      "$file" 2>/dev/null)
+  else
+    merged=$(jq -n \
+      --arg type "state-integrity" \
+      --arg ts "$(date -Iseconds)" \
+      --argjson entry "$new_entry" \
+      '{type: $type, violations: [$entry], written_at: $ts}')
+  fi
+
+  [[ -z "$merged" ]] && return 0
+  echo "$merged" | jq '.' > "${file}.tmp" 2>/dev/null && \
+    mv "${file}.tmp" "$file" || true
+}
+
 # ── Correction file write (read-merge-write strategy — R1 fix) ─────
+# 每次 append 后执行 AC-1 去重（同 check+field 保最新）+ AC-2 FIFO 容量 10
+# （仅白名单类条目，compliance 不参与 — ADR-024）。两者 fail-open。
 _fai_append_violation() {
   local correction_file="$1" check_name="$2" message="$3" field="$4"
+
+  # D3：本轮存在违规 → 置位，抑制退出点健康清零
+  _FAI_APPENDED=1
 
   # Build new violation entry
   local new_entry
@@ -285,6 +426,13 @@ _fai_append_violation() {
 
   echo "$merged" | jq '.' > "${correction_file}.tmp" 2>/dev/null && \
     mv "${correction_file}.tmp" "$correction_file" || true
+
+  # ── AC-1/AC-2: 去重 + 容量（append 成功后执行，fail-open）──
+  _fai_ensure_correction_lib
+  if type correction_file_dedupe >/dev/null 2>&1; then
+    correction_file_dedupe "$correction_file" || true
+    correction_file_trim "$correction_file" 10 || true
+  fi
 }
 
 # ── Entry point ────────────────────────────────────────────────────

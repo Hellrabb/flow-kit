@@ -24,9 +24,34 @@ source "${HOOK_BASE_DIR}/lib/common.sh"
 _write_l2_missing_correction() {
   local phase="$1" change_id="$2"
   local correction_file="${PROJECT_ROOT}/.flow-active.correction"
-  jq -n --arg phase "$phase" --arg cid "$change_id" \
-    '{type:"l2-missing", phase:$phase, change_id:$cid, message:"gate_config=both 但 ## L2 盲审 段缺失，主 agent 请派 L2 子 agent 并写入该段（L2-first 契约）"}' \
-    > "$correction_file" 2>/dev/null || true
+  # D8 写入保护（盲审 R1 · AC-4）：compliance-priority 条件写——correction 已有
+  # compliance 条目（28 号写入，ADR-024/ADR-013 compliance 优先）时不得被 l2-missing
+  # 覆写摧毁。对齐 write_model_missing_correction（correction-file.sh:116-123）范式：
+  # 单步 jq if .type=="compliance" and ((.violations // []) | length > 0) then . else $new end
+  # + mktemp 原子写（消除 Check-Then-Act TOCTOU）。fail-open：任一步失败静默返回 0。
+  local new_json tmp
+  new_json=$(jq -nc --arg phase "$phase" --arg cid "$change_id" \
+    '{type:"l2-missing", phase:$phase, change_id:$cid, message:"gate_config=both 但 ## L2 盲审 段缺失，主 agent 请派 L2 子 agent 并写入该段（L2-first 契约）"}' 2>/dev/null) || new_json=""
+  [ -n "$new_json" ] || return 0
+
+  if [ -f "$correction_file" ] && jq empty "$correction_file" 2>/dev/null; then
+    tmp=$(mktemp "${correction_file}.tmp.XXXXXX") 2>/dev/null || { echo "[29-independent-review] WARN: mktemp failed for l2-missing write" >&2; return 0; }
+    if jq --argjson new "$new_json" \
+        'if .type=="compliance" and ((.violations // []) | length > 0) then . else $new end' \
+        "$correction_file" > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$correction_file" 2>/dev/null || rm -f "$tmp"
+    else
+      rm -f "$tmp"
+    fi
+  else
+    # 文件不存在或非法 JSON：直接原子写（无 compliance 保护需求）
+    tmp=$(mktemp "${correction_file}.tmp.XXXXXX") 2>/dev/null || { echo "[29-independent-review] WARN: mktemp failed for l2-missing write" >&2; return 0; }
+    if printf '%s\n' "$new_json" | jq '.' > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$correction_file" 2>/dev/null || rm -f "$tmp"
+    else
+      rm -f "$tmp"
+    fi
+  fi
 }
 
 # ── Gate 1: 模块启用 ──
@@ -35,12 +60,44 @@ module_enabled "independent_review" || exit 0
 # ── Gate 2: flow-kit 活跃且合法 ──
 flow_file="${PROJECT_ROOT}/.flow-active"
 [ -f "$flow_file" ] || exit 0
+# 外来/损坏 .flow-active 让位由 33 号承担（F2 单一 actor），29 号此处静默让位。
 jq empty "$flow_file" 2>/dev/null || exit 0
 
 # D3 fix: pipeline-aware phase resolution (was: jq -r '.phase')
 phase=$(fk_resolve_phase 2>/dev/null || jq -r '.phase // "?"' "$flow_file" 2>/dev/null || echo "?")
 change_id=$(jq -r '.change_id // "none"' "$flow_file" 2>/dev/null || echo "none")
 { [ "$change_id" != "none" ] && [ "$change_id" != "null" ]; } || exit 0
+
+# ── M0: l2-missing 退场检测（盲审 R2 · D4 · AC-4）──
+# 置于 Gate 3（L3 激活判定）之前，与 L3 激活解耦——gate_config 非 both
+# （如 both→L2 切换）时退场仍可达。匹配用 test("l2-missing")（合并标签
+# l2-missing+state-integrity 同样命中，R7），禁止精确相等。触发条件 = 对应 IR 文件
+# 已含 ## L2 盲审 段 或 gate_config ≠ both；gate=both 且 IR 无 L2 段时不触发
+# （L2 仍缺失，既有 l2-missing 写入逻辑保持，流入下方 D4 门）。
+# 动作双态（D4）：纯 type l2-missing → 文件级 rm（对齐 write_model_missing_clear
+# correction-file.sh:132 范式）；合并标签 → JIT source 共享抽象 correction_file_strip_type()
+# 剥离 l2-missing 段（type 改回 state-integrity；退化全剥空场景 lib 侧守卫 no-op，
+# 修复内联版会产生空 type 的边界），violations[] 原样保留。仅退场分支触发时加载
+# correction-file.sh（常规 Stop 路径零额外开销），消除与 lib 的双份剥段逻辑（Phase 5 盲审 F1）。
+correction_file="${PROJECT_ROOT}/.flow-active.correction"
+if [ -f "$correction_file" ] && jq -e '.type // "" | test("l2-missing")' "$correction_file" >/dev/null 2>&1; then
+  review_md="${PROJECT_ROOT}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+  phase_name="$(fk_phase_gate_key "$phase")"
+  gate_val=$(jq -r --arg pn "$phase_name" \
+    '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
+  gate_val="$(fk_normalize_gate_val "$gate_val")"
+  if { [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; } || [[ "$gate_val" != "both" ]]; then
+    old_type=$(jq -r '.type // ""' "$correction_file" 2>/dev/null || echo "?")
+    echo "[29-l2-retire] clearing l2-missing (was: ${old_type})" >&2
+    if [[ "$old_type" == "l2-missing" ]]; then
+      rm -f "$correction_file"
+    else
+      [ -f "${HOOK_BASE_DIR}/lib/correction-file.sh" ] && \
+        source "${HOOK_BASE_DIR}/lib/correction-file.sh" 2>/dev/null || true
+      correction_file_strip_type "$correction_file" "l2-missing" >/dev/null 2>&1 || true
+    fi
+  fi
+fi
 
 # ── Gate 3: 阶段 ∈ {1,2,3,5,6,7} 且 L3 独立 review 开启 ──
 [[ "$phase" =~ ^(1|2|3|5|6|7)$ ]] || exit 0

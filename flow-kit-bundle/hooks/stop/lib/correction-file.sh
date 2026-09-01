@@ -143,3 +143,168 @@ write_model_missing_clear() {
   [[ "$cur_type" == "$mtype" ]] && rm -f "$path"
   return 0
 }
+
+# ── State-integrity hygiene helpers (correction-hygiene-state-guard, ADR-024) ──
+# Array-level operations on .violations[] (dedupe / FIFO trim / type strip) are
+# scoped to the 9 state-integrity check names written by 33-flow-active-integrity.sh.
+# Compliance-class entries (check absent or NOT in the whitelist, written by
+# 28-weak-model-compliance.sh) are NEVER touched by dedupe/trim — preserved
+# byte-identical with their relative order (ADR-013/024 explicit contract).
+# NOTE: 新增 check 名需同步此白名单（L-031 提示 · ADR-024 consequence）。
+
+# Whitelist of state-integrity check names — single source for ADR-024 scope.
+# NOT a function parameter: parameterizing would let callers weaken the whitelist
+# (DESIGN §9.1 / blind review R4). Order matches 33-flow-active-integrity.sh.
+readonly CORRECTION_STATE_INTEGRITY_CHECKS=(
+  corrupt_json
+  change_id_dangling
+  change_id_null_with_dirs
+  phase_artifact_missing
+  pipeline_phase_artifact_missing
+  pipeline_gate_not_passed
+  pipeline_gate_phase_mismatch
+  stale_updated_at
+  token_spent_unmaintained
+)
+
+# _fk_ci_whitelist_json — serialize CORRECTION_STATE_INTEGRITY_CHECKS to a JSON
+# array for jq --argjson. Private helper (module-internal, `_fk_` prefix).
+_fk_ci_whitelist_json() {
+  printf '%s\0' "${CORRECTION_STATE_INTEGRITY_CHECKS[@]}" |
+    jq -Rs 'split("\u0000") | map(select(. != ""))'
+}
+
+# correction_file_dedupe <path> — keep only the LATEST (last) entry per
+# check+field combo, but ONLY for entries whose check is in the whitelist
+# (ADR-024). Compliance entries (check absent/not in whitelist) are preserved
+# byte-identical with their relative order.
+# Single jq pass → atomic write (mktemp + mv, following the file's tmp+mv pattern).
+# Returns: 0 on success; silent non-zero if file missing / invalid JSON /
+#          no violations array (caller tolerates). File untouched on failure.
+correction_file_dedupe() {
+  local path="$1"
+  [[ -z "$path" || ! -f "$path" ]] && return 1
+
+  local wl_json
+  wl_json=$(_fk_ci_whitelist_json) || return 1
+
+  local tmp
+  tmp=$(mktemp "${path}.tmp.XXXXXX") || return 1
+  if jq -e --argjson wl "$wl_json" '
+      if (.violations | type) == "array" then
+        .violations as $v |
+        (reduce ($v | reverse)[] as $item ({seen: {}, kept: []};
+            if ($wl | index($item.check)) then
+              ($item.check + "\u0000" + (($item.field // "") | tostring)) as $k |
+              if .seen[$k] then . else .seen[$k] = true | .kept += [$item] end
+            else
+              .kept += [$item]
+            end
+          ) | .kept | reverse) as $nd |
+        .violations = $nd
+      else
+        empty
+      end
+    ' "$path" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$path"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# correction_file_trim <path> <max> — FIFO capacity backstop for whitelist-class
+# entries (ADR-024 / DESIGN D2). Dedupes first, then evicts the OLDEST whitelist
+# entries beyond max (keep last max). Compliance entries are never counted nor
+# evicted. Same atomic-write + error semantics as correction_file_dedupe.
+correction_file_trim() {
+  local path="$1" max="${2:-10}"
+  correction_file_dedupe "$path" || return 1
+
+  local wl_json
+  wl_json=$(_fk_ci_whitelist_json) || return 1
+
+  local tmp
+  tmp=$(mktemp "${path}.tmp.XXXXXX") || return 1
+  if jq -e --argjson wl "$wl_json" --argjson max "$max" '
+      if (.violations | type) == "array" then
+        .violations as $v |
+        ($v | map(select(. as $e | ($e.check and ($wl | index($e.check)))))) as $witems |
+        (($witems | length) - $max) as $over |
+        if $over > 0 then
+          (reduce $v[] as $item ({dropped: 0, out: []};
+              if ($item.check and ($wl | index($item.check))) then
+                if .dropped < $over then .dropped += 1
+                else .out += [$item]
+                end
+              else
+                .out += [$item]
+              end
+            ) | .out) as $nd |
+          .violations = $nd
+        else
+          .
+        end
+      else
+        empty
+      end
+    ' "$path" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$path"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# correction_file_strip_type <path> <segment> — remove one component from a
+# `+`-joined merged type tag (e.g. strip "state-integrity" from
+# "l2-missing+state-integrity" → "l2-missing"; strip "l2-missing" → "state-integrity").
+# violations[] untouched. Atomic write ONLY when actually stripping.
+# Boundary contract (blind review N3): pure type (no `+` connector) → no-op,
+# return non-zero, file unchanged — stripping only makes sense for merged tags,
+# pure-type scenarios are handled by the caller's own branch (retire → rm /
+# foreign → keep). Merged type WITHOUT the segment → no-op, return 0.
+# Returns: 0 after stripping or when segment absent; 1 on pure type / missing
+#          file / invalid JSON.
+correction_file_strip_type() {
+  local path="$1" segment="$2"
+  [[ -z "$path" || -z "$segment" || ! -f "$path" ]] && return 1
+
+  local cur_type
+  cur_type=$(jq -r '.type // ""' "$path" 2>/dev/null) || return 1
+
+  # Pure type (no '+'): stripping only applies to merged tags → no-op, non-zero.
+  [[ "$cur_type" != *"+"* ]] && return 1
+
+  local -a parts=()
+  IFS='+' read -r -a parts <<< "$cur_type"
+  local seg found=0
+  local -a new_parts=()
+  for seg in "${parts[@]}"; do
+    if [[ "$seg" == "$segment" ]]; then
+      found=1
+    else
+      new_parts+=("$seg")
+    fi
+  done
+
+  # Segment not present in the merged tag → no-op, return 0.
+  [[ "$found" -eq 0 ]] && return 0
+  # Degenerate: every component was the segment → leave unchanged.
+  [[ "${#new_parts[@]}" -eq 0 ]] && return 0
+
+  local new_type
+  new_type=$(
+    local IFS='+'
+    printf '%s' "${new_parts[*]}"
+  )
+
+  local tmp
+  tmp=$(mktemp "${path}.tmp.XXXXXX") || return 1
+  if jq --arg nt "$new_type" '.type = $nt' "$path" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$path"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}

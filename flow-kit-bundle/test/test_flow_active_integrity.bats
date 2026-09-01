@@ -235,13 +235,26 @@ teardown() {
 }
 
 @test "NFR: handles corrupt JSON .flow-active" {
+  # change correction-hygiene-state-guard · F2/D5 外来让位守卫后：
+  # 无法解析的 .flow-active 不再追加 corrupt_json（AC-5），改走外来分支：
+  # 清白名单 + 剥 type + 恰 1 条 foreign_state note（AC-6），.flow-active 只读（AC-7）。
   echo 'not valid json {{{' > "$FLOW_ACTIVE"
+  local before_sha
+  before_sha=$(sha256sum "$FLOW_ACTIVE" | cut -d' ' -f1)
 
   run _flow_active_integrity_main "$FLOW_ACTIVE" "$SPECS_DIR" "$CORRECTION_FILE" ""
 
   [[ -f "$CORRECTION_FILE" ]]
-  run jq -r '.violations[] | select(.check == "corrupt_json") | .message' "$CORRECTION_FILE"
-  [[ "$output" == *"not valid JSON"* ]]
+  # AC-5：不再追加 corrupt_json
+  run jq -r '[.violations[] | select(.check == "corrupt_json")] | length' "$CORRECTION_FILE"
+  [[ "$output" == "0" ]]
+  # AC-6：恰 1 条 foreign_state note
+  run jq -r '[.violations[] | select(.check == "foreign_state")] | length' "$CORRECTION_FILE"
+  [[ "$output" == "1" ]]
+  # AC-7：.flow-active 全程只读
+  local after_sha
+  after_sha=$(sha256sum "$FLOW_ACTIVE" | cut -d' ' -f1)
+  [[ "$before_sha" == "$after_sha" ]]
 }
 
 @test "NFR: handles unreadable .specs/ directory" {
