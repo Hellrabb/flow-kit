@@ -39,9 +39,11 @@ lint:
 	fi
 
 # ── check-validate: 打包完整性校验 ──
+# 双行模式（对齐 test target · TD-012 教训）：L1 装饰管道（tail 精简输出）+ L2 权威直判（exit code）
 check-validate:
 	@echo "📦 make check-validate: package staging coverage..."
 	@bash package-flow-kit.sh --validate 2>&1 | tail -5
+	@bash package-flow-kit.sh --validate > /dev/null 2>&1 && echo "✅ validate: staging coverage OK" || { echo "❌ validate: coverage check failed"; exit 1; }
 
 # ── test-sync: 同步 test/ → flow-kit-bundle/test/ ──
 test-sync:
