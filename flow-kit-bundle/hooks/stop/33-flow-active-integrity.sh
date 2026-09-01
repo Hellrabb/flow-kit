@@ -63,7 +63,6 @@ _flow_active_integrity_main() {
   [[ -f "$artifacts_lib" ]] && source "$artifacts_lib" 2>/dev/null || true
   [[ -f "$correction_lib" ]] && source "$correction_lib" 2>/dev/null || true
 
-  local violations=()
   local change_id phase
 
   change_id=$(jq -r '.change_id // ""' "$flow_active")

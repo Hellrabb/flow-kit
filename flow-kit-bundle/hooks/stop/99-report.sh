@@ -133,8 +133,6 @@ fi
 # ── Session stats ───────────────────────────────────────────────────
 ROUNDS=$(cat "$HOOK_TMP_DIR/message-rounds" 2>/dev/null || echo "?")
 TOOLS=$(get_tool_summary 2>/dev/null || echo "?")
-START_TS=$(cat "$HOOK_TMP_DIR/session-start-time" 2>/dev/null || echo "")
-END_TS=$(cat "$HOOK_TMP_DIR/session-end-time" 2>/dev/null || echo "")
 
 # Token usage (本次 session + 累计)
 # token-estimate.txt 由 01-transcript-parse/26-workflow 写入; token_spent 由 26-workflow 累加

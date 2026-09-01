@@ -160,7 +160,8 @@ l2_dispatch_agent() {
   if [ "${FLOW_KIT_L2_MOCK:-0}" = "1" ]; then
     local mock_tmp
     mock_tmp="$(mktemp "${review_md}.tmp.XXXXXX")"
-    local mock_ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo mock)"   # 修 BUG-G：mock_ts 原未定义，set -u 下 line120 ${mock_ts} 报错
+    local mock_ts
+    mock_ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo mock)"   # 修 BUG-G：mock_ts 原未定义，set -u 下 line120 ${mock_ts} 报错
     if [ -f "$review_md" ]; then
       cat "$review_md" > "$mock_tmp" 2>/dev/null || true
     fi

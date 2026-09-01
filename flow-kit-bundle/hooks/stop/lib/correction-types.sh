@@ -17,9 +17,5 @@
 # NOTE: Does NOT set -euo pipefail — this is a sourced library.
 
 # Correction file type constants
-readonly CORRECTION_TYPE_COMPLIANCE="compliance"
-readonly CORRECTION_TYPE_INTERACTIVE_UI="interactive-ui"
+# shellcheck disable=SC2034  # 跨文件单一源：33/29/28/34 号 hook 经 source 消费
 readonly CORRECTION_TYPE_ARCHIVE_UNCOMMITTED="archive-uncommitted"
-
-# Maximum retry count before stopping automatic correction injection
-readonly CORRECTION_MAX_RETRY=2

@@ -196,31 +196,6 @@ git_safe() {
   fi
 }
 
-# ── CLI detection patterns ──────────────────────────────────────────
-# Common CLI command prefixes to detect in transcripts
-CLI_PATTERNS=(
-  'pnpm run \|pnpm exec \|pnpm test\|pnpm build\|pnpm dev'
-  'bun run \|bun test\|bun build'
-  'npm run \|npm test\|npm install\|npm ci'
-  './container/build.sh\|docker build\|docker run'
-  'systemctl --user\|launchctl'
-  'ncl '
-  'onecli '
-  'rtk '
-)
-
-# ── Gotcha detection patterns ───────────────────────────────────────
-GOTCHA_PATTERNS=(
-  'gotcha\|GOTCHA'
-  '注意\|小心\|陷阱\|坑'
-  '教训\|经验\|经验教训'
-  '⚠️\|🚨\|❗\|❌\|💀'
-  'never do\|don'"'"'t ever\|avoid\|禁止\|严禁'
-  '下次一定\|以后要\|以后不\|记住\|记下来'
-  '这不工作\|不生效\|silently\|悄无声息'
-  '意外\|出乎意料\|没想到'
-)
-
 # ── Project paths (set by init_paths() after hook_init) ──────────────
 : "${PROJECT_ROOT:=}"
 : "${CLAWDE_MD:=}"
@@ -348,8 +323,11 @@ fk_resolve_api_credentials() {
 
   # Path2: legacy 兜底（ANTHROPIC_API_KEY，两平台共享 · 仅当 Path1/3 全空）
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
     FK_API_AUTH_TOKEN="${ANTHROPIC_API_KEY}"
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
     FK_API_BASE_URL="https://api.anthropic.com"
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
     FK_API_AUTH_SCHEME="x-api-key"
     return 0
   fi
@@ -373,6 +351,7 @@ fk_platform_is_opencode() {
 # All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
 # Single source for install_hooks.sh, package-flow-kit.sh, and any
 # future script that needs to enumerate all stop hook modules.
+# shellcheck disable=SC2034  # 跨文件单一源：install_hooks.sh / package-flow-kit.sh 枚举消费
 declare -a HOOK_MODULE_NAMES=(
   00-gate 01-transcript-parse
   20-claude-md 21-memory 22-git 23-quality 24-session 25-project
@@ -424,6 +403,7 @@ fk_normalize_gate_val() {
 # context_window 默认 100000，可通过 FK_CONTEXT_WINDOW 环境变量覆盖
 fk_estimate_tokens() {
   local text="${1:-}"
+  # shellcheck disable=SC2034  # 接口参数保留：FK_CONTEXT_WINDOW 由 l3-prompt.sh 消费 + test_common.bats 覆盖
   local context_window="${2:-${FK_CONTEXT_WINDOW:-100000}}"
   local char_count=${#text}
   local estimated=$(( char_count / 2 ))

@@ -28,10 +28,9 @@ _l3_inject_context() {
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
   [ -f "$review_md" ] || return 0
 
-  local l2_verdict l3_verdict agent_response
+  local l2_verdict l3_verdict
   l2_verdict=$(grep -m1 '^\*\*Verdict\*\*: ' "$review_md" 2>/dev/null | head -1 || echo "")
   l3_verdict=$(grep -A1 '"verdict"' "$review_md" 2>/dev/null | grep -o '"verdict":"[^"]*"' | tail -1 | tr -d '"' || echo "")
-  agent_response=$(sed -n '/## 主 agent 响应/,/^## /p' "$review_md" 2>/dev/null | head -30 || echo "")
 
   if [ -z "$l2_verdict" ] && [ -z "$l3_verdict" ]; then
     return 0  # 无审查上下文可注入
@@ -66,7 +65,8 @@ _l3_build_prompt() {
       if [ -f "${artifacts_dir}/DESIGN.md" ]; then
         artifact=$(head -c "$max_chars" "${artifacts_dir}/DESIGN.md" 2>/dev/null || echo "")
       fi
-      local adr_dir="$(dirname "$artifacts_dir")/adr"
+      local adr_dir
+      adr_dir="$(dirname "$artifacts_dir")/adr"
       if [ -d "$adr_dir" ]; then
         while IFS= read -r f; do
           [ -n "$f" ] || continue
@@ -88,7 +88,8 @@ _l3_build_prompt() {
       checklist="测试矩阵是否覆盖全 AC？覆盖率是否达标？UAT 是否可复现？是否有 mock 屏蔽真实失败？回归测试是否含？"
       ;;
     6)
-      local project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      local project_root
+      project_root="$(dirname "$(dirname "$artifacts_dir")")"
       # source common.sh for fk_estimate_tokens (fail-open)
       local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/common.sh"
       [ -f "$_common_lib" ] && source "$_common_lib" 2>/dev/null || true
@@ -123,7 +124,8 @@ _l3_build_prompt() {
       checklist="spec 合规（每条 AC 是否被代码覆盖）？代码质量（6 维衰退风险：认知过载/变更传播/知识重复/偶然复杂/依赖混乱/领域扭曲）？是否有 critical？"
       ;;
     7)
-      local project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      local project_root
+      project_root="$(dirname "$(dirname "$artifacts_dir")")"
       artifact="=== 产物目录 ===\n$(ls -la "$artifacts_dir" 2>/dev/null | head -30)\n"
       for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
         if [ -f "${artifacts_dir}/$f" ]; then

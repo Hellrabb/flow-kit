@@ -156,14 +156,15 @@ L3_BG_FLAG=""
 # ── _l3_scan_backlog() · 积压扫描（l3-pipeline-fix-2026-07 D3）──
 _l3_scan_backlog() {
   local flow_file="$1" spec_dir="$2" l3_lib="$3"
-  local phases_done gate_config backlog=()
+  local phases_done backlog=()
 
   phases_done=$(jq -r '.goal.phases_done // [] | .[]' "$flow_file" 2>/dev/null || echo "")
   [ -n "$phases_done" ] || return 0
 
   while IFS= read -r pn; do
     [ -n "$pn" ] || continue
-    local phase_name="$(fk_phase_gate_key "$pn")"
+    local phase_name
+    phase_name="$(fk_phase_gate_key "$pn")"
     [ -n "$phase_name" ] || continue
     local gv
     gv=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
