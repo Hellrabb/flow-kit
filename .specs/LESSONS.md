@@ -670,3 +670,11 @@
 - **教训**：单独跑 29 号 hook 脚本做单测时，source 链与隐式入口会吃掉大量时间排查。清单：① `CONFIG_FILE` 需显式 export（init_paths 不会自动跑）；② `PROJECT_ROOT`/`FLOW_KIT_PROJECT_DIR` 需 export（33 号读状态用）；③ `HOOK_BASE_DIR` 需 export（`flow-kit-artifacts.sh:13` 在 `set -u` 下引用，未绑定则 source 即死——生产无感因为 00-gate runner 注入）；④ `HOOK_TMP_DIR` 需 export（module_output 写 `$HOOK_TMP_DIR/`）；⑤ source 33 号会触发底部 implicit main，测试 harness 若在 source 行加 `2>/dev/null` 会连审计行 stderr 一起吞掉；⑥ `fk_phase_gate_key 1` 返回 `"1-requirement"`（gate_config 键名用阶段名非 `phase_1`）。
 - **来源**：correction-hygiene-state-guard · T03/T04 smoke harness 调试
 - **复核旧条目**：L-079（bats -z 断言）本次继续适用——hygiene 测试全程使用该模式，无重试必要。L-078（set -e AND-list rc 传播）适用——dedupe/trim rc 传播遵循。
+
+### L-081 · jscpd CLI 参数版本差异（月度巡检会重复撞）
+- **标签**：tooling / jscpd / health-check
+- **关键词**：jscpd、--format、--formats、consoleFull、reporter、make dup
+- **适用栈**：Bash 仓库 · M-health 步骤 2.5
+- **状态**：观察（observation）
+- **教训**：本仓 jscpd 版本用 `--format`（单数；复数 `--formats` 报 unexpected argument）；`--reporter consoleFull` 不可用（正确拼法 `--reporters`，但该版本 consoleFull 输出仍不稳定）。可靠取数方式：① 汇总率直接跑表格输出 + `sed 's/\x1b\[[0-9;]*m//g'` 去 ANSI 后 grep 表行；② clone 明细用 `--output <dir>` 落 `jscpd-report.json` 再 jq 取 `.duplicates[]`。Makefile `make dup` 的调用形态（无 format 过滤=全格式含 markdown，数值不可与 bash-only 口径混比）。
+- **来源**：M-health 2026-09-01 Full Sweep 数据采集（4 次探测收敛）
