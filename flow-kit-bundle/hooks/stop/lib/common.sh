@@ -239,8 +239,12 @@ fk_resolve_phase() {
 # l2-l3-model-config (ADR-012, supersedes ADR-006)
 # Resolve the review model name for a layer via priority chain (each tier:
 # first non-empty wins, stop):
-#   L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .flow-active.goal.l3_model > ""
-#   L2: ANTHROPIC_L2_MODEL             > FLOW_KIT_L2_MODEL > .flow-active.goal.l2_model > ""
+#   L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .flow-active.goal.l3_model
+#       > FLOW_KIT_L3_DEFAULT_MODEL > .flow-active.goal.l3_default_model（站点级默认，/flow model l3-default=）
+#   L2: ANTHROPIC_L2_MODEL             > FLOW_KIT_L2_MODEL > .flow-active.goal.l2_model
+#       > FLOW_KIT_L2_DEFAULT_MODEL > .flow-active.goal.l2_default_model（站点级默认，/flow model l2-default=）
+#   设计：显式配置（前三级）永远压过默认级；默认级只在无显式模型时兜底，
+#   凭证仍由 fk_resolve_api_credentials 独立判定——默认模型不改变无凭证跳过语义。
 # Usage: model=$(fk_resolve_model "L3")  or  model=$(fk_resolve_model "L2")
 # Pure query: writes nothing, calls no API, returns 0 always.
 # Empty stdout = all sources unconfigured → caller handles graceful degradation.
@@ -253,10 +257,14 @@ fk_resolve_model() {
     model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
     [[ -n "$model" ]] || model="${FLOW_KIT_L3_MODEL:-}"
     [[ -n "$model" ]] || model=$(jq -r '.goal.l3_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+    [[ -n "$model" ]] || model="${FLOW_KIT_L3_DEFAULT_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l3_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
   elif [[ "$layer" == "L2" ]]; then
     model="${ANTHROPIC_L2_MODEL:-}"
     [[ -n "$model" ]] || model="${FLOW_KIT_L2_MODEL:-}"
     [[ -n "$model" ]] || model=$(jq -r '.goal.l2_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+    [[ -n "$model" ]] || model="${FLOW_KIT_L2_DEFAULT_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l2_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
   fi
 
   echo "$model"
