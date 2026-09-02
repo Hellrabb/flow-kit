@@ -234,26 +234,29 @@ description: flow-kit 状态管理 — start/stop/phase/checkpoint/task/doctor�
 5. 副作用提示：开启某阶段后，进入/处于该阶段时，Stop hook `29-independent-review.sh` 会跑 L3，PreToolUse hook `independent-review-gate.sh` 会拦 commit / PR / 切阶段直到主 agent 写 `.specs/<id>/.independent-review-<phase>.done`（机制见 `@flow-kit/prompts/independent/L2-blind-review.md` 与各阶段 prompt 的「独立 review 调度」段）
 
 ### `/flow model`
-配置 L2/L3 审查模型（跨平台兼容，l2-l3-model-config ADR-012）。读 / 写 `.flow-active.goal.l2_model` / `l3_model`（可选字段）。动作：
+配置 L2/L3 审查模型（跨平台兼容，l2-l3-model-config ADR-012）。读 / 写 `.flow-active.goal.l2_model` / `l3_model`（显式）与 `l2_default_model` / `l3_default_model`（站点级默认，可选）。动作：
 1. 检查 `.flow-active` 存在 + `.goal` 非 null
 2. 解析参数：
-   - 无参数 → 显示当前 L2/L3 模型配置（jq 格式化 `.goal.l2_model` / `.goal.l3_model`，并提示优先级链）
-   - `l2=<model>` → 设置 L2 模型
-   - `l3=<model>` → 设置 L3 模型
+   - 无参数 → 显示当前 L2/L3 模型配置（jq 格式化 `.goal.l2_model` / `.goal.l3_model` / `.goal.l2_default_model` / `.goal.l3_default_model`，并提示优先级链）
+   - `l2=<model>` → 设置 L2 模型（显式）
+   - `l3=<model>` → 设置 L3 模型（显式）
    - `l2=<m> l3=<m>` → 同时设置
-   - `--clear l2` / `--clear l3` → 清除（回到 env var / 降级）
+   - `l3-default=<model>` / `l2-default=<model>` → 设置站点级默认（仅当无显式模型时生效；适合自定义网关一次配置长期生效）
+   - `--clear l2` / `--clear l3` → 清除显式（回到 env var / 默认级 / 降级）
+   - `--clear l2-default` / `--clear l3-default` → 清除默认
 3. 原子写（jq `--arg` 防注入 + 临时文件 mv，bracket 引用见 LESSONS L-011）：
    ```bash
    # 设置：/flow model l3=deepseek-v4-flash
    jq --arg m "deepseek-v4-flash" --arg ts "$(date -Iseconds)" \
      '.goal.l3_model = $m | .updated_at = $ts' \
      .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
-   # 清除：/flow model --clear l3 → .goal.l3_model = null
+   # 默认：/flow model l3-default=<m> → '.goal.l3_default_model = $m'（同一模式）
+   # 清除：/flow model --clear l3 → .goal.l3_model = null；--clear l3-default → .goal.l3_default_model = null
    # 合并：/flow model l2=<m> l3=<m> → 同一次 jq 设两个字段
    ```
-4. 输出：`✅ model[l3] = <value>。` + 当前 L2/L3 配置摘要
-5. **优先级链提示**：解析顺序 `ANTHROPIC_*` env var > `FLOW_KIT_*` env var > `.flow-active.goal.l*_model` > 降级。env var 优先；此处设置的是持久化兜底。
-6. **字段边界**：仅写 `.goal.l2_model` / `.goal.l3_model`，**不触碰** `.goal.condition` / `gates` / `gate_config` 等 `/flow goal` 字段（平行配置维度，DESIGN §5）。
+4. 输出：`✅ model[l3] = <value>。` + 当前 L2/L3 配置摘要（含默认级）
+5. **优先级链提示**：解析顺序 `ANTHROPIC_*` env var > `FLOW_KIT_*_MODEL` env var > `.flow-active.goal.l*_model`（显式） > `FLOW_KIT_*_DEFAULT_MODEL` env var > `.flow-active.goal.l*_default_model`（站点默认） > 降级。显式永远压过默认；默认模型不改变无凭证跳过语义（凭证由 fk_resolve_api_credentials 独立判定）。
+6. **字段边界**：仅写 `.goal.l2_model` / `.goal.l3_model` / `.goal.l2_default_model` / `.goal.l3_default_model`，**不触碰** `.goal.condition` / `gates` / `gate_config` 等 `/flow goal` 字段（平行配置维度，DESIGN §5）。
 
 ### `/flow l2-review <phase>`（dsh 专用）
 dsh 平台一键派发 L2 盲审子代理（等价于 claude code 的 subagent_type 派发 /

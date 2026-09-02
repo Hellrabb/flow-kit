@@ -247,6 +247,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 ## 已锁决策
 
+- `[2026-09-03]` L2/L3 模型解析链加入站点级默认 tier——L3: `ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > goal.l3_model > FLOW_KIT_L3_DEFAULT_MODEL > goal.l3_default_model`（L2 对称）。语义：显式永远压过默认；默认模型不改变无凭证跳过语义（凭证由 fk_resolve_api_credentials 独立判定）。不设硬编码模型名——用户 CC/opencode 均为自定义网关，模型目录站点相关。配置面：`/flow model l3-default=<m>` 持久化或 export env。来自 `l3-default-model`（mini change）
 - `[2026-06-05]` 入场扫描完成 — 该项目为 flow-kit 分发包仓库，非传统软件项目。无源代码、无框架、无数据库。来自 `I-intel-scan`
 - `[2026-06-08]` Git 仓库初始化 — `init-git-repo` CHANGE。默认分支 `main`，提交格式 [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`/`fix:`/`docs:`/`chore:`)。来自 `init-git-repo`
 - `[2026-06-09]` user-scope 安装采用 symlink 方案（`~/.claude/flow-kit/` + 项目 `flow-kit → symlink`），而非改动 86 处 skill 内部路径引用。项目级优先（project-priority fallback）——已有物理 `flow-kit/` 目录的项目不受影响。来自 `user-scope-install`
