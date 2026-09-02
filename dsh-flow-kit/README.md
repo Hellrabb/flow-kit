@@ -4,6 +4,10 @@ flow-kit 的 DeepSeek Harness（dsh）插件：把完整 flow-kit 生态（17 �
 15+ 阶段 prompts、13 个 templates、reference、L2/L3 独立审查 hook 链、
 brooks-lint）打成一个可 `dsh plugin add` 的包，**与 Claude Code 解耦**。
 
+> 当前版本 v0.2.0（2026-09 同步 flow-kit：correction 卫生/状态守卫 ADR-024、
+> shellcheck 清零 TD-023、install.sh dsh 平台分支、L2/L3 站点级默认模型
+> 五级解析链）。
+
 ## 特性
 
 - `/flow` 命令：start / stop / phase / task / checkpoint / goal（含 `--pipeline`、
@@ -14,6 +18,10 @@ brooks-lint）打成一个可 `dsh plugin add` 的包，**与 Claude Code 解耦
   `agent/created`（原 SessionStart）→ resume/reminder
 - L2/L3 独立审查：`L2|L3|both` gate_config、L2-first 契约、`.done` 真实性校验、
   `.goal-snapshot.json` 篡改检测、多平台凭证链全部保留
+- correction 卫生（ADR-024）：`.flow-active.correction` 去重/FIFO 容量治理 +
+  9 项状态完整性检查白名单；`/flow doctor` 直接报告 correction 类型与待办规模
+- 五级模型解析链：`/flow model` 支持 l2=/l3= 显式 + l2-default=/l3-default=
+  站点级默认 + `--clear`（与 shell `fk_resolve_model` tier-4/5 对齐）
 - 内容零丢失：完整 `flow-kit-bundle` 原样在 `vendor/` 内
 
 ## 安装
@@ -63,3 +71,23 @@ export FLOW_KIT_L2_MODEL=<模型名>
 
 三个承载面共享同一份 `.flow-active` / `.specs` 状态契约。claude 分支保持
 `.claude` 默认路径零回归；dsh 分支使用 `.flow-kit`。详见 `DESIGN.md`。
+
+## 同步 flow-kit 更新
+
+flow-kit 内容（hooks / skills / flow-kit / brooks-lint）的唯一维护源是仓库根的
+`flow-kit-bundle/`。flow-kit 更新后按以下流程刷新插件：
+
+```bash
+# 1) 按语义化递增 package.json 版本号；若契约变化同步 lib/（见 DESIGN.md §8）
+# 2) 重打包（脚本内部自动跑 node 单测 + node --check + bash -n 全量扫描）
+bash package-dsh-plugin.sh
+
+# 3) 校验 vendor 零丢失
+diff -rq flow-kit-bundle dist/dsh-flow-kit/vendor/flow-kit-bundle
+
+# 4) 重装 profile（file: 依赖需 pnpm install 刷新副本；dsh 重启后生效）
+cd ~/.dsh/profiles/<profile> && pnpm install
+
+# 5) 验证挂载
+dsh --profile <profile> --dump-config | grep -A 7 flow-kit
+```

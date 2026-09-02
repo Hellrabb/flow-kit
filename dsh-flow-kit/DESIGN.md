@@ -121,3 +121,30 @@ dsh-flow-kit/
 - 回归：`make test`（root `test/` 760 用例全绿）+ `make lint` + `make check-test-sync`
 - 集成：`dsh --profile flowkit-test --dump-config` 确认 `flow-kit` 行挂载
   （inject: commands+skills）；apply() smoke 验证 23 skills + /flow 注册
+
+## 8. 与 flow-kit 的同步契约（flow-kit 更新 → 插件更新）
+
+flow-kit 的唯一维护源是仓库根 `flow-kit-bundle/`。flow-kit 更新后，插件按
+四层义务跟进：
+
+1. **内容层（自动）**：重跑 `bash package-dsh-plugin.sh` —— skills/flow-kit/
+   hooks/brooks-lint 与 `vendor/` 全部从 `flow-kit-bundle/` 重新拷贝。
+   correction 卫生、状态守卫、lint 清零等纯内容更新无需改动插件代码。
+2. **契约层（手动核对）**：flow-kit 改动的对外契约若触及插件 JS 侧需同步：
+   - `.flow-active` / `.flow-active.correction` 契约 → `lib/flow-state.js`
+     （`/flow doctor` 等读这些文件的入口）
+   - hook JSON 事件形状 → `lib/hook-bridge.js`
+   - skills frontmatter → `lib/skill-loader.js`
+   - PRESET_MAP → `flow-state.js` 与 `fk_normalize_gate_val()` 双源同步
+3. **版本层**：`package.json` 语义化递增（纯内容同步 = minor）。
+4. **验证层**：`bash package-dsh-plugin.sh`（内置单测 + 语法全量扫描）、
+   vendor 逐字节 diff、`make test` 回归、profile `pnpm install` 重装 +
+   `--dump-config` 挂载确认。
+
+最近一次同步（2026-09 → v0.2.0）：correction-hygiene-state-guard（ADR-024：
+correction-file.sh 去重/FIFO/类型剥离 + 9 项状态完整性检查白名单 +
+l2/l3-model-missing 类型）、shellcheck 清零（TD-023）、install.sh dsh 平台分支、
+hooks/config/README.md；`/flow doctor` 同步新增 correction 卫生报告；
+L2/L3 站点级默认模型 tier（五级解析链）：`/flow model` 同步 l2-default=/
+l3-default=/--clear <target>，写 `.goal.l{2,3}_default_model` 与
+`fk_resolve_model` tier-4/5 对齐（显式压过默认；默认不改变无凭证跳过语义）。

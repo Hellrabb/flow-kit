@@ -345,24 +345,31 @@ export async function runFlowCommand(rawInput, agent) {
         const goal = requireGoal(state);
         const show = (prefix = "") => {
           const lines = [
-            `${prefix}L2: ${goal.l2_model ?? "(未设置 → ANTHROPIC_L2_MODEL / FLOW_KIT_L2_MODEL env → 降级)"}`,
-            `${prefix}L3: ${goal.l3_model ?? "(未设置 → ANTHROPIC_DEFAULT_HAIKU_MODEL / FLOW_KIT_L3_MODEL env → 降级)"}`,
-            `${prefix}优先级链: env var > .flow-active.goal.l*_model（本处是持久化兜底）`,
+            `${prefix}L2 显式: ${goal.l2_model ?? "(未设置 → ANTHROPIC_L2_MODEL / FLOW_KIT_L2_MODEL env)"}`,
+            `${prefix}L3 显式: ${goal.l3_model ?? "(未设置 → ANTHROPIC_DEFAULT_HAIKU_MODEL / FLOW_KIT_L3_MODEL env)"}`,
+            `${prefix}L2 默认: ${goal.l2_default_model ?? "(未设置 → FLOW_KIT_L2_DEFAULT_MODEL env → 降级)"}`,
+            `${prefix}L3 默认: ${goal.l3_default_model ?? "(未设置 → FLOW_KIT_L3_DEFAULT_MODEL env → 降级)"}`,
+            `${prefix}优先级链: ANTHROPIC_* env > FLOW_KIT_*_MODEL env > .goal.l*_model（显式） > FLOW_KIT_*_DEFAULT_MODEL env > .goal.l*_default_model（站点默认） > 降级`,
           ];
           return lines.join("\n");
         };
         if (rest === "") return { kind: "success", text: show() };
+        // 五级解析链 tier-4/5（model tier, 2026-09 同步）：
+        // l2=|l3= 写显式字段；l2-default=|l3-default= 写站点默认字段；
+        // --clear <l2|l3|l2-default|l3-default> 清对应字段。
+        // 仅触碰 4 个模型字段，不碰 condition/gates/gate_config（平行配置维度）。
         const tokens = rest.split(/\s+/);
         let nextGoal = { ...goal };
-        const isClearL2 = tokens.includes("--clear") && tokens.includes("l2");
-        const isClearL3 = tokens.includes("--clear") && tokens.includes("l3");
-        if (isClearL2) nextGoal.l2_model = null;
-        if (isClearL3) nextGoal.l3_model = null;
+        const fieldOf = { l2: "l2_model", l3: "l3_model", "l2-default": "l2_default_model", "l3-default": "l3_default_model" };
         for (const token of tokens) {
-          const m = token.match(/^(l2|l3)=(.+)$/);
-          if (!m) continue;
-          if (m[1] === "l2") nextGoal.l2_model = m[2];
-          else nextGoal.l3_model = m[2];
+          const m = token.match(/^(l2|l3|l2-default|l3-default)=(.+)$/);
+          if (m) nextGoal[fieldOf[m[1]]] = m[2];
+        }
+        const clearIdx = tokens.indexOf("--clear");
+        if (clearIdx >= 0) {
+          for (const target of tokens.slice(clearIdx + 1)) {
+            if (Object.hasOwn(fieldOf, target)) nextGoal[fieldOf[target]] = null;
+          }
         }
         const next = { ...state, goal: nextGoal, updated_at: nowIso() };
         await writeFlow(file, next);
@@ -380,6 +387,25 @@ export async function runFlowCommand(rawInput, agent) {
           lines.push(cfg.modules?.workflow?.enabled === true ? "✅ Stop Hook workflow: 已启用" : "⚠️ Stop Hook workflow: 未启用 (.flow-kit/stop-hook.json)");
         } catch {
           lines.push("⚠️ Stop Hook 配置: .flow-kit/stop-hook.json 缺失（dsh 插件内置 hook bridge 仍可运行）");
+        }
+        // correction 卫生（correction-hygiene-state-guard · ADR-024）：报告
+        // .flow-active.correction 类型与待办规模；去重/FIFO 治理由 33 号 hook 负责。
+        const correctionPath = join(root, ".flow-active.correction");
+        try {
+          const correction = JSON.parse(await readFile(correctionPath, "utf8"));
+          const tag = correction.type ?? "(unknown)";
+          const violations = Array.isArray(correction.violations) ? correction.violations : [];
+          if (violations.length > 0) {
+            const checks = [...new Set(violations.map((v) => v?.check ?? "?").filter(Boolean))].join(", ");
+            lines.push(`⚠️ .flow-active.correction: type=${tag}, violations=${violations.length} (${checks})`);
+          } else if (correction.message) {
+            lines.push(`⚠️ .flow-active.correction: type=${tag} — ${correction.message}`);
+          } else {
+            lines.push(`⚠️ .flow-active.correction: type=${tag}`);
+          }
+        } catch (error) {
+          if (error.code === "ENOENT") lines.push("✅ .flow-active.correction: 无待办纠正（卫生良好）");
+          else lines.push(`⚠️ .flow-active.correction: 读取失败 — ${error.message}`);
         }
         if (state.change_id) {
           const specDir = join(root, ".specs", state.change_id);
