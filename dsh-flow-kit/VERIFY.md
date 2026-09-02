@@ -86,3 +86,23 @@ dsh --profile flowkit-test --dump-config | grep -A 7 'dsh-flow-kit'
   `query runL2Review` / `explore "L2 review dispatch"` 可查到 l2-review.js
   全部符号与调用点
 - node 单测 19/19
+
+## round 5 · flow-kit 2026-09 同步（v0.2.0）
+
+- 同步内容：correction-hygiene-state-guard（ADR-024）、shellcheck 清零（TD-023）、
+  install.sh dsh 平台分支、hooks/config/README.md、L2/L3 站点级默认模型
+  tier（五级解析链，`fk_resolve_model` tier-4/5 + `/flow model`
+  l2-default=/l3-default=/--clear）
+- `flow-state.js` doctor 新增 `.flow-active.correction` 卫生报告
+  （type + violations 去重摘要）；单测新增 doctor 用例 19→20
+- `bash package-dsh-plugin.sh` 重打包 → `dist/dsh-flow-kit-0.2.0.tgz`；
+  内置单测 20/20 全绿 + node --check + bash -n 全量扫描通过
+- vendor 零丢失：`diff -rq flow-kit-bundle dist/dsh-flow-kit/vendor/flow-kit-bundle`
+  逐字节一致；新内容（correction-file.sh、hooks/config/README.md）已在包内
+- 回归：root `test/` 全量 bats 764 ok / 0 fail（含新增 correction-hygiene
+  31 项定向回归、install dsh 平台 2 项）
+- profile 重装：web + flowkit-test `pnpm install` → node_modules 刷新为 0.2.0
+  （flowkit-test 顺带把 pnpm 10 allowBuilds 四条目置 true，node-pty 等原生
+  构建恢复）；两 profile `--dump-config` 均确认
+  `id: flow-kit` 行挂载（inject: commands + skills + systemPrompt）；
+  dsh 重启后生效

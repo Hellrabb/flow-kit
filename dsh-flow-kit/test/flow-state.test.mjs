@@ -85,6 +85,48 @@ test("/flow start → goal pipeline → phase → checkpoint → stop (full stat
   }
 });
 
+test("/flow doctor reports correction hygiene state (ADR-024)", async () => {
+  const root = await tempProject();
+  try {
+    await runFlowCommand("start", undefined);
+    let result = await runFlowCommand("doctor", undefined);
+    assert.equal(result.kind, "success");
+    assert.match(result.text, /无待办纠正（卫生良好）/);
+
+    // 写入带 violations 的 correction（state-integrity 合并标签）后再次诊断
+    await writeFile(
+      join(root, ".flow-active.correction"),
+      JSON.stringify({
+        type: "l2-missing+state-integrity",
+        violations: [
+          { check: "stale_updated_at", field: "updated_at" },
+          { check: "stale_updated_at", field: "updated_at" },
+          { check: "corrupt_json", field: null },
+        ],
+      }),
+      "utf8"
+    );
+    result = await runFlowCommand("doctor", undefined);
+    assert.equal(result.kind, "success");
+    assert.match(result.text, /type=l2-missing\+state-integrity/);
+    assert.match(result.text, /violations=3/);
+    assert.match(result.text, /stale_updated_at, corrupt_json/);
+
+    // model-missing 型 correction（无 violations、有 message）也能报告
+    await writeFile(
+      join(root, ".flow-active.correction"),
+      JSON.stringify({ type: "l3-model-missing", layer: "L3", message: "L3 审查模型未配置" }),
+      "utf8"
+    );
+    result = await runFlowCommand("doctor", undefined);
+    assert.equal(result.kind, "success");
+    assert.match(result.text, /type=l3-model-missing — L3 审查模型未配置/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    delete process.env.FLOW_KIT_PROJECT_DIR;
+  }
+});
+
 test("/flow gate-config and model persist into .goal", async () => {
   const root = await tempProject();
   try {
@@ -99,6 +141,27 @@ test("/flow gate-config and model persist into .goal", async () => {
     assert.equal(state.goal.gate_config["6-review"], "L2");
     assert.equal(state.goal.l2_model, "deepseek-v4-flash");
     assert.equal(state.goal.l3_model, "deepseek-v4-pro");
+
+    // 五级解析链 tier-4/5：站点级默认字段 + --clear <target>（2026-09 model tier 同步）
+    result = await runFlowCommand("model l2-default=deepseek-v4-lite l3-default=deepseek-v4-flash", undefined);
+    assert.equal(result.kind, "success");
+    let withDefaults = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));
+    assert.equal(withDefaults.goal.l2_default_model, "deepseek-v4-lite");
+    assert.equal(withDefaults.goal.l3_default_model, "deepseek-v4-flash");
+    // 显式字段不被默认写入触碰
+    assert.equal(withDefaults.goal.l2_model, "deepseek-v4-flash");
+    assert.equal(withDefaults.goal.l3_model, "deepseek-v4-pro");
+    // 默认字段不触碰 goal 其他维度
+    assert.equal(withDefaults.goal.gate_config["6-review"], "L2");
+
+    result = await runFlowCommand("model --clear l2 l3-default", undefined);
+    assert.equal(result.kind, "success");
+    const cleared = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));
+    assert.equal(cleared.goal.l2_model, null);
+    assert.equal(cleared.goal.l3_default_model, null);
+    assert.equal(cleared.goal.l3_model, "deepseek-v4-pro");
+    assert.equal(cleared.goal.l2_default_model, "deepseek-v4-lite");
+    assert.equal(cleared.goal.gate_config["6-review"], "L2");
 
     await runFlowCommand("gate-config 6-review=off", undefined);
     const off = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));

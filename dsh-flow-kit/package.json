@@ -1,6 +1,6 @@
 {
   "name": "dsh-flow-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "flow-kit as a DeepSeek Harness (dsh) plugin — decoupled from Claude Code. Ships the full flow-kit ecosystem: skills, prompts, templates, reference, L2/L3 independent-review hooks, brooks-lint.",
   "type": "module",
   "main": "lib/index.js",
