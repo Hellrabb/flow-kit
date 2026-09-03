@@ -3,7 +3,7 @@
 - **Change ID**: user-guide-sync-2026-09
 - **审查时间**: 2026-09-03
 - **审查者**: AI（Reviewer 角色）+ 每阶段 L2 盲审子代理 + L3 外部模型（deepseek-v4-flash-0731）
-- **总体结论**: 通过（阶段 1/2/3/5 门禁 L2+L3 pass；6/7 门禁在 INDEPENDENT-REVIEW-6/7 闭环）
+- **总体结论**: 待定 —— 阶段 6/7 独立门禁闭环前不宣称最终通过；1/2/3/5 门禁已 L2+L3 pass，6/7 在各自 INDEPENDENT-REVIEW 文件定稿，最终归档放行见 INTEGRATION.md
 
 ---
 
@@ -11,13 +11,27 @@
 
 | 检查项 | 结果 | 证据 |
 |---|---|---|
-| 每条 AC 都已实现 | ✅ | TEST.md 矩阵 T1-T7 ✅；T8/T9 为跨阶段验收项（显式标注移交） |
-| 每条 AC 都有测试 | ✅ | TEST.md A1..A7（A3e 12 键双向相等 / A56 MD↔deck 同步断言实跑通过） |
-| 未引入 out of scope 内容 | ✅ | git diff 仅限白名单：指南两副本 / pptx / 生成器 / .specs 产物（AC-7 外溢 0） |
+| 每条 AC 都已实现 | ✅ | AC↔测试映射摘要见下（AC-1..9 → T1..T9）；T1-T7 实测 ✅，T8/T9 为跨阶段验收项（显式标注移交，阶段 7 回填） |
+| 每条 AC 都有测试 | ✅ | TEST.md A1..A7（A3e 12 键双向相等 / A5/A6 MD↔deck 同步断言实跑通过） |
+| 未引入 out of scope 内容 | ✅ | out-of-scope 检查通过：git diff 仅含白名单路径，AC-7 外溢项为 0（见 TEST.md A7 命令） |
 | 未范围蔓延 | ✅ | 运行时实现 0 改动；技术设计 pptx / 生态指南 / README 未动（v2 登记） |
 | 未越过 DESIGN 边界 | ✅ | deck 20 页 / .specs/user-guide-deck-gen 生成器 / config 键列口径按 DESIGN D1-D8 |
 
-**Spec 合规结论**: 通过
+**Spec 合规结论**: 通过（T8/T9 条款移交阶段 7，最终放行待 INTEGRATION）
+
+### AC ↔ 测试映射摘要
+
+| AC | 测试 | 状态 |
+|---|---|---|
+| AC-1 版本头 | TEST A1 | ✅ |
+| AC-2 禁词清零 | TEST A2 + deck_checks | ✅ |
+| AC-3 新事实就位 | TEST A3（a-g + A3e 12 键双向相等） | ✅ |
+| AC-4 bundle 一致 | TEST A4 cmp | ✅ |
+| AC-5 deck 20 页 | TEST A5 build + deck_checks | ✅ |
+| AC-6 渲染 | TEST A6 soffice/pdf/png | ✅ |
+| AC-7 回归边界 | TEST A7 make test + 白名单 | ✅（快照 INTEGRATION 固化） |
+| AC-8 L2/L3 门禁 | IR-1/2/3/5 ✅ + IR-6/7 本阶段 | ⏳ 6/7 |
+| AC-9 归档提交 | INTEGRATION.md | ⏳ 阶段 7 |
 
 ## 独立审查汇总（gate_config=all）
 
@@ -27,7 +41,7 @@
 | 2 DESIGN | DESIGN/REQ/CHANGE | pass（复审后） | pass（首轮） | 风险类别列 / R6 dist 澄清 / tracked 措辞 |
 | 3 TASK | TASK/REQ/DESIGN | pass（复审后） | pass（2 轮迭代） | T07 verify 重写 / T08 depends / T06 收尾口径 |
 | 5 TEST | TEST.md | pass（终审后） | pass（2 轮迭代） | A3e 限定解析 / 跨阶段验收标注 / pipefail / MD↔deck 同步 |
-| 6 REVIEW | 本文件 + git diff | ⏳ 本轮 | ⏳ 本轮 | — |
+| 6 REVIEW | 本文件 + git diff | pass（复审后） | pass（2 轮迭代） | 总体结论措辞/AC 映射/证据可复核化 |
 | 7 INTEGRATION | INTEGRATION.md + 归档 | ⏳ 阶段 7 | ⏳ 阶段 7 | — |
 
 > Minor findings 全部登记 MINOR-DEFERRED.md（M1-M19 · ADR-017 单一路径），phase 7 triage。
@@ -36,16 +50,16 @@
 
 | 编号 | 衰退风险 | 🔴 | 🟡 | 🟢 | 说明 |
 |---|---|---|---|---|---|
-| R1 | Cognitive Overload | 0 | 0 | 0 | 指南单文件 ~76KB 可整读（NFR ≤90KB）；MD↔deck 同口径无新增心智负担 |
-| R2 | Change Propagation | 0 | 1 | 0 | 指南/bundle/插件 docs 三副本传播：本 change cp+cmp 同步两份，插件 docs 随重打包（DESIGN R6） |
-| R3 | Knowledge Duplication | 0 | 1 | 0 | deck=MD 演示子集；用「MD 为源 + deck_checks 同步断言」约束漂移 |
-| R4 | Accidental Complexity | 0 | 0 | 0 | 生成器沿用 tech-deck 家族 theme/shapes，3 个布局函数 |
-| R5 | Dependency Disorder | 0 | 0 | 0 | 依赖仅 python-pptx/PIL/soffice（README 锁定版本） |
-| R6 | Domain Model Distortion | 0 | 0 | 0 | 术语与 CONTEXT 对齐（doctor / tier-4/5 / archive-commit 门禁词条已沉淀） |
+| R1 | Cognitive Overload | 0 | 0 | 1 | 证据：指南 ≈76KB ≤ 90KB（NFR）；deck 每页 ≤13 行正文（slides.json 可查）→ 绿色项 |
+| R2 | Change Propagation | 0 | 1 | 0 | 证据：三副本传播风险真实 → 缓解已执行：T05 cp+cmp 实跑 CMP-OK（提交 881c974/9d04dfe 记录）；插件 docs 随 dist 重打包（DESIGN R6） |
+| R3 | Knowledge Duplication | 0 | 1 | 0 | 证据：MD↔deck 必然重叠 → 缓解已执行：deck_checks.py 双向断言 + TEST A5/A6 MD-DECK-SYNC-OK（TEST.md 实跑记录） |
+| R4 | Accidental Complexity | 0 | 0 | 1 | 证据：生成器沿用 tech-deck 家族 theme/shapes，仅 3 布局函数（layouts.py 可读）→ 绿色项 |
+| R5 | Dependency Disorder | 0 | 0 | 1 | 证据：build.py 自检 python-pptx 1.0.2 OK；README 锁定依赖版本；无运行时依赖 → 绿色项 |
+| R6 | Domain Model Distortion | 0 | 0 | 1 | 证据：CONTEXT 词条与指南 §1/§4/§7 用词一致（TEST A3 a/g 断言通过）→ 绿色项 |
 
 ### 2.2 主要质量发现（已闭环或登记）
 
-- 🟡 R2/R3（传播/重复）：缓解 = T05 cp+cmp + TEST A4/A56 + deck_checks 双向断言；插件 docs 由阶段 7 重打包 dist 刷新（gitignored，profile 装载待用户重启）。
+- 🟡 R2/R3（传播/重复）：缓解已执行并留证 —— T05 cp+cmp（TEST A4）、deck_checks 双向断言与 TEST A5/A6 MD-DECK-SYNC-OK 实跑输出（记录于 TEST.md 实跑记录；deck_checks.py 源随 .specs/user-guide-deck-gen 入库）；插件 docs 由阶段 7 重打包 dist 刷新（gitignored，profile 装载待用户重启）。
 - 🟢 Minor 全量登记 MINOR-DEFERRED.md（M1-M19 · 每行注明「已吸收」或「待 phase 7 triage」；M2/M17/M19 为待 triage 项）。
 
 ## 第四轮 · 补充审查（按触发条件）
@@ -55,4 +69,4 @@
 
 ---
 
-> 结论随阶段 6/7 门禁最终确认；如有新发现追加 T-FIX 并回填本表。
+> 结论：阶段 6 门禁已闭环（IR-6 L2/L3 pass）；阶段 7（IR-7 + 归档）闭环后由 INTEGRATION.md 定稿最终总体结论；如有新发现追加 T-FIX 并回填本表。
