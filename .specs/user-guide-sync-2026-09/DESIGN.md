@@ -28,8 +28,8 @@
 - .specs/archive/2026-07-31-user-guide-ppt-sync/gen/（tech-deck 生成器 · 只读参考，本次不写）
 - .specs/CONTEXT.md（术语表 · 已追加）
 
-本次新增（tracked）：
-- .specs/user-guide-deck-gen/ —— 用户指南 deck 声明式生成器（slides.json + 布局库 + build 脚本），跨 change 长期维护居所
+本次新增（DEV 创建后即 tracked，不滞留未入库状态）：
+- .specs/user-guide-deck-gen/ —— 用户指南 deck 声明式生成器（本 change 创建：theme.py/layouts.py/build.py/README.md 已建；slides.json（20 页内容源）与 deck_checks.py 由 T07/T08 创建后入库），跨 change 长期维护居所
 - .specs/user-guide-sync-2026-09/* —— 本 change 产物（后归档）
 
 禁动清单（与本次无关）：
@@ -105,14 +105,14 @@ N/A（文档 change 无运行时状态机）。演进顺序：规划链（0→1�
 
 ## 5. 风险
 
-| # | 风险 | 影响 | 概率 | 缓解 |
-|---|---|---|---|---|
-| R1 | 重建 deck 视觉与原 19 页不一致（新生成器布局偏差） | 用户观感差 / 审查 fail | 中 | DEV 前先渲染现 deck 基线 PNG；布局函数沿用 tech-deck 家族 + pptx-light-sync 已知版式参数（16:9 · 顶部色带 · 宋体/Times New Roman）；TEST 抽 3 页 PNG 对照 |
-| R2 | MD 事实漏改/口径不一致（模块数、命令字段等散布多处） | AC-2/3 不达标 | 中 | TASK 按 D3 口径逐表拆行；TEST 固化 grep 断言清单；L2 盲审逐段核 diff |
-| R3 | pre-commit make test（770 bats）耗时数分钟、高频提交时拖慢且流式输出污染工具结果 | 进度慢/误判卡死 | 高 | 分组提交（每阶段 1-2 次）；提交用后台等 poll（避开流式截断问题）；只依赖最终 git log 判定 |
-| R4 | 本会话（web host）无 `FLOW_KIT_L3_*` env，hook 自动路径 L3 会降级 | gate 未真正 L3 | 中 | L3 审查显式 env 注入调用 l3-review.sh（dsh-tui 进程已配值）；结果落 INDEPENDENT-REVIEW-N.md L3 段；若 API 不可用按 CHANGE 风险段显式降挡记录 |
-| R5 | 生成器依赖本机 python-pptx/PIL/LibreOffice 版本漂移（CI 缺失） | 未来重跑失败 | 低 | build.py 开头版本自检（pptx>=1.0、soffice 存在）；README 记录锁定版本与重跑命令 |
-| R6 | 指南/bundle/插件 docs 三份副本漂移（本 change 只同步前两份；插件 docs/ 依赖下次 package-dsh-plugin.sh） | 插件内 doc 暂时旧 | 中 | INTEGRATION 在归档后重跑 package-dsh-plugin.sh 刷新 dist/插件 docs 副本（不改 profile 安装，仅 dist），并在 CHANGELOG 标注 |
+| # | 类别 | 风险 | 影响 | 概率 | 缓解 |
+|---|---|---|---|---|---|---|
+| R1 | 实现期 | 重建 deck 视觉与原 19 页不一致（新生成器布局偏差） | 用户观感差 / 审查 fail | 中 | DEV 前先渲染现 deck 基线 PNG；布局函数沿用 tech-deck 家族 + pptx-light-sync 已知版式参数（16:9 · 顶部色带 · 宋体/Times New Roman）；TEST 抽 3 页 PNG 对照 |
+| R2 | 实现期 | MD 事实漏改/口径不一致（模块数、命令字段等散布多处） | AC-2/3 不达标 | 中 | TASK 按 D3 口径逐表拆行；TEST 固化 grep 断言清单；L2 盲审逐段核 diff |
+| R3 | 实现期 | pre-commit make test（770 bats）耗时数分钟、高频提交时拖慢且流式输出污染工具结果 | 进度慢/误判卡死 | 高 | 分组提交（每阶段 1-2 次）；提交用后台等 poll（避开流式截断问题）；只依赖最终 git log 判定 |
+| R4 | 上线期 | 本会话（web host）无 `FLOW_KIT_L3_*` env，hook 自动路径 L3 会降级 | gate 未真正 L3 | 中 | L3 审查显式 env 注入调用 l3-review.sh（dsh-tui 进程已配值）；结果落 INDEPENDENT-REVIEW-N.md L3 段；若 API 不可用按 CHANGE 风险段显式降挡记录 |
+| R5 | 长期债 | 生成器依赖本机 python-pptx/PIL/LibreOffice 版本漂移（CI 缺失） | 未来重跑失败 | 低 | build.py 开头版本自检（pptx>=1.0、soffice 存在）；README 记录锁定版本与重跑命令 |
+| R6 | 上线期/长期债 | 指南/bundle/插件 docs 三份副本漂移（本 change 同步前两份；插件 docs/ 依赖打包刷新） | 插件内 doc 暂时旧 | 中 | INTEGRATION 归档后重跑 package-dsh-plugin.sh 刷新 dist 产物——dist/ 已被 .gitignore 忽略（.gitignore:29），重跑**不产生 git 变更**、与 AC-7 白名单无冲突；插件 profile 内 docs 随用户下次重装/重启生效（v2 记录）；CHANGELOG 标注 |
 
 ## 6. 不在范围
 

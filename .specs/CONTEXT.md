@@ -78,10 +78,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | Phase Completion Self-Check (PCSC) | 阶段完成自检 — 每个阶段 prompt 中 Pipeline Toll-Gate 之前的强制产物自检段。列出本阶段必产文件清单，逐项标记 ✅/❌。任一 ❌ → 禁止进入 toll-gate，要求先补齐。auto_advance=true 时仍执行，全 ✅ 自动 transition，有 ❌ 暂停告警 |
 | Phase Completion Gate (PCG) | GO.md 路由层的独立产物检查门禁。AI 请求进入 phase N+1 时，GO.md 检查 phase N 的必须产物是否存在于磁盘。缺失 → 拒绝路由，输出缺失清单。独立于 prompt 指令，AI 无法绕过 |
 | artifact verification | 产物存在性验证 — 在进入 toll-gate 或 transition 之前，检查对应阶段必须产出的文件是否已写入磁盘（如 `test -f .specs/<id>/TEST.md`）。双层防护（PCSC + PCG）的核心机制 |
-| fk_resolve_model | 公共函数（`hooks/stop/lib/common.sh`），按三级优先级链解析 L2/L3 审查模型名。用法：`model=$(fk_resolve_model "L3")`。全部未配置时返回空字符串（调用方负责降级） |
+| fk_resolve_model | 公共函数（`hooks/stop/lib/common.sh`），按**五级**优先级链解析 L2/L3 审查模型名（2026-09-03 起含站点默认 tier-4/5；见已锁决策同日期条目）。用法：`model=$(fk_resolve_model "L3")`。全部未配置时返回空字符串（调用方负责降级） |
 | FLOW_KIT_L2_MODEL / FLOW_KIT_L3_MODEL | 新增 env var，用于临时覆盖 L2/L3 审查模型（优先级 2，介于 ANTHROPIC_* env var 和 .flow-active 配置字段之间） |
 | l2_model / l3_model | `.flow-active.goal` 的新增可选字段，持久化 L2/L3 审查模型名（优先级 3）。通过 `/flow model l2=<m> l3=<m>` 设置 |
-| model resolution priority chain | L2/L3 模型名的三级优先级解析策略：1. ANTHROPIC_* env var（CC 原生）→ 2. FLOW_KIT_* env var（临时覆盖）→ 3. .flow-active.goal.l*_model（持久化配置）→ 4. 空字符串（优雅降级）。每级取到非空值即停 |
+| model resolution priority chain | L2/L3 模型名的解析策略（2026-09-03 起五级，显式永远压过默认）：1. ANTHROPIC_* env（CC 原生）→ 2. FLOW_KIT_L{2,3}_MODEL env（临时覆盖）→ 3. .flow-active.goal.l{2,3}_model（持久化显式）→ 4. FLOW_KIT_L{2,3}_DEFAULT_MODEL env（站点默认）→ 5. .flow-active.goal.l{2,3}_default_model（站点默认持久化，`/flow model l2-default=/l3-default=` 写入）→ 6. 空字符串（优雅降级）。每级非空即停 |
 | graceful degradation (model) | fk_resolve_model 返回空字符串时的降级策略：不崩溃（不用 `:?` 终止），输出配置提示 + 写 `.flow-active.correction`（type=l*-model-missing），SessionStart 收割展示 banner |
 | brooks-tools | brooks-lint 依赖的 4 个外部 npm 工具的统称：depcheck（未使用依赖检测）、jscpd（代码重复检测）、knip（未使用文件/导出检测）、ts-prune（未使用 TS 导出检测）。以扁平 node_modules 自包含目录形式打包，离线安装到 `~/.claude/tools/brooks-lint/` |
 | npm pack | npm 原生命令，将包及其依赖打包为 .tgz。本项目中用于从 pnpm 全局安装中提取工具的完整依赖树，绕过 pnpm 虚拟存储的符号链接复杂性 |
@@ -579,7 +579,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- archive-commit-gate 追加 ↑ -->
 <!-- td072-lib-split-2026-08 追加 ↑ -->
 <!-- l2l3-cross-platform 追加 ↓ -->
-| 双平台凭证解析链（dual-platform credential resolution） | L3 API 凭证（base_url + auth_token）的运行时感知解析策略：claude code 下 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` 优先（零回归）；opencode 下回退 `FLOW_KIT_L3_BASE_URL` / `FLOW_KIT_L3_AUTH_TOKEN`（hook 子进程继承 opencode 启动 env，settings.json env 段不注入）。模型名沿用 fk_resolve_model 三级链。来自 l2l3-cross-platform |
+| 双平台凭证解析链（dual-platform credential resolution） | L3 API 凭证（base_url + auth_token）的运行时感知解析策略：claude code 下 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` 优先（零回归）；opencode 下回退 `FLOW_KIT_L3_BASE_URL` / `FLOW_KIT_L3_AUTH_TOKEN`（hook 子进程继承 opencode 启动 env，settings.json env 段不注入）。模型名沿用 fk_resolve_model 五级链（2026-09-03 起，见已锁决策）。来自 l2l3-cross-platform |
 | FLOW_KIT_L3_BASE_URL / FLOW_KIT_L3_AUTH_TOKEN | 新增 L3 API 凭证 env var（opencode 平台一等配置路径）。凭证**绝不落盘**（不进 .flow-active / correction / 日志 / 报告），仅存在于 hook 子进程 env。与既有 FLOW_KIT_L3_MODEL / MAX_TOKENS / TIMEOUT / THINKING 同族。来自 l2l3-cross-platform |
 | 平台感知派发（platform-aware dispatch） | L2 子 agent 派发指引按运行时生成的策略：opencode（OPENCODE=1）下生成 `task(category=...)` 路由提示（如 unspecified-high，因 subagent_type 路由挂起 agent=undefined）；claude code 下保持 `subagent_type` 派发模板。来自 l2l3-cross-platform |
 | opencode reviewer agent 定义 | flow-kit 分发包新增的 opencode 专用盲审子 agent 定义（`.opencode/agent/`），使 `subagent_type` 路由在 opencode 下有可用目标。prompt 引用 L2-blind-review 指令。来自 l2l3-cross-platform |
