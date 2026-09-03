@@ -40,8 +40,11 @@ def main():
     assert len(items) == EXPECT_PAGES, f"pages={len(items)}"
     full = "\n".join(t for _, t in items)
 
+    import json as _json
+    slides_src = _json.dumps(_json.load(open(Path(__file__).resolve().parent / "slides.json", encoding="utf-8")), ensure_ascii=False)
     for b in BANNED:
         assert b not in full, f"banned found: {b}"
+        assert b not in slides_src, f"banned in slides.json: {b}"
 
     page1, p1text = items[0]
     assert "2026-09-03" in p1text, "cover date missing"
