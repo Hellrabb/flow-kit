@@ -343,17 +343,17 @@ export async function runFlowCommand(rawInput, agent) {
       case "model": {
         requireActive({ state }, "model");
         const goal = requireGoal(state);
-        const show = (prefix = "") => {
-          const lines = [
-            `${prefix}L2 显式: ${goal.l2_model ?? "(未设置 → ANTHROPIC_L2_MODEL / FLOW_KIT_L2_MODEL env)"}`,
-            `${prefix}L3 显式: ${goal.l3_model ?? "(未设置 → ANTHROPIC_DEFAULT_HAIKU_MODEL / FLOW_KIT_L3_MODEL env)"}`,
-            `${prefix}L2 默认: ${goal.l2_default_model ?? "(未设置 → FLOW_KIT_L2_DEFAULT_MODEL env → 降级)"}`,
-            `${prefix}L3 默认: ${goal.l3_default_model ?? "(未设置 → FLOW_KIT_L3_DEFAULT_MODEL env → 降级)"}`,
-            `${prefix}优先级链: ANTHROPIC_* env > FLOW_KIT_*_MODEL env > .goal.l*_model（显式） > FLOW_KIT_*_DEFAULT_MODEL env > .goal.l*_default_model（站点默认） > 降级`,
-          ];
-          return lines.join("\n");
-        };
-        if (rest === "") return { kind: "success", text: show() };
+        // L2 盲审 R1（dsh-flow-kit-sync-2026-09）：渲染必须读「当前值」而非写前闭包。
+        // render(g) 纯函数化——参数化要显示的 goal，写入后传 nextGoal 回显新值；
+        // 「✅ 已更新。」只作单行 header，不再逐行加前缀。
+        const render = (g) => [
+          `L2 显式: ${g.l2_model ?? "(未设置 → ANTHROPIC_L2_MODEL / FLOW_KIT_L2_MODEL env)"}`,
+          `L3 显式: ${g.l3_model ?? "(未设置 → ANTHROPIC_DEFAULT_HAIKU_MODEL / FLOW_KIT_L3_MODEL env)"}`,
+          `L2 默认: ${g.l2_default_model ?? "(未设置 → FLOW_KIT_L2_DEFAULT_MODEL env → 降级)"}`,
+          `L3 默认: ${g.l3_default_model ?? "(未设置 → FLOW_KIT_L3_DEFAULT_MODEL env → 降级)"}`,
+          "优先级链: ANTHROPIC_* env > FLOW_KIT_*_MODEL env > .goal.l*_model（显式） > FLOW_KIT_*_DEFAULT_MODEL env > .goal.l*_default_model（站点默认） > 降级",
+        ].join("\n");
+        if (rest === "") return { kind: "success", text: render(goal) };
         // 五级解析链 tier-4/5（model tier, 2026-09 同步）：
         // l2=|l3= 写显式字段；l2-default=|l3-default= 写站点默认字段；
         // --clear <l2|l3|l2-default|l3-default> 清对应字段。
@@ -373,7 +373,7 @@ export async function runFlowCommand(rawInput, agent) {
         }
         const next = { ...state, goal: nextGoal, updated_at: nowIso() };
         await writeFlow(file, next);
-        return { kind: "success", text: show("✅ 已更新。\n") };
+        return { kind: "success", text: `✅ 已更新。\n${render(nextGoal)}` };
       }
 
       case "doctor": {

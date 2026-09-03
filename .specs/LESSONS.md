@@ -678,3 +678,21 @@
 - **状态**：观察（observation）
 - **教训**：本仓 jscpd 版本用 `--format`（单数；复数 `--formats` 报 unexpected argument）；`--reporter consoleFull` 不可用（正确拼法 `--reporters`，但该版本 consoleFull 输出仍不稳定）。可靠取数方式：① 汇总率直接跑表格输出 + `sed 's/\x1b\[[0-9;]*m//g'` 去 ANSI 后 grep 表行；② clone 明细用 `--output <dir>` 落 `jscpd-report.json` 再 jq 取 `.duplicates[]`。Makefile `make dup` 的调用形态（无 format 过滤=全格式含 markdown，数值不可与 bash-only 口径混比）。
 - **来源**：M-health 2026-09-01 Full Sweep 数据采集（4 次探测收敛）
+
+### L-082 · phase-7 gate=both 补审的归档闭环要求（降挡记录≠归档产物）
+- **标签**：process / phase-7 / archive / L3-review / CHANGELOG-placement
+- **关键词**：降挡、hotfix、gate_config both、归档产物、INDEPENDENT-REVIEW、L3 fail、head-3000
+- **适用栈**：flow-kit 变更管理（任何 gate_config=both 的 phase 7）
+- **状态**：active
+- **场景**：降挡（7-integration=off）提交后，用户配置 FLOW_KIT_L3_* 凭证要求补审。恢复
+  gate_config=both 后 L3 外部模型审查 fail，原因不在代码而在归档：spec 目录缺
+  REQUIREMENT/DESIGN/TASK/TEST/REVIEW/INTEGRATION 等阶段产物，且 CHANGELOG 条目追加在
+  文件末尾——L3 的 phase-7 prompt 只采样 CHANGELOG 头部 3000 字符 + 列目录 ls，看不到。
+- **错因**：① 把「降挡记录（CHANGE.md 自述）」当作可审计证据，未补齐 spec 目录归档集；
+  ② CHANGELOG 违反自身「按日期倒序」表头约定把新条目 cat >> 到文件尾；③ 对自动维护文件
+  （PROGRESS.md，Stop hook G5 追加）与人工归档文件的边界不清。
+- **教训**：① phase 7 gate=both 的 L3 是对「归档产物集」的机器审查，恢复 both 前先补齐
+  六件套或维持 off；② CHANGELOG 新条目放文件顶部表头下（L3/后续采样只读头部）；
+  ③ L2 的 minor finding（产物不齐）若选择核销，需在 REVIEW.md 中显式给证据，不能只写
+  在 CHANGE.md；④ REVIEW.md 的处置表（finding→动作→证据落点）是 L3 主判最快的闭环载体。
+- **来源**：dsh-flow-kit-sync-2026-09 · L3 首审 fail（2026-09-03）→ 归档补齐 + 重审

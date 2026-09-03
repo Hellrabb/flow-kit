@@ -145,6 +145,13 @@ test("/flow gate-config and model persist into .goal", async () => {
     // 五级解析链 tier-4/5：站点级默认字段 + --clear <target>（2026-09 model tier 同步）
     result = await runFlowCommand("model l2-default=deepseek-v4-lite l3-default=deepseek-v4-flash", undefined);
     assert.equal(result.kind, "success");
+    // L2 盲审 R1：回显必须渲染写入后的新值（不能再是写前闭包里的「未设置」），
+    // 且「✅ 已更新。」只出现一次（不再逐行加前缀）。
+    assert.match(result.text, /L2 默认: deepseek-v4-lite/);
+    assert.match(result.text, /L3 默认: deepseek-v4-flash/);
+    assert.match(result.text, /L2 显式: deepseek-v4-flash/);
+    assert.doesNotMatch(result.text, /L2 默认: \(未设置/);
+    assert.equal((result.text.match(/✅ 已更新。/g) ?? []).length, 1);
     let withDefaults = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));
     assert.equal(withDefaults.goal.l2_default_model, "deepseek-v4-lite");
     assert.equal(withDefaults.goal.l3_default_model, "deepseek-v4-flash");
@@ -156,6 +163,8 @@ test("/flow gate-config and model persist into .goal", async () => {
 
     result = await runFlowCommand("model --clear l2 l3-default", undefined);
     assert.equal(result.kind, "success");
+    assert.match(result.text, /L2 显式: \(未设置/);
+    assert.match(result.text, /L3 默认: \(未设置/);
     const cleared = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));
     assert.equal(cleared.goal.l2_model, null);
     assert.equal(cleared.goal.l3_default_model, null);

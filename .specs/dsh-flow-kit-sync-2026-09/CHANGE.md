@@ -1,6 +1,6 @@
 # CHANGE — dsh-flow-kit-sync-2026-09
 
-> 状态：done（phase 7 · 降挡提交，见「独立审查」段）
+> 状态：done（phase 7 · 降挡提交 → 2026-09-03 L2+L3 补审完成，见「独立审查」段）
 
 ## 背景
 
@@ -38,14 +38,38 @@ dsh 插件 `dsh-flow-kit` 打包产物仍停留在 2026-08-16 的 0.1.0，需要
 - make lint（shellcheck error 级）通过；make check-test-sync 通过
 - 两 profile `--dump-config` 确认 flow-kit 行挂载（commands+skills+systemPrompt）
 
-## 独立审查（降挡）
+## 独立审查（降挡 → 2026-09-03 补审完成）
+
+### 补审前（2026-09-02 提交时 · 降挡记录）
 
 - 本变更 = 内容同步 + 文档 + 测试，无新流程逻辑
-- 运行环境未配置 FLOW_KIT_L3_* 凭证，L3 外部模型审查无法执行（仅能降级为
+- 当时运行环境未配置 FLOW_KIT_L3_* 凭证，L3 外部模型审查无法执行（仅能降级为
   l3-model-missing 纠正）
 - 按 gate 脚本 hotfix 路径处理：gate_config 7-integration=off（记录于
   .specs/CHANGELOG.md）
-- 如需补审：/flow l2-review 7 可随时派发 L2 盲审
+
+### 补审（2026-09-03 · L2 + L3 已执行）
+
+- 用户配置 FLOW_KIT_L3_* 站点默认环境后，恢复 gate_config 7-integration=both
+- L2 盲审：独立子代理审查 git diff 2999024..HEAD → INDEPENDENT-REVIEW-7.md
+  的 `## L2 盲审` 段 · Verdict: pass · findings：R1（Important）/flow model
+  回显陈旧值闭包——已修复并补回归断言；R2（Minor）VERIFY.md 764→770 计数
+  自洽——已修；R3（Minor）阶段产物集不全——本条显式记录核销
+- L3 外部审查：l3_review_run（FLOW_KIT_L3_BASE_URL / AUTH_TOKEN /
+  DEFAULT_MODEL env · deepseek-v4-flash-0731）→ `## L3 盲审` 段 + 6 键
+  done 锚点（verdict=pass 时写入）
+- 产物范围核销（R3）：本 change 走降挡 hotfix（纯内容同步），无
+  REQUIREMENT/DESIGN/TASK/TEST 阶段产物——刻意偏离，由 CHANGE.md +
+  REVIEW.md 完整记录替代；集成回归由 root test/ 770 bats + 插件单测 20/20 承担。
+
+### 最终结论（L3 重审 · 2026-09-03 15:25）
+
+- **L3 重审 verdict: pass** —— done 锚点已写入
+  （.specs/dsh-flow-kit-sync-2026-09/.independent-review-7.done：
+  L2_verdict=pass / L3_verdict=pass，6 键 KVP，runtime 不入库）
+- 首审 fail 发现的归档缺口全部闭环：REQUIREMENT/DESIGN/TASK/TEST/REVIEW/
+  INTEGRATION 六件套补齐、CHANGELOG 条目置顶（本 change 头部）、LESSONS L-082
+- 本文件（CHANGE.md）承担 SUMMARY 职能（首行状态 + 范围 + 验证 + 审查记录）。
 
 ---
 created: 2026-09-02T18:12:02.482Z
