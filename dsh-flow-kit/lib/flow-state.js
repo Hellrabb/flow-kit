@@ -396,7 +396,11 @@ export async function runFlowCommand(rawInput, agent) {
           const tag = correction.type ?? "(unknown)";
           const violations = Array.isArray(correction.violations) ? correction.violations : [];
           if (violations.length > 0) {
-            const checks = [...new Set(violations.map((v) => v?.check ?? "?").filter(Boolean))].join(", ");
+            // violations 是异质 schema：state-integrity 类（33 号）写 check；
+            // compliance 类（28 号 weak-model-compliance）写 rule——取摘要时做
+            // check → rule 回退（phase 2 L2 盲审 R1）。用 || 而非 ??：空字符串
+            // check 也必须回退到 rule（phase 6 L3 重审 Major 1 边界）。
+            const checks = [...new Set(violations.map((v) => (v?.check || v?.rule || "?")).filter(Boolean))].join(", ");
             lines.push(`⚠️ .flow-active.correction: type=${tag}, violations=${violations.length} (${checks})`);
           } else if (correction.message) {
             lines.push(`⚠️ .flow-active.correction: type=${tag} — ${correction.message}`);

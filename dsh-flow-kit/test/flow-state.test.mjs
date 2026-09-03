@@ -112,6 +112,26 @@ test("/flow doctor reports correction hygiene state (ADR-024)", async () => {
     assert.match(result.text, /violations=3/);
     assert.match(result.text, /stale_updated_at, corrupt_json/);
 
+    // compliance 型 correction：violations 用 rule 字段（weak-model-compliance
+    // 契约），doctor 摘要须 check → rule 回退（phase 2 L2 盲审 R1）
+    await writeFile(
+      join(root, ".flow-active.correction"),
+      JSON.stringify({
+        type: "compliance",
+        violations: [
+          { rule: "L1: 触碰禁动文件", location: "adr/foo.md", fix: "撤销", layer: "L1" },
+          { check: "", rule: "L2: 凭证不落盘", layer: "L2" },
+        ],
+      }),
+      "utf8"
+    );
+    result = await runFlowCommand("doctor", undefined);
+    assert.equal(result.kind, "success");
+    assert.match(result.text, /type=compliance, violations=2/);
+    assert.match(result.text, /L1: 触碰禁动文件/);
+    // 空字符串 check 必须回退到 rule（phase 6 L3 边界）
+    assert.match(result.text, /L2: 凭证不落盘/);
+
     // model-missing 型 correction（无 violations、有 message）也能报告
     await writeFile(
       join(root, ".flow-active.correction"),

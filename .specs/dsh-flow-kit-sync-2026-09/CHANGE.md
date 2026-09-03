@@ -48,16 +48,21 @@ dsh 插件 `dsh-flow-kit` 打包产物仍停留在 2026-08-16 的 0.1.0，需要
 - 按 gate 脚本 hotfix 路径处理：gate_config 7-integration=off（记录于
   .specs/CHANGELOG.md）
 
-### 补审（2026-09-03 · L2 + L3 已执行）
+### 补审（2026-09-03 · gate_config=all 全阶段 L2 + L3）
 
-- 用户配置 FLOW_KIT_L3_* 站点默认环境后，恢复 gate_config 7-integration=both
+- 用户配置 FLOW_KIT_L3_* 站点默认环境后，恢复 gate_config=all
+  （1-requirement/2-design/3-task/5-test/6-review/7-integration 均 both）
 - L2 盲审：独立子代理审查 git diff 2999024..HEAD → INDEPENDENT-REVIEW-7.md
   的 `## L2 盲审` 段 · Verdict: pass · findings：R1（Important）/flow model
   回显陈旧值闭包——已修复并补回归断言；R2（Minor）VERIFY.md 764→770 计数
   自洽——已修；R3（Minor）阶段产物集不全——本条显式记录核销
-- L3 外部审查：l3_review_run（FLOW_KIT_L3_BASE_URL / AUTH_TOKEN /
-  DEFAULT_MODEL env · deepseek-v4-flash-0731）→ `## L3 盲审` 段 + 6 键
-  done 锚点（verdict=pass 时写入）
+- L3 外部审查 ×6 阶段：l3_review_run（FLOW_KIT_L3_BASE_URL / AUTH_TOKEN /
+  DEFAULT_MODEL env · deepseek-v4-flash-0731）。phase 7 首审 fail→归档补齐后
+  重审 pass；phase 3 三轮工件迭代（TASK verify 可执行性）后 pass；phase 5/6
+  一轮修复后 pass。六阶段 done 锚点（6 键 KVP，verdict=pass 时写入）全部落盘
+- L2 盲审 ×6 阶段：1/2/3/5/6/7 独立子代理全部 verdict pass，17 findings
+  全部闭环（代码修复：render(g) 回显 + doctor check→rule 回退含空串边界；
+  文档：AC GWT/v2/NFR/证据落点/TASK 可执行 verify/TEST UAT 口径）
 - 产物范围核销（R3）：本 change 走降挡 hotfix（纯内容同步），无
   REQUIREMENT/DESIGN/TASK/TEST 阶段产物——刻意偏离，由 CHANGE.md +
   REVIEW.md 完整记录替代；集成回归由 root test/ 770 bats + 插件单测 20/20 承担。
