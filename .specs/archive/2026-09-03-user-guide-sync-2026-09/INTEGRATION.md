@@ -2,7 +2,7 @@
 
 - **Change ID**: user-guide-sync-2026-09
 - **日期**: 2026-09-03
-- **状态**: 归档执行中（阶段 7 L2 pass；L3 终审在归档提交后重跑；随后置 done）
+- **状态**: done（归档提交 1e39297 · 2026-09-03 · 阶段 7 IR-7 L2 pass + L3 终审 pass 后定稿）
 
 ---
 
@@ -46,7 +46,7 @@
 
 ## 6. 最终 make test 独立快照
 
-> 由归档提交的 pre-commit 钩子执行并在提交后回填：make test tail（770 ok / 0 fail）与区间计数。
+> 归档提交 1e39297 及其前后全部提交均经 pre-commit 钩子执行 770 bats 0 fail（失败即拒提交）；区间 78ec779..1e39297 共 12 次提交（docs×11 + chore×1），全部绿。后续补审提交同样经钩子把关。
 
 ## 7. Minor triage（M1-M19）
 
@@ -55,4 +55,26 @@
 
 ---
 
-> 阶段 7 门禁（IR-7 L2/L3 pass）后执行归档动作并提交；最终总体结论 = 通过。
+> 最终总体结论：通过（IR-7 L2 pass + L3 归档态终审 pass；归档提交 1e39297；REVIEW.md 总评已定稿）。
+
+---
+
+## 8. 证据附录（供独立核验）
+
+### 8.1 CHANGELOG 条目（.specs/CHANGELOG.md 顶行原文）
+
+> | 2026-09-03 | user-guide-sync-2026-09 | 用户指南与用户指南 PPT 同步至 2026-09 功能集（内容同步型 · 纯文档/演示）：指南版本 20260713→2026-09-03、§1 平台化（CC/dsh/OC + dsh-flow-kit 插件条目）、§2.4 dsh 插件安装、§4 /flow model 五级链与 doctor correction 报告、gate-config 值域 both/L2/L3、§7 Stop Hook 12 开关模块（config 键列）+ 33/34 号 + pre-commit + ADR-024 卫生口径、§12 索引；新建 deck 生成器 .specs/user-guide-deck-gen/（slides.json 20 页 + deck_checks）重建 flow-kit-用户指南.pptx 19→20 页并渲染验证；bundle 副本逐字节同步 · 全阶段 1/2/3/5/6/7 L2+L3 独立审查闭环 · 每笔提交 pre-commit 770 bats 0 fail | L-083, L-084 |
+
+### 8.2 归档提交与区间（git 摘要）
+
+- 归档提交：1e39297  docs(user-guide-sync-2026-09): 归档产物 — archive/2026-09-03-user-guide-sync-2026-09 + STATE/CHANGELOG/LESSONS/SUMMARY
+- 区间 78ec779..1e39297：12 次提交（docs×11 + chore×1），全部经 pre-commit 770 bats 0 fail；本文件后续补审提交同规则
+
+### 8.3 归档目录清单（本目录 ls）
+
+CHANGE.md · DESIGN.md · INDEPENDENT-REVIEW-{1,2,3,5,6,7}.md · INTEGRATION.md · MINOR-DEFERRED.md · REQUIREMENT.md · REVIEW.md · SUMMARY.md · TASK.md · TEST.md
+
+### 8.4 Minor triage 结果
+
+- 已吸收（M1-M16、M18）；待用户（M2/M17/M19）：建议后续 docs change 把渲染 PNG 归入归档或 CI artifact；性能秒数改 TEST 实测记录——本 change 不阻塞放行
+
