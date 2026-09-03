@@ -26,3 +26,5 @@
 | M17 | 1 | L3-m4 | NFR 性能秒数/依赖版本无校验步骤 | 待 phase 7 triage：TEST 阶段改为记录实测耗时（固定 runner），版本校验并入 build.py 自检（已有） | 2026-09-03 |
 | M18 | 1 | L3-m5 | AC-3f 引用 CONTEXT 决策但无验证方式 | 已吸收：AC-3f 补「决策条目存在可 grep」 | 2026-09-03 |
 
+| M19 | 5 | L3-5 建议 | PDF/PNG 仅存 /tmp 无持久化 artifact 路径；AC-7 原始 make test 日志未落工件 | 待 phase 7 triage：建议把 pg1/14/20 PNG 或 PDF 复制进归档目录或增加像素断言；最终 make test 快照落 INTEGRATION.md | 2026-09-03 |
+

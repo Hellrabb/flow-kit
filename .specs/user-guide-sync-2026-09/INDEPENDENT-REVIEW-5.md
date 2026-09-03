@@ -60,59 +60,17 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 22:51）
 
-> 自动生成于 2026-09-03 22:51。由 l3-review.sh 写入。
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 22:55）
+
+> 自动生成于 2026-09-03 22:55。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{
-  "critical": [
-    {
-      "file": "TEST.md（阶段 5 测试工件）",
-      "issue": "断言矩阵 T8（AC-8）与 T9（AC-9）仍为待办（⏳），UAT-1/UAT-2 人工验收项均未勾选；矩阵并未全绿。",
-      "why": "测试矩阵声称覆盖全部 AC，但存在未验证的验收条件和未执行的人工测试，覆盖率不达标，本阶段不能判定为通过。",
-      "fix": "完成 AC-8/AC-9 所需证据（INDEPENDENT-REVIEW 5/6/7 L3 pass、归档清单等）并勾选 UAT-1/UAT-2，在矩阵中填入最终 ✅/❌ 及证据；若这些项不属于本阶段，需显式标注不适用并说明依据。"
-    }
-  ],
-  "major": [
-    {
-      "file": "TEST.md A7/AC-7 回归命令",
-      "issue": "`make test 2>&1 | tail -3` 的进程退出码来自 tail 而非 make test；make test 失败时该命令仍可能返回 0，文档也没有附带实际计数快照。",
-      "why": "作为 AC-7 的回归断言不可靠，可能掩盖回归失败，使“0 fail”的证据无效。",
-      "fix": "使用 `set -o pipefail` 或直接执行 `make test` 并检查退出码；在实跑记录中附上提交哈希、bats 数量和 tail 输出。"
-    },
-    {
-      "file": "TEST.md T4/T5/A4 渲染与同步断言",
-      "issue": "AC-4 的测试仅 `cmp` 两份 MD 副本，未验证 PPT 与 MD 内容同步；deck_checks.py 的具体断言未在工件中列出，无法确认其检查的是 slides.json 数据源还是最终 PPTX/PDF 实际内容。",
-      "why": "若 deck_checks 只校验生成输入而非渲染产物，或 PPT 缺少 MD 中新增章节而未被禁词/页数检查发现，就会形成自证式通过，屏蔽真实内容缺失或渲染失败。",
-      "fix": "在测试文档中列出 deck_checks.py 的完整断言清单，并增加从最终 PDF/PPTX 抽取文本与 MD 关键章节/关键串逐项比对的命令和输出。"
-    }
-  ],
-  "minor": [
-    {
-      "file": "TEST.md A4 实跑记录/UAT-2",
-      "issue": "A4 命令生成 /tmp/ppt-render/p1-01.png，而实跑记录和 UAT-2 写的是 /tmp/ppt-render/pg1-01.png，文件名不一致。",
-      "why": "按文档复现或人工检查时可能找不到对应 PNG，影响 UAT 可复现性。",
-      "fix": "统一 PNG 前缀（p1/p14/p20 或 pg1/pg14/pg20）并同步更新所有引用。"
-    },
-    {
-      "file": "TEST.md A3 注释/命令",
-      "issue": "A3 注释称“根与 bundle 两份各跑”，但 a-f/g 的 grep 与 Python 命令实际只读取根 FLOW-KIT-用户指南.md，未对 bundle 副本逐项执行。",
-      "why": "虽然 A4 的 cmp 可间接保证两副本一致，但注释与命令不符，降低可复现性和可读性。",
-      "fix": "要么在 A3 中对两个文件循环执行，要么将注释改为“根文档检查 + bundle 由 A4 cmp 同步保证”。"
-    },
-    {
-      "file": "TEST.md T7/实跑记录",
-      "issue": "AC-7 的“每笔提交均绿”依赖 pre-commit 历史和 INTEGRATION 固化，但本工件未给出实际提交区间、make test 输出片段或计数。",
-      "why": "证据不可在本工件内独立复现，削弱回归测试的可审计性。",
-      "fix": "补充最近一次提交哈希、`make test` 尾部输出和 770 bats 的计数快照。"
-    }
-  ],
-  "verdict": "fail",
-  "summary": "测试矩阵存在 T8/T9 未完成和 UAT 未执行，回归命令与渲染断言存在可靠性/自证风险，本阶段验收不能通过。"
-}
+{"critical":[],"major":[{"file":"TEST.md (UAT 段)","issue":"UAT-1 与 UAT-2 均未勾选并延后至阶段 7，阶段 5 测试工件没有任何已完成的人工验收证据（截图、勾选记录、操作日志）。","why":"TEST 工件应能证明所有 AC 当前可验收状态；未勾选使读者无法区分「已做未勾选」与「未做」，且两项均为人工依赖，缺少具体可复现判定标准会让后续验收无法独立复核。","fix":"在本文件完成勾选并附已执行证据（PNG 入库路径、dsh profile 重装输出/日志），或将 UAT 明确列为阻塞项并给出阶段 7 的可执行验收步骤与通过判据。"},{"file":"TEST.md (T7/A7)","issue":"AC-7 回归证据只写「pre-commit 每次提交执行 770 bats 0 fail」，未附任何可复核的 make test 输出或变更前后提交 hash 对照。","why":"回归测试必须可独立重跑；该描述属于对 pre-commit 配置的声明而非工件内测试证据，若日志丢失或实跑未发生，T7 仍会被误判通过，无法满足可复现性要求。","fix":"在 TEST.md 或独立 artifact 中保存至少一份 make test 完整尾部输出（含版本、计数、0 fail 行）并记录本次变更 HEAD commit，在断言矩阵中引用该 artifact。"},{"file":"TEST.md (A3e)","issue":"A3e 脚本依赖「### Hook 模块列表」与「### PreToolUse Hook」之间、config 键在第 3 列的隐式表格结构，未校验表头、表格数量、列名或重复键。","why":"若指南段落顺序、列位置或格式变化，脚本可能提取空集/错误集合仍输出 OK，静默漏掉 AC-3 要求的 12 键双向同步问题，降低断言可信度。","fix":"提取前先断言表头含『config 键』且段落内恰有一个表格；解析后校验 len(got)==12 并与 cfg 全等，失败时打印每行原始单元格以定位。"}],"minor":[{"file":"TEST.md (A2)","issue":"A2 最后一行重复检查 '只为 Claude Code'，而 for 循环已包含该禁词；脚本未开 set -e，循环失败不会中断，可能导致重复或误导输出。","why":"正常通过路径无影响，但失败时诊断输出不干净，且重复逻辑容易在后续维护中产生不一致。","fix":"移除最后一行重复 grep，统一在循环内处理 '只为 Claude Code'；或开启 set -euo pipefail 并在失败时输出文件与计数。"},{"file":"TEST.md (T8/T9)","issue":"T8/T9 结果标为 ⏳ 并延后到阶段 6/7，但期望列未给出阶段 5 的中间验收标准（如本文件 L2/L3 是否已 pass、归档清单是否已更新）。","why":"跨阶段项悬空使断言矩阵自洽性不足，读者无法判断阶段 5 是否真正完成。","fix":"将跨阶段项拆成「本阶段部分」与「后续回填部分」，并为本阶段部分给出可执行断言（如本文件 L2/L3 段存在且结论为 pass）。"},{"file":"TEST.md (A56)","issue":"PDF 渲染只生成到 /tmp 并断言第 1/14/20 页 PNG 非空，未将产物持久化为可复核 artifact，也未给出 PNG 的可访问路径。","why":"/tmp 会被清理，后续审查者无法复核图像是否存在或溢出；describe-image 抽查声明无对应文件可验证。","fix":"将 pg1/pg14/pg20 PNG 或 PDF 复制到受版本控制的可访问目录并在 TEST.md 记录相对路径，或增加像素尺寸/内容断言。"}],"verdict":"pass","summary":"自动化断言矩阵对核心 AC 的覆盖充分且命令可复跑，但 UAT 证据、AC-7 原始日志与 A3e 结构校验存在可复现性/自证缺口，建议补齐后视为完整。"}
 ```
 
-L3_artifact_hash: 77f6528f2bdc31bad04c02d0367126e7868835bcf94f05419a4fc9d114e3ac0f
+L3_artifact_hash: 1471a210ce3573c87ae29396a5e55ce4d81d7ef33142ccd9aa9203a6bf0af71e
