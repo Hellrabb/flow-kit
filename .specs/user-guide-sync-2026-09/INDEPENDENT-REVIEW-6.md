@@ -23,3 +23,20 @@ T-FIX：F1(Important) 编号改 M1-M18、M2/M17 标「待 triage」、补登或�
 4. 残留 ✅：REVIEW.md/MINOR-DEFERRED 无 Critical/Important 表述、无未闭环虚报（阶段 6/7 ⏳ 如实标注）；IR-6 原 F1/F2 均已闭合。修复与审查文件尚未提交，属阶段 7 归档随门禁提交的正常状态，不阻塞。
 
 **Verdict**: pass
+
+---
+
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 23:11）
+
+> 自动生成于 2026-09-03 23:11。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{"critical":[],"major":[{"file":".specs/user-guide-sync-2026-09/REVIEW.md","issue":"AC-5/AC-6 映射引用 TEST A5/A6，但 TEST.md 不存在独立 A5/A6 段；实际合并为 A4·AC-4/5/6 段","why":"审查者无法按映射精确定位 AC-5/6 的独立测试证据，AC 覆盖可追溯性不足","fix":"将 AC-5/6 改为引用 TEST T5/T6 或 A4 段内子断言；或在 TEST.md 中拆出 A5/A6 小节"},{"file":".specs/user-guide-sync-2026-09/INDEPENDENT-REVIEW-6.md","issue":"L3 重审 verdict 仍为 fail，工件内无修复确认/回填记录；REVIEW.md 却称 6/7 在 INDEPENDENT-REVIEW 文件定稿","why":"门禁审计轨迹未闭合，阶段 6 的最终状态与 REVIEW.md 表述不一致，可能误导归档决策","fix":"在 IR-6 中追加 T-FIX 或复审结论，或改为“将在…定稿”并附当前 fail 记录"}],"minor":[{"file":".specs/user-guide-sync-2026-09/REVIEW.md","issue":"Spec 合规结论仍写“通过”，但 AC-8/9 状态为 ⏳","why":"易被误读为全量通过，重演 L3 所指出的门禁架空风险（虽总体结论已改待定，风险降低）","fix":"改为“AC-1..7 通过；AC-8/9 待阶段 6/7 门禁和 INTEGRATION 闭环”"},{"file":".specs/user-guide-sync-2026-09/REVIEW.md","issue":"“每条 AC 都有测试”的证据列 A1..A7，未覆盖 AC-8/9","why":"与映射表中 AC-8/9 ⏳ 并列，造成“全部 AC 已测”的歧义","fix":"限定为“AC-1..7 每条均有测试”，AC-8/9 单独说明为门禁/归档验收项"},{"file":".specs/user-guide-sync-2026-09/TEST.md","issue":"A456-OK 与 A4/A5/A6 命名混用，旧 A56 歧义未完全消除","why":"读者难以确定 A4/A5/A6 是三个独立段还是同一命令的多个标签，影响测试定位","fix":"拆分为 A4/A5/A6 独立小节，或统一为 A4 段内子步骤 A4a/A4b/A4c 并同步 REVIEW.md 映射"},{"file":".specs/user-guide-sync-2026-09/REVIEW.md","issue":"R2/R5 的实跑证据仅以 commit hash/文件名指代，未附关键输出行","why":"独立复核仍需回溯仓库历史，工件内不可直接核验缓解措施确实执行","fix":"在 TEST.md 实跑记录中嵌入 CMP-OK、python-pptx 1.0.2 OK 等关键输出行"}],"verdict":"pass","summary":"前次 L3 的 critical（总体结论自相矛盾）已修复：总体结论改为待定，AC 映射与质量证据已补充；剩余为 AC-5/6 测试引用不一致、IR-6 未回填等 major/minor，不构成门禁阻断。"}
+```
+
+L3_artifact_hash: cf99174405175c9edd16f1eb6c4dab79860244061950013de0e2aa39f58623ff

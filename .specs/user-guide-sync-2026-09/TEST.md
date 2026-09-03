@@ -17,7 +17,7 @@
 | T1 | AC-1 | A1（head -5 版本行/URL/无其他 8 位日期） | 命中 | ✅ 2026-09-03 |
 | T2 | AC-2 | A2 禁词扫描（MD 两份） | 0 命中 | ✅ |
 | T3 | AC-3 | A3 子项（a-g + config 键 12 键双向相等 A3e-OK 12） | 全过 | ✅ |
-| T4 | AC-4 | `cmp -s`（T05 同步后） | exit 0 | ✅ |
+| T4 | AC-4 | `cmp -s`（T05 同步后 · TEST A4 段） | exit 0 | ✅ |
 | T5 | AC-5 | build.py + deck_checks.py | 20 页断言全过 | ✅ deck_checks OK |
 | T6 | AC-6 | soffice→pdf Pages=20 + 页 1/14/20 PNG 非空 | 通过 | ✅ |
 | T7 | AC-7 | make test 全量（pre-commit 每提交执行，失败即拒提交） | 0 fail | ✅ 每笔提交均绿（计数快照随提交滚动，INTEGRATION 固化最终区间） |
@@ -92,7 +92,7 @@ grep -q 'user-guide-sync-2026-09 追加' .specs/CONTEXT.md
 echo A3-OK
 ```
 
-## A4 · 渲染与文件断言（AC-5/6 实跑命令，2026-09-03 实测）
+## A4 · AC-4/5/6 文件与渲染断言（cmp + build + deck_checks + PDF/PNG，2026-09-03 实测）
 
 ```bash
 # AC-4 证据
@@ -116,7 +116,7 @@ for k in ['DeepSeek Harness', 'l2-default=', 'l3-default=', 'dsh plugin --profil
     assert k in md, ('md missing', k)
 print('MD-DECK-SYNC-OK')
 PY
-echo A56-OK
+echo A456-OK
 ```
 
 ## A7 · 回归与边界（AC-7）
@@ -134,7 +134,7 @@ grep -nE 'TODO|待补' FLOW-KIT-用户指南.md | wc -l    # 期望 0
 - A1 ✅（版本行/URL/8 位日期 0）
 - A2 ✅（两份 MD 禁词 0）
 - A3 ✅ a-d/f/g grep 全过；e：`A3e-OK 12 ['archive_commit_check','claude-md',…,'workflow']`（指南 §7 config 键列 == stop-hook.json modules 双向相等）
-- A56 ✅ cmp 两副本 + build 20 页 + deck_checks OK（20 pages / banned=0（含 slides.json）/ 无空页 / 关键串）+ soffice PDF Pages=20 + 页 1/14/20 PNG
+- A4/A5/A6 ✅ cmp 两副本 + build 20 页 + deck_checks OK（20 pages / banned=0（含 slides.json）/ 无空页 / 关键串）+ soffice PDF Pages=20 + 页 1/14/20 PNG
 - make test：每次 Conventional Commit 均经 pre-commit 钩子执行 770 bats 0 fail（钩子失败即拒绝提交）；独立快照：make test 实跑输出见本文件提交记录（tail: 770 ok / 0 fail）——最终区间计数在 INTEGRATION.md 固化
 - 渲染抽查：/tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png（describe-image 检查无溢出/截断）
 
