@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `dsh-flow-kit-sync-2026-09`（2026-09-03 · 内容同步型 · 6 阶段（1/2/3/5/6/7）L2+L3 全 pass · 770/0 bats）
+- **last_change_archived**: `user-guide-sync-2026-09`（2026-09-03 · 内容同步型 · 6 阶段（1/2/3/5/6/7）L2+L3 全 pass · 770/0 bats · 指南 2026-09-03 + deck 20 页重建）
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
