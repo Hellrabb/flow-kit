@@ -20,8 +20,8 @@
 | T4 | AC-4 | `cmp -s`（T05 同步后） | exit 0 | ✅ |
 | T5 | AC-5 | build.py + deck_checks.py | 20 页断言全过 | ✅ deck_checks OK |
 | T6 | AC-6 | soffice→pdf Pages=20 + 页 1/14/20 PNG 非空 | 通过 | ✅ |
-| T7 | AC-7 | make test 全量（pre-commit 每提交执行） | 0 fail | ✅ ×7 次提交均绿（b4035ef→318a759） |
-| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | 见 REVIEW 记录 | ✅（1/2/3 已 pass；5/6/7 见 REVIEW.md） |
+| T7 | AC-7 | make test 全量（pre-commit 每提交执行，失败即拒提交） | 0 fail | ✅ 每笔提交均绿（计数快照随提交滚动，INTEGRATION 固化最终区间） |
+| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | L2 pass + L3 pass | ⏳ 1/2/3 已 pass；5 回填中，6/7 待（见 INDEPENDENT-REVIEW-{5,6,7}.md） |
 | T9 | AC-9 | 归档清单/STATE/CHANGELOG/git log | 见 INTEGRATION | ⏳ 阶段 7 执行 |
 
 ## A1 · AC-1 命令
@@ -57,19 +57,33 @@ grep -q 'dsh plugin --profile' FLOW-KIT-用户指南.md
 grep -qF 'l2-default=' FLOW-KIT-用户指南.md && grep -qF 'l3-default=' FLOW-KIT-用户指南.md && grep -qF -- '--clear' FLOW-KIT-用户指南.md
 # d) doctor correction 报告
 grep -qF '.flow-active.correction' FLOW-KIT-用户指南.md && grep -q 'violations' FLOW-KIT-用户指南.md
-# e) config 键列 12 键 == stop-hook.json modules（python 双向相等：取指南表格「模块（config 键）」列非 — 单元格）
+# e) config 键列 12 键 == stop-hook.json modules（双向相等；解析范围限定 §7「Hook 模块列表」→「PreToolUse Hook」表格段）
 python3 - <<'PY'
-import json, re, sys
+import json
 cfg = set(json.load(open('flow-kit-bundle/hooks/config/stop-hook.json'))['modules'])
-rows = []
-for line in open('FLOW-KIT-用户指南.md', encoding='utf-8'):
+txt = open('FLOW-KIT-用户指南.md', encoding='utf-8').read()
+sec = txt[txt.index('### Hook 模块列表'):txt.index('### PreToolUse Hook')]
+got = set()
+for line in sec.split('\n'):
     if '|' not in line or 'config 键' in line: continue
     cells = [c.strip() for c in line.strip().strip('|').split('|')]
-    if len(cells) >= 4 and cells[2] not in ('—', '', '模块（config 键）'):
-        rows.append(cells[2])
-got = set(rows)
+    if len(cells) >= 4:
+        v = cells[2].strip(chr(96)).split('（')[0].strip()
+        if v and v not in ('—', '---'):
+            got.add(v)
 assert got == cfg, (got ^ cfg)
-print('A3e-OK', len(got))
+print('A3e-OK', len(got), sorted(got))
+PY
+# e2) 基础设施/门禁注解存在性
+grep -q '00-gate' FLOW-KIT-用户指南.md && grep -q '99-report' FLOW-KIT-用户指南.md && grep -q '33-flow-active-integrity' FLOW-KIT-用户指南.md && grep -q '34-archive-commit-check' FLOW-KIT-用户指南.md && grep -q 'pre-commit' FLOW-KIT-用户指南.md
+# g) CONTEXT 术语块 ≥3 行
+python3 - <<'PY'
+lines = open('.specs/CONTEXT.md', encoding='utf-8').read().split('\n')
+a = next(i for i,l in enumerate(lines) if 'user-guide-sync-2026-09 追加 ↓' in l)
+b = next(i for i,l in enumerate(lines) if 'user-guide-sync-2026-09 追加 ↑' in l)
+n = sum(1 for l in lines[a+1:b] if l.strip().startswith('|'))
+assert n >= 3, n
+print('A3g-OK', n)
 PY
 # f) 五级链字段与决策
 grep -qF 'FLOW_KIT_L3_DEFAULT_MODEL' FLOW-KIT-用户指南.md && grep -q '显式配置永远压过默认级' FLOW-KIT-用户指南.md && grep -q 'L2/L3 模型解析链加入站点级默认 tier' .specs/CONTEXT.md
@@ -81,6 +95,9 @@ echo A3-OK
 ## A4 · 渲染与文件断言（AC-5/6 实跑命令，2026-09-03 实测）
 
 ```bash
+# AC-4 证据
+cmp -s FLOW-KIT-用户指南.md flow-kit-bundle/FLOW-KIT-用户指南.md && echo CMP-OK
+# AC-5/6 渲染与文件断言
 python3 .specs/user-guide-deck-gen/build.py > /tmp/t5-build.log 2>&1 && tail -1 /tmp/t5-build.log
 python3 .specs/user-guide-deck-gen/deck_checks.py
 soffice --headless --convert-to pdf --outdir /tmp/ppt-render flow-kit-用户指南.pptx
@@ -88,7 +105,7 @@ pdfinfo /tmp/ppt-render/flow-kit-用户指南.pdf | awk '/^Pages:/ {print $2}'  
 pdftoppm -png -r 70 -f 1 -l 1 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p1 && test -s /tmp/ppt-render/p1-01.png
 pdftoppm -png -r 70 -f 14 -l 14 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p14 && test -s /tmp/ppt-render/p14-14.png
 pdftoppm -png -r 70 -f 20 -l 20 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p20 && test -s /tmp/ppt-render/p20-20.png
-echo A4-OK
+echo A56-OK
 ```
 
 ## A7 · 回归与边界（AC-7）
@@ -105,8 +122,8 @@ grep -nE 'TODO|待补' FLOW-KIT-用户指南.md | wc -l    # 期望 0
 - A1 ✅（版本行/URL/8 位日期 0）
 - A2 ✅（两份 MD 禁词 0）
 - A3 ✅ a-d/f/g grep 全过；e：`A3e-OK 12 ['archive_commit_check','claude-md',…,'workflow']`（指南 §7 config 键列 == stop-hook.json modules 双向相等）
-- A4 ✅ build 20 页 + deck_checks OK（20 pages / banned=0 / 无空页 / 关键串）+ soffice PDF Pages=20 + 页 1/14/20 PNG
-- make test：每次 Conventional Commit 均经 pre-commit 钩子执行 770 bats 0 fail（7 次提交，含本文件提交）
+- A56 ✅ cmp 两副本 + build 20 页 + deck_checks OK（20 pages / banned=0（含 slides.json）/ 无空页 / 关键串）+ soffice PDF Pages=20 + 页 1/14/20 PNG
+- make test：每次 Conventional Commit 均经 pre-commit 钩子执行 770 bats 0 fail（钩子失败即拒绝提交）；最终区间计数在 INTEGRATION.md 固化
 - 渲染抽查：/tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png（describe-image 检查无溢出/截断）
 
 ## UAT（人工）
