@@ -99,8 +99,9 @@ dsh --profile flowkit-test --dump-config | grep -A 7 'dsh-flow-kit'
   内置单测 20/20 全绿 + node --check + bash -n 全量扫描通过
 - vendor 零丢失：`diff -rq flow-kit-bundle dist/dsh-flow-kit/vendor/flow-kit-bundle`
   逐字节一致；新内容（correction-file.sh、hooks/config/README.md）已在包内
-- 回归：root `test/` 全量 bats 770 ok / 0 fail（含新增 correction-hygiene
-  31 项定向回归、install dsh 平台 2 项、test_fk_resolve_model 五级链 +6）
+- 回归：root `test/` 全量 bats 770 ok / 0 fail（phase 5 L2 R1 修正表述——
+  定向逐文件计数：correction_hygiene 10 + flow_active_integrity 19 +
+  install_dsh_platform 2 + fk_resolve_model 16 = 47 ok，命令见 TEST.md）
 - profile 重装：web + flowkit-test `pnpm install` → node_modules 刷新为 0.2.0
   （flowkit-test 顺带把 pnpm 10 allowBuilds 四条目置 true，node-pty 等原生
   构建恢复）；两 profile `--dump-config` 均确认

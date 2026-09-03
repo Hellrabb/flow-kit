@@ -103,3 +103,66 @@ return { kind: "success", text: `✅ 已更新。\n${render(nextGoal)}` };
 ```
 
 L3_artifact_hash: 2acb71869ddfedcb96770f8410bea5f902c39069a553ff92b476ae2617dc65c8
+
+---
+
+## L3 盲审（首审 · fail · 归档保留 · 2026-09-03 15:21）
+
+> 本段为 phase 7 首次 L3 外部审查（verdict=fail）的原始输出，按 phase 6 L2
+> R1 处置归档保留（l3-review.sh 重审会覆写 L3 段，fail 记录需另行留存以保
+> 证据链完整）。重审（pass）见上方最新 L3 段。
+
+```json
+{
+  "critical": [
+    {
+      "file": "（阶段 7 产物目录）",
+      "issue": "归档产物集严重不齐全：REQUIREMENT.md、DESIGN.md、TASK.md、TEST.md、REVIEW.md、INTEGRATION.md 全部 MISSING，仅提供 CHANGE.md、CHANGELOG.md、LESSONS.md（且 LESSONS.md 内容截断）和 INDEPENDENT-REVIEW-7.md、PROGRESS.md。",
+      "why": "变更管理流程要求归档产物齐全（CHANGE/REQUIREMENT/DESIGN/TASK/SUMMARY/TEST/REVIEW 等），CHANGE.md 中 R3 也自认“阶段产物集不全”，但未在本目录中补齐这些文件；审查无法验证需求追踪、设计契约、任务拆解、测试记录与评审闭环。",
+      "fix": "补全所有缺失归档文件：REQUIREMENT.md（含 ADR-024 等需求来源）、DESIGN.md（含 §8 同步契约全文）、TASK.md、TEST.md（19→20 用例明细）、REVIEW.md（含 L2/L3 评审结论）、INTEGRATION.md（两 profile 挂载验证）；并确保 CHANGE.md 引用的内容与归档文件一致。"
+    },
+    {
+      "file": "CHANGELOG.md",
+      "issue": "CHANGELOG 未包含本次变更 dsh-flow-kit-sync-2026-09（0.1.0→0.2.0）的任何行；顶部行为 2026-08-05 的 l2-l3-subagent-fix，缺失 2026-09-03/09-02 的 entry。",
+      "why": "CHANGELOG 要求“按日期倒序”且每个 change 应有对应行；CHANGE.md 明确说明降挡与补审发生在 2026-09-02/03，但 CHANGELOG 完全没有此变更记录，导致归档时间线和版本同步记录断裂。",
+      "fix": "在 CHANGELOG 顶部添加本 change 行（含补审闭环 + L-082），并保证后续条目维持置顶约定。"
+    }
+  ],
+  "major": [
+    {
+      "file": "CHANGE.md（独立审查段）",
+      "issue": "L2 盲审 findings 中 R1 声明“已修复并补回归断言”、R2 已修、R3 已核销，但本目录未提供任何对应修复 diff、回归断言位置或核销证据；INDEPENDENT-REVIEW-7.md 也未随工件展示其内容。",
+      "why": "仅靠 CHANGE.md 自述“已修复”无法构成可审计证据链；审查方无法确认 R1 闭包、R2 计数自洽、R3 核销是否真实落地。",
+      "fix": "随归档提供 INDEPENDENT-REVIEW-7.md 全文及修复提交/断言文件引用（如 test 文件中新增断言行号、VERIFY.md 770 计数），或在 REVIEW.md 中附 R1-R3 处置证据。"
+    },
+    {
+      "file": "PROGRESS.md",
+      "issue": "PROGRESS.md 仅 470 字节，且工件展示内容为空/未提供实际进度信息，无法确认阶段 7 完成状态与实际验证记录。",
+      "why": "PROGRESS 是阶段推进和归档完整性的关键索引，缺失实质内容会导致无法追溯降挡→补审→完成的时间线。",
+      "fix": "补全 PROGRESS.md：列出阶段 7 各步骤状态、gate_config 从 off 恢复到 both/all 的记录、L2/L3 补审日期与结论、重打包与双 profile 验证命令及结果摘要。"
+    },
+    {
+      "file": "LESSONS.md",
+      "issue": "工件展示的 LESSONS.md 在 M-health 巡检观察段落内容截断（“改”），且未包含本次 change 的 LESSONS 条目。",
+      "why": "LESSONS.md 要求跨 change 累积经验，截断破坏文件完整性；CHANGELOG 新条目如引用 L-XXX 则无对应来源。",
+      "fix": "修复截断内容，补齐 2026-08-03 观察完整记录，并为 dsh-flow-kit-sync-2026-09 新增 LESSONS 条目（如：降挡 hotfix 路径与 L3 凭证未配置时的审查延迟教训）。"
+    }
+  ],
+  "minor": [
+    {
+      "file": "CHANGE.md",
+      "issue": "验证段称“vendor 零丢失 diff 通过”“770 ok / 0 fail”，但未提供具体 diff 命令、bats 输出摘要或 dist 重打包校验和。",
+      "why": "审查可复现性不足，无法独立验证 vendor 逐字节一致与全量测试通过声明。",
+      "fix": "在 TEST.md 或 VERIFY.md（若存在）补充实际命令与输出摘要，或归档 CI 日志链接。"
+    },
+    {
+      "file": "CHANGE.md",
+      "issue": "“/flow model 五级解析链”提及 commit 2999024，但未说明该 commit 是否属于本 change 范围、其 diff 是否被 L2 盲审覆盖。",
+      "why": "范围边界模糊，审查者无法区分同步期间落地的上游 commit 与本 change 自身改动。",
+      "fix": "在 CHANGE.md 范围中明确 2999024 是上游基线（已单独评审）还是本 change 引入，并给出 diff 范围（如 2999024..HEAD）。"
+    }
+  ],
+  "verdict": "fail",
+  "summary": "阶段 7 归档产物严重不齐全（核心归档文件全部 MISSING）且 CHANGELOG 未记录本次变更，证据链与时间线断裂，不能通过归档审查。"
+}
+```

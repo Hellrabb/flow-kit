@@ -118,7 +118,7 @@ dsh-flow-kit/
 - 单元：`node --test dsh-flow-kit/test/*.test.mjs`（flow-state / hook-bridge /
   skill-loader；round 2 共 14 用例全绿，含 Stop 链端到端：合成 transcript →
   00-gate → `.flow-kit/stop-hook-state.json`）
-- 回归：`make test`（root `test/` 760 用例全绿）+ `make lint` + `make check-test-sync`
+- 回归：`make test`（root `test/` 770 用例全绿）+ `make lint` + `make check-test-sync`
 - 集成：`dsh --profile flowkit-test --dump-config` 确认 `flow-kit` 行挂载
   （inject: commands+skills）；apply() smoke 验证 23 skills + /flow 注册
 
@@ -148,3 +148,8 @@ hooks/config/README.md；`/flow doctor` 同步新增 correction 卫生报告；
 L2/L3 站点级默认模型 tier（五级解析链）：`/flow model` 同步 l2-default=/
 l3-default=/--clear <target>，写 `.goal.l{2,3}_default_model` 与
 `fk_resolve_model` tier-4/5 对齐（显式压过默认；默认不改变无凭证跳过语义）。
+
+平台确认串声明（phase 6 L2 R3 处置）：SKILL.md L257 的 `✅ model[l3] = <value>`
+确认串为 claude 承载面契约；本插件 JS 实现（flow-state.js）采用「✅ 已更新。」+
+全量五级配置摘要作为 dsh 平台差异（语义一致：写入后回显新值），后续审查不应
+重复按 SKILL.md 逐字比对该行。
