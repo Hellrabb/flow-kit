@@ -42,9 +42,10 @@
 | 3 TASK | TASK/REQ/DESIGN | pass（复审后） | pass（2 轮迭代） | T07 verify 重写 / T08 depends / T06 收尾口径 |
 | 5 TEST | TEST.md | pass（终审后） | pass（2 轮迭代） | A3e 限定解析 / 跨阶段验收标注 / pipefail / MD↔deck 同步 |
 | 6 REVIEW | 本文件 + git diff | pass（复审后） | pass（2 轮迭代） | 总体结论措辞/AC 映射/证据可复核化 |
-| 7 INTEGRATION | INTEGRATION.md + 归档 | ⏳ 阶段 7 | ⏳ 阶段 7 | — |
+| 7 INTEGRATION | INTEGRATION.md + 归档 | pass（复审后） | ⏳ 终审（归档态重跑） | IR-7 文件 |
 
 > Minor findings 全部登记 MINOR-DEFERRED.md（M1-M19 · ADR-017 单一路径），phase 7 triage。
+> 编号说明：阶段 4（DEV）无独立审查 gate（gate_config 不含 4-dev），独立审查文件编号为 1/2/3/5/6/7。
 
 ## 第二轮 · 质量审查（6 维衰退风险 · 本 change 为文档/演示产物）
 

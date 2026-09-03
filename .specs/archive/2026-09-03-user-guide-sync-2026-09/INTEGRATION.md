@@ -2,7 +2,7 @@
 
 - **Change ID**: user-guide-sync-2026-09
 - **日期**: 2026-09-03
-- **状态**: 待归档（阶段 7 门禁 L2/L3 通过后执行 git mv + STATE/CHANGELOG/LESSONS + 提交）
+- **状态**: 归档执行中（阶段 7 L2 pass；L3 终审在归档提交后重跑；随后置 done）
 
 ---
 
@@ -12,8 +12,8 @@
 |---|---|---|
 | make test（770 bats） | ✅ 0 fail | pre-commit 每提交执行，全部提交绿（78ec779..HEAD）；最终独立快照见 §6 |
 | 指南两副本一致 | ✅ | cmp -s（TEST A4） |
-| deck 20 页重建 + 断言 | ✅ | build.py + deck_checks.py（TEST A5/A6） |
-| 渲染 PDF/PNG | ✅ | soffice Pages=20 + 页 1/14/20 PNG（TEST A6） |
+| deck 20 页重建 + 断言 | ✅ | T5：build.py + deck_checks.py（TEST A4 段内子断言） |
+| 渲染 PDF/PNG | ✅ | T6：soffice Pages=20 + 页 1/14/20 PNG（TEST A4 段内子断言） |
 | 门禁（gate_config=all） | ✅ | IR-1/2/3/5/6 L2+L3 pass；7 见 IR-7 |
 | UAT-1 dsh 安装流程 | ✅ | 2026-09-03 实际执行 package-dsh-plugin.sh + 两 profile 副本刷新；GUI 重启后最终生效由用户确认（§2.4 与真实命令一致） |
 | UAT-2 deck 渲染人工过目 | ✅ | /tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png；describe-image 无溢出/截断 |
@@ -21,7 +21,7 @@
 ## 2. 发布检查
 
 - Conventional Commits：78ec779..HEAD 全部提交前缀 docs/chore(user-guide-sync-2026-09)（AC-9 验证）
-- 无运行时实现改动（白名单检查 0 外溢）；dist 产物 gitignored 不入库
+- 无运行时实现改动；阶段 5 时点白名单检查 0 外溢（此后仅 .gitignore 规则随早期 chore 提交，不影响验证时点口径）；dist 产物 gitignored 不入库
 - 生成器 .specs/user-guide-deck-gen/ 入库可复跑；README 记录命令与依赖版本
 
 ## 3. UAT 汇总
@@ -37,7 +37,7 @@
 ## 5. 归档清单与动作
 
 1. git mv .specs/user-guide-sync-2026-09 → .specs/archive/2026-09-03-user-guide-sync-2026-09/
-2. 移除门禁运行期标记 .independent-review-{1,2,3,5,6,7}.done（git rm）
+2. 删除门禁运行期标记 .independent-review-*.done（rm 即可——该模式已被 .gitignore 忽略且未跟踪，不入库，git rm 不可用）
 3. .specs/STATE.md last_change_archived 更新为 user-guide-sync-2026-09（2026-09-03）
 4. .specs/CHANGELOG.md 顶部新增本 change 行
 5. .specs/LESSONS.md 追加 L-083/L-084（按仓库编号规则并入）

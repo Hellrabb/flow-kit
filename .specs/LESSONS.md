@@ -4,6 +4,10 @@
 > 格式：严重程度 | 位置 | 问题 | 建议 | 状态 | 来源
 
 <!-- l3-pipeline-fix-2026-07 ↓ -->
+<!-- user-guide-sync-2026-09 ↓ -->
+| L-083 | 🟢 | 全局（流程教训） | 文档/演示型 change 的验证方式必须「产物内可复现」——L3 三轮迭代证明，把断言写成当前可执行命令（而非指向未来的 TEST/deck_checks 占位）是收敛最快路径；新增生成器类工具首次使用注意 Path.parents 语义（parents[0]=父目录，勿把 repo 根算错一层） | 文档 change 的 REQUIREMENT 验证方式一律内联可执行命令；新生成器先用 --smoke 输出路径断言 | ✅ 已吸收 | user-guide-sync-2026-09 L2/L3 |
+| L-084 | 🟡 | 全局（流程教训） | subagent 盲审长时间无产出（>30 min）应中断并改用「紧范围 + 前台」重派，盲目等待浪费配额——本 change 3 个后台 L2 卡住，中断重派后 1-5 分钟完成 | 后台盲审 10 分钟无文件产出即 interrupt 重派；prompt 限定 read/bash 次数与输出上限 | ✅ 已吸收 | user-guide-sync-2026-09 执行记录 |
+<!-- user-guide-sync-2026-09 ↑ -->
 | L-041 | 🟡 | `auto-checkpoint.sh` PreToolUse hook | 自引用竞态：hook 在 Write/Edit `.flow-active` 前触发 `checkpoint_write()` 修改同一文件，导致 harness 检测到文件内容变化后拒绝 Write/Edit | 在 `auto-checkpoint.sh` 中检测 `file_path` 是否为 `.flow-active` 自身——若是则 skip checkpoint 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` |
 | L-042 | 🔴 | `29-independent-review.sh` L3 派发 | `--background` 异步 flag 硬编码激活导致 `.done` 永不写入：fork 子进程后立即返回 `return 0`，`_l3_write_done()` 未执行 → 下次 Stop hook 再次进入积压扫描 → 无限重派循环 | 异步功能默认关闭（opt-in via `L3_BACKGROUND=1`）；默认同步路径确保 `.done` 写入 | ✅ 已修复 | `l3-pipeline-fix-2026-07` L2 审查 R1 |
 | L-043 | 🟡 | `install.sh` 部署流程 | 改了 bundle 源 hook 文件后，容易忘记重跑 `install.sh --user` 同步到 `~/.claude/hooks/`。install.sh 代码不需要改（`install_file` 自动覆盖），但**必须提醒用户重跑**，否则运行时仍是旧版本 | 每次 change 涉及 hook 文件修改时，在归档阶段显式提醒用户执行 `install.sh --user` | ✅ 流程补记 | `l3-pipeline-fix-2026-07` 事后发现 |
