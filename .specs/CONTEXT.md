@@ -244,6 +244,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | ADR-020 | OpenCode task tool 能力快照（L-061 closed）。结论：当前 OpenCode 不支持 task-level model-tier，model-tier 仅作 dispatch prompt hint。路径 `.specs/adr/020-opencode-task-capability.md` |
 | ADR-021 | 弱模型 prompt 降级协议设计（L-063 closed）。协议已设计但未实现（v2 task）。路径 `.specs/adr/021-weak-model-prompt-degradation.md` |
 <!-- final-debt-cleanup-2026-08 追加 ↑ -->
+<!-- user-guide-sync-2026-09 追加 ↓ -->
+| dsh-flow-kit（dsh 插件）| flow-kit 的 DeepSeek Harness 插件化交付：包内 `skills/ flow-kit/ hooks/ brooks-lint/ vendor/`（内容层由 package-dsh-plugin.sh 从 flow-kit-bundle 拷贝），cordis.patch.yml 挂载；用户文档（FLOW-KIT-用户指南.md 等）随打包进入插件 `docs/` |
+| doctor correction 卫生报告 | `/flow doctor` 对 `.flow-active.correction` 的摘要报告：无文件→✅；violations>0→`type=…, violations=N`（摘要字段 `check→rule` 回退，ADR-024 异质 schema）；仅 message→`type=… — message`；解析失败 fail-open |
+| archive-commit 门禁（34 号 hook）| 阶段 7 归档提交完整性门禁：归档产物与 CHANGE 范围核对后才放行/记录（含 commit-protocol 分类）；install.sh 同时部署 pre-commit 钩子（deploy_pre_commit，user scope 源文件安装） |
+| tier-4/5 站点级默认模型 | 五级解析链第 4/5 级：`FLOW_KIT_L{2,3}_DEFAULT_MODEL` env + `.goal.l{2,3}_default_model` 字段，由 `/flow model l2-default=/l3-default=` 持久化；语义见「已锁决策」2026-09-03 条 |
+<!-- user-guide-sync-2026-09 追加 ↑ -->
 
 ## 已锁决策
 
