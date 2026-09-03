@@ -21,8 +21,8 @@
 | T5 | AC-5 | build.py + deck_checks.py | 20 页断言全过 | ✅ deck_checks OK |
 | T6 | AC-6 | soffice→pdf Pages=20 + 页 1/14/20 PNG 非空 | 通过 | ✅ |
 | T7 | AC-7 | make test 全量（pre-commit 每提交执行，失败即拒提交） | 0 fail | ✅ 每笔提交均绿（计数快照随提交滚动，INTEGRATION 固化最终区间） |
-| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | L2 pass + L3 pass | ⏳ 1/2/3 已 pass；5 回填中，6/7 待（见 INDEPENDENT-REVIEW-{5,6,7}.md） |
-| T9 | AC-9 | 归档清单/STATE/CHANGELOG/git log | 见 INTEGRATION | ⏳ 阶段 7 执行 |
+| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | L2 pass + L3 pass | ⏳ 跨阶段验收项：1/2/3 已 pass（REVIEW-{1,2,3}）；5 见本文件下文 L2/L3 段；6/7 在阶段 6/7 门禁回填（REVIEW-{6,7}.md） |
+| T9 | AC-9 | 归档清单/STATE/CHANGELOG/git log | 见 INTEGRATION | ⏳ 跨阶段验收项：阶段 7 INTEGRATION 执行后回填（按 AC-8/9 条款移交，非本阶段可终结项） |
 
 ## A1 · AC-1 命令
 
@@ -46,7 +46,7 @@ echo A2-OK
 
 > slides.json / pptx 抽取文本的同清单检查 = deck_checks.py（BANNED 同列表，已含）；TODO/待补扫描见 A7b。
 
-## A3 · AC-3 子项（根与 bundle 两份各跑）
+## A3 · AC-3 子项（根文档逐项检查；bundle 副本由 A4 cmp 同步保证字节一致）
 
 ```bash
 # a) dsh 平台条目
@@ -102,16 +102,28 @@ python3 .specs/user-guide-deck-gen/build.py > /tmp/t5-build.log 2>&1 && tail -1 
 python3 .specs/user-guide-deck-gen/deck_checks.py
 soffice --headless --convert-to pdf --outdir /tmp/ppt-render flow-kit-用户指南.pptx
 pdfinfo /tmp/ppt-render/flow-kit-用户指南.pdf | awk '/^Pages:/ {print $2}'   # 期望 20
-pdftoppm -png -r 70 -f 1 -l 1 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p1 && test -s /tmp/ppt-render/p1-01.png
-pdftoppm -png -r 70 -f 14 -l 14 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p14 && test -s /tmp/ppt-render/p14-14.png
-pdftoppm -png -r 70 -f 20 -l 20 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/p20 && test -s /tmp/ppt-render/p20-20.png
+pdftoppm -png -r 70 -f 1 -l 1 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/pg1 && test -s /tmp/ppt-render/pg1-01.png
+pdftoppm -png -r 70 -f 14 -l 14 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/pg14 && test -s /tmp/ppt-render/pg14-14.png
+pdftoppm -png -r 70 -f 20 -l 20 /tmp/ppt-render/flow-kit-用户指南.pdf /tmp/ppt-render/pg20 && test -s /tmp/ppt-render/pg20-20.png
+# deck_checks.py 断言清单（成品 pptx + slides.json 源）：20 页；首页 2026-09-03 与 hellrabbit/flow-kit URL；逐页文本非空；禁词 0（同 AC-2 列表，含 slides.json）；页 14 含 l2-default=/l3-default=/五级；页 20 含 dsh plugin 与 /flow doctor；全文关键串 ≥1
+python3 - <<'PY'
+from pptx import Presentation
+p = Presentation('flow-kit-用户指南.pptx')
+full = '\n'.join(sh.text_frame.text for s in p.slides for sh in s.shapes if sh.has_text_frame)
+md = open('FLOW-KIT-用户指南.md', encoding='utf-8').read()
+for k in ['DeepSeek Harness', 'l2-default=', 'l3-default=', 'dsh plugin --profile', '/flow doctor', 'archive_commit_check', '显式配置永远压过默认级']:
+    assert k in full, ('deck missing', k)
+    assert k in md, ('md missing', k)
+print('MD-DECK-SYNC-OK')
+PY
 echo A56-OK
 ```
 
 ## A7 · 回归与边界（AC-7）
 
 ```bash
-make test 2>&1 | tail -3          # 期望 0 fail
+set -o pipefail
+make test > /tmp/mt-test.log 2>&1; rc=$?; tail -3 /tmp/mt-test.log; exit $rc   # 期望 0 fail
 # 白名单外变更 0 行（阶段 5 提交前执行）
 git status --porcelain | awk '{print $2}' | grep -vE '^(FLOW-KIT-用户指南.md|flow-kit-bundle/FLOW-KIT-用户指南.md|flow-kit-用户指南.pptx|.specs/user-guide-deck-gen/|.specs/user-guide-sync-2026-09/|.specs/CONTEXT.md|.specs/STATE.md|.specs/CHANGELOG.md|.specs/LESSONS.md)' | wc -l   # 期望 0
 grep -nE 'TODO|待补' FLOW-KIT-用户指南.md | wc -l    # 期望 0
@@ -123,13 +135,13 @@ grep -nE 'TODO|待补' FLOW-KIT-用户指南.md | wc -l    # 期望 0
 - A2 ✅（两份 MD 禁词 0）
 - A3 ✅ a-d/f/g grep 全过；e：`A3e-OK 12 ['archive_commit_check','claude-md',…,'workflow']`（指南 §7 config 键列 == stop-hook.json modules 双向相等）
 - A56 ✅ cmp 两副本 + build 20 页 + deck_checks OK（20 pages / banned=0（含 slides.json）/ 无空页 / 关键串）+ soffice PDF Pages=20 + 页 1/14/20 PNG
-- make test：每次 Conventional Commit 均经 pre-commit 钩子执行 770 bats 0 fail（钩子失败即拒绝提交）；最终区间计数在 INTEGRATION.md 固化
+- make test：每次 Conventional Commit 均经 pre-commit 钩子执行 770 bats 0 fail（钩子失败即拒绝提交）；独立快照：make test 实跑输出见本文件提交记录（tail: 770 ok / 0 fail）——最终区间计数在 INTEGRATION.md 固化
 - 渲染抽查：/tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png（describe-image 检查无溢出/截断）
 
 ## UAT（人工）
 
-- [ ] 指南 §2.4 按步骤可在 dsh profile 装入插件（UAT-1 · 与本次 dist 重装一致）
-- [ ] deck 页 1/14/20 渲染图人工过目（UAT-2 · 附 TEST 记录 PNG：/tmp/ppt-render/pg1-01.png 等）
+- [ ] 指南 §2.4 按步骤可在 dsh profile 装入插件（UAT-1 · 需用户重启 profile 后确认，延至阶段 7 前执行——依据：profile 重装/重启属用户操作，非本机可自动终结）
+- [ ] deck 页 1/14/20 渲染图人工过目（UAT-2 · PNG 已生成 /tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png；describe-image 已抽查无溢出/截断，最终勾选在阶段 7 UAT 汇总）
 
 ---
 

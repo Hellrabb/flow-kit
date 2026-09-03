@@ -44,3 +44,75 @@
 结论：五项修复技术内容全部有效且经实跑验证，无 Critical 残留；但证据链闭合（提交+计数回填）未完成，存在 1 项 Important 残留。
 
 **Verdict**: fail
+
+## L2 终审
+范围：TEST.md；git log -3；git status；ls-files（bash 3 次）。
+- 基线 ✅ HEAD=2cfd895（L2 修复闭环提交），工作区干净，本 REVIEW-5 已被 HEAD 跟踪。
+- R1 ✅ A3e 限定 §7 表格段解析，A3e-OK 12 双向相等。
+- R2 ✅ T7(L23) 改为"计数快照随提交滚动，INTEGRATION 固化"，无动态计数。
+- R3 ✅ T8(L24) 为 ⏳，"5 回填中，6/7 待"引真实文件 {5,6,7}，不再提前 OK。
+- R4 ✅ e2 五注解 grep、A3g 计数、A56/cmp 均已固化。
+- R5 ✅ deck_checks 增 slides.json 同清单禁词扫描。
+- 无残留 Critical/Important：TEST.md 无严重度/动态计数表述，round-2 Important 已闭合。
+
+**Verdict**: pass
+
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 22:51）
+
+> 自动生成于 2026-09-03 22:51。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{
+  "critical": [
+    {
+      "file": "TEST.md（阶段 5 测试工件）",
+      "issue": "断言矩阵 T8（AC-8）与 T9（AC-9）仍为待办（⏳），UAT-1/UAT-2 人工验收项均未勾选；矩阵并未全绿。",
+      "why": "测试矩阵声称覆盖全部 AC，但存在未验证的验收条件和未执行的人工测试，覆盖率不达标，本阶段不能判定为通过。",
+      "fix": "完成 AC-8/AC-9 所需证据（INDEPENDENT-REVIEW 5/6/7 L3 pass、归档清单等）并勾选 UAT-1/UAT-2，在矩阵中填入最终 ✅/❌ 及证据；若这些项不属于本阶段，需显式标注不适用并说明依据。"
+    }
+  ],
+  "major": [
+    {
+      "file": "TEST.md A7/AC-7 回归命令",
+      "issue": "`make test 2>&1 | tail -3` 的进程退出码来自 tail 而非 make test；make test 失败时该命令仍可能返回 0，文档也没有附带实际计数快照。",
+      "why": "作为 AC-7 的回归断言不可靠，可能掩盖回归失败，使“0 fail”的证据无效。",
+      "fix": "使用 `set -o pipefail` 或直接执行 `make test` 并检查退出码；在实跑记录中附上提交哈希、bats 数量和 tail 输出。"
+    },
+    {
+      "file": "TEST.md T4/T5/A4 渲染与同步断言",
+      "issue": "AC-4 的测试仅 `cmp` 两份 MD 副本，未验证 PPT 与 MD 内容同步；deck_checks.py 的具体断言未在工件中列出，无法确认其检查的是 slides.json 数据源还是最终 PPTX/PDF 实际内容。",
+      "why": "若 deck_checks 只校验生成输入而非渲染产物，或 PPT 缺少 MD 中新增章节而未被禁词/页数检查发现，就会形成自证式通过，屏蔽真实内容缺失或渲染失败。",
+      "fix": "在测试文档中列出 deck_checks.py 的完整断言清单，并增加从最终 PDF/PPTX 抽取文本与 MD 关键章节/关键串逐项比对的命令和输出。"
+    }
+  ],
+  "minor": [
+    {
+      "file": "TEST.md A4 实跑记录/UAT-2",
+      "issue": "A4 命令生成 /tmp/ppt-render/p1-01.png，而实跑记录和 UAT-2 写的是 /tmp/ppt-render/pg1-01.png，文件名不一致。",
+      "why": "按文档复现或人工检查时可能找不到对应 PNG，影响 UAT 可复现性。",
+      "fix": "统一 PNG 前缀（p1/p14/p20 或 pg1/pg14/pg20）并同步更新所有引用。"
+    },
+    {
+      "file": "TEST.md A3 注释/命令",
+      "issue": "A3 注释称“根与 bundle 两份各跑”，但 a-f/g 的 grep 与 Python 命令实际只读取根 FLOW-KIT-用户指南.md，未对 bundle 副本逐项执行。",
+      "why": "虽然 A4 的 cmp 可间接保证两副本一致，但注释与命令不符，降低可复现性和可读性。",
+      "fix": "要么在 A3 中对两个文件循环执行，要么将注释改为“根文档检查 + bundle 由 A4 cmp 同步保证”。"
+    },
+    {
+      "file": "TEST.md T7/实跑记录",
+      "issue": "AC-7 的“每笔提交均绿”依赖 pre-commit 历史和 INTEGRATION 固化，但本工件未给出实际提交区间、make test 输出片段或计数。",
+      "why": "证据不可在本工件内独立复现，削弱回归测试的可审计性。",
+      "fix": "补充最近一次提交哈希、`make test` 尾部输出和 770 bats 的计数快照。"
+    }
+  ],
+  "verdict": "fail",
+  "summary": "测试矩阵存在 T8/T9 未完成和 UAT 未执行，回归命令与渲染断言存在可靠性/自证风险，本阶段验收不能通过。"
+}
+```
+
+L3_artifact_hash: 77f6528f2bdc31bad04c02d0367126e7868835bcf94f05419a4fc9d114e3ac0f
