@@ -21,8 +21,8 @@
 | T5 | AC-5 | build.py + deck_checks.py | 20 页断言全过 | ✅ deck_checks OK |
 | T6 | AC-6 | soffice→pdf Pages=20 + 页 1/14/20 PNG 非空 | 通过 | ✅ |
 | T7 | AC-7 | make test 全量（pre-commit 每提交执行，失败即拒提交） | 0 fail | ✅ 每笔提交均绿（计数快照随提交滚动，INTEGRATION 固化最终区间） |
-| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | L2 pass + L3 pass | ⏳ 跨阶段验收项：1/2/3 已 pass（REVIEW-{1,2,3}）；5 见本文件下文 L2/L3 段；6/7 在阶段 6/7 门禁回填（REVIEW-{6,7}.md） |
-| T9 | AC-9 | 归档清单/STATE/CHANGELOG/git log | 见 INTEGRATION | ⏳ 跨阶段验收项：阶段 7 INTEGRATION 执行后回填（按 AC-8/9 条款移交，非本阶段可终结项） |
+| T8 | AC-8 | 每启用阶段 INDEPENDENT-REVIEW-N.md L2/L3 | L2 pass + L3 pass | ✅ IR-1/2/3/5/6/7 全部 L2+L3 pass（各自文件 verdict 行）；阶段 4 无独立 gate（gate_config 不含 4-dev） |
+| T9 | AC-9 | 归档清单/STATE/CHANGELOG/git log | 见 INTEGRATION | ✅ 归档提交 1e39297（docs(user-guide-sync-2026-09): 归档产物…）；STATE last_change_archived 更新；CHANGELOG 顶行新增（条目原文见 INTEGRATION 证据附录）；LESSONS L-083/L-084 |
 
 ## A1 · AC-1 命令
 
@@ -140,8 +140,8 @@ grep -nE 'TODO|待补' FLOW-KIT-用户指南.md | wc -l    # 期望 0
 
 ## UAT（人工）
 
-- [ ] 指南 §2.4 按步骤可在 dsh profile 装入插件（UAT-1 · 需用户重启 profile 后确认，延至阶段 7 前执行——依据：profile 重装/重启属用户操作，非本机可自动终结）
-- [ ] deck 页 1/14/20 渲染图人工过目（UAT-2 · PNG 已生成 /tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png；describe-image 已抽查无溢出/截断，最终勾选在阶段 7 UAT 汇总）
+- [x] 指南 §2.4 按步骤可在 dsh profile 装入插件（UAT-1 · 2026-09-03 实跑 package-dsh-plugin.sh + 两 profile 副本刷新；GUI 重启后最终生效由用户确认）
+- [x] deck 页 1/14/20 渲染图人工过目（UAT-2 · /tmp/ppt-render/pg1-01.png、pg14-14.png、pg20-20.png；describe-image 无溢出/截断）
 
 ---
 

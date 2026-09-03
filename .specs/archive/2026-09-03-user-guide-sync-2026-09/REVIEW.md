@@ -3,7 +3,7 @@
 - **Change ID**: user-guide-sync-2026-09
 - **审查时间**: 2026-09-03
 - **审查者**: AI（Reviewer 角色）+ 每阶段 L2 盲审子代理 + L3 外部模型（deepseek-v4-flash-0731）
-- **总体结论**: 待定 —— 阶段 6/7 独立门禁闭环前不宣称最终通过；1/2/3/5 门禁已 L2+L3 pass，6/7 在各自 INDEPENDENT-REVIEW 文件定稿，最终归档放行见 INTEGRATION.md
+- **总体结论**: 通过 —— 阶段 1/2/3/5/6/7 门禁 L2+L3 全部 pass（IR-1/2/3/5/6/7）；归档提交 1e39297；Minor triage 见 INTEGRATION §7
 
 ---
 
@@ -30,8 +30,8 @@
 | AC-5 deck 20 页 | TEST A5 build + deck_checks | ✅ |
 | AC-6 渲染 | TEST A6 soffice/pdf/png | ✅ |
 | AC-7 回归边界 | TEST A7 make test + 白名单 | ✅（快照 INTEGRATION 固化） |
-| AC-8 L2/L3 门禁 | IR-1/2/3/5 ✅ + IR-6/7 本阶段 | ⏳ 6/7 |
-| AC-9 归档提交 | INTEGRATION.md | ⏳ 阶段 7 |
+| AC-8 L2/L3 门禁 | IR-1/2/3/5/6/7 | ✅ 六阶段 IR 文件 L2+L3 verdict 均 pass（阶段 4 无独立 gate：gate_config 不含 4-dev，已注记） |
+| AC-9 归档提交 | INTEGRATION.md | ✅ 归档提交 1e39297；STATE/CHANGELOG/LESSONS 已更新（证据附录见 INTEGRATION.md） |
 
 ## 独立审查汇总（gate_config=all）
 
@@ -42,7 +42,7 @@
 | 3 TASK | TASK/REQ/DESIGN | pass（复审后） | pass（2 轮迭代） | T07 verify 重写 / T08 depends / T06 收尾口径 |
 | 5 TEST | TEST.md | pass（终审后） | pass（2 轮迭代） | A3e 限定解析 / 跨阶段验收标注 / pipefail / MD↔deck 同步 |
 | 6 REVIEW | 本文件 + git diff | pass（复审后） | pass（2 轮迭代） | 总体结论措辞/AC 映射/证据可复核化 |
-| 7 INTEGRATION | INTEGRATION.md + 归档 | pass（复审后） | ⏳ 终审（归档态重跑） | IR-7 文件 |
+| 7 INTEGRATION | INTEGRATION.md + 归档 | pass（复审后） | pass（归档态终审 · 2026-09-03） | IR-7 文件 |
 
 > Minor findings 全部登记 MINOR-DEFERRED.md（M1-M19 · ADR-017 单一路径），phase 7 triage。
 > 编号说明：阶段 4（DEV）无独立审查 gate（gate_config 不含 4-dev），独立审查文件编号为 1/2/3/5/6/7。
