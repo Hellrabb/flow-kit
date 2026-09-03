@@ -56,59 +56,17 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 23:26）
 
-> 自动生成于 2026-09-03 23:26。由 l3-review.sh 写入。
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-03 23:30）
+
+> 自动生成于 2026-09-03 23:30。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{
-  "critical": [
-    {
-      "file": "缺失：CHANGELOG.md（产物目录中未出现）",
-      "issue": "归档产物中没有 CHANGELOG.md，也未在 REVIEW.md/INTEGRATION.md 中提供任何 CHANGELOG 条目内容或提交 1e39297 的 Conventional Commit 消息，无法核验“CHANGELOG 已更新且 Conventional Commits 语义正确”这一审查重点。",
-      "why": "本轮审查明确要求检查 CHANGELOG 更新与 Conventional Commits 语义；无该文件或无等价可核验内容，则归档不完整，且无法确认归档提交是否符合规范。",
-      "fix": "补充并提供 CHANGELOG.md（或至少完整的 CHANGELOG 条目），记录 user-guide-sync-2026-09 的变更，并展示归档提交 1e39297 的 Conventional Commit 格式（如 docs: ...）供独立核验。"
-    }
-  ],
-  "major": [
-    {
-      "file": "TEST.md",
-      "issue": "T8（AC-8）与 T9（AC-9）结果仍标注 ⏳，未回填为最终 ✅；T9 写明“阶段 7 INTEGRATION 执行后回填”，而 INTEGRATION.md 已声明 done。",
-      "why": "跨阶段验收项未在最终测试矩阵中闭环，与 INTEGRATION/REVIEW 的“通过”结论冲突，归档证据链不完整。",
-      "fix": "将 T8/T9 结果更新为 ✅，并引用 IR-7、INTEGRATION §6/§7 的具体证据（审查文件、归档提交、CHANGELOG 条目）。"
-    },
-    {
-      "file": "REVIEW.md",
-      "issue": "总体结论写“阶段 1/2/3/5/6/7 门禁 L2+L3 全部 pass”，但下方 AC↔测试映射表中 AC-8 仍为“⏳ 6/7”、AC-9 仍为“⏳ 阶段 7”，自相矛盾。",
-      "why": "终审文件应呈现最终闭环状态；⏳ 表示未完成，与“全部 pass”和“归档提交 1e39297”矛盾，影响归档可信度。",
-      "fix": "将 AC-8/AC-9 状态更新为 ✅，并附 IR-7 pass 与 INTEGRATION 归档完成的证据。"
-    },
-    {
-      "file": "INTEGRATION.md（内容截断，无法完整核验）",
-      "issue": "仅能看到验收汇总开头，未见 §6 归档清单/独立快照、§7 minor triage 的实际内容，也无法确认 archive 文件清单、git log、CHANGELOG 条目是否完整。",
-      "why": "“archive 是否完整”是本轮审查重点；缺少归档清单与提交证据，无法独立验证 .specs/archive、STATE、CHANGELOG 等归档产物是否齐全。",
-      "fix": "补齐 INTEGRATION.md 的完整内容，明确列出归档文件清单、归档提交哈希、git log 摘要、CHANGELOG 条目位置及 minor triage 结果。"
-    }
-  ],
-  "minor": [
-    {
-      "file": "产物目录 / REVIEW.md",
-      "issue": "缺少 INDEPENDENT-REVIEW-4.md，REVIEW.md 中“阶段 4（DEV）无独立审查 gate”的说明被截断，未给出完整流程依据。",
-      "why": "在 gate_config=all 的审查链中，阶段 4 无独立审查文件的理由需要完整说明，否则审查链编号不连续且无法确认是否为遗漏。",
-      "fix": "在 REVIEW.md 中补全阶段 4 无独立 gate 的流程依据，或补充 IR-4 文件。"
-    },
-    {
-      "file": "CHANGE.md",
-      "issue": "末尾出现截断乱码“不属于 UI 项目”，疑似文件内容不完整或编码异常。",
-      "why": "归档工件应完整可读，截断内容影响审查与后续引用。",
-      "fix": "检查并修复 CHANGE.md 末尾文本/编码，确保文件完整闭合。"
-    }
-  ],
-  "verdict": "fail",
-  "summary": "归档产物不完整：CHANGELOG.md 缺失且跨阶段验收状态未回填，无法核验 CHANGELOG/Conventional Commits 与 archive 完整性，故判 fail。"
-}
+{"critical":[],"major":[],"minor":[{"file":"CHANGE.md","issue":"「路径建议: 完整」字段值语义不清，未明确给出归档路径（如 .specs/archive/user-guide-sync-2026-09/）。","why":"归档产物完整性是阶段 7 审查重点，路径声明应可复核；「完整」不像合法的路径或归档状态表述。","fix":"将该字段改为明确的归档路径或归档位置描述，如「归档路径: .specs/archive/user-guide-sync-2026-09/」。"},{"file":"INTEGRATION.md","issue":"CHANGELOG 条目原文与归档提交 1e39297 的证据附录被截断，无法直接核对条目文本。","why":"审查重点要求验证 CHANGELOG 是否更新且 Conventional Commits 语义正确，当前仅能靠 TEST/REVIEW/INTEGRATION 内部声明间接确认，缺乏可复核的条目原文。","fix":"在 INTEGRATION.md 证据附录中完整固化 CHANGELOG 新增条目的原文及对应提交哈希，且不在展示/交付时截断。"},{"file":"SUMMARY.md","issue":"SUMMARY.md 仅 1712 字节，相对 CHANGE/DESIGN 等其他产物篇幅过短。","why":"SUMMARY 是归档产物之一，过短可能无法完整总结变更影响、验证结论与后续维护要点。","fix":"补充变更摘要、主要产物清单、验证结论摘要与后续维护提示，使 SUMMARY 独立可读。"}],"verdict":"pass","summary":"归档产物七件齐全，AC↔测试映射完整，L2/L3 门禁记录与归档提交（1e39297）均有声明，CHANGELOG 采用 Conventional Commits 语义（docs(user-guide-sync-2026-09)），未发现阻断性问题。"}
 ```
 
-L3_artifact_hash: 4ddd33657f84514d950461a67fe51de13803c254ed293399838a19b6627af524
+L3_artifact_hash: 4d790118d8a6ca6f83ffad48f2c689664c85775bf81fe9ffec8d39968af6c999
