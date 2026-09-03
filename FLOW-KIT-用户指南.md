@@ -956,7 +956,7 @@ L2/L3 审查用哪个模型由公共函数 `fk_resolve_model <layer>`（`hooks/s
 | 5 | `.flow-active.goal.l3_default_model` | `.flow-active.goal.l2_default_model` | **站点级默认持久化**（tier-5），由 `/flow model l3-default=/l2-default=` 写入 |
 | 全空 | 优雅降级 | 优雅降级 | 写 `.flow-active.correction`（l3/l2-model-missing）+ stderr 提示 |
 
-- **默认级语义**：显式配置（前三级）永远压过默认级；默认模型不改变**无凭证跳过语义**——凭证由 `fk_resolve_api_credentials` 独立判定，设了默认模型但没有凭证仍按无凭证处理。
+- **默认级语义**：显式配置永远压过默认级（前三级 > 站点默认 tier-4/5）；默认模型不改变**无凭证跳过语义**——凭证由 `fk_resolve_api_credentials` 独立判定，设了默认模型但没有凭证仍按无凭证处理。
 - **字段边界**：`/flow model` 与 `--clear` 只触碰 `l2_model` / `l3_model` / `l2_default_model` / `l3_default_model` 四个键，不影响 condition/gates/gate_config。
 - **跨平台**：dsh / OpenCode / Codex / Gemini CLI 通过 `FLOW_KIT_*` env 或 `.flow-active` 配置（dsh 站点可在 shell env 或 `/flow model l2-default=/l3-default=` 固化）；L2 已移除 `claude-sonnet-5` fallback（纯跨平台）。
 - **降级写 correction**：模型全空时 caller（`l2-detect.sh` / `l3-review.sh` / `29-independent-review.sh`）调 `write_model_missing_correction <layer>` 写 `l3-model-missing` / `l2-model-missing`；`29` 顶层 `exit 3` 降级退出，不影响 gate 链。
