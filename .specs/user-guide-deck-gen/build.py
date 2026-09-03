@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 GEN_DIR = Path(__file__).resolve().parent
-ROOT = GEN_DIR.parents[2]           # .../flow-kit/.specs/user-guide-deck-gen -> flow-kit 根
+ROOT = GEN_DIR.parents[1]           # .../flow-kit/.specs/user-guide-deck-gen -> flow-kit 根
 SLIDES = GEN_DIR / "slides.json"
 OUT = ROOT / "flow-kit-用户指南.pptx"
 

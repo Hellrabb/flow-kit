@@ -1,0 +1,559 @@
+[
+ {
+  "layout": "cover",
+  "title": "Flow-Kit 用户指南",
+  "subtitle": "AI 驱动的软件开发流程框架 · 从想法到上线的完整生命周期",
+  "taglines": [
+   "Claude Code · DeepSeek Harness(dsh) · OpenCode 三平台同源",
+   "8 阶段流水线 · 双层防护 · 双轮独立审查"
+  ],
+  "date": "2026-09-03 | github.com/hellrabbit/flow-kit"
+ },
+ {
+  "layout": "band",
+  "title": "什么是 flow-kit",
+  "subtitle": "一套结构化的变更生命周期管理框架",
+  "bullets": [
+   {
+    "t": "为 Claude Code / DeepSeek Harness（dsh）/ OpenCode 等 AI 编码工具提供流程框架；Gemini CLI / Codex CLI 亦可 bundle 安装使用",
+    "size": 15
+   },
+   {
+    "t": "把需求从模糊想法拆到合并：8 个顺序阶段，每阶段有输入/输出/门禁/自检",
+    "size": 15
+   },
+   {
+    "t": "核心组件",
+    "bold": true,
+    "size": 15
+   },
+   {
+    "t": "flow-kit 核心引擎 — GO.md 统一入口 / prompts / reference / templates",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "flow-* 技能包装器 — 17 个技能，暴露 /flow-go、/flow 斜杠命令",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "dsh-flow-kit 插件 — dsh 平台一等交付：cordis.patch.yml 挂载 skills/hooks/brooks-lint/vendor",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "Hook 运行时 — Stop（12 开关模块 + 基础设施脚本）· PreToolUse · SessionStart · pre-commit",
+    "lvl": 1,
+    "c": "accent"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "核心概念",
+  "subtitle": "change-id · .flow-active · .specs",
+  "bullets": [
+   {
+    "t": "change-id：kebab-case（2~4 词），阶段 0 由 AI 自动生成",
+    "size": 16
+   },
+   {
+    "t": ".flow-active：项目根运行时状态（change_id/phase/task/goal/interrupt）",
+    "size": 16
+   },
+   {
+    "t": ".specs/<change-id>/：单个 change 的全部产物目录",
+    "size": 16
+   },
+   {
+    "t": "横向命令：I-intel / M-health / A-architect / A-evolve / L-restyle 独立于流水线",
+    "size": 15,
+    "c": "muted"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "整体架构",
+  "subtitle": "核心引擎是大脑，Hook 是运行时，技能是入口",
+  "bullets": [
+   {
+    "t": "意图 → /flow-go 路由 → 阶段 prompt → 产物（.md）",
+    "size": 15
+   },
+   {
+    "t": "17 个 flow-* 技能将核心引擎暴露为斜杠命令（三平台同源；dsh 插件自动挂载）",
+    "size": 15
+   },
+   {
+    "t": "Hook 运行时链：00-gate / 01-transcript + 20~34 逻辑模块 + 99-report",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "门禁：PreToolUse（independent-review gate + auto-checkpoint）· SessionStart（恢复/矫正/报告）· pre-commit（提交前全量门禁）",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "独立审查：L2 子代理盲审 + L3 外部模型（gate_config 按阶段开启）",
+    "size": 15
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "两大命令：/flow-go vs /flow",
+  "subtitle": "统一入口（自动路由） vs 状态管理（手动操作）",
+  "bullets": [
+   {
+    "t": "/flow-go — 描述意图自动路由：新需求→阶段 0；继续→阶段 4；需求/设计/测试/归档等关键词直达",
+    "size": 15
+   },
+   {
+    "t": "/flow — 状态管理子命令",
+    "size": 15
+   },
+   {
+    "t": "start / stop / phase <n> / task <Tn> / goal / goal clear",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "checkpoint <file> <desc> — 中断恢复点",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "doctor — .flow-active 完整性 + correction 卫生报告（type/violations 去重，check→rule 回退）",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "model — 五级链配置：l2=/l3= 显式字段，l2-default=/l3-default= 站点默认，--clear 清除",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "gate-config — 按阶段开关独立审查（both/L2/L3/off）",
+    "lvl": 1,
+    "c": "accent"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "8 阶段流水线总览",
+  "subtitle": "每个阶段产出明确产物，经 Toll-Gate 进入下一阶段",
+  "bullets": [
+   {
+    "t": "0 CHANGE（提案）→ 1 REQUIREMENT（需求）→ 2 DESIGN（设计）→ 2a UI-DESIGN（前端项目）",
+    "size": 15
+   },
+   {
+    "t": "→ 3 TASK（任务拆解）→ 4 DEV（开发执行）→ 5 TEST（测试）→ 6 REVIEW（审查）→ 7 INTEGRATION（集成归档）",
+    "size": 15
+   },
+   {
+    "t": "PCSC + PCG 双层防护保证产物完整；Pipeline Goal 支持跨阶段自动推进",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "阶段 7 含 pre-commit 门禁与 34 号 archive-commit 归档核对",
+    "size": 15,
+    "c": "danger"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "阶段 0-1：从模糊想法到可执行需求",
+  "subtitle": "CHANGE → REQUIREMENT",
+  "bullets": [
+   {
+    "t": "阶段 0 · CHANGE",
+    "bold": true,
+    "size": 15
+   },
+   {
+    "t": "AI 自动生成 change-id + 创建 .specs/<id>/；架构级变更预检；反问澄清",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "产出：CHANGE.md（Why / What / 影响面 / v1-v2-out / 验收线）",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "阶段 1 · REQUIREMENT",
+    "bold": true,
+    "size": 15,
+    "sb": 6
+   },
+   {
+    "t": "用户故事 + Given/When/Then AC（每条可机器验证）+ v1/v2/out + NFR",
+    "lvl": 1,
+    "c": "accent"
+   },
+   {
+    "t": "域语言沉淀到 .specs/CONTEXT.md",
+    "lvl": 1,
+    "c": "accent"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "阶段 2-2a：技术设计 + UI 美学设计",
+  "subtitle": "DESIGN / UI-DESIGN",
+  "bullets": [
+   {
+    "t": "阶段 2 · DESIGN：技术栈锁定 → 既有架构对齐 → 决策清单（备选/理由/代价）→ ADR → 风险 → §9 沉淀建议",
+    "size": 15
+   },
+   {
+    "t": "阶段 2a · UI-DESIGN（仅前端项目）：OKLCH tokens / 字体间距 / 反 AI-slop 自检",
+    "size": 15
+   },
+   {
+    "t": "brownfield 必跑 0.5 既有架构对齐：触碰模块 + 沿用/引新 + 禁动清单",
+    "size": 15,
+    "c": "accent"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "阶段 3-4：任务拆解 + 开发执行",
+  "subtitle": "TASK → DEV",
+  "bullets": [
+   {
+    "t": "阶段 3 · TASK：波次划分（并行 [P]）+ XML 任务（id/read_files/write_files/action/verify/done）+ depends_on",
+    "size": 15
+   },
+   {
+    "t": "阶段 4 · DEV：TDD 驱动；write_files 边界由提交前 verify 拦截；checkpoint 可中断恢复",
+    "size": 15
+   },
+   {
+    "t": "破坏性变更门槛：改公共契约先回到 DESIGN 对齐",
+    "size": 15,
+    "c": "danger"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "阶段 5-6：测试 + 双轮审查",
+  "subtitle": "TEST → REVIEW",
+  "bullets": [
+   {
+    "t": "阶段 5 · TEST：测试矩阵 + UAT + 覆盖率回顾；AC 是派生用例唯一来源",
+    "size": 15
+   },
+   {
+    "t": "阶段 6 · REVIEW：L2 子代理盲审（四要素报告，禁喂自评）+ L3 外部模型独立审",
+    "size": 15
+   },
+   {
+    "t": "审查对象覆盖 1/2/3/5/6/7 阶段（gate_config 决定）；Critical 必须修复才放行",
+    "size": 15,
+    "c": "danger"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "阶段 7：集成与归档",
+  "subtitle": "INTEGRATION",
+  "bullets": [
+   {
+    "t": "跑全套自动化（test + lint + build）",
+    "size": 15
+   },
+   {
+    "t": "pre-commit 门禁：提交前自动全量门禁，fail 即阻塞",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "人工 UAT 逐条 AC 打勾 → 失败诊断 → LESSONS 提名",
+    "size": 15
+   },
+   {
+    "t": "归档（ARCHIVE）+ 34 号 archive-commit-check：归档产物与 CHANGE 范围核对，未提交残留写 correction 告警",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "Git 收尾（用户确认后合并/PR）→ /flow stop",
+    "size": 15
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "Pipeline Goal 交互时序",
+  "subtitle": "Goal → 跨阶段自动推进",
+  "bullets": [
+   {
+    "t": "/flow goal \"条件\" --pipeline --from 0 --gate-config '{\"6-review\":\"both\",...}'",
+    "size": 14,
+    "c": "dark_text"
+   },
+   {
+    "t": "设定后 AI 跨 turn 迭代：阶段完成 → PCSC 自检 → toll-gate（默认人工确认 / auto_advance=true 自动）",
+    "size": 15
+   },
+   {
+    "t": "L2 同步盲审 + L3 异步外部审查：审查结果写入 INDEPENDENT-REVIEW-N.md + done 标志",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "rollback：阶段失败自动回退到上一通过门禁，动态下界不低于 start_phase",
+    "size": 15
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "PCSC + PCG 双层防护",
+  "subtitle": "产物完整性两道独立检查",
+  "bullets": [
+   {
+    "t": "第一层 · PCSC：prompt 内置产物自检段，任一 ❌ 禁止进入 toll-gate",
+    "size": 15
+   },
+   {
+    "t": "第二层 · PCG：GO.md 路由层磁盘存在性门禁，独立于 prompt，AI 无法绕过",
+    "size": 15
+   },
+   {
+    "t": "auto-advance=true 时 PCSC 全绿才自动 transition；状态由 33 号状态完整性模块交叉验证",
+    "size": 15,
+    "c": "accent"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "L2/L3 模型配置：五级解析链",
+  "subtitle": "ADR-012/013 · 2026-09-03 起含站点默认 tier（tier-4/5）",
+  "bullets": [
+   {
+    "t": "fk_resolve_model <layer> 五级链，逐级非空即停（以 L3 为例）：",
+    "size": 14
+   },
+   {
+    "t": "1. ANTHROPIC_DEFAULT_HAIKU_MODEL（CC 原生 env）",
+    "lvl": 1,
+    "c": "accent",
+    "size": 13
+   },
+   {
+    "t": "2. FLOW_KIT_L3_MODEL（临时覆盖 env）",
+    "lvl": 1,
+    "c": "accent",
+    "size": 13
+   },
+   {
+    "t": "3. .goal.l3_model（持久化显式 · /flow model l3=）",
+    "lvl": 1,
+    "c": "accent",
+    "size": 13
+   },
+   {
+    "t": "4. FLOW_KIT_L3_DEFAULT_MODEL（站点级默认 env）",
+    "lvl": 1,
+    "c": "accent",
+    "size": 13
+   },
+   {
+    "t": "5. .goal.l3_default_model（站点默认持久化 · /flow model l3-default=）",
+    "lvl": 1,
+    "c": "accent",
+    "size": 13
+   },
+   {
+    "t": "L2 对称（ANTHROPIC_L2_MODEL 起）；全空 → 优雅降级写 model-missing correction",
+    "size": 14
+   },
+   {
+    "t": "/flow model l2=/l3=/l2-default=/l3-default=/--clear；显式配置永远压过默认级；只触碰 4 个模型键",
+    "size": 14,
+    "c": "danger"
+   },
+   {
+    "t": "凭证由 fk_resolve_api_credentials 独立判定——默认模型不改变无凭证跳过语义",
+    "size": 13,
+    "c": "muted"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "横向命令（独立于流水线）",
+  "subtitle": "/flow-go + 关键词自动路由",
+  "bullets": [
+   {
+    "t": "I-intel — 入场扫描：生成 CONTEXT.md（术语表/抽象索引/禁动清单）",
+    "size": 15
+   },
+   {
+    "t": "M-health — 健康巡检：技术债盘点 + 改进路线图",
+    "size": 15
+   },
+   {
+    "t": "A-architect — 架构文档：ARCHITECTURE.md + ADR + 模块契约",
+    "size": 15
+   },
+   {
+    "t": "A-evolve — 架构沉淀：扫描归档 DESIGN §9 同步项目级文档",
+    "size": 15
+   },
+   {
+    "t": "L-restyle — 视觉重构：换皮肤不改功能",
+    "size": 15
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "Stop Hook 系统",
+  "subtitle": "运行时后处理链 · 12 个开关模块（hooks/config/stop-hook.json）",
+  "bullets": [
+   {
+    "t": "基础设施：00-gate（入口）/ 01-transcript-parse（转录解析）；收尾 99-report",
+    "size": 14
+   },
+   {
+    "t": "12 开关模块（config 键列）：claude-md/memory/git/quality/session/project/workflow/interactive_ui_check/weak_model_compliance/independent_review/flow_active_integrity/archive_commit_check",
+    "size": 13,
+    "c": "accent"
+   },
+   {
+    "t": "33 号 flow_active_integrity：状态完整性 + correction 卫生（ADR-024 去重/FIFO/类型剥离）",
+    "size": 14
+   },
+   {
+    "t": "34 号 archive_commit_check：阶段 7 归档提交门禁；配合 pre-commit 钩子部署",
+    "size": 14,
+    "c": "danger"
+   },
+   {
+    "t": "30/31/32 为辅助脚本（AI 分析/自动推进/回退兜底，无独立开关）；SessionStart 按 correction 类型收割 banner",
+    "size": 13,
+    "c": "muted"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "brooks-lint 代码审查插件",
+  "subtitle": "6 个审查技能 · 12 本软件工程经典书的方法论",
+  "bullets": [
+   {
+    "t": "/brooks-review — PR 代码审查（Symptom→Source→Consequence→Remedy）",
+    "size": 15
+   },
+   {
+    "t": "/brooks-audit — 架构审计 / /brooks-debt — 技术债盘点",
+    "size": 15
+   },
+   {
+    "t": "/brooks-test — 测试质量 / /brooks-health — 健康总览 / /brooks-sweep — 全量扫描+修复",
+    "size": 15
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "典型工作流：新功能开发 10 步",
+  "subtitle": "完整流程速览",
+  "bullets": [
+   {
+    "t": "1. /flow start（初始化 .flow-active）→ 2. /flow-go 描述需求 → 阶段 0 生成 change-id + CHANGE.md",
+    "size": 14
+   },
+   {
+    "t": "3. 阶段 1 REQUIREMENT（GWT AC）→ 4. 阶段 2 DESIGN → 5. 阶段 3 TASK",
+    "size": 14
+   },
+   {
+    "t": "6. 阶段 4 DEV 按波次执行（TDD）→ 7. 阶段 5 TEST 矩阵 + UAT",
+    "size": 14
+   },
+   {
+    "t": "8. 阶段 6 REVIEW（L2+L3 独立审查）→ 9. 阶段 7 INTEGRATION（门禁 + 归档）",
+    "size": 14
+   },
+   {
+    "t": "10. /flow stop 收尾；可选 /flow-go 同步架构（A-evolve）",
+    "size": 14
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "文件结构 + Token 预算参考",
+  "subtitle": "项目级视图",
+  "bullets": [
+   {
+    "t": ".flow-active（运行时状态）· .flow-kit/（会话运行时 · 不入库）· .specs/（STATE/CONTEXT/archive/<change-id>）",
+    "size": 14
+   },
+   {
+    "t": "change 产物：CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW/ARCHIVE + T<N>-SUMMARY",
+    "size": 14
+   },
+   {
+    "t": "dsh 插件同构路径：<profile>/node_modules/dsh-flow-kit/{flow-kit,skills,hooks,...}，docs/ 含本指南副本",
+    "size": 14,
+    "c": "accent"
+   },
+   {
+    "t": "Token 预算参考：规划链 ~30-62k · DEV 每 task ~25-60k · 全链完整模式 ~250-530k",
+    "size": 14,
+    "c": "muted"
+   }
+  ]
+ },
+ {
+  "layout": "band",
+  "title": "dsh 插件化：安装与挂载",
+  "subtitle": "DeepSeek Harness 用户入口（见指南 §2.4）",
+  "bullets": [
+   {
+    "t": "打包：bash package-dsh-plugin.sh → dist/dsh-flow-kit + tgz",
+    "size": 15
+   },
+   {
+    "t": "安装：dsh plugin --profile <profile> add file:<仓库>/dist/dsh-flow-kit",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "自动注册：声明 dsh.bundle 的包被加入 dsh.profile.bundles（无需手改配置）",
+    "size": 15,
+    "c": "accent"
+   },
+   {
+    "t": "挂载：17 个 flow-* 技能 + /flow 命令 + hooks + brooks-lint + vendor",
+    "size": 15
+   },
+   {
+    "t": "重启 dsh --profile <profile> 生效；更新 = 重打包 + update + 重启",
+    "size": 15,
+    "c": "danger"
+   },
+   {
+    "t": "自检：/flow doctor 查看状态与 correction 卫生",
+    "size": 15
+   }
+  ]
+ }
+]
