@@ -1,6 +1,6 @@
 # Flow-Kit 全包使用指南
 
-> 版本: 20260713 | 源: https://github.com/hellrabbit/flow-kit/tree/develop
+> 版本: 2026-09-03 | 源: https://github.com/hellrabbit/flow-kit/tree/develop
 
 ---
 
@@ -38,17 +38,18 @@
 <a id="sec-1-what-is-flow-kit"></a>
 ## 1. 什么是 flow-kit
 
-flow-kit 是一套 **AI 驱动的软件开发流程框架**，为 Claude Code（也支持 Gemini CLI、Codex CLI）提供结构化的变更生命周期管理。它将一个需求从"模糊想法"到"合并到 main"拆分为 **8 个顺序阶段**，每个阶段有明确的输入、输出、门禁和自检清单。
+flow-kit 是一套 **AI 驱动的软件开发流程框架**，为 Claude Code、DeepSeek Harness（dsh 插件）与 OpenCode 等 AI 编码工具提供结构化的变更生命周期管理（Gemini CLI / Codex CLI 亦可通过 bundle 安装使用）。它将一个需求从"模糊想法"到"合并到 main"拆分为 **8 个顺序阶段**，每个阶段有明确的输入、输出、门禁和自检清单。
 
 ### 核心组件
 
 | 组件 | 说明 |
 |------|------|
-| **flow-kit 核心引擎** | `~/.claude/flow-kit/` — GO.md（统一入口）、RULES.md（硬规则）、SYSTEM.md（永久注入）、prompts/（各阶段详细 prompt）、reference/（参考文档）、templates/（产出模板） |
-| **flow-* 技能包装器** | `~/.claude/skills/flow-*/` — Claude Code skill（17 个），委托到 flow-kit 核心 |
-| **Stop Hook 系统** | `.claude/hooks/stop/` — 17 个模块化会话后处理脚本，覆盖 13 个职责域（CLAUDE.md 维护、记忆整理、Git 检查、质量诊断、工作流状态、交互 UI 检测、弱模型合规、独立审查 L3、AI 分析、自动推进、回退兜底、状态完整性、报告生成） |
-| **SessionStart Hook** | `.claude/hooks/session-start/` — 会话恢复 + Stop 报告提醒 |
+| **flow-kit 核心引擎** | Claude Code user-scope：`~/.claude/flow-kit/`（GO.md 统一入口、RULES.md 硬规则、SYSTEM.md 永久注入、prompts/、reference/、templates/）；dsh 插件内同构：`<profile>/node_modules/dsh-flow-kit/flow-kit/` |
+| **flow-* 技能包装器** | 17 个 flow-* 技能（Claude Code `~/.claude/skills/flow-*/`；dsh 插件 `skills/`）——三平台同源，暴露 /flow-go、/flow 等斜杠命令并委托核心引擎 |
+| **Stop Hook 系统** | 会话后处理运行时链：`00-gate.sh` / `01-transcript-parse.sh` 基础设施 + `20~34` 号逻辑模块脚本 + `99-report.sh` 收尾；config 层 12 个开关模块（`hooks/config/stop-hook.json`）；配套 PreToolUse / SessionStart / pre-commit 门禁（详见 §7） |
+| **SessionStart Hook** | `.claude/hooks/session-start/`（dsh：插件内同构）— 中断恢复 + 矫正 banner + Stop 报告提醒 |
 | **brooks-lint 插件** | 6 个代码审查 skill：review / audit / debt / test / health / sweep |
+| **dsh-flow-kit 插件** | DeepSeek Harness 平台的一等交付物：cordis.patch.yml 挂载 skills / flow-kit / hooks / brooks-lint / vendor，插件 `docs/` 内置本指南副本；`dsh plugin add` 一键注册（见 §2.4） |
 
 ---
 
@@ -97,6 +98,26 @@ cd ~/flow-kit-export/flow-kit-full-*/
 ```
 
 > ⚠️ 不要在 `~/.claude/flow-kit/` 里手动 git pull — bundle 走 `.flow-kit-version` 版本管理。
+
+### 2.4 dsh 插件安装（DeepSeek Harness 平台）
+
+DeepSeek Harness（dsh）用户通过 **dsh-flow-kit 插件**获得与 bundle 同源的 17 个 flow-* 技能与 /flow 命令。安装以 dsh profile 为单位：
+
+```bash
+# 1) 打包插件（在 flow-kit 仓库根目录；产物 = dist/dsh-flow-kit + dist/dsh-flow-kit-<ver>.tgz）
+bash package-dsh-plugin.sh
+
+# 2) 装入目标 profile（file: 目录依赖；pnpm 转发，自动把声明 dsh.bundle 的包注册进 dsh.profile.bundles）
+dsh plugin --profile <profile 名> add file:<flow-kit 仓库路径>/dist/dsh-flow-kit
+
+# 3) 重启 profile 使插件挂载生效
+dsh --profile <profile 名>
+```
+
+- **装好后的配置形态**：profile `package.json` 增加 `dsh-flow-kit: file:…` 依赖，`dsh.profile.bundles` 自动追加 `dsh-flow-kit` 行——无需手改配置文件；重启后技能目录即出现 flow-* 全部入口。
+- **挂载内容** = `skills/`（17 个 flow-*）、`flow-kit/`（核心引擎）、`hooks/`、`brooks-lint/`、`vendor/`（完整 bundle 原样）；插件 `docs/` 内含本指南副本。
+- **更新**：仓库侧重跑 `bash package-dsh-plugin.sh` 刷新 dist → 执行 `dsh plugin --profile <profile 名> update dsh-flow-kit`（必要时 `install --force`）→ 重启 profile。版本以 dist 内 package.json 为准，不要手改 node_modules。
+- **验证**：重启后任一项目里应能看到 `/flow`、`/flow-go` 与 flow-* 技能；运行 `/flow doctor` 可做健康自检。
 
 ---
 
@@ -214,8 +235,8 @@ Phase 7: INTEGRATION — 集成、合并与发布
 | `/flow goal clear` | 清除当前 goal | goal 已满足或不再需要时 |
 | `/flow checkpoint <file> <desc>` | 保存中断恢复点 | AI 在关键操作后自动调用 |
 | `/flow`（无参数） | 查看当前状态 | 想知道现在在哪个阶段、哪个任务 |
-| `/flow doctor` | 诊断配置状态 | 排查 hook 配置、产物完整性等问题 |
-| `/flow model [l2=<模型>] [l3=<模型>]` | 查询/设置 L2/L3 审查模型（写 `.flow-active.goal.l*_model` 持久化层） | 非 CC 平台或想跨会话固定审查模型时；详见 §7「L2/L3 模型配置」 |
+| `/flow doctor` | 诊断配置/状态：`.flow-active` 完整性 + `.flow-active.correction` 卫生报告（type / violations 去重摘要，check→rule 回退；无文件 → ✅；解析失败 fail-open） | 排查 hook 配置、产物完整性、矫正文件残留等问题（ADR-024） |
+| `/flow model [l2=<m>] [l3=<m>] [l2-default=<m>] [l3-default=<m>] [--clear <l2\|l3\|l2-default\|l3-default>]` | 查询/设置 L2/L3 审查模型：前两项写显式字段，l2-default=/l3-default= 写站点级默认字段（五级链 tier-4/5），`--clear` 清对应字段；**只触碰 4 个模型键**，不影响 condition/gates/gate_config | 跨会话固定/降级审查模型或配站点默认；详见 §7「L2/L3 模型配置（五级解析链）」 |
 
 ### 总结
 
@@ -246,7 +267,7 @@ Goal 是 flow-kit 的**自动迭代引擎**——设定一个完成条件后，A
 /flow goal clear
 ```
 
-**工作原理**：AI 每 turn 结束后自动检查条件是否满足。满足则停止；不满足则继续迭代修复。CC ≥ v2.1.139 时使用原生 `/goal` 命令（更高效），旧版本使用内置 prompt 回退。
+**工作原理**：AI 每 turn 结束后自动检查条件是否满足。满足则停止；不满足则继续迭代修复。CC ≥ v2.1.139 时使用原生 `/goal` 命令（更高效）；其他平台（dsh 插件 / opencode）走插件内置实现，行为等价。
 
 **Goal 自动提取**：进入阶段 4（DEV）时，AI 自动从 `REQUIREMENT.md` 的 Given/When/Then AC 中提取 goal 建议文本，用户可确认或修改。无需手动编写 goal 条件。
 
@@ -261,23 +282,23 @@ Pipeline goal 将 goal 从**单阶段自循环**扩展到**跨阶段自动推进
 # 从阶段 0 起步（全链路）
 /flow goal "CHANGE.md confirmed AND all tests pass" --pipeline --from 0
 
-# 自定义门禁配置（两种 key 类型可共存）
+# 自定义门禁配置（两种 key 类型可共存；阶段名 key 值域 both/L2/L3/off）
 /flow goal "docs updated" --pipeline --from 0 \
-  --gate-config '{"1-requirement":"independent","6-review":"independent"}'
+  --gate-config '{"1-requirement":"both","6-review":"both"}'
 
-# 同时使用两种 key 的示例：
+# 同时使用两种 key 的示例（阶段名 key + transition key）
 /flow goal "..." --pipeline --from 4 \
-  --gate-config '{"6-review":"independent","4→5":"warn"}'
+  --gate-config '{"6-review":"both","4→5":"warn"}'
 ```
 
 **`--gate-config` 接受两类 key**：
 
 | Key 类型 | 格式 | 示例 | 用途 | 有效值 |
 |----------|------|------|------|--------|
-| **阶段名 key** | `1-requirement` / `2-design` / `6-review` | `"6-review":"independent"` | 开启该阶段独立 review（L2 盲审 + L3 外部模型），阻止 commit/PR/切阶段直到 done | `independent` / `true`（开启）<br>`off` / `false`（关闭） |
+| **阶段名 key** | `1-requirement` / `2-design` / `6-review` | `"6-review":"both"` | 开启该阶段独立 review（L2 盲审 + L3 外部模型），阻止 commit/PR/切阶段直到 done | `both`（= L2+L3 双层；旧值 `independent` / `true` 自动映射）<br>`L2`（仅子代理盲审）<br>`L3`（仅外部模型）<br>`off` / `false`（关闭） |
 | **Transition key** | `N→N+1`（如 `4→5`） | `"4→5":"critical"` | 控制阶段间 toll-gate 门禁级别 | `critical`（阻断 pipeline）<br>`warn`（提示但不阻断）<br>`ignore`（跳过该 gate） |
 
-两类 key 可在同一个 `--gate-config` JSON 中并存，互不冲突。
+两类 key 可在同一个 `--gate-config` JSON 中并存，互不冲突。另支持**预设名**（`all` / `full` / `review` / `task-review` 等）与**数字列表**（如 `1,2,6`）简写，以及 `--l2-only` / `--l3-only` 全局覆写——完整参考见文末「gate_config 完整参考」。
 
 **执行链**：由 `--from <n>` 决定起始阶段（0-7，默认 4），AI 在每个阶段完成后自动推进到下一阶段。
 
@@ -705,13 +726,14 @@ Phase N+1 开始
 **关键步骤**：
 
 1. **跑全套自动化**（test + lint + build）
-2. **引导人工 UAT**：逐条 AC 打勾
-3. **失败诊断**（自动 + 人工）
-4. **提名 LESSONS**（在 ARCHIVE 之前必跑）：
+2. **提交门禁**：pre-commit 钩子自动执行全量门禁（如 `make test` / lint），fail 即阻塞提交；按 commit-protocol 分类提交阶段产物
+3. **引导人工 UAT**：逐条 AC 打勾
+4. **失败诊断**（自动 + 人工）
+5. **提名 LESSONS**（在归档之前必跑）：
    - 这次踩了什么坑？
    - 下次怎么做更好？
-5. **归档（ARCHIVE）**：完整的 change 追溯
-6. **Git 收尾**（均需用户明示确认后分步执行）：
+6. **归档（ARCHIVE）**：完整的 change 追溯；34 号 `archive-commit-check` 门禁核对归档产物与 CHANGE 范围，未提交的归档残留会写 correction 告警
+7. **Git 收尾**（均需用户明示确认后分步执行）：
    - 是否合并到 main？（反问用户：选 1 合并 / 2 保留分支）
    - 是否创建 PR？（反问用户确认）
 
@@ -839,35 +861,38 @@ Phase N+1 开始
 <a id="sec-7-stop-hook"></a>
 ## 7. Stop Hook 系统
 
-Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 17 个模块化脚本，外加两个 PreToolUse hook 用于硬拦截和自动 checkpoint：
+Stop Hook 在会话结束时自动运行（Claude Code / dsh / OpenCode 各平台由对应运行时触发）。脚本链 = `00-gate.sh` 入口 + `01-transcript-parse.sh` 转录解析 + `20~34` 号逻辑模块 + `99-report.sh` 报告收尾；config 层（`hooks/config/stop-hook.json`）提供 **12 个开关模块**（模块表 config 键列）。配套门禁：PreToolUse（独立 review 硬拦截 + auto-checkpoint）、SessionStart（恢复/矫正/报告提醒）、pre-commit（提交前全量门禁 + 34 号归档核对）：
 
 ### Hook 模块列表
 
-| 编号 | 脚本 | 模块 | 检查项 |
-|------|------|------|--------|
-| 00 | `00-gate.sh` | 入口门禁 | 检查是否适合运行 hook |
-| 01 | `01-transcript-parse.sh` | 转录解析 | 解析会话转录 |
-| 20 | `20-claude-md.sh` | CLAUDE.md | A1 过时 / A2 缺失 / A3 内容质量 / A6 文件膨胀 |
-| 21 | `21-memory.sh` | Memory | B1 死记忆 / B2 冲突 / B4 记忆与代码不一致 |
-| 22 | `22-git.sh` | Git | C1 未跟踪文件 / C2 分支偏离 / C3 大文件 / C4 未推送提交 |
-| 23 | `23-quality.sh` | 质量 | D1 测试失败 / D2 lint 警告 / D3 类型错误 / D4 覆盖率下降 |
-| 24 | `24-session.sh` | 会话 | E1 清窗次数 / E2 任务完成率 / E3 中断频率 / E4 上下文利用率 / E5 工具分布 |
-| 25 | `25-project.sh` | 项目 | F1 SPEC 过期 / F2 死文件 / F3 依赖过期 / F4 重复配置 / F5 文档缺口 |
-| 26 | `26-workflow.sh` | 工作流 | G1 阶段门禁 / G2 产物完整性 / G3 未完成 task / G4 审查 backlog / G5 checkpoint 断层 |
-| 27 | `27-interactive-ui-check.sh` | 交互 UI 检测 | I1 检测弱模型跳过 AskUserQuestion/EnterPlanMode 交互 gate → 写入矫正文件 |
-| 28 | `28-weak-model-compliance.sh` | 弱模型合规 | W1 L1 规则合规（禁动清单+通用规则）/ W2 L2 自检完整性 / W3 L3 证据链真实性 → 写入统一矫正文件 |
-| 29 | `29-independent-review.sh` | 独立审查 (L3) | IR 调外部模型（deepseek-v4-flash）盲审阶段 1/2/6 产物，写 .flow-active.independent-review 握手 + INDEPENDENT-REVIEW-N.md |
-| 30 | `30-ai-analyze.sh` | AI 分析 | 将结构化数据提交给 AI 做深度分析（默认模型: deepseek-v4-flash） |
-| 31 | `31-auto-advance.sh` | 自动推进 | 当 `auto_advance=true` 且 PCSC 全✅时，自动执行 transition jq 推进到下一阶段（prompt 层 auto_advance 的 hook 层兜底） |
-| 32 | `32-fallback-guard.sh` | 回退兜底 | 当 `mode=fallback` 且 pipeline 到达终点（phase 7 PCSC 全✅），自动标记 `goal.status=done`（prompt 层 fallback 的 hook 层兜底） |
-| 33 | `33-flow-active-integrity.sh` | 状态完整性 | `.flow-active` 字段与磁盘产物的交叉验证——phase/task_id/change_id/phases_done 与 `.specs/<id>/` 目录双向对齐 + `updated_at` 时效性检测（默认 24h 阈值） |
-| 99 | `99-report.sh` | 报告 | 生成 stop-hook-report.md + stop-hook-suggestions.md |
+| 类别 | 编号/脚本 | 模块（config 键） | 职责 / 检查项 |
+|---|---|---|---|
+| 基础设施 | 00 `00-gate.sh` | — | 入口门禁：检查是否适合运行 hook |
+| 基础设施 | 01 `01-transcript-parse.sh` | — | 转录解析：解析会话转录 |
+| 通用卫生 | 20 `20-claude-md.sh` | `claude-md` | A1 过时 / A2 缺失 / A3 内容质量 / A6 文件膨胀 |
+| 通用卫生 | 21 `21-memory.sh` | `memory` | B1 死记忆 / B2 冲突 / B4 记忆与代码不一致 |
+| 通用卫生 | 22 `22-git.sh` | `git` | C1 未跟踪文件 / C2 分支偏离 / C3 大文件 / C4 未推送提交 |
+| 通用卫生 | 23 `23-quality.sh` | `quality` | D1 测试失败 / D2 lint 警告 / D3 类型错误 / D4 覆盖率下降 |
+| 通用卫生 | 24 `24-session.sh` | `session` | E1 清窗次数 / E2 任务完成率 / E3 中断频率 / E4 上下文利用率 / E5 工具分布 |
+| 通用卫生 | 25 `25-project.sh` | `project` | F1 SPEC 过期 / F2 死文件 / F3 依赖过期 / F4 重复配置 / F5 文档缺口 |
+| 工作流 | 26 `26-workflow.sh` | `workflow` | G1 阶段门禁 / G2 产物完整性 / G3 未完成 task / G4 审查 backlog / G5 checkpoint 断层 |
+| 工作流 | 27 `27-interactive-ui-check.sh` | `interactive_ui_check` | I1 检测弱模型跳过 AskUserQuestion/EnterPlanMode 交互 gate → 写矫正文件 |
+| 工作流 | 28 `28-weak-model-compliance.sh` | `weak_model_compliance` | W1 L1 合规 / W2 L2 自检 / W3 L3 证据链 → 写统一矫正文件 |
+| 审查 | 29 `29-independent-review.sh` | `independent_review` | L2/L3 独立审查调度：按 gate_config 命中的阶段（1/2/3/5/6/7）盲审产物 → `INDEPENDENT-REVIEW-N.md` + done 标志；模型按五级链解析（见下） |
+| 辅助 | 30 `30-ai-analyze.sh` | — | AI 分析（深度分析结构化数据；无独立开关，走 `ai` 配置块） |
+| 辅助 | 31 `31-auto-advance.sh` | — | 自动推进：auto_advance=true 且 PCSC 全 ✅ 时执行 transition（prompt 层兜底） |
+| 辅助 | 32 `32-fallback-guard.sh` | — | 回退兜底：mode=fallback 且到达 phase 7 终点时标记 goal.status=done |
+| 工作流 | 33 `33-flow-active-integrity.sh` | `flow_active_integrity` | 状态完整性：.flow-active 与磁盘产物交叉验证 + correction 卫生（ADR-024：去重/FIFO/类型剥离 + 9 项状态检查白名单） |
+| 工作流 | 34 `34-archive-commit-check.sh` | `archive_commit_check` | 阶段 7 归档提交门禁：归档产物与 CHANGE 范围核对；配合 install.sh 部署的 pre-commit 钩子（deploy_pre_commit）在提交前拦截未归档残留 |
+| 收尾 | 99 `99-report.sh` | — | 报告：生成 stop-hook-report.md + stop-hook-suggestions.md |
+
+> config 键列：`—` 表示无独立开关（基础设施/辅助脚本），不计入 12 键集合；config 键与 `hooks/config/stop-hook.json` 的 modules 键**一一对应**（双向相等断言见 TEST）。
 
 ### PreToolUse Hook
 
 | 脚本 | 触发条件 | 行为 |
 |------|---------|------|
-| `pre-tool-use/independent-review-gate.sh` | matcher: `Bash`，当前阶段 1/2/6 且 gate 开启且 `.independent-review-<phase>.done` 不存在 | 拦截 `git commit` / `gh pr create` / 改阶段的 jq，`exit 2` deny + stderr 提示。done 存在则放行。fail-open 原则（不确定就放行） |
+| `pre-tool-use/independent-review-gate.sh` | matcher: `Bash`，gate_config 命中的阶段（1/2/3/5/6/7）且 `.independent-review-<phase>.done` 不存在 | 拦截 `git commit` / `gh pr create` / 改阶段的 jq，`exit 2` deny + stderr 提示。done 存在则放行。fail-open 原则（不确定就放行） |
 | `pre-tool-use/auto-checkpoint.sh` | matcher: `Write` / `Edit`，全阶段 0~7 | **每次 Write/Edit 工具调用前**自动写 `.flow-active.interrupt`（active_file + last_action + checkpoint_at），不去抖。fail-open 容错（写入失败不阻断工具调用） |
 
 ### SessionStart Hook
@@ -876,18 +901,23 @@ Stop Hook 在每次 Claude Code 会话结束时自动运行，包含 17 个模�
   - `compliance`（弱模型合规违规）/ 未知类型 → 注入 banner 后**自动清除**（一次性，读后清）
   - `l3-model-missing` / `l2-model-missing`（审查模型未配置，ADR-012/013）→ **持续提示，不自动清除**，由 caller 正常路径 `write_model_missing_clear` 在模型配齐后退场；提示文案含 `export FLOW_KIT_L3_MODEL=<模型>` 或 `/flow model l3=<模型>`
   - `l2-missing`（gate_config=both 但 `## L2 盲审` 段缺失，L2-first 契约违反）→ 保留作持久化记录，等主 agent 派 L2 写段后由下一轮 compliance 轮换清除
+- 查看 correction 卫生：运行 `/flow doctor` 输出报告（无文件 → ✅；violations>0 → type + violations 去重摘要，摘要字段 check→rule 回退；仅 message → type=… — message；解析失败 fail-open）
 - `stop-report-reminder.sh`：提醒用户查看上次会话的 stop hook 报告
+
+### pre-commit 钩子
+
+`install.sh` 部署 pre-commit 钩子（user scope 装源码钩子；34 号 archive-commit 逻辑联动）：每次 `git commit` 前自动跑仓库门禁（如 `make test` / lint），失败即拒绝提交；阶段 7 归档后检查归档产物是否已全部提交（未提交 → 写 `archive-uncommitted` correction 告警）。
 
 ### 配置文件
 
 `stop-hook.json` 控制各模块的启用/禁用、检查项、AI 分析频率（默认每 5 次会话）、各阈值和输出路径。自 v2026-07 起新增以下配置块：
 
 - `independent_review.phases`: 项目级默认开启独立 review 的阶段列表（如 `["6-review"]`），非 pipeline 项目用此兜底
-- `independent_review.model`: L3 调用的外部模型（旧单字段，默认 `deepseek-v4-flash`）。**v2026-07.23 起 L2/L3 模型按 `fk_resolve_model` 三级优先级链解析**（ADR-012，supersede ADR-006），此字段仅作末级兜底；详见 §7「L2/L3 模型配置」
+- `independent_review.model`: L3 调用的外部模型（旧单字段，默认 `deepseek-v4-flash`）。**2026-09-03 起 L2/L3 模型按 `fk_resolve_model` 五级解析链解析**（ADR-012/013 + 站点默认 tier，见「L2/L3 模型配置」），此字段仅作末级兜底
 - `independent_review.max_failures_before_bypass`: L3 连续失败多少次后允许手动绕过（默认 3）
 - `pre_tool_use_gates.independent_review.enabled`: 是否启用 PreToolUse 硬拦截（默认 true）
 - `pre_tool_use_gates.auto_checkpoint.enabled`: 是否启用 Write/Edit 前自动 checkpoint（默认 true）
-- `modules` 新增 27（交互 UI 检测）、28（弱模型合规）、29（独立审查 L3）、30（AI 分析）、31（自动推进）、32（回退兜底）、33（状态完整性）七个模块
+- `modules`: 12 个开关模块 = 模块表 config 键列（含 27/28/29/33/34 号脚本对应的 interactive_ui_check / weak_model_compliance / independent_review / flow_active_integrity / archive_commit_check 等）；30/31/32 为无独立开关的辅助脚本
 
 ### 独立 Review 机制（L2 盲审 + L3 hook 强制）
 
@@ -913,22 +943,26 @@ L3 的外部模型审查由 Stop 模块 `29-independent-review.sh` 自动完成�
 
 **降级兜底**: L3 调用连续失败 ≥ 3 次 → Stop 报告提示"允许手动绕过"，可手动 touch done 继续，不卡死流水线。
 
-### L2/L3 模型配置（ADR-012/013）
+### L2/L3 模型配置（ADR-012/013 · 2026-09-03 起五级解析链）
 
-L2/L3 审查用哪个模型由公共函数 `fk_resolve_model <layer>`（`hooks/stop/lib/common.sh`）按**三级优先级链**解析——每级取非空值即停，全空则**优雅降级**（不崩溃、不阻塞 session）：
+L2/L3 审查用哪个模型由公共函数 `fk_resolve_model <layer>`（`hooks/stop/lib/common.sh`）按**五级优先级链**解析——每级取**非空值即停**；前三级为显式配置，后两级为**站点级默认**（tier-4/5），全空才**优雅降级**（不崩溃、不阻塞 session）：
 
 | 优先级 | L3 来源 | L2 来源 | 说明 |
 |---|---|---|---|
-| 1 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_L2_MODEL` | CC 原生 env，CC 用户优先命中，行为不变 |
-| 2 | `FLOW_KIT_L3_MODEL` | `FLOW_KIT_L2_MODEL` | 新增，临时覆盖（`export` 即生效） |
-| 3 | `.flow-active.goal.l3_model` | `.flow-active.goal.l2_model` | 持久化，由 `/flow model l3=<模型>` 写入 |
-| 4（空） | 优雅降级 | 优雅降级 | 写 `.flow-active.correction` + stderr 提示 |
+| 1 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_L2_MODEL` | CC 原生 env（CC 用户优先命中，行为不变） |
+| 2 | `FLOW_KIT_L3_MODEL` | `FLOW_KIT_L2_MODEL` | 临时覆盖（export 即生效） |
+| 3 | `.flow-active.goal.l3_model` | `.flow-active.goal.l2_model` | 持久化显式配置，由 `/flow model l3=/l2=` 写入 |
+| 4 | `FLOW_KIT_L3_DEFAULT_MODEL` | `FLOW_KIT_L2_DEFAULT_MODEL` | **站点级默认 env**（tier-4） |
+| 5 | `.flow-active.goal.l3_default_model` | `.flow-active.goal.l2_default_model` | **站点级默认持久化**（tier-5），由 `/flow model l3-default=/l2-default=` 写入 |
+| 全空 | 优雅降级 | 优雅降级 | 写 `.flow-active.correction`（l3/l2-model-missing）+ stderr 提示 |
 
-- **跨平台**：非 CC 平台（OpenCode / Codex / Gemini CLI）通过 `FLOW_KIT_*` env 或 `.flow-active` 配置；L2 已移除 `claude-sonnet-5` fallback（纯跨平台，未设 env 的 CC 用户升级后 L2 将降级，CHANGELOG 标注）。
-- **降级写 correction**：模型空时 caller（`l2-detect.sh` / `l3-review.sh` / `29-independent-review.sh`）调 `write_model_missing_correction <layer>`（`correction-file.sh`）写 `l3-model-missing` / `l2-model-missing` correction；`29` 顶层 `exit 3` 降级退出，不影响 gate 链。
-- **覆盖写策略（ADR-013）**：`write_model_missing_correction` 用单步 jq 条件 pass——当前 correction 若为 `compliance` 且 `violations[]` 非空则**不覆盖**（为非 CC 用户保留安全信息）；否则覆盖为 model-missing。**写入优先级 compliance > model-missing**，避免首启降级时 model-missing 压住 compliance banner。
+- **默认级语义**：显式配置（前三级）永远压过默认级；默认模型不改变**无凭证跳过语义**——凭证由 `fk_resolve_api_credentials` 独立判定，设了默认模型但没有凭证仍按无凭证处理。
+- **字段边界**：`/flow model` 与 `--clear` 只触碰 `l2_model` / `l3_model` / `l2_default_model` / `l3_default_model` 四个键，不影响 condition/gates/gate_config。
+- **跨平台**：dsh / OpenCode / Codex / Gemini CLI 通过 `FLOW_KIT_*` env 或 `.flow-active` 配置（dsh 站点可在 shell env 或 `/flow model l2-default=/l3-default=` 固化）；L2 已移除 `claude-sonnet-5` fallback（纯跨平台）。
+- **降级写 correction**：模型全空时 caller（`l2-detect.sh` / `l3-review.sh` / `29-independent-review.sh`）调 `write_model_missing_correction <layer>` 写 `l3-model-missing` / `l2-model-missing`；`29` 顶层 `exit 3` 降级退出，不影响 gate 链。
+- **覆盖写策略（ADR-013）**：当前 correction 若为 `compliance` 且 `violations[]` 非空则**不覆盖**（保留安全信息）；否则覆盖为 model-missing。**写入优先级 compliance > model-missing**。
 - **退场**：模型配齐后正常路径调 `write_model_missing_clear <layer>`（仅当当前 type 匹配才 `rm`，保留 compliance / l2-missing）。
-- **SessionStart 收割**：`flow-kit-resume.sh` 按 correction 类型分类型收割——`compliance` / 未知删；`l3-model-missing` / `l2-model-missing` / `l2-missing` 保留持续提示（见上 §7 SessionStart Hook）。
+- **SessionStart 收割**：按 correction 类型分类型收割——`compliance` / 未知删；`l3-model-missing` / `l2-model-missing` / `l2-missing` 保留持续提示（见上 SessionStart Hook 段）。
 
 ---
 
@@ -1214,6 +1248,8 @@ flow-kit 的核心规则（RULES.md）：
 <a id="sec-12-file-structure"></a>
 ## 12. 文件结构索引
 
+> 布局口径：以下为 Claude Code user-scope（`~/.claude/`）视角；dsh 插件内为**同构内容**（`<profile>/node_modules/dsh-flow-kit/{flow-kit,skills,hooks,brooks-lint,vendor}/`，插件 `docs/` 含本指南副本）。项目级 `.flow-kit/` 目录存放 dsh 会话生成的运行时状态（stop-hook 配置/报告），不入库（`.gitignore`）。
+
 ### 安装后的全局文件（`~/.claude/`）
 
 ```
@@ -1268,6 +1304,7 @@ flow-kit 的核心规则（RULES.md）：
 ```
 <project>/
 ├── .flow-active                 # 运行时工作流状态（JSON）
+├── .flow-kit/                    # dsh/运行时会话状态（stop-hook 配置与报告 · 不入库）
 ├── .specs/
 │   ├── STATE.md                 # 跨会话项目状态
 │   ├── CONTEXT.md               # 入场扫描产物（术语表 + 抽象索引）
@@ -1298,6 +1335,8 @@ flow-kit 的核心规则（RULES.md）：
 │       ├── pre-tool-use/
 │       │   ├── auto-checkpoint.sh
 │       │   └── independent-review-gate.sh
+│       ├── pre-commit/
+│       │   └── pre-commit.sh       # 提交前门禁（make test/lint · 34 号归档核对联动）
 │       └── stop/
 │           ├── 00-gate.sh
 │           ├── 01-transcript-parse.sh
@@ -1315,6 +1354,7 @@ flow-kit 的核心规则（RULES.md）：
 │           ├── 31-auto-advance.sh
 │           ├── 32-fallback-guard.sh
 │           ├── 33-flow-active-integrity.sh
+│           ├── 34-archive-commit-check.sh
 │           ├── 99-report.sh
 │           └── lib/
 │               ├── banner.sh
