@@ -81,7 +81,90 @@ _l3_utf8_head_stream() {
   printf '%s' "$data"
 }
 
-# ── _l3_inject_context() · Step 0: 前次审查上下文注入（l3-pipeline-fix-2026-07 D4）──
+# ── _l3_extract_prior_findings() · D2/D3 前轮发现提取（l3-prompt-loop-fix）──
+# 用法: _l3_extract_prior_findings <review_md>
+# 输出: severity|file|摘要 单行集（critical > major；同 severity L3 先于 L2；
+#       每行 ≤200B 超长截断加 …；摘要内 | 替换为 /）
+#       文件不存在 / 两类提取源皆空 → 空输出 exit 0；minor 不提取
+_l3_extract_prior_findings() {
+  local review_md="$1"
+  local LC_ALL=C
+  [ -f "$review_md" ] || return 0
+  local nl=$'\n'
+  local section="" line sev summ file
+  local out_l3="" out_l2=""
+  local in_json=0 json_buf=""
+  local red_e moon_e
+  red_e=$(printf '\xf0\x9f\x94\xb4')   # 🔴 lead bytes
+  moon_e=$(printf '\xf0\x9f\x9f\xa1')  # 🟡 lead bytes
+  local pend_sev="" pend_summ=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '## L2'*) section="L2" ;;
+      '## L3'*) section="L3" ;;
+      '## '*) section="other" ;;
+    esac
+    if [ "$section" = "L3" ]; then
+      case "$line" in
+        '```'*)
+          if [ "$in_json" -eq 1 ]; then
+            in_json=0
+            out_l3+=$(printf '%s' "$json_buf" | jq -r '
+              (.critical[]? | "critical|\(.file // "?" | gsub("\\|"; "/"))|\((.issue // "") | split("。")[0] | gsub("\\|"; "/"))"),
+              (.major[]?   | "major|\(.file // "?" | gsub("\\|"; "/"))|\((.issue // "") | split("。")[0] | gsub("\\|"; "/"))")
+            ' 2>/dev/null)"$nl"
+            json_buf=""
+          else
+            in_json=1
+          fi
+          ;;
+        *) [ "$in_json" -eq 1 ] && json_buf+="$line"$'\n' ;;
+      esac
+      continue
+    fi
+    if [ "$section" = "L2" ]; then
+      case "$line" in
+        "### ${red_e}"*)
+          pend_sev="critical"
+          pend_summ=${line#"### ${red_e}"}
+          pend_summ=${pend_summ#*：}
+          pend_summ=${pend_summ//'|'/'/'}
+          ;;
+        "### ${moon_e}"*)
+          pend_sev="major"
+          pend_summ=${line#"### ${moon_e}"}
+          pend_summ=${pend_summ#*：}
+          pend_summ=${pend_summ//'|'/'/'}
+          ;;
+        '**Symptom（症状）**：'*)
+          if [ -n "$pend_sev" ]; then
+            file=${line#'**Symptom（症状）**：'}
+            file=${file%%[[:space:]]*}
+            file=${file//'|'/'/'}
+            out_l2+="${pend_sev}|${file}|${pend_summ}"$'\n'
+            pend_sev=""
+          fi
+          ;;
+      esac
+    fi
+  done < "$review_md"
+  local l trimmed final=""
+  while IFS= read -r l; do
+    [ -z "$l" ] && continue
+    if [ "${#l}" -gt 200 ]; then
+      trimmed="${l:0:197}…"
+    else
+      trimmed="$l"
+    fi
+    final+="${trimmed}"$'\n'
+  done <<EOF
+$(printf '%s' "$out_l3" | grep '^critical|' 2>/dev/null)
+$(printf '%s' "$out_l2" | grep '^critical|' 2>/dev/null)
+$(printf '%s' "$out_l3" | grep '^major|' 2>/dev/null)
+$(printf '%s' "$out_l2" | grep '^major|' 2>/dev/null)
+EOF
+  printf '%s' "$final"
+}
 # 用法: _l3_inject_context <phase> <artifacts_dir>
 # 输出: context_preamble 到 stdout（若 INDEPENDENT-REVIEW-{phase}.md 不存在则输出空）
 _l3_inject_context() {

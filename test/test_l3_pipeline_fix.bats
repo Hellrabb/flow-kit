@@ -15,6 +15,7 @@ setup() {
   L3_REVIEW_SH="${HOOK_BASE_DIR}/stop/lib/l3-review.sh"
   L3_LIB_DIR="${HOOK_BASE_DIR}/stop/lib"
   REVIEW_29="${HOOK_BASE_DIR}/stop/29-independent-review.sh"
+  FIXTURE_DIR="${L3_LIB_DIR}/../../../test/fixtures"
 
   # source common.sh (always available)
   source "$COMMON_SH" 2>/dev/null || true
@@ -247,4 +248,79 @@ EOF
   [ "$(wc -c < "$TEST_TMPDIR/s.bin")" -eq 4 ]
   printf '' | _l3_utf8_head_stream 10 > "$TEST_TMPDIR/s.bin"
   [ "$(wc -c < "$TEST_TMPDIR/s.bin")" -eq 0 ]
+}
+
+# ══ T02 (l3-prompt-loop-fix): _l3_extract_prior_findings 提取器 ══
+
+@test "T02: extractor L2 sample - severity mapping, file, summary, ordering" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local out
+  out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-l2-sample.md")
+  local n=$(printf '%s\n' "$out" | grep -c '|' )
+  [ "$n" -eq 2 ]
+  printf '%s\n' "$out" | head -1 | grep -q '^critical|lib/l3-prompt.sh:137'
+  printf '%s\n' "$out" | head -1 | grep -q 'CHANGELOG 注入段被尾部截断确定性丢弃'
+  printf '%s\n' "$out" | sed -n 2p | grep -q '^major|lib/l3-prompt.sh:146|'
+}
+
+@test "T02: extractor L3 sample - JSON array keys as severity, file field, issue first sentence" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local out
+  out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-l3-sample.md")
+  printf '%s\n' "$out" | head -1 | grep -q '^critical|lib/l3-prompt.sh|截断把 CHANGELOG 段确定性切掉'
+  printf '%s\n' "$out" | sed -n 2p | grep -q '^major|test/test_l3_pipeline_fix.bats|缺少顺序断言'
+}
+
+@test "T02: extractor mixed - same severity L3 before L2" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local out
+  out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-mixed-sample.md")
+  local n=$(printf '%s\n' "$out" | grep -c '|')
+  [ "$n" -eq 2 ]
+  printf '%s\n' "$out" | head -1 | grep -q '^critical|test/l2-dispatch.bats|'
+  printf '%s\n' "$out" | sed -n 2p | grep -q '^critical|lib/l3-prompt.sh:26|'
+}
+
+@test "T02: extractor no-response fixture still yields findings" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local out
+  out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-no-response.md")
+  [ "$(printf '%s\n' "$out" | grep -c '|')" -eq 2 ]
+  printf '%s\n' "$out" | grep -q '^critical|src/dead.py:1|'
+}
+
+@test "T02: extractor empty and verdict-only and missing file yield nothing" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  [ -z "$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-empty.md")" ]
+  [ -z "$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-verdict-only.md")" ]
+  [ -z "$(_l3_extract_prior_findings "/nonexistent.md")" ]
+}
+
+@test "T02: extractor overflow fixture yields 6 lines severity desc" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local out
+  out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-overflow.md")
+  [ "$(printf '%s\n' "$out" | grep -c '|')" -eq 6 ]
+  [ "$(printf '%s\n' "$out" | grep -c '^critical|')" -eq 3 ]
+  [ "$(printf '%s\n' "$out" | head -1 | grep -c '^critical')" -eq 1 ]
+  [ "$(printf '%s\n' "$out" | tail -1 | grep -c '^major')" -eq 1 ]
+}
+
+@test "T02: extractor line length cap 200 bytes with ellipsis" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local long="$(for i in $(seq 1 80); do printf '超长描述文字段'; done)"
+  local tmp="$TEST_TMPDIR/long.md"
+  {
+    echo "# 独立审查 · 阶段 1"
+    echo "## L2 盲审"
+    echo "### 🔴 R1 · 主题：$long"
+    echo '**Severity**：🔴 Critical'
+    echo "**Symptom（症状）**：src/long.py:1 占位"
+  } > "$tmp"
+  local out line
+  out=$(_l3_extract_prior_findings "$tmp")
+  line=$(printf '%s\n' "$out" | head -1)
+  local len=$(printf '%s' "$line" | wc -c)
+  [ "$len" -le 201 ]
+  printf '%s' "$line" | tail -c 4 | grep -q '…'
 }
