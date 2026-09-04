@@ -254,39 +254,43 @@ _l3_build_prompt() {
   case "$phase" in
     1)
       if [ -f "${artifacts_dir}/REQUIREMENT.md" ]; then
-        artifact=$(head -c "$max_chars" "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || echo "")
       fi
       checklist="AC 是否每条 Given/When/Then 可验证且无歧义？v1/v2/out 范围切分是否合理？是否有范围蔓延或遗漏的非功能性需求？"
       ;;
     2)
       if [ -f "${artifacts_dir}/DESIGN.md" ]; then
-        artifact=$(head -c "$max_chars" "${artifacts_dir}/DESIGN.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/DESIGN.md" 2>/dev/null || echo "")
       fi
       local adr_dir
       adr_dir="$(dirname "$artifacts_dir")/adr"
       if [ -d "$adr_dir" ]; then
         while IFS= read -r f; do
           [ -n "$f" ] || continue
-          artifact="${artifact}"$'\n\n--- '"${f}"$' ---\n'"$(head -c 2000 "$f" 2>/dev/null || echo "")"
+          artifact="${artifact}"$'\n\n--- '"${f}"$' ---\n'"$(_l3_utf8_head_bytes 2000 "$f" 2>/dev/null || echo "")"
         done < <(find "$adr_dir" -type f -name '*.md' 2>/dev/null | head -3 || true)
       fi
       checklist="ADR 决策是否合理且有充分理由？是否撞既有架构/跨模块契约？抽象层次是否得当（深模块 vs 浅模块）？风险段是否遗漏关键风险？"
       ;;
     3)
       if [ -f "${artifacts_dir}/TASK.md" ]; then
-        artifact=$(head -c "$max_chars" "${artifacts_dir}/TASK.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/TASK.md" 2>/dev/null || echo "")
       fi
       checklist="任务拆解是否覆盖 REQUIREMENT 全 AC？depends_on 依赖是否无环？每个 task 的 verify 是否可执行且能证伪？write_files 边界是否清晰不越界？"
       ;;
     5)
       if [ -f "${artifacts_dir}/TEST.md" ]; then
-        artifact=$(head -c "$max_chars" "${artifacts_dir}/TEST.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/TEST.md" 2>/dev/null || echo "")
       fi
       checklist="测试矩阵是否覆盖全 AC？覆盖率是否达标？UAT 是否可复现？是否有 mock 屏蔽真实失败？回归测试是否含？"
       ;;
     6)
       local project_root
-      project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      if [[ "$artifacts_dir" == */.specs/archive/* ]]; then
+        project_root="$(dirname "$(dirname "$(dirname "$artifacts_dir")")")"
+      else
+        project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      fi
       # source common.sh for fk_estimate_tokens (fail-open)
       local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/common.sh"
       [ -f "$_common_lib" ] && source "$_common_lib" 2>/dev/null || true
@@ -300,7 +304,7 @@ _l3_build_prompt() {
         '
         git ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(sh|bats)$' | while read -r f; do
           echo ""; echo "=== NEW FILE: $f ==="
-          head -c "$_new_limit" "$project_root/$f" 2>/dev/null || true
+          _l3_utf8_head_bytes "$_new_limit" "$project_root/$f" 2>/dev/null || true
         done
       } | {
         if declare -f fk_estimate_tokens >/dev/null 2>&1; then
@@ -309,46 +313,55 @@ _l3_build_prompt() {
           if [ "${_est:-0}" -le "${_max_tokens:-60000}" ] 2>/dev/null; then
             echo "$_raw"
           else
-            echo "$_raw" | head -c "$max_chars"
+            echo "$_raw" | _l3_utf8_head_stream "$max_chars"
           fi
         else
-          head -c "$max_chars"
+          _l3_utf8_head_stream "$max_chars"
         fi
       } || true)
       if [ -f "${artifacts_dir}/REVIEW.md" ]; then
-        artifact="${artifact}"$'\n\n=== 主 agent REVIEW.md ===\n'"$(head -c 8000 "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")"
+        artifact="${artifact}"$'\n\n=== 主 agent REVIEW.md ===\n'"$(_l3_utf8_head_bytes 8000 "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")"
       fi
       checklist="spec 合规（每条 AC 是否被代码覆盖）？代码质量（6 维衰退风险：认知过载/变更传播/知识重复/偶然复杂/依赖混乱/领域扭曲）？是否有 critical？"
       ;;
     7)
       local project_root
-      project_root="$(dirname "$(dirname "$artifacts_dir")")"
-      artifact="=== 产物目录 ===\n$(ls -la "$artifacts_dir" 2>/dev/null | head -30)\n"
+      if [[ "$artifacts_dir" == */.specs/archive/* ]]; then
+        project_root="$(dirname "$(dirname "$(dirname "$artifacts_dir")")")"
+      else
+        project_root="$(dirname "$(dirname "$artifacts_dir")")"
+      fi
+      # 反馈优先：CHANGELOG/LESSONS 段置最前，承受截断的最后才是工件正文
+      artifact=""
+      local changelog="${project_root:-.}/.specs/CHANGELOG.md"
+      if [ -f "$changelog" ]; then
+        artifact="=== CHANGELOG.md ===\n$(_l3_utf8_head_bytes 3000 "$changelog" 2>/dev/null || true)"
+      fi
+      local lessons="${project_root:-.}/.specs/LESSONS.md"
+      if [ -f "$lessons" ]; then
+        [ -n "$artifact" ] && artifact+="\n\n"
+        artifact+="=== LESSONS.md ===\n$(_l3_utf8_head_bytes 2000 "$lessons" 2>/dev/null || true)"
+      fi
+      [ -n "$artifact" ] && artifact+="\n\n"
+      artifact+="=== 产物目录 ===\n$(ls -la "$artifacts_dir" 2>/dev/null | head -30)"
       for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
         if [ -f "${artifacts_dir}/$f" ]; then
-          artifact="${artifact}\n\n=== $f ===\n$(head -c 3000 "${artifacts_dir}/$f" 2>/dev/null || echo "")"
+          artifact="${artifact}\n\n=== $f ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/$f" 2>/dev/null || true)"
         else
           artifact="${artifact}\n\n=== $f === MISSING"
         fi
       done
-      local changelog="${project_root:-.}/.specs/CHANGELOG.md"
-      if [ -f "$changelog" ]; then
-        artifact="${artifact}\n\n=== CHANGELOG.md ===\n$(head -c 3000 "$changelog" 2>/dev/null || echo "")"
-      fi
-      local lessons="${project_root:-.}/.specs/LESSONS.md"
-      if [ -f "$lessons" ]; then
-        artifact="${artifact}\n\n=== LESSONS.md ===\n$(head -c 2000 "$lessons" 2>/dev/null || echo "")"
-      fi
-      artifact=$(echo -e "$artifact" | head -c "$max_chars")
-      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/SUMMARY/TEST/REVIEW）？CHANGELOG 是否更新且 Conventional Commits 语义正确？archive 是否完整？"
+      artifact=$(echo -e "$artifact" | _l3_utf8_head_stream "$max_chars")
+      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
       ;;
   esac
   [ -n "$artifact" ] || { echo "[l3-review] no artifact for phase $phase" >&2; return 3; }
 
   # 构造 prompt (jq --arg 避免工件中反引号/$ 被 shell 解释)
+  # 固定指令（含 JSON 回复契约）置于工件之前：总输出按 max_chars 截断时只切工件尾部，不切指令
   jq -nr \
     --arg checklist "$checklist" \
     --arg phase "$phase" \
     --arg artifact "$artifact" \
-    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n工件（阶段 " + $phase + "）：\n" + $artifact + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。"'
+    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。\n\n工件（阶段 " + $phase + "）：\n" + $artifact' | _l3_utf8_head_stream "$max_chars"
 }

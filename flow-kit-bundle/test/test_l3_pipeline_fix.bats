@@ -414,3 +414,71 @@ EOF
   bytes=$(printf '%s\n' "$out" | grep -E '^(critical|major)\||^\(\+' | wc -c)
   [ "$bytes" -le 640 ]
 }
+
+# ══ T04 (l3-prompt-loop-fix): _l3_build_prompt 反馈优先 + D5/D6/D7 ══
+
+_build_phase7_tree() {
+  local root="$1" layout="$2" spec f i
+  if [ "$layout" = "archive" ]; then spec="$root/.specs/archive/test-chg"; else spec="$root/.specs/test-chg"; fi
+  mkdir -p "$spec" "$root/.specs"
+  for f in CHANGE REQUIREMENT DESIGN TASK TEST REVIEW INTEGRATION; do
+    { echo "# $f"; for i in $(seq 1 80); do echo "$f 内容行$i 占位填充文本以撑过三千字节边界要求的具体内容描述"; done; } > "$spec/$f.md"
+  done
+  { echo "# CHANGELOG"; for i in $(seq 1 40); do echo "- 条目$i：变更记录占位填充文本以达到一千五百字节的最低要求"; done; } > "$root/.specs/CHANGELOG.md"
+  { echo "# LESSONS"; for i in $(seq 1 40); do echo "- 教训$i：经验记录占位填充文本以达到一千五百字节的最低要求"; done; } > "$root/.specs/LESSONS.md"
+  printf '%s' "$spec"
+}
+
+@test "T04: AC-1 total<=20000B + CHANGELOG/LESSONS markers survive and precede artifact body" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootA" active)
+  local out bytes
+  out=$(_l3_build_prompt 7 "$spec" 20000)
+  bytes=$(printf '%s' "$out" | wc -c)
+  [ "$bytes" -le 20000 ]
+  [ "$bytes" -gt 10000 ]
+  printf '%s\n' "$out" | grep -qF '=== CHANGELOG.md ==='
+  printf '%s\n' "$out" | grep -qF '=== LESSONS.md ==='
+  local pos_cl pos_art
+  pos_cl=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
+  pos_art=$(printf '%s' "$out" | grep -bo '=== CHANGE.md ===' | head -1 | cut -d: -f1)
+  [ -n "$pos_cl" ] && [ -n "$pos_art" ] && [ "$pos_cl" -lt "$pos_art" ]
+}
+
+@test "T04: AC-2 checklist fixed wording, old SUMMARY clause gone" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootB" active)
+  local out
+  out=$(_l3_build_prompt 7 "$spec" 20000)
+  printf '%s\n' "$out" | grep -qF '归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？'
+  printf '%s\n' "$out" | grep -qF '项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）'
+  printf '%s\n' "$out" | grep -qF 'TASK/SUMMARY/TEST' && return 1 || true
+}
+
+@test "T04: AC-3 archive layout resolves project_root, both markers injected" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootC" archive)
+  local out
+  out=$(_l3_build_prompt 7 "$spec" 20000)
+  printf '%s\n' "$out" | grep -qF '=== CHANGELOG.md ==='
+  printf '%s\n' "$out" | grep -qF '=== LESSONS.md ==='
+}
+
+@test "T04: AC-5 assembly ordering - feedback block precedes CHANGELOG section and survives" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootD" active)
+  cp "$FIXTURE_DIR/independent-review-no-response.md" "$spec/INDEPENDENT-REVIEW-7.md"
+  local out pos_fb pos_cl
+  out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
+  printf '%s\n' "$out" | grep -q '未响应'
+  printf '%s\n' "$out" | grep -qF '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]'
+  pos_fb=$(printf '%s' "$out" | grep -bo '未响应' | head -1 | cut -d: -f1)
+  pos_cl=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
+  [ -n "$pos_fb" ] && [ -n "$pos_cl" ] && [ "$pos_fb" -lt "$pos_cl" ]
+}
+
+@test "T04: D7 anchor - exactly 2 bare head -c remain, both inside helpers" {
+  local n
+  n=$(grep -o 'head -c' "$L3_LIB_DIR/l3-prompt.sh" | wc -l)
+  [ "$n" -eq 2 ]
+}
