@@ -20,6 +20,67 @@ _l3_format_result() {
   echo "L3_RESULT: verdict=${verdict} summary=${summary} report=${report}"
 }
 
+# ── _l3_utf8_head_bytes() · D7 字节 cap + UTF-8 边界回退（文件形 · l3-prompt-loop-fix）──
+# 用法: _l3_utf8_head_bytes <max_bytes> <file>
+# 输出: 文件前 max_bytes 字节内、末尾不落在 UTF-8 多字节序列中间的内容
+#       文件不存在/空 → 静默（空输出，exit 0）
+_l3_utf8_head_bytes() {
+  local max_bytes="$1" file="$2"
+  [ -f "$file" ] || return 0
+  head -c "$max_bytes" "$file" | _l3_utf8_head_stream "$max_bytes"
+}
+
+# ── _l3_utf8_head_stream() · D7 字节 cap + UTF-8 边界回退（stdin 流形 · l3-prompt-loop-fix）──
+# 用法: <stream> | _l3_utf8_head_stream <max_bytes>
+# 尾部落在多字节序列中间时回退 ≤5 字节至上一完整字符边界（od 字节级检查续字节 0x80-0xBF）
+_l3_utf8_head_stream() {
+  local max_bytes="$1"
+  local LC_ALL=C
+  local data len i back=0 b lead expect
+  data=$(head -c "$max_bytes" 2>/dev/null; echo _U8S_)
+  data=${data%_U8S_}
+  len=${#data}
+  [ "$len" -gt 0 ] || return 0
+  # 扫描尾部连续续字节（10xxxxxx = 0x80-0xBF，窗口 ≤5）
+  for ((i = len - 1; i >= 0 && i >= len - 5; i--)); do
+    b=$(printf '%s' "${data:i:1}" | od -An -tu1 | tr -d ' \n')
+    [ "$b" -ge 128 ] && [ "$b" -le 191 ] || break
+    back=$((back + 1))
+  done
+  # back=0 且尾字节本身是 lead（194-244）→ 其续字节被截，必不完整 → 回退 1
+  if [ "$back" -eq 0 ]; then
+    b=$(printf '%s' "${data:len-1:1}" | od -An -tu1 | tr -d ' \n')
+    if [ "$b" -ge 194 ] && [ "$b" -le 244 ]; then
+      data="${data:0:len-1}"
+      printf '%s' "$data"
+      return 0
+    fi
+    printf '%s' "$data"
+    return 0
+  fi
+  # 续字节序列前一字节判定 lead 字节与期望序列长度
+  i=$((len - back - 1))
+  if [ "$i" -ge 0 ]; then
+    lead=$(printf '%s' "${data:i:1}" | od -An -tu1 | tr -d ' \n')
+    expect=0
+    [ "$lead" -ge 194 ] && [ "$lead" -le 223 ] && expect=2
+    [ "$lead" -ge 224 ] && [ "$lead" -le 239 ] && expect=3
+    [ "$lead" -ge 240 ] && [ "$lead" -le 244 ] && expect=4
+    if [ "$expect" -gt 0 ]; then
+      if [ "$back" -lt "$((expect - 1))" ]; then
+        back=$((back + 1))     # lead 本身被截 → 连 lead 一起回退
+      else
+        back=0                 # 序列完整（back == expect-1）→ 无需回退
+      fi
+    fi
+    # expect=0：孤立续字节（lead 非法/ASCII）→ 维持 back 丢弃孤立续字节
+  fi
+  if [ "$back" -gt 0 ]; then
+    [ "$back" -le "$len" ] && data="${data:0:len-back}"
+  fi
+  printf '%s' "$data"
+}
+
 # ── _l3_inject_context() · Step 0: 前次审查上下文注入（l3-pipeline-fix-2026-07 D4）──
 # 用法: _l3_inject_context <phase> <artifacts_dir>
 # 输出: context_preamble 到 stdout（若 INDEPENDENT-REVIEW-{phase}.md 不存在则输出空）

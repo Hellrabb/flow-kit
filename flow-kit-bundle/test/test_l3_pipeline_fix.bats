@@ -171,3 +171,80 @@ EOF
     [[ "$output" =~ WARNING ]]
   fi
 }
+
+# ══ T01 (l3-prompt-loop-fix): UTF-8 安全截断 helper ══
+
+@test "T01: _l3_utf8_head_bytes pure ASCII no backoff" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf '%s' "$(for i in $(seq 1 50); do printf 'a'; done)" > "$TEST_TMPDIR/ascii.txt"
+  _l3_utf8_head_bytes 50 "$TEST_TMPDIR/ascii.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 50 ]
+  _l3_utf8_head_bytes 30 "$TEST_TMPDIR/ascii.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 30 ]
+}
+
+@test "T01: _l3_utf8_head_bytes complete CJK char at boundary no backoff" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf '中中中中中中中中中中' > "$TEST_TMPDIR/cjk.txt"   # 30 bytes
+  _l3_utf8_head_bytes 30 "$TEST_TMPDIR/cjk.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 30 ]
+  _l3_utf8_head_bytes 3 "$TEST_TMPDIR/cjk.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 3 ]
+}
+
+@test "T01: _l3_utf8_head_bytes cut inside 3-byte CJK backs off to char boundary" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf '中中中中中中中中中中' > "$TEST_TMPDIR/cjk.txt"
+  # max=4: 中(E4B8AD) + E4(lead) → drop partial lead → 3 bytes
+  _l3_utf8_head_bytes 4 "$TEST_TMPDIR/cjk.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 3 ]
+  # max=5: 中 + E4B8 → drop 2 → 3 bytes
+  _l3_utf8_head_bytes 5 "$TEST_TMPDIR/cjk.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 3 ]
+  # max=6: 中中 完整 → 6 bytes
+  _l3_utf8_head_bytes 6 "$TEST_TMPDIR/cjk.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 6 ]
+}
+
+@test "T01: _l3_utf8_head_bytes cut inside 4-byte emoji backs off" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf '\xf0\x9f\x8e\x89\xf0\x9f\x8e\x89\xf0\x9f\x8e\x89\xf0\x9f\x8e\x89\xf0\x9f\x8e\x89' > "$TEST_TMPDIR/emoji.txt"  # 🎉×5 = 20 bytes
+  # max=5: 🎉(4) + F0(lead) → drop 1 → 4
+  _l3_utf8_head_bytes 5 "$TEST_TMPDIR/emoji.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 4 ]
+  # max=6: 🎉 + F09F → drop 2 → 4
+  _l3_utf8_head_bytes 6 "$TEST_TMPDIR/emoji.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 4 ]
+  # max=7: 🎉 + F09F8E → drop 3 → 4
+  _l3_utf8_head_bytes 7 "$TEST_TMPDIR/emoji.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 4 ]
+}
+
+@test "T01: _l3_utf8_head_bytes empty and missing file silent" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  : > "$TEST_TMPDIR/empty.txt"
+  _l3_utf8_head_bytes 10 "$TEST_TMPDIR/empty.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 0 ]
+  _l3_utf8_head_bytes 10 "$TEST_TMPDIR/nonexistent.txt" > "$TEST_TMPDIR/out.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/out.bin")" -eq 0 ]
+}
+
+@test "T01: _l3_utf8_head_stream stdin variant mirrors bytes variant" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf 'ab\xe4\xb8\xadcd' > "$TEST_TMPDIR/mix.txt"   # ab中cd = 7 bytes
+  # max=4: a b E4 B8 → backoff 2 → "ab" (2 bytes)
+  _l3_utf8_head_stream 4 < "$TEST_TMPDIR/mix.txt" > "$TEST_TMPDIR/s.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/s.bin")" -eq 2 ]
+  _l3_utf8_head_bytes 4 "$TEST_TMPDIR/mix.txt" > "$TEST_TMPDIR/b.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/b.bin")" -eq 2 ]
+  cmp -s "$TEST_TMPDIR/s.bin" "$TEST_TMPDIR/b.bin"
+}
+
+@test "T01: _l3_utf8_head_stream preserves trailing newline and empty stdin" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  printf 'abc\n' > "$TEST_TMPDIR/nl.txt"
+  _l3_utf8_head_stream 4 < "$TEST_TMPDIR/nl.txt" > "$TEST_TMPDIR/s.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/s.bin")" -eq 4 ]
+  printf '' | _l3_utf8_head_stream 10 > "$TEST_TMPDIR/s.bin"
+  [ "$(wc -c < "$TEST_TMPDIR/s.bin")" -eq 0 ]
+}
