@@ -324,3 +324,93 @@ EOF
   [ "$len" -le 201 ]
   printf '%s' "$line" | tail -c 4 | grep -q '…'
 }
+
+# ══ T03 (l3-prompt-loop-fix): _l3_inject_context 三锚 + 配额 + 四象限 ══
+
+_inject_fixture() {
+  local src="$1" dst_dir="$TEST_TMPDIR/spec"
+  mkdir -p "$dst_dir"
+  cp "$FIXTURE_DIR/$src" "$dst_dir/INDEPENDENT-REVIEW-3.md"
+  printf '%s' "$dst_dir"
+}
+
+@test "T03: Q1 findings+response - summary + response essentials + disclaimer" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local d=$(_inject_fixture independent-review-l2-sample.md)
+  local out
+  out=$(_l3_inject_context "3" "$d")
+  [[ "$out" =~ 审查上下文 ]]
+  printf '%s\n' "$out" | grep -q 'critical|lib/l3-prompt.sh:137'
+  printf '%s\n' "$out" | grep -q 'Fixed in:'
+  printf '%s\n' "$out" | grep -qF '未响应' && return 1 || true
+}
+
+@test "T03: Q2 findings+no-response - summary + 未响应 annotation" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local d=$(_inject_fixture independent-review-no-response.md)
+  local out
+  out=$(_l3_inject_context "3" "$d")
+  [[ "$out" =~ 审查上下文 ]]
+  printf '%s\n' "$out" | grep -q 'critical|src/dead.py:1|'
+  printf '%s\n' "$out" | grep -q '未响应'
+}
+
+@test "T03: Q3 no-findings+response - verdict + essentials, no summary lines" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local d="$TEST_TMPDIR/spec3"; mkdir -p "$d"
+  cat > "$d/INDEPENDENT-REVIEW-1.md" <<'EOF'
+# 独立审查 · 阶段 1
+## L2 盲审
+**Verdict**: pass
+## 主 agent 响应
+- **R1** — Fixed in: REQUIREMENT.md AC-6
+EOF
+  local out
+  out=$(_l3_inject_context "1" "$d")
+  [[ "$out" =~ 审查上下文 ]]
+  printf '%s\n' "$out" | grep -q 'Fixed in:'
+  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+}
+
+@test "T03: Q4 verdict-only - verdict kept, no response claim, no summary" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local d=$(_inject_fixture independent-review-verdict-only.md)
+  local out
+  out=$(_l3_inject_context "3" "$d")
+  printf '%s\n' "$out" | grep -q 'Verdict'
+  printf '%s\n' "$out" | grep -q '已响应' && return 1 || true
+  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+}
+
+@test "T03: AC-7 missing dir and no-findings empty fixture stay silent-or-verdict" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  [ -z "$(_l3_inject_context "3" "$TEST_TMPDIR/nonexistent")" ]
+  local d=$(_inject_fixture independent-review-empty.md)
+  local out=$(_l3_inject_context "3" "$d")
+  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+  printf '%s\n' "$out" | grep -q '已响应' && return 1 || true
+}
+
+@test "T03: quota - findings section capped at 600B with (+k more) marker" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local d="$TEST_TMPDIR/specq"; mkdir -p "$d"
+  {
+    echo "# 独立审查 · 阶段 3"; echo "## L2 盲审"
+    for i in $(seq 1 30); do
+      echo "### 🔴 R$i · 主题：发现编号$i 的超长主题占位描述文字填充内容加长一些以撑过配额边界测试需求"
+      echo '**Severity**：🔴 Critical'
+      echo "**Symptom（症状）**：src/q$i.py:1 占位符号"
+    done
+    echo '**Verdict**: fail'
+  } > "$d/INDEPENDENT-REVIEW-3.md"
+  local out
+  out=$(_l3_inject_context "3" "$d")
+  printf '%s\n' "$out" | grep -qF '(+'
+  local n
+  n=$(printf '%s\n' "$out" | grep -cE '^(critical|major)\|')
+  [ "$n" -lt 30 ]
+  [ "$n" -ge 1 ]
+  local bytes
+  bytes=$(printf '%s\n' "$out" | grep -E '^(critical|major)\||^\(\+' | wc -c)
+  [ "$bytes" -le 640 ]
+}

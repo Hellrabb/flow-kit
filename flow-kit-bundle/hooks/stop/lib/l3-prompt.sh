@@ -166,29 +166,82 @@ EOF
   printf '%s' "$final"
 }
 # 用法: _l3_inject_context <phase> <artifacts_dir>
-# 输出: context_preamble 到 stdout（若 INDEPENDENT-REVIEW-{phase}.md 不存在则输出空）
+# 输出: context_preamble 到 stdout（四象限注入矩阵 · l3-prompt-loop-fix D2/D3/D4）
+#   findings+响应 → verdict + 摘要(≤600B) + 响应要点(≤200B)
+#   findings+未响应 → verdict + 摘要 + 未响应标注
+#   无 findings+响应 → verdict + 响应要点
+#   仅 verdict 可解析 → verdict 行
+#   文件缺失/空 或 三者皆无 → 静默
 _l3_inject_context() {
   local phase="$1" artifacts_dir="$2"
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
-  [ -f "$review_md" ] || return 0
+  [ -s "$review_md" ] || return 0
+  local LC_ALL=C
 
   local l2_verdict l3_verdict
-  l2_verdict=$(grep -m1 '^\*\*Verdict\*\*: ' "$review_md" 2>/dev/null | head -1 || echo "")
-  l3_verdict=$(grep -A1 '"verdict"' "$review_md" 2>/dev/null | grep -o '"verdict":"[^"]*"' | tail -1 | tr -d '"' || echo "")
+  l2_verdict=$(grep -m1 '^\*\*Verdict\*\*: ' "$review_md" 2>/dev/null || true)
+  l3_verdict=$(grep -A1 '"verdict"' "$review_md" 2>/dev/null | grep -o '"verdict":"[^"]*"' | tail -1 | tr -d '"' || true)
 
-  if [ -z "$l2_verdict" ] && [ -z "$l3_verdict" ]; then
-    return 0  # 无审查上下文可注入
+  # D4 三锚响应检测：段头 / 反驳段 / 行内分类标记（不锚行首——实测 `- **R1** — Fixed in:`）
+  local has_response=0
+  if grep -q '^## 主 agent 响应' "$review_md" 2>/dev/null \
+    || grep -q '主 agent 反驳：' "$review_md" 2>/dev/null \
+    || grep -qE '(Fixed in|Tech-debt|Not-applicable):' "$review_md" 2>/dev/null; then
+    has_response=1
   fi
 
-  cat <<CTX_EOF
+  # D2/D3 前轮发现单行摘要（600B 配额 + (+k more) 折叠）
+  local findings quota_out="" total=0 included=0 section_bytes=0 line lb
+  findings=$(_l3_extract_prior_findings "$review_md")
+  if [ -n "$findings" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && total=$((total + 1))
+    done <<EOF
+$findings
+EOF
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      lb=$(printf '%s' "$line" | wc -c)
+      [ $((section_bytes + lb)) -gt 600 ] && break
+      quota_out+="${line}"$'\n'
+      section_bytes=$((section_bytes + lb))
+      included=$((included + 1))
+    done <<EOF
+$findings
+EOF
+  fi
 
-[前次审查上下文 · 最近一次]
-- ${l2_verdict:-L2 Verdict: (无)}
-- L3 Verdict: ${l3_verdict:-verdict:(无)}
-- 主 agent 已响应前次发现（详见 INDEPENDENT-REVIEW-${phase}.md）
-[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]
+  # 响应要点（行内分类标记行，≤200B，"；" 连接）
+  local resp="" resp_bytes=0 rl rlb
+  while IFS= read -r rl; do
+    [ -z "$rl" ] && continue
+    rlb=$(printf '%s' "$rl" | wc -c)
+    [ $((resp_bytes + rlb + 3)) -gt 200 ] && break
+    [ -n "$resp" ] && resp+='；'
+    resp+="$rl"
+    resp_bytes=$((resp_bytes + rlb))
+  done < <(grep -E '(Fixed in|Tech-debt|Not-applicable):' "$review_md" 2>/dev/null | head -8)
 
-CTX_EOF
+  # 三者皆无 → 无可注入
+  [ -z "$l2_verdict$l3_verdict$quota_out$resp" ] && return 0
+
+  local nl=$'\n'
+  local out=""
+  out+="[前次审查上下文 · 最近一次]"$nl
+  [ -n "$l2_verdict" ] && out+="- ${l2_verdict}"$nl
+  [ -n "$l3_verdict" ] && out+="- L3 ${l3_verdict}"$nl
+  if [ -n "$quota_out" ]; then
+    out+="前轮发现摘要："$nl
+    out+="$quota_out"
+    [ "$included" -lt "$total" ] && out+="(+$((total - included)) more)"$nl
+  fi
+  if [ -n "$resp" ]; then
+    out+="主 agent 响应要点：${resp}"$nl
+  elif [ -n "$quota_out" ] && [ "$has_response" -eq 0 ]; then
+    out+="主 agent 未响应前次发现（本次请独立复核是否仍成立）"$nl
+  fi
+  out+="[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]"$nl
+  printf '%s' "$out"
 }
 
 # ── _l3_build_prompt() · Step 1: 按阶段收集工件 + 构造审查 prompt ──
