@@ -28,3 +28,15 @@
 
 | M19 | 5 | L3-5 建议 | PDF/PNG 仅存 /tmp 无持久化 artifact 路径；AC-7 原始 make test 日志未落工件 | 待 phase 7 triage：建议把 pg1/14/20 PNG 或 PDF 复制进归档目录或增加像素断言；最终 make test 快照落 INTEGRATION.md | 2026-09-03 |
 
+
+
+---
+
+## Triage 结论（2026-09-04 · 用户拍板）
+
+| # | 用户决定 | 落地动作 | 状态 |
+|---|---|---|---|
+| M2 | ① 接受措辞微调 | REQUIREMENT.md：AC-1 Given 点名 `FLOW-KIT-用户指南.md`；AC-6「无空页」判据此前已机器化（deck_checks 逐页文本非空 + 固定抽查页 1/14/20） | ✅ 已吸收 |
+| M17 | ① 接受，且明确无硬性性能要求 | REQUIREMENT.md NFR：性能改为「无硬性指标，≤90KB/≤120s 仅参考量级」；NFR 验证口径改为「记录实测耗时供回归参考，不做超时 fail」；build.py 版本自检保留 | ✅ 已吸收 |
+| M19 | ③ 现在就补 | 渲染抽查 PNG（pg1-01 / pg14-14 / pg20-20）已复制至本目录 render-preview/ 并随本提交入库；AC-7 make test 快照说明固化于 INTEGRATION.md §6 | ✅ 已处理 |
+

@@ -51,7 +51,7 @@
 ## 7. Minor triage（M1-M19）
 
 - M1-M16、M18：已吸收（见各行标注），无需动作
-- M2/M17/M19：待用户 triage（AC-6 人工判据 / NFR 秒数记录化 / PNG 持久化与 AC-7 日志快照）——建议后续 docs change 把渲染 PNG 归入归档或 CI artifact；性能秒数改 TEST 实测记录
+- M2/M17/M19：**2026-09-04 用户 triage 已结**——M2① 措辞吸收（REQUIREMENT AC-1/AC-6）；M17① 性能改参考值不设门禁（REQUIREMENT NFR）；M19③ 渲染 PNG 已入 render-preview/（本目录）+ 快照说明见 §6；详见 MINOR-DEFERRED.md「Triage 结论」
 
 ---
 
@@ -72,9 +72,10 @@
 
 ### 8.3 归档目录清单（本目录 ls）
 
-CHANGE.md · DESIGN.md · INDEPENDENT-REVIEW-{1,2,3,5,6,7}.md · INTEGRATION.md · MINOR-DEFERRED.md · REQUIREMENT.md · REVIEW.md · SUMMARY.md · TASK.md · TEST.md
+CHANGE.md · DESIGN.md · INDEPENDENT-REVIEW-{1,2,3,5,6,7}.md · INTEGRATION.md · MINOR-DEFERRED.md · REQUIREMENT.md · REVIEW.md · SUMMARY.md · TASK.md · TEST.md · render-preview/（pg1-01/pg14-14/pg20-20.png · 2026-09-04 归档）
 
-### 8.4 Minor triage 结果
+### 8.4 Minor triage 结果（2026-09-04 更新）
 
-- 已吸收（M1-M16、M18）；待用户（M2/M17/M19）：建议后续 docs change 把渲染 PNG 归入归档或 CI artifact；性能秒数改 TEST 实测记录——本 change 不阻塞放行
+- M1-M16、M18 已吸收；M2/M17/M19 用户拍板：M2①（措辞吸收）、M17①（性能参考化）、M19③（PNG 已入 render-preview/）——详见 MINOR-DEFERRED.md「Triage 结论」
+- 抽查图归档路径：render-preview/pg1-01.png · render-preview/pg14-14.png · render-preview/pg20-20.png
 
