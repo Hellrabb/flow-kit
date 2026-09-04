@@ -482,3 +482,63 @@ _build_phase7_tree() {
   n=$(grep -o 'head -c' "$L3_LIB_DIR/l3-prompt.sh" | wc -l)
   [ "$n" -eq 2 ]
 }
+
+# ══ T05 (l3-prompt-loop-fix): AC-4/AC-7 端到端 + AC-1 组合层顺序固化 ══
+
+@test "T05: AC-4 e2e assembly - mixed fixture single-line summaries + L3-before-L2 ordering" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootE" active)
+  cp "$FIXTURE_DIR/independent-review-mixed-sample.md" "$spec/INDEPENDENT-REVIEW-7.md"
+  local out p1 p2
+  out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
+  printf '%s\n' "$out" | grep -q 'critical|test/l2-dispatch.bats|'
+  printf '%s\n' "$out" | grep -q 'critical|lib/l3-prompt.sh:26|'
+  p1=$(printf '%s' "$out" | grep -bo 'critical|test/l2-dispatch.bats|' | head -1 | cut -d: -f1)
+  p2=$(printf '%s' "$out" | grep -bo 'critical|lib/l3-prompt.sh:26|' | head -1 | cut -d: -f1)
+  [ -n "$p1" ] && [ -n "$p2" ] && [ "$p1" -lt "$p2" ]
+}
+
+@test "T05: AC-4 e2e overflow - (+k more) fold at assembly level, feedback block first" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootF" active)
+  {
+    echo "# 独立审查 · 阶段 7"; echo "## L2 盲审"
+    local i
+    for i in $(seq 1 30); do
+      echo "### 🔴 R$i · 主题：发现编号$i 的超长主题占位描述文字填充内容以撑过配额边界测试需求"
+      echo '**Severity**：🔴 Critical'
+      echo "**Symptom（症状）**：src/q$i.py:1 占位符号"
+    done
+  } > "$spec/INDEPENDENT-REVIEW-7.md"
+  local out pf pc
+  out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
+  printf '%s\n' "$out" | grep -qF '(+'
+  printf '%s\n' "$out" | grep -q '未响应'
+  pf=$(printf '%s' "$out" | grep -boF '(+' | head -1 | cut -d: -f1)
+  pc=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
+  [ -n "$pf" ] && [ -n "$pc" ] && [ "$pf" -lt "$pc" ]
+}
+
+@test "T05: AC-1 assembly ordering - mixed feedback precedes CHANGELOG, survives full load" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootG" active)
+  cp "$FIXTURE_DIR/independent-review-mixed-sample.md" "$spec/INDEPENDENT-REVIEW-7.md"
+  local out pf pc
+  out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
+  printf '%s\n' "$out" | grep -qF '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]'
+  pf=$(printf '%s' "$out" | grep -bo '前轮发现摘要' | head -1 | cut -d: -f1)
+  pc=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
+  [ -n "$pf" ] && [ -n "$pc" ] && [ "$pf" -lt "$pc" ]
+}
+
+@test "T05: AC-7 e2e assembly - empty fixture no summary/no annotation; missing file silent" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootH" active)
+  cp "$FIXTURE_DIR/independent-review-empty.md" "$spec/INDEPENDENT-REVIEW-7.md"
+  local out
+  out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
+  printf '%s\n' "$out" | grep -q '前轮发现摘要' && return 1 || true
+  printf '%s\n' "$out" | grep -q '未响应' && return 1 || true
+  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+  [ -z "$(_l3_inject_context 7 "$TEST_TMPDIR/nonexistent-dir")" ]
+}
