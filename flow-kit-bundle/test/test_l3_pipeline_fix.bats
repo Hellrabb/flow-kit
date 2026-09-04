@@ -542,3 +542,23 @@ _build_phase7_tree() {
   printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
   [ -z "$(_l3_inject_context 7 "$TEST_TMPDIR/nonexistent-dir")" ]
 }
+
+# ══ T06 (l3-prompt-loop-fix): AC-6 四副本一致性硬断言 ══
+
+@test "T06: AC-6 l3-prompt.sh four in-repo copies share one md5" {
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d=$(dirname "$d")
+  done
+  [ "$(md5sum "$d/flow-kit-bundle/hooks/stop/lib/l3-prompt.sh" \
+              "$d/.claude/hooks/stop/lib/l3-prompt.sh" \
+              "$d/dist/dsh-flow-kit/hooks/stop/lib/l3-prompt.sh" \
+              "$d/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks/stop/lib/l3-prompt.sh" \
+        | awk '{print $1}' | sort -u | wc -l)" -eq 1 ]
+}
+
+@test "T06: AC-6 global ~/.claude copy cmp-identical when present" {
+  [ ! -f "$HOME/.claude/hooks/stop/lib/l3-prompt.sh" ] || \
+    cmp -s flow-kit-bundle/hooks/stop/lib/l3-prompt.sh "$HOME/.claude/hooks/stop/lib/l3-prompt.sh"
+}
