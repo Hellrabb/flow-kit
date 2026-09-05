@@ -258,17 +258,17 @@ EOF
   out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-l2-sample.md")
   local n=$(printf '%s\n' "$out" | grep -c '|' )
   [ "$n" -eq 2 ]
-  printf '%s\n' "$out" | head -1 | grep -q '^critical|lib/l3-prompt.sh:137'
-  printf '%s\n' "$out" | head -1 | grep -q 'CHANGELOG 注入段被尾部截断确定性丢弃'
-  printf '%s\n' "$out" | sed -n 2p | grep -q '^major|lib/l3-prompt.sh:146|'
+  printf '%s\n' "$out" | head -1 | grep '^critical|lib/l3-prompt.sh:137' >/dev/null
+  printf '%s\n' "$out" | head -1 | grep 'CHANGELOG 注入段被尾部截断确定性丢弃' >/dev/null
+  printf '%s\n' "$out" | sed -n 2p | grep '^major|lib/l3-prompt.sh:146|' >/dev/null
 }
 
 @test "T02: extractor L3 sample - JSON array keys as severity, file field, issue first sentence" {
   source "$L3_REVIEW_SH" 2>/dev/null || true
   local out
   out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-l3-sample.md")
-  printf '%s\n' "$out" | head -1 | grep -q '^critical|lib/l3-prompt.sh|截断把 CHANGELOG 段确定性切掉'
-  printf '%s\n' "$out" | sed -n 2p | grep -q '^major|test/test_l3_pipeline_fix.bats|缺少顺序断言'
+  printf '%s\n' "$out" | head -1 | grep '^critical|lib/l3-prompt.sh|截断把 CHANGELOG 段确定性切掉' >/dev/null
+  printf '%s\n' "$out" | sed -n 2p | grep '^major|test/test_l3_pipeline_fix.bats|缺少顺序断言' >/dev/null
 }
 
 @test "T02: extractor mixed - same severity L3 before L2" {
@@ -277,8 +277,8 @@ EOF
   out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-mixed-sample.md")
   local n=$(printf '%s\n' "$out" | grep -c '|')
   [ "$n" -eq 2 ]
-  printf '%s\n' "$out" | head -1 | grep -q '^critical|test/l2-dispatch.bats|'
-  printf '%s\n' "$out" | sed -n 2p | grep -q '^critical|lib/l3-prompt.sh:26|'
+  printf '%s\n' "$out" | head -1 | grep '^critical|test/l2-dispatch.bats|' >/dev/null
+  printf '%s\n' "$out" | sed -n 2p | grep '^critical|lib/l3-prompt.sh:26|' >/dev/null
 }
 
 @test "T02: extractor no-response fixture still yields findings" {
@@ -286,7 +286,7 @@ EOF
   local out
   out=$(_l3_extract_prior_findings "$FIXTURE_DIR/independent-review-no-response.md")
   [ "$(printf '%s\n' "$out" | grep -c '|')" -eq 2 ]
-  printf '%s\n' "$out" | grep -q '^critical|src/dead.py:1|'
+  printf '%s\n' "$out" | grep '^critical|src/dead.py:1|' >/dev/null
 }
 
 @test "T02: extractor empty and verdict-only and missing file yield nothing" {
@@ -322,7 +322,7 @@ EOF
   line=$(printf '%s\n' "$out" | head -1)
   local len=$(printf '%s' "$line" | wc -c)
   [ "$len" -le 201 ]
-  printf '%s' "$line" | tail -c 4 | grep -q '…'
+  printf '%s' "$line" | tail -c 4 | grep '…' >/dev/null
 }
 
 # ══ T03 (l3-prompt-loop-fix): _l3_inject_context 三锚 + 配额 + 四象限 ══
@@ -340,9 +340,9 @@ _inject_fixture() {
   local out
   out=$(_l3_inject_context "3" "$d")
   [[ "$out" =~ 审查上下文 ]]
-  printf '%s\n' "$out" | grep -q 'critical|lib/l3-prompt.sh:137'
-  printf '%s\n' "$out" | grep -q 'Fixed in:'
-  printf '%s\n' "$out" | grep -qF '未响应' && return 1 || true
+  printf '%s\n' "$out" | grep 'critical|lib/l3-prompt.sh:137' >/dev/null
+  printf '%s\n' "$out" | grep 'Fixed in:' >/dev/null
+  printf '%s\n' "$out" | grep -F '未响应' >/dev/null && return 1 || true
 }
 
 @test "T03: Q2 findings+no-response - summary + 未响应 annotation" {
@@ -351,8 +351,8 @@ _inject_fixture() {
   local out
   out=$(_l3_inject_context "3" "$d")
   [[ "$out" =~ 审查上下文 ]]
-  printf '%s\n' "$out" | grep -q 'critical|src/dead.py:1|'
-  printf '%s\n' "$out" | grep -q '未响应'
+  printf '%s\n' "$out" | grep 'critical|src/dead.py:1|' >/dev/null
+  printf '%s\n' "$out" | grep '未响应' >/dev/null
 }
 
 @test "T03: Q3 no-findings+response - verdict + essentials, no summary lines" {
@@ -368,8 +368,8 @@ EOF
   local out
   out=$(_l3_inject_context "1" "$d")
   [[ "$out" =~ 审查上下文 ]]
-  printf '%s\n' "$out" | grep -q 'Fixed in:'
-  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+  printf '%s\n' "$out" | grep 'Fixed in:' >/dev/null
+  printf '%s\n' "$out" | grep -E '^(critical|major)\|' >/dev/null && return 1 || true
 }
 
 @test "T03: Q4 verdict-only - verdict kept, no response claim, no summary" {
@@ -377,9 +377,9 @@ EOF
   local d=$(_inject_fixture independent-review-verdict-only.md)
   local out
   out=$(_l3_inject_context "3" "$d")
-  printf '%s\n' "$out" | grep -q 'Verdict'
-  printf '%s\n' "$out" | grep -q '已响应' && return 1 || true
-  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+  printf '%s\n' "$out" | grep 'Verdict' >/dev/null
+  printf '%s\n' "$out" | grep '已响应' >/dev/null && return 1 || true
+  printf '%s\n' "$out" | grep -E '^(critical|major)\|' >/dev/null && return 1 || true
 }
 
 @test "T03: AC-7 missing dir and no-findings empty fixture stay silent-or-verdict" {
@@ -387,8 +387,8 @@ EOF
   [ -z "$(_l3_inject_context "3" "$TEST_TMPDIR/nonexistent")" ]
   local d=$(_inject_fixture independent-review-empty.md)
   local out=$(_l3_inject_context "3" "$d")
-  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
-  printf '%s\n' "$out" | grep -q '已响应' && return 1 || true
+  printf '%s\n' "$out" | grep -E '^(critical|major)\|' >/dev/null && return 1 || true
+  printf '%s\n' "$out" | grep '已响应' >/dev/null && return 1 || true
 }
 
 @test "T03: quota - findings section capped at 600B with (+k more) marker" {
@@ -405,7 +405,7 @@ EOF
   } > "$d/INDEPENDENT-REVIEW-3.md"
   local out
   out=$(_l3_inject_context "3" "$d")
-  printf '%s\n' "$out" | grep -qF '(+'
+  printf '%s\n' "$out" | grep -F '(+' >/dev/null
   local n
   n=$(printf '%s\n' "$out" | grep -cE '^(critical|major)\|')
   [ "$n" -lt 30 ]
@@ -437,8 +437,8 @@ _build_phase7_tree() {
   bytes=$(printf '%s' "$out" | wc -c)
   [ "$bytes" -le 20000 ]
   [ "$bytes" -gt 10000 ]
-  printf '%s\n' "$out" | grep -qF '=== CHANGELOG.md ==='
-  printf '%s\n' "$out" | grep -qF '=== LESSONS.md ==='
+  printf '%s\n' "$out" | grep -F '=== CHANGELOG.md ===' >/dev/null
+  printf '%s\n' "$out" | grep -F '=== LESSONS.md ===' >/dev/null
   local pos_cl pos_art
   pos_cl=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
   pos_art=$(printf '%s' "$out" | grep -bo '=== CHANGE.md ===' | head -1 | cut -d: -f1)
@@ -450,9 +450,9 @@ _build_phase7_tree() {
   local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootB" active)
   local out
   out=$(_l3_build_prompt 7 "$spec" 20000)
-  printf '%s\n' "$out" | grep -qF '归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？'
-  printf '%s\n' "$out" | grep -qF '项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）'
-  printf '%s\n' "$out" | grep -qF 'TASK/SUMMARY/TEST' && return 1 || true
+  printf '%s\n' "$out" | grep -F '归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？' >/dev/null
+  printf '%s\n' "$out" | grep -F '项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）' >/dev/null
+  printf '%s\n' "$out" | grep -F 'TASK/SUMMARY/TEST' >/dev/null && return 1 || true
 }
 
 @test "T04: AC-3 archive layout resolves project_root, both markers injected" {
@@ -460,8 +460,8 @@ _build_phase7_tree() {
   local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootC" archive)
   local out
   out=$(_l3_build_prompt 7 "$spec" 20000)
-  printf '%s\n' "$out" | grep -qF '=== CHANGELOG.md ==='
-  printf '%s\n' "$out" | grep -qF '=== LESSONS.md ==='
+  printf '%s\n' "$out" | grep -F '=== CHANGELOG.md ===' >/dev/null
+  printf '%s\n' "$out" | grep -F '=== LESSONS.md ===' >/dev/null
 }
 
 @test "T04: AC-5 assembly ordering - feedback block precedes CHANGELOG section and survives" {
@@ -470,8 +470,8 @@ _build_phase7_tree() {
   cp "$FIXTURE_DIR/independent-review-no-response.md" "$spec/INDEPENDENT-REVIEW-7.md"
   local out pos_fb pos_cl
   out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
-  printf '%s\n' "$out" | grep -q '未响应'
-  printf '%s\n' "$out" | grep -qF '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]'
+  printf '%s\n' "$out" | grep '未响应' >/dev/null
+  printf '%s\n' "$out" | grep -F '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]' >/dev/null
   pos_fb=$(printf '%s' "$out" | grep -bo '未响应' | head -1 | cut -d: -f1)
   pos_cl=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
   [ -n "$pos_fb" ] && [ -n "$pos_cl" ] && [ "$pos_fb" -lt "$pos_cl" ]
@@ -491,8 +491,8 @@ _build_phase7_tree() {
   cp "$FIXTURE_DIR/independent-review-mixed-sample.md" "$spec/INDEPENDENT-REVIEW-7.md"
   local out p1 p2
   out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
-  printf '%s\n' "$out" | grep -q 'critical|test/l2-dispatch.bats|'
-  printf '%s\n' "$out" | grep -q 'critical|lib/l3-prompt.sh:26|'
+  printf '%s\n' "$out" | grep 'critical|test/l2-dispatch.bats|' >/dev/null
+  printf '%s\n' "$out" | grep 'critical|lib/l3-prompt.sh:26|' >/dev/null
   p1=$(printf '%s' "$out" | grep -bo 'critical|test/l2-dispatch.bats|' | head -1 | cut -d: -f1)
   p2=$(printf '%s' "$out" | grep -bo 'critical|lib/l3-prompt.sh:26|' | head -1 | cut -d: -f1)
   [ -n "$p1" ] && [ -n "$p2" ] && [ "$p1" -lt "$p2" ]
@@ -512,8 +512,8 @@ _build_phase7_tree() {
   } > "$spec/INDEPENDENT-REVIEW-7.md"
   local out pf pc
   out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
-  printf '%s\n' "$out" | grep -qF '(+'
-  printf '%s\n' "$out" | grep -q '未响应'
+  printf '%s\n' "$out" | grep -F '(+' >/dev/null
+  printf '%s\n' "$out" | grep '未响应' >/dev/null
   pf=$(printf '%s' "$out" | grep -boF '(+' | head -1 | cut -d: -f1)
   pc=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
   [ -n "$pf" ] && [ -n "$pc" ] && [ "$pf" -lt "$pc" ]
@@ -525,7 +525,7 @@ _build_phase7_tree() {
   cp "$FIXTURE_DIR/independent-review-mixed-sample.md" "$spec/INDEPENDENT-REVIEW-7.md"
   local out pf pc
   out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
-  printf '%s\n' "$out" | grep -qF '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]'
+  printf '%s\n' "$out" | grep -F '[注意：以上为历史审查上下文，本次审查仍应基于工件本身独立判断]' >/dev/null
   pf=$(printf '%s' "$out" | grep -bo '前轮发现摘要' | head -1 | cut -d: -f1)
   pc=$(printf '%s' "$out" | grep -bo '=== CHANGELOG.md ===' | head -1 | cut -d: -f1)
   [ -n "$pf" ] && [ -n "$pc" ] && [ "$pf" -lt "$pc" ]
@@ -537,9 +537,9 @@ _build_phase7_tree() {
   cp "$FIXTURE_DIR/independent-review-empty.md" "$spec/INDEPENDENT-REVIEW-7.md"
   local out
   out="$(_l3_inject_context 7 "$spec")$(_l3_build_prompt 7 "$spec" 20000)"
-  printf '%s\n' "$out" | grep -q '前轮发现摘要' && return 1 || true
-  printf '%s\n' "$out" | grep -q '未响应' && return 1 || true
-  printf '%s\n' "$out" | grep -qE '^(critical|major)\|' && return 1 || true
+  printf '%s\n' "$out" | grep '前轮发现摘要' >/dev/null && return 1 || true
+  printf '%s\n' "$out" | grep '未响应' >/dev/null && return 1 || true
+  printf '%s\n' "$out" | grep -E '^(critical|major)\|' >/dev/null && return 1 || true
   [ -z "$(_l3_inject_context 7 "$TEST_TMPDIR/nonexistent-dir")" ]
 }
 
@@ -586,7 +586,7 @@ _build_phase7_tree() {
   fc=$(printf '%s\n' "$out" | grep -E '^(critical|major)\|' | LC_ALL=C awk '{s+=length($0)} END{print s+0}')
   total=$((fc + rc))
   [ "$total" -le 800 ]
-  printf '%s\n' "$out" | grep -qF '(+'
+  printf '%s\n' "$out" | grep -F '(+' >/dev/null
 }
 
 @test "T06fix: L2 R1 - line cap truncation respects UTF-8 boundary" {
