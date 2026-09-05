@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `user-guide-sync-2026-09`（2026-09-03 · 内容同步型 · 6 阶段（1/2/3/5/6/7）L2+L3 全 pass · 770/0 bats · 指南 2026-09-03 + deck 20 页重建）
+- **last_change_archived**: `l3-prompt-loop-fix`（2026-09-05 · 缺陷修复型 · pipeline 0→7 gate_config=both · L2×6+L3×6 全 pass · 803 bats 0 fail · 五副本 md5 唯一 · LESSONS L-085~088）
 - **last_evolve_promoted**:
   - auto-checkpoint-hook
   - 2026-06-08-init-git-repo
@@ -41,7 +41,7 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 657 tests (656 pass + 1 skip L-071) / 2 fail pre-existing AC-I b/c · 32 new tests from superpowers-v6-absorb)`
+- **test_framework**: `bats-core 1.13.0 (npx) · 803 tests (802 pass + 1 skip 既有 test_lessons_cleanup.bats:137) / 0 fail · 41 in test_l3_pipeline_fix.bats（l3-prompt-loop-fix 8→41）`
 - **ci_cd**: `未检测到`
 
 ---
@@ -67,3 +67,4 @@
 ### 单独验证（需 OpenCode task tool 实测机会）
 
 - **L-061** · ADR-016 探测脚本路径 → 触发条件：4-dev.md 实施时实际跑 `detect_opencode_tier_support`，确认 `.specs/<id>/.opencode-capability.json` 写入路径对
+ARCHIVE_BASE_SHA=5a2e542111d07c81be6d167249509b1bfc23986a
