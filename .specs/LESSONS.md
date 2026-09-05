@@ -700,3 +700,9 @@
   ③ L2 的 minor finding（产物不齐）若选择核销，需在 REVIEW.md 中显式给证据，不能只写
   在 CHANGE.md；④ REVIEW.md 的处置表（finding→动作→证据落点）是 L3 主判最快的闭环载体。
 - **来源**：dsh-flow-kit-sync-2026-09 · L3 首审 fail（2026-09-03）→ 归档补齐 + 重审
+<!-- l3-prompt-loop-fix 追加 ↓ -->
+| L-085 | 🟡 | 全局（bats 测试） | **bats TAP 的 skip 报告为行尾 `ok N <name> # skip <reason>`**——用 `grep -E '^(not ok\|# skip)'` 统计 skip 永远得 0（假绿变体·BUG-G 族）。phase 5 L2 实测发现：TEST.md 声称 0 skip 实有 1 既有 skip | skip 统计必须匹配行内 `# skip `（`grep -cE '# skip '`）或用 junit formatter 解析 <skipped> | ✅ 已吸收 | l3-prompt-loop-fix L2 R1（INDEPENDENT-REVIEW-5） |
+| L-086 | 🟡 | 全局（Bash 多字节） | `${#var}` 语义随 locale 漂移：UTF-8 locale 按字符计数、LC_ALL=C 按字节计数。字节预算断言/门控若不在 `local LC_ALL=C` 作用域内即静默变字符语义。双实证：提取器门控安全（函数顶部 local LC_ALL=C，150 CJK→${#l}=450）而 T06fix 测试断言不安全（跑在 UTF-8 locale） | 字节语义三件套：函数内 `local LC_ALL=C` + 断言用 `wc -c` + 截断走边界回退 helper，禁止裸 `${l:0:N}`（字节切片可产非法 UTF-8，iconv 可检出） | ✅ 已吸收 | l3-prompt-loop-fix L2 R1 + L3 minor-1 证伪（INDEPENDENT-REVIEW-6） |
+| L-087 | 🟢 | 本仓 bats 风格 | 既有用例用 `sed -n '/case "$phase" in/,/esac/p'` 提取 case 块做断言锚——被测代码引入**嵌套 case** 时 sed 在首个 esac 截断提取范围 → 断言拿残块报红（T04 fix_round 实际发生） | 同构逻辑改 if/else（T04 实际修法）；或新写测试锚定输出行为而非源码文本结构 | ✅ 已吸收 | l3-prompt-loop-fix T04 fix_round |
+| L-088 | 🟢 | 全局（hook 运维） | 手动直跑 stop-hook 模块（如 29 号）零产出根因：`config_get` 的 CONFIG_FILE 为空串（直跑不经 00-gate.sh:17 的 init_paths 导出链）→ 模块判 disabled 静默 exit 0。opencode 下 settings.json .env 段的 ANTHROPIC_* 也不注入子进程 | 手动配方：export PROJECT_ROOT + CONFIG_FILE（+ HOOK_TMP_DIR），凭证从 `jq '.env' ~/.claude/settings.json` 读出注入 env；bash -x 追踪定位此类「静默跳过」 | ✅ 已吸收 | l3-prompt-loop-fix L3 手动触发调查 |
+<!-- l3-prompt-loop-fix 追加 ↑ -->

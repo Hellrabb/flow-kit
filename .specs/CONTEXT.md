@@ -250,6 +250,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | archive-commit 门禁（34 号 hook）| 阶段 7 归档提交完整性门禁：归档产物与 CHANGE 范围核对后才放行/记录（含 commit-protocol 分类）；install.sh 同时部署 pre-commit 钩子（deploy_pre_commit，user scope 源文件安装） |
 | tier-4/5 站点级默认模型 | 五级解析链第 4/5 级：`FLOW_KIT_L{2,3}_DEFAULT_MODEL` env + `.goal.l{2,3}_default_model` 字段，由 `/flow model l2-default=/l3-default=` 持久化；语义见「已锁决策」2026-09-03 条 |
 <!-- user-guide-sync-2026-09 追加 ↑ -->
+<!-- l3-prompt-loop-fix 追加 ↓ -->
+| 反馈优先截断（feedback-first truncation） | L3 prompt 字节预算超限时的截断顺序设计立场：CHANGELOG/LESSONS/前轮反馈等注入段优先保留，7 文件工件正文承受截断（截正文不截反馈）。来自 `l3-prompt-loop-fix` |
+| 前轮发现单行摘要（prior-findings digest） | L3 重审 prompt 注入前轮 critical/major 发现的格式：`severity\|file\|issue` 单行，总量 ≤800 字节。来自 `l3-prompt-loop-fix` |
+| 归档布局解析（archive-layout resolution） | artifacts_dir 为 `.specs/archive/<id>/` 形态时 project_root 必须解析到仓库根（`dirname ×3` 或等价逻辑），保证项目级 CHANGELOG/LESSONS 注入不失效。来自 `l3-prompt-loop-fix` |
+<!-- l3-prompt-loop-fix 追加 ↑ -->
 
 ## 已锁决策
 
@@ -332,6 +337,10 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 - `[2026-08-02]` task_progress 与 T<N>-SUMMARY.md 并存策略 —— 机器读实时 vs 人读事后，两者职责不重叠。task_progress = jq 友好、hook 自动写、固定 schema（id/commit_sha/fix_rounds/deferred/completed_at）。SUMMARY = markdown、4-dev 完成时写、自由格式（"做了什么/为什么/偏离 DESIGN 哪里"）。否决"合并为单一 PROGRESS.md"和"废弃 SUMMARY"两个方案。来自 `superpowers-v6-absorb` Phase 1（用户选项）
 - `[2026-08-02]` 向后兼容契约 —— 旧 TASK.md（无 model-tier）→ fallback standard tier；旧 .flow-active（无 task_progress）→ 视为 []；旧 REVIEW.md（无 severity）→ 视为 Important。所有破坏性变更必须提供 fallback，否则既有用户的 pipeline 会死锁。来自 `superpowers-v6-absorb` Phase 1
 <!-- superpowers-v6-absorb 追加 ↑ -->
+
+<!-- l3-prompt-loop-fix 追加 ↓ -->
+- `[2026-09-04]` L3 重审 prompt 必须携带前轮反馈 — 单行摘要粒度（`severity|file|issue`，总量 ≤800B）；前轮审查文件无「## 主 agent 响应」段时仍注入发现摘要并显式标注「主 agent 未响应」；反馈段注入顺序优先于 7 文件工件正文（反馈优先截断立场）。用户已在 1-requirement 反问中确认两项粒度决策。来自 `l3-prompt-loop-fix`
+<!-- l3-prompt-loop-fix 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 
