@@ -91,7 +91,7 @@ _l3_extract_prior_findings() {
   local LC_ALL=C
   [ -f "$review_md" ] || return 0
   local nl=$'\n'
-  local section="" line sev summ file
+  local section="" line file
   local out_l3="" out_l2=""
   local in_json=0 json_buf=""
   local red_e moon_e
