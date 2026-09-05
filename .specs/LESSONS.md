@@ -17,9 +17,14 @@
 
 ## M-health 巡检观察（监控级 · 不阻塞）
 
-> 最后更新: 2026-08-03（全量 Sweep · 89/100 · ↓9 单源退化）
+> 最后更新: 2026-09-06（全量扫描 · 94/100 · 相对 2026-09-01 97/100 ↓3）
 > 格式：日期 | 严重度 | 位置 | 观察 | 建议操作
 
+<!-- 2026-09-06 ↓ -->
+| 2026-09-06 | 🟡 | `test/test_l3_pipeline_fix.bats:440-441` | 全量跑偶发 1 fail（F-1 · T04 AC-1 · status 141 SIGPIPE）：`printf | grep -qF` 下 grep 命中即退 → writer SIGPIPE 141；首轮全量 1 not-ok，复跑 803/803 绿、单文件 41/41 绿 → 满负荷偶发 flaky（TD-024 已登记） | 断言改 `[[ "$out" == *marker* ]]` 或 `grep -F … >/dev/null`（去 -q）；下次 health-fix 顺手修 |
+| 2026-09-06 | 🟢 | `.specs/{l3-prompt-loop-fix,correction-hygiene-state-guard}/` | 归档移位后残留 ignored PROGRESS.md ×2（09-01 同类已清，本次同类复发 ×2）——归档流程无「源目录清理」步骤 | 归档动作补源目录清空检查；或下个 change 顺手删 2 目录 |
+| 2026-09-06 | 🟢 | `flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:94` | T02 提取器引入未用局部量 `sev summ`（SC2034×2 · 全文件 0 引用） | 删两变量（一行） |
+<!-- 2026-09-06 ↑ -->
 <!-- 2026-08-03 Full Sweep ↓ -->
 | 2026-08-03 | 🔴 | `flow-kit-bundle/lib/install_hooks.sh:97` | **install_hooks.sh:97 user-scope 回归**：commit `0c79f1c`（双平台拆分）把 `"$project/.claude/stop-hook.json"` 改为 `"${project}/${PROJECT_DIR_NAME}/stop-hook.json"` 但未处理直接 source 路径（PROJECT_DIR_NAME 仅 `lib/paths.sh` 定义 · 仅 install.sh 主入口 source）。单元测试和 `--user` 直调不 source paths.sh → `set -u` exit 1。症状：4 bats fail + `--user` 安装链路断 + 副作用阻断 runtime-edit-guard.sh 安装（L177-183 位于 L97 之后，永不执行）。 | **已修复**（`health-fix-2026-08` · Fix A paths.sh 自加载守卫 · 非 scope guard — DESIGN L2 审查确认 stop-hook.json 在 user-scope 是运行时回退依赖 `common.sh:107-108`，移除致 module_enabled 恒 false）。修复后 692/0 测试通过，评分 89→≥98。 |
 | 2026-08-03 | 🟢 | 5 个 Bash 文件（jscpd 检测） | **Bash 样板代码相似率 0.37%**（vs 上次 0.43% · 略降）。5 处克隆均为 6-11 行的 shebang + source 初始化段。TD-008/017/018 拆分未引入新重复。 | 不处理。沿用 2026-07-25 决议。 |
