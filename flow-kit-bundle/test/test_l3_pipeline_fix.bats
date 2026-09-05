@@ -562,3 +562,51 @@ _build_phase7_tree() {
   [ ! -f "$HOME/.claude/hooks/stop/lib/l3-prompt.sh" ] || \
     cmp -s flow-kit-bundle/hooks/stop/lib/l3-prompt.sh "$HOME/.claude/hooks/stop/lib/l3-prompt.sh"
 }
+
+@test "T05fix: AC-4 quota ② response essentials <=200B and ③ total variable content <=800B" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootQ" active)
+  {
+    echo "# 独立审查 · 阶段 7"; echo "## L2 盲审"
+    local i
+    for i in $(seq 1 30); do
+      echo "### 🔴 R$i · 主题：发现编号$i 占位描述文字用于撑满六百字节配额的溢出折叠场景"
+      echo '**Severity**：🔴 Critical'
+      echo "**Symptom（症状）**：src/z$i.py:1 占位"
+    done
+    echo "## 主 agent 响应"
+    for i in $(seq 1 12); do
+      echo "- **R$i** — Fixed in: src/fix$i-file-with-a-rather-long-name-here.py 补充说明文字第$i条"
+    done
+  } > "$spec/INDEPENDENT-REVIEW-7.md"
+  local out rc fc total
+  out="$(_l3_inject_context 7 "$spec")"
+  rc=$(printf '%s\n' "$out" | grep '^主 agent 响应要点：' | sed 's/^主 agent 响应要点：//' | LC_ALL=C awk '{s+=length($0)} END{print s+0}')
+  [ "$rc" -le 200 ]
+  fc=$(printf '%s\n' "$out" | grep -E '^(critical|major)\|' | LC_ALL=C awk '{s+=length($0)} END{print s+0}')
+  total=$((fc + rc))
+  [ "$total" -le 800 ]
+  printf '%s\n' "$out" | grep -qF '(+'
+}
+
+@test "T06fix: L2 R1 - line cap truncation respects UTF-8 boundary" {
+  source "$L3_REVIEW_SH" 2>/dev/null || true
+  local spec=$(_build_phase7_tree "$TEST_TMPDIR/rootU8" active)
+  # 单条 critical 行 >200B，且第 197/198 字节边界落在 CJK 多字节字符内部
+  local pad pad2 line
+  pad=$(printf 'x%.0s' $(seq 1 100))
+  pad2=$(printf '中%.0s' $(seq 1 40))
+  line="critical|src/a.py|$pad$pad2 占位发现文本继续延长确保超过两百字节"
+  {
+    echo "# 独立审查 · 阶段 7"; echo '## L3 盲审'
+    printf '```json\n{"critical":[{"file":"src/a.py","issue":"%s"}],"major":[],"minor":[],"verdict":"fail","summary":"s"}\n```\n' "$line"
+  } > "$spec/INDEPENDENT-REVIEW-7.md"
+  local out
+  out="$(_l3_inject_context 7 "$spec")"
+  local capped
+  capped=$(printf '%s\n' "$out" | grep '^critical|src/a.py|' | head -1)
+  [ -n "$capped" ]
+  printf '%s' "$capped" | iconv -f utf-8 -o /dev/null   # 非法 UTF-8 → iconv 非零
+  [ "$(printf '%s' "$capped" | LC_ALL=C wc -c)" -le 201 ]   # 200B cap + 省略号（字节语义）
+  case "$capped" in *…) ;; *) fail "missing ellipsis: $capped" ;; esac
+}

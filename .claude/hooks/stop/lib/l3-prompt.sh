@@ -152,7 +152,9 @@ _l3_extract_prior_findings() {
   while IFS= read -r l; do
     [ -z "$l" ] && continue
     if [ "${#l}" -gt 200 ]; then
-      trimmed="${l:0:197}…"
+      # L2 R1（INDEPENDENT-REVIEW-6）：字节切片可切在多字节字符中间产非法 UTF-8，
+      # 复用 D7 流形 helper 做边界回退（仅超长行走此路径，非热路径）
+      trimmed="$(printf '%s' "$l" | _l3_utf8_head_stream 197)…"
     else
       trimmed="$l"
     fi
