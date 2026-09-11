@@ -34,9 +34,10 @@ init_paths  # Sets PROJECT_ROOT, CLAWDE_MD, etc. from CWD
 remind_enabled=$(config_get '.session_start.remind_unreviewed' "true")
 [[ "$remind_enabled" == "true" ]] || exit 0
 
-# ── Check for stop hook report ──────────────────────────────────────
-report_file="${PROJECT_ROOT}/$(config_get '.output.report_file' '.claude/stop-hook-report.md')"
-suggestions_file="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' '.claude/stop-hook-suggestions.md')"
+# ── Check for stop hook report (runtime-aware output dir · dsh-flow-kit) ──
+output_dir="$(fk_runtime_config_dir 2>/dev/null || echo .claude)"
+report_file="${PROJECT_ROOT}/$(config_get '.output.report_file' "${output_dir}/stop-hook-report.md")"
+suggestions_file="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' "${output_dir}/stop-hook-suggestions.md")"
 
 has_report=false
 has_suggestions=false

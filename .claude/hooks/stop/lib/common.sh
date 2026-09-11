@@ -4,6 +4,18 @@
 
 set -euo pipefail
 
+# ── Runtime adapter (platform decoupling · dsh-flow-kit) ─────────────
+# Single source for dsh|opencode|claude detection and path defaults.
+# Pure function definitions only — source-safe for every hook.
+# shellcheck source=/dev/null
+# 注意：必须用 BASH_SOURCE[0]（common.sh 自身位置）定位，而不是调用方可能
+# 已设为 session-start/ 的 HOOK_BASE_DIR（stop-report-reminder.sh 的调用形态）。
+_RUNTIME_ADAPTER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/runtime-adapter.sh"
+if [ -f "$_RUNTIME_ADAPTER" ]; then
+  source "$_RUNTIME_ADAPTER"
+fi
+unset _RUNTIME_ADAPTER
+
 # ── Config ──────────────────────────────────────────────────────────
 # CONFIG_FILE is resolved in init_paths() because it depends on PROJECT_ROOT.
 # Override via env var STOP_HOOK_CONFIG before sourcing; default: <project>/.claude/stop-hook.json
@@ -98,28 +110,40 @@ hook_init() {
 # ── Path initialization (call after hook_init) ───────────────────────
 # Paths that depend on CWD from stdin must be set after hook_init
 init_paths() {
-  PROJECT_ROOT="${CWD:-$PWD}"
+  # FLOW_KIT_PROJECT_DIR is the platform-agnostic override (dsh plugin sets it);
+  # CWD comes from the synthesized hook event on stdin. Legacy claude fallback
+  # keeps identical behavior when neither is set.
+  PROJECT_ROOT="${FLOW_KIT_PROJECT_DIR:-${CWD:-$PWD}}"
+
+  # Runtime-aware config directory: .flow-kit (dsh) | .claude (claude/opencode
+  # compatibility). FLOW_KIT_CONFIG_DIR lets a host pin an explicit override.
+  local config_dir runtime_home
+  config_dir="${FLOW_KIT_CONFIG_DIR:-$(fk_runtime_config_dir)}"
+  runtime_home="$(fk_runtime_home_dir)"
 
   # Derive CONFIG_FILE: env override > project-level > user-scope fallback
   # (gate-integrity dogfood: 项目级缺失时回退 user-scope，否则全局 enabled=true 未被读 → module_enabled 恒 false)
   if [[ -z "${CONFIG_FILE:-}" ]]; then
-    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/.claude/stop-hook.json}"
-    if [[ ! -f "$CONFIG_FILE" && -f "${HOME}/.claude/stop-hook.json" ]]; then
-      CONFIG_FILE="${HOME}/.claude/stop-hook.json"
+    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/${config_dir}/stop-hook.json}"
+    if [[ ! -f "$CONFIG_FILE" && -f "${runtime_home}/stop-hook.json" ]]; then
+      CONFIG_FILE="${runtime_home}/stop-hook.json"
     fi
   fi
 
-  CLAWDE_MD="${PROJECT_ROOT}/CLAUDE.md"
+  # Variable name kept for downstream-module compatibility; the path is
+  # runtime-aware (AGENTS.md on dsh, CLAUDE.md on claude/opencode).
+  CLAWDE_MD="${PROJECT_ROOT}/$(fk_runtime_md_file)"
 
-  # Derive memory dir from PROJECT_ROOT (Claude Code convention: / → -)
-  local project_slug
-  project_slug=$(echo "${PROJECT_ROOT}" | tr '/' '-')
-  MEMORY_DIR="${HOME}/.claude/projects${project_slug}/memory"
+  # Derive memory dir from PROJECT_ROOT (runtime-aware: ~/.dsh/projects… on dsh,
+  # legacy ~/.claude/projects… otherwise; / → - slug convention unchanged).
+  MEMORY_DIR="$(fk_runtime_memory_dir "$PROJECT_ROOT")"
   MEMORY_INDEX="${MEMORY_DIR}/MEMORY.md"
 
-  REPORT_FILE="${PROJECT_ROOT}/$(config_get '.output.report_file' '.claude/stop-hook-report.md')"
-  SUGGESTIONS_FILE="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' '.claude/stop-hook-suggestions.md')"
-  STATE_FILE="${PROJECT_ROOT}/.claude/stop-hook-state.json"
+  local output_default
+  output_default="${config_dir}/stop-hook-report.md"
+  REPORT_FILE="${PROJECT_ROOT}/$(config_get '.output.report_file' "$output_default")"
+  SUGGESTIONS_FILE="${PROJECT_ROOT}/$(config_get '.output.suggestions_file' "${config_dir}/stop-hook-suggestions.md")"
+  STATE_FILE="${PROJECT_ROOT}/${config_dir}/stop-hook-state.json"
 
   export PROJECT_ROOT CONFIG_FILE CLAWDE_MD MEMORY_DIR MEMORY_INDEX
   export REPORT_FILE SUGGESTIONS_FILE STATE_FILE
@@ -172,31 +196,6 @@ git_safe() {
   fi
 }
 
-# ── CLI detection patterns ──────────────────────────────────────────
-# Common CLI command prefixes to detect in transcripts
-CLI_PATTERNS=(
-  'pnpm run \|pnpm exec \|pnpm test\|pnpm build\|pnpm dev'
-  'bun run \|bun test\|bun build'
-  'npm run \|npm test\|npm install\|npm ci'
-  './container/build.sh\|docker build\|docker run'
-  'systemctl --user\|launchctl'
-  'ncl '
-  'onecli '
-  'rtk '
-)
-
-# ── Gotcha detection patterns ───────────────────────────────────────
-GOTCHA_PATTERNS=(
-  'gotcha\|GOTCHA'
-  '注意\|小心\|陷阱\|坑'
-  '教训\|经验\|经验教训'
-  '⚠️\|🚨\|❗\|❌\|💀'
-  'never do\|don'"'"'t ever\|avoid\|禁止\|严禁'
-  '下次一定\|以后要\|以后不\|记住\|记下来'
-  '这不工作\|不生效\|silently\|悄无声息'
-  '意外\|出乎意料\|没想到'
-)
-
 # ── Project paths (set by init_paths() after hook_init) ──────────────
 : "${PROJECT_ROOT:=}"
 : "${CLAWDE_MD:=}"
@@ -240,8 +239,12 @@ fk_resolve_phase() {
 # l2-l3-model-config (ADR-012, supersedes ADR-006)
 # Resolve the review model name for a layer via priority chain (each tier:
 # first non-empty wins, stop):
-#   L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .flow-active.goal.l3_model > ""
-#   L2: ANTHROPIC_L2_MODEL             > FLOW_KIT_L2_MODEL > .flow-active.goal.l2_model > ""
+#   L3: ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > .flow-active.goal.l3_model
+#       > FLOW_KIT_L3_DEFAULT_MODEL > .flow-active.goal.l3_default_model（站点级默认，/flow model l3-default=）
+#   L2: ANTHROPIC_L2_MODEL             > FLOW_KIT_L2_MODEL > .flow-active.goal.l2_model
+#       > FLOW_KIT_L2_DEFAULT_MODEL > .flow-active.goal.l2_default_model（站点级默认，/flow model l2-default=）
+#   设计：显式配置（前三级）永远压过默认级；默认级只在无显式模型时兜底，
+#   凭证仍由 fk_resolve_api_credentials 独立判定——默认模型不改变无凭证跳过语义。
 # Usage: model=$(fk_resolve_model "L3")  or  model=$(fk_resolve_model "L2")
 # Pure query: writes nothing, calls no API, returns 0 always.
 # Empty stdout = all sources unconfigured → caller handles graceful degradation.
@@ -254,19 +257,109 @@ fk_resolve_model() {
     model="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
     [[ -n "$model" ]] || model="${FLOW_KIT_L3_MODEL:-}"
     [[ -n "$model" ]] || model=$(jq -r '.goal.l3_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+    [[ -n "$model" ]] || model="${FLOW_KIT_L3_DEFAULT_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l3_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
   elif [[ "$layer" == "L2" ]]; then
     model="${ANTHROPIC_L2_MODEL:-}"
     [[ -n "$model" ]] || model="${FLOW_KIT_L2_MODEL:-}"
     [[ -n "$model" ]] || model=$(jq -r '.goal.l2_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+    [[ -n "$model" ]] || model="${FLOW_KIT_L2_DEFAULT_MODEL:-}"
+    [[ -n "$model" ]] || model=$(jq -r '.goal.l2_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
   fi
 
   echo "$model"
+}
+
+# ── fk_resolve_api_credentials() · 多平台 L3 凭证解析（DESIGN D1 · l2l3-cross-platform + dsh）──
+# 三 Path 优先级链（命中即停，短路语义；Path1/Path3 相对顺序随平台翻转 —— T01-rev）：
+#   claude code（fk_platform_prefers_flowkit_credentials 假）: Path1 > Path3 > Path2（零回归）
+#     Path1: ANTHROPIC_AUTH_TOKEN → bearer（claude code 原生主路径，零回归）
+#   opencode / dsh（fk_platform_prefers_flowkit_credentials 真）: Path3 > Path1 > Path2
+#     Path3: FLOW_KIT_L3_AUTH_TOKEN + FLOW_KIT_L3_BASE_URL → bearer（平台一等路径，短路 Path2）
+#   Path2: ANTHROPIC_API_KEY → x-api-key（legacy 兜底，仅当 Path1/3 全空，端点 api.anthropic.com）
+# 输出（全局，调用方读这三个全局，不重读 env）：
+#   FK_API_BASE_URL / FK_API_AUTH_TOKEN / FK_API_AUTH_SCHEME（bearer | x-api-key）
+# rc 语义：0=凭证就绪 / 1=无任何凭证 / 2=Path3 配置不完整（token 已设但 base_url 空 → stderr 报错，禁止静默落 Path2）
+# AC-6 红线：凭证完整名/值绝不落盘——本函数不 echo 凭证到 stdout，只写全局变量；
+# stderr 提示只含 env 变量名（不含值），调用方可据此记录 credential source（env|flow-kit）。
+# 所有 env 用 ${VAR:-} 读取（set -u 兼容）。
+# 私有辅助（_fk_api_* 前缀 · 文件内可见 · 公共签名不变）：
+#   _fk_api_try_path1 / _fk_api_try_path3 — Path 命中判定（设置 FK_API_* 全局后 return 0；
+#     未命中 return 1；Path3 token 有 base_url 空 → stderr 报错 + 清空全局 + return 2）
+#   _fk_api_clear_outputs — 清空 FK_API_* 三全局（rc=2 / rc=1 分支复用）
+_fk_api_try_path1() {
+  [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ] || return 1
+  FK_API_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN}"
+  FK_API_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+  FK_API_AUTH_SCHEME="bearer"
+  return 0
+}
+
+_fk_api_try_path3() {
+  [ -n "${FLOW_KIT_L3_AUTH_TOKEN:-}" ] || return 1
+  if [ -n "${FLOW_KIT_L3_BASE_URL:-}" ]; then
+    FK_API_AUTH_TOKEN="${FLOW_KIT_L3_AUTH_TOKEN}"
+    FK_API_BASE_URL="${FLOW_KIT_L3_BASE_URL}"
+    FK_API_AUTH_SCHEME="bearer"
+    return 0
+  fi
+  echo "fk_resolve_api_credentials: FLOW_KIT_L3_AUTH_TOKEN 已设但 FLOW_KIT_L3_BASE_URL 为空（Path3 配置不完整，rc=2）" >&2
+  _fk_api_clear_outputs
+  return 2
+}
+
+_fk_api_clear_outputs() {
+  FK_API_AUTH_TOKEN=""
+  FK_API_BASE_URL=""
+  FK_API_AUTH_SCHEME=""
+}
+
+fk_resolve_api_credentials() {
+  # 平台感知优先级（DESIGN D1 · F-B 修订）：两平台仅 Path1/Path3 相对顺序不同；
+  # 公共规则（Path1/3 任一命中短路 Path2；Path3 配置不完整 rc=2 禁落 Path2；Path2 仅当 Path1/3 全空）一致。
+  if fk_platform_prefers_flowkit_credentials; then
+    # ── opencode / dsh 平台: Path3 > Path1 > Path2（残留 ANTHROPIC_AUTH_TOKEN 不压制 FLOW_KIT_L3_*）──
+    _fk_api_try_path3 && return 0
+    [ "$?" -eq 2 ] && return 2
+    _fk_api_try_path1 && return 0
+  else
+    # ── claude code 平台: Path1 > Path3 > Path2（零回归）──
+    _fk_api_try_path1 && return 0
+    _fk_api_try_path3 && return 0
+    [ "$?" -eq 2 ] && return 2
+  fi
+
+  # Path2: legacy 兜底（ANTHROPIC_API_KEY，两平台共享 · 仅当 Path1/3 全空）
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
+    FK_API_AUTH_TOKEN="${ANTHROPIC_API_KEY}"
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
+    FK_API_BASE_URL="https://api.anthropic.com"
+    # shellcheck disable=SC2034  # 全局：l3-api.sh 跨文件消费
+    FK_API_AUTH_SCHEME="x-api-key"
+    return 0
+  fi
+
+  # 全空 → rc=1，清空全局
+  _fk_api_clear_outputs
+  return 1
+}
+
+# ── fk_platform_is_opencode() · 多平台检测（DESIGN D2 · l2l3-cross-platform + dsh）──
+# Delegates to runtime-adapter.sh: FLOW_KIT_RUNTIME explicit > OPENCODE_BIN /
+# OPENCODE signals > claude default. dsh 通过 FLOW_KIT_RUNTIME=dsh 进入
+# fk_platform_is_dsh 分支，opencode 信号语义保持不变（零回归）。
+# 纯查询零副作用：不写全局、不落盘、不调用外部命令。
+# 用法: if fk_platform_is_opencode; then ...; fi  （返回 0=opencode / 1=非 opencode）
+fk_platform_is_opencode() {
+  [ "$(fk_runtime_detect)" = "opencode" ]
 }
 
 # ── Hook module registry (single source of truth) ────────────────────
 # All consumers iterate: for name in "${HOOK_MODULE_NAMES[@]}"; do ...
 # Single source for install_hooks.sh, package-flow-kit.sh, and any
 # future script that needs to enumerate all stop hook modules.
+# shellcheck disable=SC2034  # 跨文件单一源：install_hooks.sh / package-flow-kit.sh 枚举消费
 declare -a HOOK_MODULE_NAMES=(
   00-gate 01-transcript-parse
   20-claude-md 21-memory 22-git 23-quality 24-session 25-project
@@ -318,6 +411,7 @@ fk_normalize_gate_val() {
 # context_window 默认 100000，可通过 FK_CONTEXT_WINDOW 环境变量覆盖
 fk_estimate_tokens() {
   local text="${1:-}"
+  # shellcheck disable=SC2034  # 接口参数保留：FK_CONTEXT_WINDOW 由 l3-prompt.sh 消费 + test_common.bats 覆盖
   local context_window="${2:-${FK_CONTEXT_WINDOW:-100000}}"
   local char_count=${#text}
   local estimated=$(( char_count / 2 ))

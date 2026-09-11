@@ -55,9 +55,6 @@ check_b1_body() {
 # ═══════════════════════════════════════════════════════════════════
 check_b2_body() {
 
-  # Load known discipline rules from memory files
-  local violations=()
-
   # Rule: full test discipline — if src/*.ts changed but no tests ran
   if grep -q "全量测试" "$MEMORY_INDEX" 2>/dev/null; then
     local src_touched tests_ran
