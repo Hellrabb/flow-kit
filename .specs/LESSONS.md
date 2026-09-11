@@ -711,3 +711,6 @@
 | L-087 | 🟢 | 本仓 bats 风格 | 既有用例用 `sed -n '/case "$phase" in/,/esac/p'` 提取 case 块做断言锚——被测代码引入**嵌套 case** 时 sed 在首个 esac 截断提取范围 → 断言拿残块报红（T04 fix_round 实际发生） | 同构逻辑改 if/else（T04 实际修法）；或新写测试锚定输出行为而非源码文本结构 | ✅ 已吸收 | l3-prompt-loop-fix T04 fix_round |
 | L-088 | 🟢 | 全局（hook 运维） | 手动直跑 stop-hook 模块（如 29 号）零产出根因：`config_get` 的 CONFIG_FILE 为空串（直跑不经 00-gate.sh:17 的 init_paths 导出链）→ 模块判 disabled 静默 exit 0。opencode 下 settings.json .env 段的 ANTHROPIC_* 也不注入子进程 | 手动配方：export PROJECT_ROOT + CONFIG_FILE（+ HOOK_TMP_DIR），凭证从 `jq '.env' ~/.claude/settings.json` 读出注入 env；bash -x 追踪定位此类「静默跳过」 | ✅ 已吸收 | l3-prompt-loop-fix L3 手动触发调查 |
 <!-- l3-prompt-loop-fix 追加 ↑ -->
+<!-- test-env-isolation 追加 ↓ -->
+| L-089 | 🟡 | 本仓 bats 套件 | 断言「默认值 / 全空」的用例继承宿主 shell 的站点级配置（`~/.bashrc` export 的 FLOW_KIT_L3_MAX_TOKENS / FLOW_KIT_L3_TIMEOUT / FLOW_KIT_L2|L3_DEFAULT_MODEL）→ 在配过站点级默认的机器上 6 例假失败、pre-push `make check` 红、push 被门禁拒绝（被测代码零缺陷）。两处漏网形态：① test_l3_review_params 默认值断言未 unset 三个调优 env；② test_model_degradation 的 `_clear_model_env` 只 unset 显式配置级 4 项，漏 fk_resolve_model 第 4/5 级站点默认 2 项 | 断言默认值的用例必须在 setup/helper 显式 unset 该契约的**全部 env 级**（模型解析含第 4/5 级站点默认）；验证手法是「把宿主污染值注回 env 跑全量套件」，干净 env 复跑绿不构成证据 | ✅ 已吸收 | 2026-09-06 develop push 被 pre-push 门禁拒绝调查（4 文件 16 行 · 污染 env 下 803/0） |
+<!-- test-env-isolation 追加 ↑ -->

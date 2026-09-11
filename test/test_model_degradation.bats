@@ -25,7 +25,10 @@ teardown() {
 }
 
 _clear_model_env() {
+  # 前 4 项 = 显式配置级；后 2 项 = 站点级默认级（fk_resolve_model 第 4/5 级，~/.bashrc 常 export）
+  # 漏 unset 后两项 → 「全空」前置条件在开发者机器上不成立（与 test_fk_resolve_model.bats setup 同口径）
   unset ANTHROPIC_DEFAULT_HAIKU_MODEL FLOW_KIT_L3_MODEL ANTHROPIC_L2_MODEL FLOW_KIT_L2_MODEL
+  unset FLOW_KIT_L3_DEFAULT_MODEL FLOW_KIT_L2_DEFAULT_MODEL
 }
 
 # ── 降级机制（fk_resolve_model 空 → correction type 标记）──
