@@ -82,9 +82,6 @@ _fk_check_g1_body() {
   if [[ "$change_id" != "none" && "$change_id" != "?" && "$goal_scope" != "pipeline" ]]; then
     if command -v fk_auto_phase &>/dev/null; then
       next_phase=$(fk_auto_phase "$change_id" "$phase" 2>/dev/null) || true
-      # fk_auto_phase may output info messages to stderr — capture those
-      local auto_hint
-      auto_hint=$(fk_auto_phase "$change_id" "$phase" 2>&1 1>/dev/null) || true
     fi
   fi
 
@@ -92,7 +89,6 @@ _fk_check_g1_body() {
   local hint=""
   if [[ -n "$next_phase" ]]; then
     # Auto-advance possible
-    local old_phase="$phase"
     jq ".phase = \"$next_phase\" | .updated_at = \"$(date -Iseconds)\"" \
       "$flow_file" > "${flow_file}.tmp" && mv "${flow_file}.tmp" "$flow_file"
     module_output "info" "G1" "${status_line} → 自动推进到 phase ${next_phase}（检测到条件满足）"
@@ -152,7 +148,7 @@ _fk_check_g2_body() {
       [[ -z "$f" ]] && continue
       # Skip files inside node_modules or .git
       case "$f" in
-        */node_modules/*|*/.git/*|*/.claude/worktrees/*) continue ;;
+        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/.flow-kit/worktrees/*) continue ;;
       esac
       stash_files+=("$f")
     done < <(find "$PROJECT_ROOT" -maxdepth 3 -name "$pat" -type f 2>/dev/null | head -10)
@@ -186,7 +182,7 @@ _fk_check_g3_body() {
     while IFS= read -r f; do
       [[ -z "$f" ]] && continue
       case "$f" in
-        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/ARCHITECTURE.md|*/SPEC.md) continue ;;
+        */node_modules/*|*/.git/*|*/.claude/worktrees/*|*/.flow-kit/worktrees/*|*/ARCHITECTURE.md|*/SPEC.md) continue ;;
       esac
 
       local age
@@ -211,7 +207,8 @@ ${file_list}
 # ═══════════════════════════════════════════════════════════════════════
 _fk_check_g4_body() {
 
-  local pua_dir="${HOME}/.claude/pua"
+  local pua_dir
+  pua_dir="$(fk_runtime_home_dir 2>/dev/null || echo "$HOME/.claude")/pua"
   if [[ ! -d "$pua_dir" ]]; then
     return 0
   fi

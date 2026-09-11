@@ -34,9 +34,6 @@ L1_RULE_PATTERNS=(
   '必须.*(grep|read|验证).*(存在|真实)'
 )
 
-# L2: PCSC self-check table row pattern — must match | # | ... | ✅ / ❌ |
-L2_TABLE_ROW_PATTERN='^\| [0-9]+\s*\|.*\| ✅ / ❌ \|'
-
 # L3: Known directory prefixes for path extraction (avoids false positives)
 L3_PATH_PREFIXES=(
   'flow-kit/'
@@ -47,7 +44,9 @@ L3_PATH_PREFIXES=(
   'lib/'
   'hooks/'
   '~/.claude/'
+  '~/.dsh/'
   '\.claude/'
+  '\.flow-kit/'
 )
 
 # ── Correction file management ─────────────────────────────────────────

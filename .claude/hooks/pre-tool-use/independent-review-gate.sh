@@ -64,6 +64,14 @@ _run_review_gates() {
   [ -f "$flow_file" ] || exit 0
   jq empty "$flow_file" 2>/dev/null || exit 0
 
+  # Runtime decoupling (dsh-flow-kit): PreToolUse hooks never call init_paths(),
+  # so PROJECT_ROOT (used by fk_resolve_phase and the gate libs) must be pinned
+  # to the cwd carried by the synthesized stdin event. Stop hooks already set it
+  # via init_paths(). This also fixes the Claude Code path when the host does
+  # not export PROJECT_ROOT into hook subprocesses.
+  PROJECT_ROOT="$cwd"
+  export PROJECT_ROOT
+
   # Gate 1: path-guard (D7 · fail-open)
   _gate_path_guard "$tool_name" "$file_path" "$cmd" || exit 2
 

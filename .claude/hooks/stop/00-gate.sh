@@ -63,7 +63,7 @@ export STOP_COUNT=$count
 # Exit codes from modules are non-fatal — report generation always runs.
 
 run_module() {
-  local script="$1" name="$2"
+  local script="$1"
   if [[ ! -x "$script" ]]; then
     chmod +x "$script" 2>/dev/null || true
   fi

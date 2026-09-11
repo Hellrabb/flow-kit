@@ -20,6 +20,8 @@
 #   ANTHROPIC_AUTH_TOKEN — 鉴权 token (env-var-first, 优先)
 #   ANTHROPIC_API_KEY    — 鉴权 key (向后兼容)
 #   ANTHROPIC_DEFAULT_HAIKU_MODEL — L3 审查模型 (默认 deepseek-v4-flash)
+#   FLOW_KIT_L3_BASE_URL   — L3 API endpoint（opencode 平台路径 · hook 子进程继承启动 env）
+#   FLOW_KIT_L3_AUTH_TOKEN — L3 鉴权 token（opencode 平台路径 · 凭证不落盘）
 #
 # 子模块（按依赖顺序 source）:
 #   l3-truncate.sh  — _l3_check_rerun
@@ -44,13 +46,46 @@ unset _l3r_dir
 l3_review_run() {
   local phase="$1" change_id="$2" artifacts_dir="$3" l2_verdict="$4"
   local gate_config_value="${5:-both}"
-  local max_chars="${L3_MAX_ARTIFACT_CHARS:-20000}"
+  # artifact cap 解析链（P0-2 修复 · 2026-09-11）：① 调用方从 stop-hook.json 导出的
+  # FLOW_KIT_L3_MAX_ARTIFACT_CHARS ② 历史直调/手工 export 的 L3_MAX_ARTIFACT_CHARS
+  # ③ 20000 兜底。修复前 29 号读了 independent_review.max_artifact_chars 但从未传入本函数，
+  # 项目级覆盖被静默丢弃（REQUIREMENT.md 被截到 20K 引发"NFR 缺失"假阳性的直接来源）。
+  local max_chars="${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}"
+  # 熔断阈值（P0-1 修复 · 2026-09-11）：0 = 关闭熔断（旧行为）
+  local max_fail_count="${FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS:-0}"
 
   # 参数校验
   [[ "$phase" =~ ^[1-7]$ ]] || { echo "[l3-review] invalid phase: $phase" >&2; return 3; }
   [ -n "$change_id" ] || { echo "[l3-review] missing change_id" >&2; return 3; }
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
   [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
+  [[ "$max_chars" =~ ^[1-9][0-9]*$ ]] || max_chars=20000
+  [[ "$max_fail_count" =~ ^[0-9]+$ ]] || max_fail_count=0
+
+  # ── 熔断（P0-1 修复 · 2026-09-11）────────────────────────────────────────
+  # 修复前 max_failures_before_bypass 只被 29 号读进变量、全文零引用，L3 一旦不通过
+  # 就永不写 .done，"修一轮→hash 变→再调模型→再 fail" 无界循环（9/10 轮不收敛的机制成因）。
+  # 计数落盘：L3 段按设计只保留最后 1 段（l3-api.sh 的 awk 去重），无法从 review 文件回推轮次，
+  # 故用旁路计数器 `.l3-attempts-<phase>`；pass/熔断后清零。
+  local _attempts_file="${artifacts_dir}/.l3-attempts-${phase}"
+  if [ "$max_fail_count" -gt 0 ]; then
+    # 已有 .done → 该阶段已结案，清计数并短路，避免重复调用模型
+    if [ -f "${artifacts_dir}/.independent-review-${phase}.done" ]; then
+      rm -f "$_attempts_file" 2>/dev/null || true
+      echo "[l3-review] phase ${phase} already has .done — skip (no model call)" >&2
+      return 0
+    fi
+    local _seen=0
+    [ -f "$_attempts_file" ] && _seen=$(tr -dc '0-9' < "$_attempts_file" 2>/dev/null || echo 0)
+    [[ "$_seen" =~ ^[0-9]+$ ]] || _seen=0
+    if [ "$_seen" -ge "$max_fail_count" ]; then
+      l3_write_bypass_done "$phase" "$change_id" "$artifacts_dir" "$l2_verdict" \
+        "$gate_config_value" "$max_fail_count" || return 3
+      rm -f "$_attempts_file" 2>/dev/null || true
+      echo "[l3-review] bypass threshold reached (phase ${phase}: ${_seen}/${max_fail_count}) — .done written (L3_verdict=skipped)" >&2
+      return 0
+    fi
+  fi
 
   # 模型选择 — 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）
   type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
@@ -126,8 +161,19 @@ l3_review_run() {
 
   # 返回 verdict 对应的 exit code
   case "$l3_verdict" in
-    pass) return 0 ;;
-    fail) return 1 ;;
+    pass)
+      # pass → 清熔断计数（P0-1）
+      rm -f "${artifacts_dir}/.l3-attempts-${phase}" 2>/dev/null || true
+      return 0 ;;
+    fail)
+      # fail → 累加熔断计数（P0-1）；仅在启用熔断时落盘
+      if [ "$max_fail_count" -gt 0 ]; then
+        local _n=0
+        [ -f "$_attempts_file" ] && _n=$(tr -dc '0-9' < "$_attempts_file" 2>/dev/null || echo 0)
+        [[ "$_n" =~ ^[0-9]+$ ]] || _n=0
+        echo "$((_n + 1))" > "$_attempts_file" 2>/dev/null || true
+      fi
+      return 1 ;;
     *)    return 3 ;;
   esac
 }
@@ -204,34 +250,39 @@ l3_dispatch_prompt() {
 ╔══════════════════════════════════════════════════════════════╗
 ║  ⚠️ L3 外部模型审查未完成（阶段 ${phase} · gate_config=${gate_val}） ║
 ║                                                              ║
-║  L3 不走同步超时（30s 不够外部模型响应）。                     ║
-║  请异步派发 L3 审查：                                          ║
+║  L3 不走同步超时（30s 不够外部模型响应）。                   ║
+║  请异步派发 L3 审查：                                        ║
 ║                                                              ║
-║  方式 1 — 子 agent（推荐，非阻塞）：                            ║
-║    Agent({                                                    ║
-║      subagent_type: "general-purpose",                        ║
-║      description: "L3 external review phase ${phase}",                 ║
-║      prompt: "运行 L3 独立审查:                                 ║
-║        source flow-kit-bundle/hooks/stop/lib/l3-review.sh      ║
-║        l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}   ║
-║        返回 verdict 和 summary"                                ║
-║    })                                                         ║
+║  方式 1 — 子 agent（推荐，非阻塞）：                         ║
+║    Agent({                                                   ║
+║      # claude code 平台: subagent_type 路由                  ║
+║      subagent_type: "general-purpose",                       ║
+║      # opencode 平台: task(category=...) 路由                ║
+║      category: "unspecified-high",                           ║
+║      description: "L3 external review phase ${phase}",       ║
+║      prompt: "运行 L3 独立审查:                              ║
+║      source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \ ║
+║        l3_review_run ${phase} ${change_id} ${specs_dir} \    ║
+║                      ${l2v} ${gate_val}                      ║
+║      返回 verdict 和 summary"                                ║
+║    })                                                        ║
 ║                                                              ║
-║  方式 2 — 直接 bash（阻塞但可控）：                              ║
-║    source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \     ║
-║    l3_review_run ${phase} ${change_id} ${specs_dir} ${l2v} ${gate_val}        ║
+║  方式 2 — 直接 bash（阻塞但可控）：                          ║
+║    source flow-kit-bundle/hooks/stop/lib/l3-review.sh && \   ║
+║    l3_review_run ${phase} ${change_id} ${specs_dir} \        ║
+║                  ${l2v} ${gate_val}                          ║
 ║                                                              ║
-║  参数说明:                                                     ║
-║    phase=${phase}  change_id=${change_id}                          ║
-║    specs_dir=${specs_dir}             ║
-║    L2_verdict=${l2v}  gate_config=${gate_val}                            ║
-║    artifacts: ${artifact_desc}        ║
+║  参数说明:                                                   ║
+║    phase=${phase}   change_id=${change_id}                   ║
+║    specs_dir=${specs_dir}                                    ║
+║    L2_verdict=${l2v}   gate_config=${gate_val}               ║
+║    artifacts: ${artifact_desc}                               ║
 ║                                                              ║
-║  完成后写入:                                                   ║
-║    .specs/${change_id}/.independent-review-${phase}.done             ║
-║    .specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md (追加 L3 段)   ║
+║  完成后写入:                                                 ║
+║    .specs/${change_id}/.independent-review-${phase}.done     ║
+║    INDEPENDENT-REVIEW-${phase}.md（追加 L3 段）              ║
 ║                                                              ║
-║  重试: L3 完成后重新执行 phase transition 即可放行。            ║
+║  重试: L3 完成后重新执行 phase transition 即可放行。         ║
 ╚══════════════════════════════════════════════════════════════╝
 DISPATCH_EOF
 

@@ -224,8 +224,7 @@ fk_fix_compliance_check() {
   fi
 
   # ── ② AC-2 纯文档响应检测 ──
-  local doc_result
-  doc_result=$(fk_check_doc_only_diff "$project_root" 2>/dev/null) || {
+  fk_check_doc_only_diff "$project_root" 2>/dev/null || {
     local ret=$?
     cat >&2 <<EOF
 ⛔ 独立 review 实效性校验（AC-2）：检测到纯文档响应。

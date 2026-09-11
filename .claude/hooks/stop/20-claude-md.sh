@@ -14,6 +14,9 @@ declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "20" || 
 module_enabled "claude-md" || exit 0
 [[ -f "$CLAWDE_MD" ]] || exit 0
 
+# Runtime-aware label: AGENTS.md on dsh, CLAUDE.md on claude/opencode.
+MD_NAME="$(basename "$CLAWDE_MD")"
+
 # ═══════════════════════════════════════════════════════════════════
 # A1: New command / workflow discovery
 # ═══════════════════════════════════════════════════════════════════
@@ -34,7 +37,7 @@ check_a1_body() {
     local base_cmd
     base_cmd=$(echo "$cmd" | grep -oE '^[a-z./-]+ [a-z./-]+' || echo "$cmd")
     if ! grep -qF "$base_cmd" "$CLAWDE_MD" 2>/dev/null; then
-      module_output "suggestion" "A1" "未记录的命令: \`$cmd\` — 建议加入 CLAUDE.md"
+      module_output "suggestion" "A1" "未记录的命令: \`$cmd\` — 建议加入 ${MD_NAME}"
     fi
   done <<< "$new_cmds"
 }
@@ -61,7 +64,7 @@ check_a2_body() {
       module_output "suggestion" "A2" "潜在 gotcha: ...${snippet}..."
       break  # One aggregated suggestion is clearer
     done
-    module_output "info" "A2" "本 session 检测到 $significant 条 gotcha 信号，建议 review 是否需更新 CLAUDE.md"
+    module_output "info" "A2" "本 session 检测到 $significant 条 gotcha 信号，建议 review 是否需更新 ${MD_NAME}"
   fi
 }
 check_a2() { run_check "claude-md" "A2" "" check_a2_body; }
@@ -85,7 +88,7 @@ check_a3_body() {
     local fname
     fname=$(basename "$f")
     if ! grep -qF "$fname" "$CLAWDE_MD" 2>/dev/null; then
-      module_output "suggestion" "A3" "新文件未在 CLAUDE.md 中记录: \`$f\`"
+      module_output "suggestion" "A3" "新文件未在 ${MD_NAME} 中记录: \`$f\`"
     fi
   done <<< "$src_files"
 }
@@ -109,7 +112,7 @@ check_a6_body() {
     local src_files
     src_files=$(get_touched_source_files 2>/dev/null || true)
     if [[ -n "$src_files" ]]; then
-      module_output "warning" "A6" "CLAUDE.md 上次修改距今 ${diff_days} 天，本 session 有源码变更，建议 review"
+      module_output "warning" "A6" "${MD_NAME} 上次修改距今 ${diff_days} 天，本 session 有源码变更，建议 review"
     fi
   fi
 }

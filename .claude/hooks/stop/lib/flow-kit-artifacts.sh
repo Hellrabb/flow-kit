@@ -238,10 +238,10 @@ fk_boundary_check() {
 
   # Get changed files
   local changed
-  changed=$(cd "$PROJECT_ROOT" && git diff --name-only HEAD 2>/dev/null | grep -v '^.specs/' | grep -v '^.claude/' || true)
+  changed=$(cd "$PROJECT_ROOT" && git diff --name-only HEAD 2>/dev/null | grep -v '^.specs/' | grep -v '^.claude/' | grep -v '^.flow-kit/' || true)
   if [[ -z "$changed" ]]; then
     # No uncommitted changes — check staged + unstaged
-    changed=$(cd "$PROJECT_ROOT" && git diff --name-only 2>/dev/null; git diff --name-only --cached 2>/dev/null | sort -u | grep -v '^.specs/' | grep -v '^.claude/' || true)
+    changed=$(cd "$PROJECT_ROOT" && git diff --name-only 2>/dev/null; git diff --name-only --cached 2>/dev/null | sort -u | grep -v '^.specs/' | grep -v '^.claude/' | grep -v '^.flow-kit/' || true)
   fi
   [[ -n "$changed" ]] || return 0
 
@@ -338,12 +338,6 @@ fk_log_progress() {
 | 时间 | Session | Phase | Task | Token |
 |---|---|---|---|---|
 EOF
-  fi
-
-  # Extract a summary of what was done this session from transcript
-  local summary="—"
-  if [[ -f "${HOOK_TMP_DIR}/tool-summary.txt" ]]; then
-    summary=$(head -3 "${HOOK_TMP_DIR}/tool-summary.txt" 2>/dev/null | tr '\n' ' ' | head -c 100 | sed 's/|/;/g' || echo "—")
   fi
 
   local ts

@@ -153,6 +153,13 @@ declare -f fk_perf_timing_start >/dev/null 2>&1 && fk_perf_timing_start "29" || 
 L3_BG_FLAG=""
 [ "${L3_BACKGROUND:-0}" = "1" ] && L3_BG_FLAG="--background"
 
+# ── 把数值配置真正接到 l3_review_run（P0-2 / P0-1 修复 · 2026-09-11）──
+# 修复前：max_chars / max_fail 只在本模块读进局部变量，从未传给 l3_review_run
+# （artifact cap 恒为 20000；熔断全文零引用）→ 项目级配置被静默丢弃、L3 无界循环。
+# 这里按 l3-api.sh 既有的 FLOW_KIT_L3_* env 契约导出（export 跨函数调用生效）。
+export FLOW_KIT_L3_MAX_ARTIFACT_CHARS="$max_chars"
+export FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS="$max_fail"
+
 # ── _l3_scan_backlog() · 积压扫描（l3-pipeline-fix-2026-07 D3）──
 _l3_scan_backlog() {
   local flow_file="$1" spec_dir="$2" l3_lib="$3"

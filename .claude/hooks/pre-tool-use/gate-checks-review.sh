@@ -53,7 +53,8 @@ EOF
   esac
 
   # ── forward transition → resolve gate_config ──
-  local phase_name="$(fk_phase_gate_key "$phase")"
+  local phase_name
+  phase_name="$(fk_phase_gate_key "$phase")"
   local gate_val
   gate_val=$(jq -r --arg pn "$phase_name" '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
   gate_val="$(fk_normalize_gate_val "$gate_val")"
@@ -71,7 +72,8 @@ EOF
 _gate_deny_reason() {
   local cmd="$1" phase="$2" change_id="$3" cwd="$4"
 
-  local phase_name="$(fk_phase_gate_key "$phase")"
+  local phase_name
+  phase_name="$(fk_phase_gate_key "$phase")"
 
   local deny_reason=""
   if is_phase_write "$cmd"; then deny_reason="阶段 ${phase} (${phase_name}) 切换"

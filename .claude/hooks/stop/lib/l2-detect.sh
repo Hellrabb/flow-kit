@@ -7,13 +7,25 @@
 #     返回: 0 = L2 已完成, 1 = L2 缺失, 2 = 错误
 #
 #   l2_dispatch_prompt <phase> <change_id> [specs_dir]
-#     生成一键 Agent 命令模板（含 subagent_type + description + prompt 骨架）
+#     生成一键 Agent 命令模板（双模式：claude code → subagent_type + description + prompt 骨架；
+#     opencode → category: unspecified-high + description + prompt 骨架）
 #     输出到 stdout，可直接复制粘贴
 #
 # 环境依赖:
 #   PROJECT_ROOT — flow-kit 项目根目录
 
 set -euo pipefail
+
+# 依赖注入：common.sh（fk_resolve_api_credentials / fk_platform_is_opencode，DESIGN D1/D2）
+# 调用方（pre-tool-use gate-checks-basic.sh）只 source 本文件；stop 链可能先 source
+# common.sh —— type 检查保证幂等（与 correction-file.sh 注入同惯例）。
+type fk_resolve_api_credentials >/dev/null 2>&1 || {
+  _L2_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+  if [ -n "${_L2_LIB_DIR:-}" ] && [ -f "${_L2_LIB_DIR}/common.sh" ]; then
+    source "${_L2_LIB_DIR}/common.sh"
+  fi
+  unset _L2_LIB_DIR
+}
 
 # fk_extract_l2_verdict — extract L2 verdict from INDEPENDENT-REVIEW-N.md（ADR-007 / D1 · gate-review-fix）
 # Single source for L2 verdict extraction across 4 consumers (4 files).
@@ -95,7 +107,13 @@ l2_dispatch_prompt() {
 ║  请复制以下命令派 L2 子 agent：                             ║
 ║                                                          ║
 ║  Agent tool:                                             ║
-║    subagent_type: ${agent_type}                                   ║
+║    claude code:  subagent_type: ${agent_type}            ║
+║    opencode:     category: unspecified-high              ║
+║                 （task(category=...) 路由，subagent_type ║
+║                  在 opencode 下会挂起）                  ║
+║    dsh:          subagent tool（description="L2 blind   ║
+║                 review phase ${phase}", prompt=注入      ║
+║                 L2-blind-review.md 全文 + 审查参数）      ║
 ║    description: "L2 blind review phase ${phase}"                ║
 ║    prompt: |                                             ║
 ║      原样注入 flow-kit/prompts/independent/L2-blind-review.md  ║
@@ -118,13 +136,14 @@ DISPATCH_EOF
 # ── l2_dispatch_agent() ────────────────────────────────────────────
 # SYNC-POINT: keep aligned with flow-kit/prompts/independent/L2-blind-review.md
 #
-# 自动派发 L2 审查 Agent（curl + Anthropic API + 异步后台进程）。
+# 自动派发 L2 审查 Agent（curl + API + 异步后台进程，凭证经共享函数解析）。
 # 用法: l2_dispatch_agent <phase> <change_id> [specs_dir]
 # 返回: 0 = dispatch 成功触发后台进程, 1 = 失败（curl 不可用/API 不可达/凭证缺失）
 # 环境变量:
 #   FLOW_KIT_L2_MOCK=1 — 跳过真实 API 调用，使用 mock 响应（供 bats 测试用）
-#   ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY — API 鉴权
-#   ANTHROPIC_BASE_URL — API endpoint（默认 https://api.anthropic.com）
+#   凭证来源：fk_resolve_api_credentials()（common.sh，DESIGN D1）→ 输出 FK_API_BASE_URL /
+#     FK_API_AUTH_TOKEN / FK_API_AUTH_SCHEME 全局（Path1 ANTHROPIC_AUTH_TOKEN bearer
+#     > Path3 FLOW_KIT_L3_AUTH_TOKEN+FLOW_KIT_L3_BASE_URL bearer > Path2 ANTHROPIC_API_KEY x-api-key）
 l2_dispatch_agent() {
   local phase="$1"
   local change_id="$2"
@@ -141,7 +160,8 @@ l2_dispatch_agent() {
   if [ "${FLOW_KIT_L2_MOCK:-0}" = "1" ]; then
     local mock_tmp
     mock_tmp="$(mktemp "${review_md}.tmp.XXXXXX")"
-    local mock_ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo mock)"   # 修 BUG-G：mock_ts 原未定义，set -u 下 line120 ${mock_ts} 报错
+    local mock_ts
+    mock_ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo mock)"   # 修 BUG-G：mock_ts 原未定义，set -u 下 line120 ${mock_ts} 报错
     if [ -f "$review_md" ]; then
       cat "$review_md" > "$mock_tmp" 2>/dev/null || true
     fi
@@ -165,28 +185,39 @@ l2_dispatch_agent() {
     return 0
   fi
 
-  # ── 凭证检查 ──────────────────────────────────────────────────
-  # 凭证缺失时给出降级指引，而非静默失败。
-  # 运行时判定：OPENCODE_BIN 是 opencode 运行时显式注入的 env（可靠信号）；
-  # 不用 `command -v opencode` —— 那只证明机器装了 opencode，本机 claude code
-  # 会话同样命中，会拿到对 CC Agent 工具无意义的 category 指引（l2-l3-subagent-fix
-  # 阶段6 L2 盲审 R6）。生产可达场景=claude code PreToolUse hook 链（opencode 下
-  # PreToolUse 结构性不触发，见根因 #1），opencode 场景仅供手动调用或未来桥接插件。
-  local auth_token="${ANTHROPIC_AUTH_TOKEN:-}"
-  local api_key="${ANTHROPIC_API_KEY:-}"
-  if [ -z "$auth_token" ] && [ -z "$api_key" ]; then
+  # ── 凭证检查（共享函数 fk_resolve_api_credentials · DESIGN D1）──
+  # 双平台凭证解析单点（common.sh L266-314）：Path1 ANTHROPIC_AUTH_TOKEN(bearer)
+  # > Path3 FLOW_KIT_L3_AUTH_TOKEN+FLOW_KIT_L3_BASE_URL(bearer, 短路 Path2)
+  # > Path2 ANTHROPIC_API_KEY(x-api-key)。rc: 0=就绪 / 1=无凭证 / 2=Path3 不完整。
+  # 平台判定统一 fk_platform_is_opencode()（D2：OPENCODE_BIN/OPENCODE 任一非空即真）。
+  # opencode 场景生产可达：oh-my-opencode 4.19.4+ 已桥接 PreToolUse（l2-l3-subagent-fix
+  # 阶段6 L2 盲审 R6 已证伪「PreToolUse 不触发」旧假设），两分支均为真实可达路径。
+  # || 条件上下文：rc=1/2 不触发 set -e 提前退出（分支内显式 return）
+  local _cred_rc=0
+  fk_resolve_api_credentials || _cred_rc=$?
+  if [ "$_cred_rc" -eq 1 ]; then
     local _model_hint="或 /flow model l2=<model> 配置持久化兜底"
     local _hint
-    if [ -n "${OPENCODE_BIN:-}" ]; then
-      _hint="opencode 检测到：子 agent 模型绑定走 category 路由，请用 category= 派发（如 unspecified-high）；${_model_hint}"
+    if fk_platform_is_dsh; then
+      _hint="dsh 检测到：请用 subagent tool 派发 L2 盲审（description=L2 blind review，prompt 注入 L2-blind-review.md）；凭证请 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN；${_model_hint}"
+    elif fk_platform_is_opencode; then
+      _hint="opencode 检测到：子 agent 模型绑定走 category 路由，请用 category= 派发（如 unspecified-high）；凭证请 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN；${_model_hint}"
     else
-      # 默认分支：claude code（生产可达主路径）+ opencode 备选（手动调用/未来桥接场景）
-      _hint="claude code 检测到：请确认 ANTHROPIC_AUTH_TOKEN 已注入（env-var-first）；若当前为 opencode 环境，请用 category= 派发（如 unspecified-high）；${_model_hint}"
+      # 默认分支：claude code（生产可达主路径）+ opencode 备选
+      _hint="claude code 检测到：请确认 ANTHROPIC_AUTH_TOKEN 已注入（env-var-first）；若当前为 opencode 环境，请用 category= 派发（如 unspecified-high）并 export FLOW_KIT_L3_BASE_URL + FLOW_KIT_L3_AUTH_TOKEN；${_model_hint}"
     fi
-    echo "[l2-dispatch] no API credentials (ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY)" >&2
+    echo "[l2-dispatch] no API credentials（ANTHROPIC_AUTH_TOKEN / FLOW_KIT_L3_AUTH_TOKEN / ANTHROPIC_API_KEY 全空）" >&2
     echo "[l2-dispatch] ${_hint}" >&2
     return 1
   fi
+  if [ "$_cred_rc" -eq 2 ]; then
+    # stderr 已由 fk_resolve_api_credentials 报 Path3 配置不完整（rc=2 语义，D1）
+    return 1
+  fi
+  # rc=0：凭证就绪。读共享输出全局（AC-6 红线：凭证值绝不落盘，FK_API_* 仅内存使用）
+  local auth_token="${FK_API_AUTH_TOKEN:-}"
+  local base_url="${FK_API_BASE_URL:-}"
+  local auth_scheme="${FK_API_AUTH_SCHEME:-bearer}"
 
   # ── 构造 L2 审查 prompt（与 L2-blind-review.md 一致的固化模板）──
   local prompt_text
@@ -226,7 +257,7 @@ L2_PROMPT_EOF
   prompt_text+="- 输出：追加写入 ${review_md} 的 L2 盲审段（禁止覆写已有 L3 段）"$'\n'
 
   # ── API 调用（异步后台进程）────────────────────────────────────
-  local base_url="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+  # base_url / auth_token / auth_scheme 已在凭证段从 FK_API_* 解析（DESIGN D1）
   # 模型选择 — 三级优先级链（l2-l3-model-config ADR-012；移除既有 L2 fallback，纯跨平台）
   type write_model_missing_correction >/dev/null 2>&1 || { [ -f "${HOOK_BASE_DIR:-}/lib/correction-file.sh" ] && source "${HOOK_BASE_DIR:-}/lib/correction-file.sh"; }
   local model; model=$(fk_resolve_model "L2")
@@ -250,20 +281,16 @@ L2_PROMPT_EOF
       exit 1
     }
 
-    # Path 1: ANTHROPIC_AUTH_TOKEN
+    # API 调用 — 按共享解析的 scheme 区分（D1 约定：bearer | x-api-key）
     if [ -n "$auth_token" ]; then
+      local _auth_header
+      if [ "$auth_scheme" = "x-api-key" ]; then
+        _auth_header="x-api-key: ${auth_token}"
+      else
+        _auth_header="Authorization: Bearer ${auth_token}"
+      fi
       ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
-        -H "Authorization: Bearer ${auth_token}" \
-        -H "Content-Type: application/json" \
-        -d "$payload" 2>/dev/null || true)
-      http_code=$(echo "$ai_response" | tail -1)
-      ai_response=$(echo "$ai_response" | sed '$d')
-    fi
-
-    # Path 2: Legacy ANTHROPIC_API_KEY
-    if [ -z "$ai_response" ] && [ -n "$api_key" ]; then
-      ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "https://api.anthropic.com/v1/messages" \
-        -H "x-api-key: $api_key" \
+        -H "$_auth_header" \
         -H "Content-Type: application/json" \
         -d "$payload" 2>/dev/null || true)
       http_code=$(echo "$ai_response" | tail -1)
