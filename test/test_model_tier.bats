@@ -1,7 +1,14 @@
 #!/usr/bin/env bats
+# 位置无关定位仓库根（勿写死绝对路径：包内分发不携带宿主 home 路径）
 
 setup() {
-  cd /home/hellrabbit/unisoc/flow-kit || exit 1
+  # 从测试文件所在目录向上找 flow-kit-bundle/（本仓 bats 统一模式）
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle" ]; do
+    d="$(dirname "$d")"
+  done
+  cd "$d" || exit 1
 }
 
 @test "4-dev.md contains task-brief script reference" {
