@@ -151,6 +151,10 @@ cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/settings.json" "$STAGING/hooks/conf
 # stop-hook.json 模板
 cp "$SCRIPT_DIR/flow-kit-bundle/hooks/config/stop-hook.json" "$STAGING/hooks/config/stop-hook.json"
 
+# L3 凭证/调优模板（fe3a833 新增）：目标环境缺它会在 L3 门禁上直接死锁
+# 模板是唯一允许提交的 .env* 文件；真实凭证写到目标环境的 ~/.config/flow-kit/l3.env（600）
+cp "$SCRIPT_DIR/.claude/l3.env.example" "$STAGING/hooks/config/l3.env.example"
+
 # .specs/STATE.md 模板
 cp "$HOME/.claude/flow-kit/templates/STATE.md" "$STAGING/specs-template/STATE.md"
 
@@ -179,7 +183,7 @@ cat > "$STAGING/README.md" << 'READEOF'
 | Stop Hook 系统 | `hooks/stop/` | 18 个模块化后处理脚本 + 库文件 |
 | SessionStart Hook | `hooks/session-start/` | flow-kit-resume + stop-report-reminder |
 | PreToolUse hooks | `hooks/pre-tool-use/` | independent-review-gate + auto-checkpoint + runtime-edit-guard |
-| 配置文件 | `hooks/config/` | settings.json 模板 + stop-hook.json 模板 |
+| 配置文件 | `hooks/config/` | settings.json 模板 + stop-hook.json 模板 + l3.env.example（L3 凭证模板） |
 | SPEC 模板 | `specs-template/` | STATE.md 模板 |
 | brooks-lint 插件 | `brooks-lint/` | 6 个代码审查 skill（review/audit/debt/test/health/sweep） |
 | 安装脚本 | `install.sh` | 双平台兼容安装器（claude | opencode） |
@@ -236,6 +240,32 @@ cat > "$STAGING/README.md" << 'READEOF'
 > opencode 平台的 hooks 需要 `opencode-claude-hooks` 或 `opencode-hooks-plugin` 桥接插件，
 > 详见 `OPENCODE-INSTALL.md`。
 
+## L3 外部审查凭证（必配，否则 L3 门禁死锁）
+
+`gate_config` 含 L3 的阶段由 Stop hook 调**外部模型**产出，凭证缺失时 hook 不写 `.done`，
+而 PreToolUse 守卫又禁止主 agent 自产 → commit / 阶段推进全部阻塞（工件上看不出原因）。
+
+模板见 `hooks/config/l3.env.example`（逐项说明）。**凭证解析优先级按平台翻转**
+（`hooks/stop/lib/common.sh` 的 `fk_resolve_api_credentials`）：
+
+| 平台 | 路径优先级 | 模板放哪里 |
+|---|---|---|
+| dsh | Path3 > Path1 > Path2 | `~/.config/flow-kit/l3.env`（600）+ systemd drop-in `EnvironmentFile=`，宿主与 hook 子进程都能继承 |
+| opencode | Path3 > Path1 > Path2 | `set -a; . ~/.config/flow-kit/l3.env; set +a` 写进 shell rc |
+| claude code | **Path1 > Path3 > Path2** | 平台自带的 Anthropic 凭证即 Path1/2；要改用站点端点（Path3）须先确认未设 `ANTHROPIC_AUTH_TOKEN`，否则 Path3 永不生效 |
+
+三条路径的取值来源：
+
+- **Path3** = `FLOW_KIT_L3_AUTH_TOKEN` + `FLOW_KIT_L3_BASE_URL` → bearer（dsh/opencode 一等路径）
+- **Path1** = `ANTHROPIC_AUTH_TOKEN`（+ `ANTHROPIC_BASE_URL`）→ bearer（claude code 原生路径）
+- **Path2** = `ANTHROPIC_API_KEY` → x-api-key @ `api.anthropic.com`（legacy 兜底，仅当 Path1/3 全空）
+
+> claude code 的「Path1 短路 Path3」是刻意保留的零回归语义：想在同一台机器上给 L3 用独立端点，
+> 就得让 claude 会话里没有 `ANTHROPIC_AUTH_TOKEN`（dsh/opencode 不受影响，Path3 本来就优先）。
+
+**工件截断上限**（`max_artifact_chars`）不在环境变量里配 —— 由项目级
+`<项目>/.flow-kit/stop-hook.json`（dsh）或 `<项目>/.claude/stop-hook.json`（claude/opencode）读取，
+缺省 20000。大工件项目务必提高，否则 L3 只看前 20000 字符、反复报「NFR 缺失 / 锚点表被截断」假阳性。
 ## 更新 / 重装
 
 拿到新版 bundle 后：
@@ -503,7 +533,7 @@ echo "║  📁 ${PACKAGE_NAME}.tar.gz (${PACKAGE_SIZE})"
 echo "║  📂 解压后: ${STAGING}/"
 echo "║                                                              ║"
 echo "║  迁移到目标环境:                                              ║"
-echo "║    scp ${PACKAGE_NAME}.tar.gz user@target:~/""
+echo "║    scp ${PACKAGE_NAME}.tar.gz user@target:~/"
 echo "║                                                              ║"
 echo "║  目标环境安装:                                                ║"
 echo "║    tar xzf ${PACKAGE_NAME}.tar.gz                           ║"
@@ -516,7 +546,7 @@ echo "║    🧠 flow-kit 核心 (GO.md + prompts + templates + ref)     ║"
 echo "║    🎯 ${SKILL_COUNT} 个 flow skills                                     ║"
 echo "║    🪝 Stop Hook 系统 (11 模块 + 3 库)                       ║"
 echo "║    🚀 SessionStart hooks (resume + report-reminder)          ║"
-echo "║    ⚙️  配置模板 (settings.json + stop-hook.json)             ║"
+echo "║    ⚙️  配置模板 (settings.json + stop-hook + l3.env.example)  ║"
 echo "║    📋 SPEC 模板 (STATE.md)                                   ║"
 echo "║    🔍 brooks-lint 插件 v1.3.0（skills 命名空间 brooks-lint:）         ║"
 echo "║    🔧 brooks-tools（4 个 npm 工具离线包 · linux-x64）          ║"
