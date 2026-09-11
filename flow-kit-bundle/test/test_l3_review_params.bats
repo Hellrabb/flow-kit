@@ -9,6 +9,11 @@ setup() {
   CAPFILE="${TEST_TMP}/curl_capture"
   STDERRFILE="${TEST_TMP}/stderr"
 
+  # 宿主 env 隔离：本文件区分「默认值」（AC-1/AC-3/AC-5c）与「env var 覆盖」（AC-2/AC-4/AC-5a/5b）两条路径，
+  # 宿主 shell 若 export 了站点级调优（如 ~/.bashrc 的 MAX_TOKENS=128000 / TIMEOUT=600），
+  # 默认值断言会在开发者机器上假失败（pre-push make check 红）。覆盖路径由各用例内联赋值，不受影响。
+  unset FLOW_KIT_L3_MAX_TOKENS FLOW_KIT_L3_TIMEOUT FLOW_KIT_L3_THINKING
+
   # 位置无关：查找 flow-kit-bundle/hooks
   local d
   d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
