@@ -63,9 +63,21 @@ L2/L3 凭证（dsh 下 Path3 优先）：
 ```bash
 export FLOW_KIT_L3_BASE_URL=<anthropic 兼容端点>
 export FLOW_KIT_L3_AUTH_TOKEN=<token>
-export FLOW_KIT_L3_MODEL=<模型名>
-export FLOW_KIT_L2_MODEL=<模型名>
+# 模型两级（fk_resolve_model · common.sh:242-243）：
+#   FLOW_KIT_L3_MODEL         —— 具体模型，最高优先（逐次覆盖）
+#   FLOW_KIT_L3_DEFAULT_MODEL —— 站点级默认，较低优先（/flow model l3-default= 同源）
+export FLOW_KIT_L3_DEFAULT_MODEL=<模型名>
+export FLOW_KIT_L2_DEFAULT_MODEL=<模型名>
 ```
+
+> 完整模板（含 systemd drop-in 安装步骤、可选调优项、工件截断上限说明）见仓库根
+> [`.claude/l3.env.example`](../.claude/l3.env.example)。**L3 凭证缺失会导致门禁死锁**：
+> hook 不写 `.done`，而 PreToolUse 守卫禁止主 agent 自产 → commit / 阶段推进全部阻塞。
+
+**工件截断上限**（`max_artifact_chars`，缺省 20000）**不在环境变量里配**：由项目级
+`<项目>/.flow-kit/stop-hook.json` 的 `independent_review.max_artifact_chars` 决定，
+代码自动导出给 L3。大工件项目（如 27KB REQUIREMENT.md）务必提高，否则 L3 只看前
+20000 字符，反复报「NFR 缺失 / 锚点表被截断」假阳性。
 
 ## 与 Claude Code / opencode 共存
 

@@ -66,3 +66,6 @@ dist/
 # === Python ===
 __pycache__/
 *.pyc
+
+# L3 凭证模板（唯一允许提交的 .env* 文件；真实凭证在 ~/.config/flow-kit/l3.env）
+!.claude/l3.env.example
