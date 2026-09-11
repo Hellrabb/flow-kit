@@ -245,13 +245,33 @@ _make_big_requirement() {
   [[ "$out" == *"|7" ]]
 }
 
-@test "E2: 项目无 sidecar 时回退仓库默认 20000（不得继承他项目配置）" {
+@test "E2: 项目无 sidecar 且用户级缺省时回退代码默认 20000（环境隔离）" {
+  # 宿主 env 隔离（同 test_l3_review_params.bats 策略，见 6ab0b4f）：
+  # 用户级 <HOME>/.dsh/stop-hook.json 存在时会被 runtime_home 回退命中（本机为 100000），
+  # 不断言这一层就会随宿主配置漂移而假失败。
+  # 用空 HOME 模拟"用户级也缺省"的真实新环境：
+  local fake_home="${TEST_TMP}/empty-home"
+  mkdir -p "$fake_home"
   local out
-  out=$(FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
+  out=$(HOME="$fake_home" FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
     source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
     init_paths 2>/dev/null
     config_get '.independent_review.max_artifact_chars' 20000" 2>/dev/null)
   [ "$out" = "20000" ]
+}
+
+@test "E2b: 项目无 sidecar 时回退用户级 <HOME>/.dsh/stop-hook.json（有则优先于代码默认）" {
+  # 用假 HOME 锚定用户级，避免依赖宿主 ~/.dsh 的实际内容。
+  local fake_home="${TEST_TMP}/fake-home"
+  mkdir -p "${fake_home}/.dsh"
+  printf '{"independent_review":{"max_artifact_chars":77777}}\n' > "${fake_home}/.dsh/stop-hook.json"
+  local out
+  out=$(HOME="$fake_home" FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
+    source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
+    init_paths 2>/dev/null
+    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_chars' 20000)\"" 2>/dev/null)
+  [ "${out%%|*}" = "${fake_home}/.dsh/stop-hook.json" ]
+  [[ "$out" == *"|77777" ]]
 }
 
 @test "E3: claude/opencode 运行时用 .claude 配置目录（零回归）" {
