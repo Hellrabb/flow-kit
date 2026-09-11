@@ -223,3 +223,75 @@ _make_big_requirement() {
   # pass 走真 _l3_write_done：应结案
   grep -q '^L3_verdict=pass$' "${ARTIFACTS_DIR}/.independent-review-1.done"
 }
+
+# ══════════════════════════════════════════════════════════════════════════
+# E. 配置优先级链 + 文档契约（2026-09-11 · ③④ 收尾）
+#    锁住"项目级 .flow-kit/stop-hook.json 优先、缺省回退 20000"这一实测行为，
+#    以及 l3.env 模板/README 记录的变量名必须真实存在（防文档漂移）。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "E1: 项目级 .flow-kit/stop-hook.json 优先（dsh 运行时）" {
+  local proj="${TEST_TMP}/proj"
+  mkdir -p "${proj}/.flow-kit"
+  printf '{"independent_review":{"max_artifact_chars":60000,"max_failures_before_bypass":7}}\n' \
+    > "${proj}/.flow-kit/stop-hook.json"
+  local out
+  out=$(FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="$proj" bash -c "
+    source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
+    init_paths 2>/dev/null
+    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_chars' 20000)|\$(config_get '.independent_review.max_failures_before_bypass' 3)\"" 2>/dev/null)
+  [ "${out%%|*}" = "${proj}/.flow-kit/stop-hook.json" ]
+  [[ "$out" == *"|60000|"* ]]
+  [[ "$out" == *"|7" ]]
+}
+
+@test "E2: 项目无 sidecar 时回退仓库默认 20000（不得继承他项目配置）" {
+  local out
+  out=$(FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
+    source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
+    init_paths 2>/dev/null
+    config_get '.independent_review.max_artifact_chars' 20000" 2>/dev/null)
+  [ "$out" = "20000" ]
+}
+
+@test "E3: claude/opencode 运行时用 .claude 配置目录（零回归）" {
+  local out
+  out=$(FLOW_KIT_RUNTIME=claude FLOW_KIT_PROJECT_DIR="${TEST_TMP}/proj-claude" bash -c "
+    source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
+    init_paths 2>/dev/null
+    echo \"\$CONFIG_FILE\"" 2>/dev/null)
+  [[ "$out" == *"/.claude/stop-hook.json" ]]
+}
+
+@test "E4: 29 号把 config 值导出为 FLOW_KIT_L3_MAX_ARTIFACT_CHARS（供 l3_review_run 读取）" {
+  # 顺序断言：先 config_get，后 export，且导出的就是同一个变量
+  run grep -n 'max_chars=$(config_get' "$HOOK_BASE_DIR/29-independent-review.sh"
+  [ "$status" -eq 0 ]
+  run grep -n 'export FLOW_KIT_L3_MAX_ARTIFACT_CHARS="$max_chars"' "$HOOK_BASE_DIR/29-independent-review.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "E5: l3.env 模板存在且含必填项（新环境部署不再踩死锁）" {
+  local tpl="$FK_ROOT/.claude/l3.env.example"
+  [ -f "$tpl" ]
+  grep -q 'FLOW_KIT_L3_BASE_URL' "$tpl"
+  grep -q 'FLOW_KIT_L3_AUTH_TOKEN' "$tpl"
+  # 必须写明工件上限不在 env 里配（否则用户会找错地方）
+  grep -q 'max_artifact_chars' "$tpl"
+  # 必须给出 systemd drop-in 路径（dsh 侧凭证靠它注入）
+  grep -q 'EnvironmentFile' "$tpl"
+}
+
+@test "E6: 模板/README 记录的模型变量名在代码中真实存在（防文档漂移）" {
+  local tpl="$FK_ROOT/.claude/l3.env.example"
+  local readme="$FK_ROOT/dsh-flow-kit/README.md"
+  local common="$HOOK_BASE_DIR/lib/common.sh"
+  for v in FLOW_KIT_L3_DEFAULT_MODEL FLOW_KIT_L2_DEFAULT_MODEL; do
+    grep -q "$v" "$tpl" || { echo "模板缺 $v"; return 1; }
+    grep -q "$v" "$readme" || { echo "README 缺 $v"; return 1; }
+    grep -q "$v" "$common" || { echo "代码未读取 $v（文档与实现不符）"; return 1; }
+  done
+  # FLOW_KIT_L3_MODEL 是"具体模型"层，同样须一致
+  grep -q 'FLOW_KIT_L3_MODEL' "$common"
+  grep -q 'FLOW_KIT_L3_MODEL' "$tpl"
+}
