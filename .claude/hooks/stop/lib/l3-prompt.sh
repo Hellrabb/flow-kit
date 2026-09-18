@@ -250,23 +250,74 @@ EOF
   printf '%s' "$out"
 }
 
+# ── _l3_emit_prompt() · 截断可见化（用户 2026-09-18 指出的盲区）──
+# 由来：阶段 2 实测 cap=20000 而完整 prompt 37005 B → **丢弃 45%**，DESIGN.md 尾部
+# （§9.5 等）从未送达 L3，而 L3 的 verdict 看起来完全正常 —— 这是 §B3 同族故障在
+# "审查输入"侧的复发：**静默截断**。
+# 现策略：发生截断时向 stderr 告警（原始/实际字节数 + 丢弃比例），让"L3 只看到一半"
+# 在日志里可见。调用方无需改动。
+_l3_emit_prompt() {
+  local full="$1" max_bytes="$2" out flen olen
+  out=$(printf '%s' "$full" | _l3_utf8_head_stream "$max_bytes")
+  flen=$(printf '%s' "$full" | wc -c)
+  olen=$(printf '%s' "$out" | wc -c)
+  if [ "$flen" -gt "$olen" ]; then
+    echo "[l3-review] WARNING: 提示词被截断 — 完整 ${flen}B，本次仅发送 ${olen}B（丢弃 $(( (flen - olen) * 100 / flen ))%）。L3 的结论基于**部分**工件；请提高 independent_review.max_artifact_bytes（当前 ${max_bytes}）后重审。" >&2
+  fi
+  printf '%s' "$out"
+}
+
+# ── _l3_extra_deliverables() · 必备 6 件之外的 *.md 交付物正文（M34 · 2026-09-18）──
+# 用法: _l3_extra_deliverables <artifacts_dir>   → 输出 "\n\n=== <名> ===\n<正文>" 序列
+#
+# 为什么要有它：旧实现对补充产物用**硬编码白名单**（INTEGRATION.md / UAT.md /
+# MINOR-DEFERRED.md）。白名单漏掉了 AC-2 的交付物 `L2-EMPTY-ATTRIBUTION.md`，
+# 于是 L3 如实报「工件中未提供该清单的实际内容」——对提示词为真、对仓库为假，
+# 与 §B4 的 `head -30` 截断同源：**审查者只能看到我们喂进去的东西**。
+# 现改为目录内全量 *.md（排除 6 件必备与 INDEPENDENT-REVIEW-*.md）。
+#
+# 排序：按体积升序。具体 AC 交付物多是小文件，MINOR-DEFERRED.md 这类大而次要的垫尾，
+# 使调用方的 $max_bytes 尾部截断只可能切到「最不具体」的部分。
+_l3_extra_deliverables() {
+  local artifacts_dir="$1" _f _b
+  {
+    for _f in "$artifacts_dir"/*.md; do
+      [ -f "$_f" ] || continue
+      _b=${_f##*/}
+      case "$_b" in
+        CHANGE.md|REQUIREMENT.md|DESIGN.md|TASK.md|TEST.md|REVIEW.md) continue ;;
+        INDEPENDENT-REVIEW-*.md) continue ;;
+      esac
+      printf '%s\t%s\n' "$(stat -c%s "$_f" 2>/dev/null || echo 0)" "$_b"
+    done | sort -n -k1,1 -k2,2 | cut -f2
+  } | while IFS= read -r _b; do
+    [ -n "$_b" ] || continue
+    printf '\n\n=== %s ===\n%s' "$_b" "$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_b}" 2>/dev/null || true)"
+  done
+}
+
 # ── _l3_build_prompt() · Step 1: 按阶段收集工件 + 构造审查 prompt ──
-# 用法: _l3_build_prompt <phase> <artifacts_dir> <max_chars>
+# 用法: _l3_build_prompt <phase> <artifacts_dir> <max_bytes>   # 单位=字节（§B3）
 # 输出: prompt_text 到 stdout；无工件时返回 3
 _l3_build_prompt() {
-  local phase="$1" artifacts_dir="$2" max_chars="$3"
+  local phase="$1" artifacts_dir="$2" max_bytes="$3"
 
   local artifact="" checklist=""
   case "$phase" in
     1)
       if [ -f "${artifacts_dir}/REQUIREMENT.md" ]; then
-        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_bytes" "${artifacts_dir}/REQUIREMENT.md" 2>/dev/null || echo "")
       fi
-      checklist="AC 是否每条 Given/When/Then 可验证且无歧义？v1/v2/out 范围切分是否合理？是否有范围蔓延或遗漏的非功能性需求？"
+      # M34：CHANGE.md（本 change 的原始问题清单）是判定 AC 覆盖是否完整的前提，
+      # 补充交付物（含 L2-EMPTY-ATTRIBUTION.md）是判定「AC 交付物是否存在」的证据。
+      [ -f "${artifacts_dir}/CHANGE.md" ] && \
+        artifact="${artifact}"$'\n\n=== CHANGE.md ===\n'"$(_l3_utf8_head_bytes 6000 "${artifacts_dir}/CHANGE.md" 2>/dev/null || true)"
+      artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")"
+      checklist="AC 是否每条 Given/When/Then 可验证且无歧义？v1/v2/out 范围切分是否合理？是否有范围蔓延或遗漏的非功能性需求？（判断某 AC 的交付物「是否存在」时，以本提示词中给出的 === 文件名 === 正文为准）"
       ;;
     2)
       if [ -f "${artifacts_dir}/DESIGN.md" ]; then
-        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/DESIGN.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_bytes" "${artifacts_dir}/DESIGN.md" 2>/dev/null || echo "")
       fi
       local adr_dir
       adr_dir="$(dirname "$artifacts_dir")/adr"
@@ -276,18 +327,21 @@ _l3_build_prompt() {
           artifact="${artifact}"$'\n\n--- '"${f}"$' ---\n'"$(_l3_utf8_head_bytes 2000 "$f" 2>/dev/null || echo "")"
         done < <(find "$adr_dir" -type f -name '*.md' 2>/dev/null | head -3 || true)
       fi
+      artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")" 
       checklist="ADR 决策是否合理且有充分理由？是否撞既有架构/跨模块契约？抽象层次是否得当（深模块 vs 浅模块）？风险段是否遗漏关键风险？"
       ;;
     3)
       if [ -f "${artifacts_dir}/TASK.md" ]; then
-        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/TASK.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_bytes" "${artifacts_dir}/TASK.md" 2>/dev/null || echo "")
       fi
+      artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")" 
       checklist="任务拆解是否覆盖 REQUIREMENT 全 AC？depends_on 依赖是否无环？每个 task 的 verify 是否可执行且能证伪？write_files 边界是否清晰不越界？"
       ;;
     5)
       if [ -f "${artifacts_dir}/TEST.md" ]; then
-        artifact=$(_l3_utf8_head_bytes "$max_chars" "${artifacts_dir}/TEST.md" 2>/dev/null || echo "")
+        artifact=$(_l3_utf8_head_bytes "$max_bytes" "${artifacts_dir}/TEST.md" 2>/dev/null || echo "")
       fi
+      artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")" 
       checklist="测试矩阵是否覆盖全 AC？覆盖率是否达标？UAT 是否可复现？是否有 mock 屏蔽真实失败？回归测试是否含？"
       ;;
     6)
@@ -300,7 +354,7 @@ _l3_build_prompt() {
       # source common.sh for fk_estimate_tokens (fail-open)
       local _common_lib="${HOOK_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/common.sh"
       [ -f "$_common_lib" ] && source "$_common_lib" 2>/dev/null || true
-      local _new_limit=$((max_chars / 4))
+      local _new_limit=$((max_bytes / 4))
       artifact=$(cd "$project_root" && {
         # 并集策略: git diff HEAD (工作区 vs HEAD) + git diff --cached (index vs HEAD)
         # 用 awk 按文件路径去重（同名文件取首次出现的更完整的 diff）
@@ -319,15 +373,16 @@ _l3_build_prompt() {
           if [ "${_est:-0}" -le "${_max_tokens:-60000}" ] 2>/dev/null; then
             echo "$_raw"
           else
-            echo "$_raw" | _l3_utf8_head_stream "$max_chars"
+            echo "$_raw" | _l3_utf8_head_stream "$max_bytes"
           fi
         else
-          _l3_utf8_head_stream "$max_chars"
+          _l3_utf8_head_stream "$max_bytes"
         fi
       } || true)
       if [ -f "${artifacts_dir}/REVIEW.md" ]; then
         artifact="${artifact}"$'\n\n=== 主 agent REVIEW.md ===\n'"$(_l3_utf8_head_bytes 8000 "${artifacts_dir}/REVIEW.md" 2>/dev/null || echo "")"
       fi
+      artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")" 
       checklist="spec 合规（每条 AC 是否被代码覆盖）？代码质量（6 维衰退风险：认知过载/变更传播/知识重复/偶然复杂/依赖混乱/领域扭曲）？是否有 critical？"
       ;;
     7)
@@ -353,7 +408,7 @@ _l3_build_prompt() {
       #   ① 原 `ls -la | head -30` 对顶层条目 > 28 的 change 会截掉按名序靠后的文件
       #      （实测 41 条目时 TASK.md / TEST.md / REQUIREMENT.md / REVIEW.md / UAT.md 全不可见），
       #      L3 据此报"产物缺失"并 verdict=fail —— 对提示词为真、对仓库为假。
-      #      → 改为全量清单（不再按行数截断）。整体仍受 $max_chars 约束，溢出只会切正文尾部。
+      #      → 改为全量清单（不再按行数截断）。整体仍受 $max_bytes 约束，溢出只会切正文尾部。
       #   ② 原名序含硬编码 INTEGRATION.md，本项目阶段 7 不产出该文件（flow-integration
       #      skill 的产出是 UAT.md + CHANGELOG 更新），提示词里必然出现
       #      `=== INTEGRATION.md === MISSING` → 模型如实报为 major 缺陷。
@@ -367,22 +422,29 @@ _l3_build_prompt() {
           artifact="${artifact}\n\n=== ${_req} === MISSING"
         fi
       done
-      for _opt in INTEGRATION.md UAT.md MINOR-DEFERRED.md; do
-        [ -f "${artifacts_dir}/${_opt}" ] && \
-          artifact="${artifact}\n\n=== ${_opt} ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_opt}" 2>/dev/null || true)"
-      done
-      unset _req _opt
-      artifact=$(echo -e "$artifact" | _l3_utf8_head_stream "$max_chars")
-      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n注意：以「产物目录（全量）」清单为准（不再按行数截断）；INTEGRATION.md / UAT.md / MINOR-DEFERRED.md 非必备产物，未出现不构成缺陷。\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
+      #   ③（M34）必备 6 件之外的**全部** *.md 交付物都要给正文，而不是硬编码白名单。
+      #      白名单漏掉了 AC-2 的交付物 `L2-EMPTY-ATTRIBUTION.md`，L3 于是如实报
+      #      「工件中未提供该清单的实际内容」→ 对提示词为真、对仓库为假（与 ① 同源的
+      #      第二类假阳性：审查者只能看到我们喂进去的东西）。
+      #      排序：按体积升序 —— 具体 AC 交付物多为小文件，MINOR-DEFERRED.md 这类
+      #      大而次要的垫尾，使 $max_bytes 截断只可能切到「最不具体」的尾部。
+      #      INDEPENDENT-REVIEW-*.md 排除：本身是审查记录、体量 100KB+，且本轮正在写它。
+      artifact+="$(_l3_extra_deliverables "$artifacts_dir")"
+      unset _req
+      artifact=$(echo -e "$artifact" | _l3_utf8_head_stream "$max_bytes")
+      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n注意：以「产物目录（全量）」清单为准（不再按行数截断）。除必备 6 件外的 *.md（UAT.md / MINOR-DEFERRED.md / L2-EMPTY-ATTRIBUTION.md 等）是补充产物：**未出现不构成缺陷**，一旦给出正文则须纳入审查（不得再说「未提供」）。\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
       ;;
   esac
   [ -n "$artifact" ] || { echo "[l3-review] no artifact for phase $phase" >&2; return 3; }
 
   # 构造 prompt (jq --arg 避免工件中反引号/$ 被 shell 解释)
-  # 固定指令（含 JSON 回复契约）置于工件之前：总输出按 max_chars 截断时只切工件尾部，不切指令
-  jq -nr \
+  # 固定指令（含 JSON 回复契约）置于工件之前：总输出按 max_bytes 截断时只切工件尾部，不切指令
+  local _full
+  _full=$(jq -nr \
     --arg checklist "$checklist" \
     --arg phase "$phase" \
     --arg artifact "$artifact" \
-    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。\n\n工件（阶段 " + $phase + "）：\n" + $artifact' | _l3_utf8_head_stream "$max_chars"
+    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。\n\n工件（阶段 " + $phase + "）：\n" + $artifact'
+  )
+  _l3_emit_prompt "$_full" "$max_bytes"
 }

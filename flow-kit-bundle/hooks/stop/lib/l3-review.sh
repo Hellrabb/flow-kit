@@ -159,7 +159,11 @@ l3_review_run() {
     "$l2_verdict" "$artifacts_dir" "$gate_config_value" || _write_rc=$?
   case $_write_rc in
     0) ;;  # success — .done written
-    1) echo "[l3-review] verdict non-pass, .done not written" >&2 ;;
+    1)
+      # M32（2026-09-18）：non-pass 不只「不写 .done」，还必须**撤销陈旧锚点**。
+      # 否则「截断输入下 pass → 修好后 fail」会留下可用锚点，门禁照样放行（实测已发生）。
+      l3_invalidate_done "$phase" "$artifacts_dir"
+      echo "[l3-review] verdict non-pass, .done not written" >&2 ;;
     3) echo "[l3-review] CRITICAL: .done write failed" >&2; return 3 ;;
     *) echo "[l3-review] UNEXPECTED: _l3_write_done rc=$_write_rc" >&2; return $_write_rc ;;
   esac

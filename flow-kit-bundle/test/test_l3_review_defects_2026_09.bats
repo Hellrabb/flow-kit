@@ -31,6 +31,7 @@ setup() {
   L3_PROMPT_LIB="$HOOK_BASE_DIR/lib/l3-prompt.sh"
   L3_REVIEW_LIB="$HOOK_BASE_DIR/lib/l3-review.sh"
   H29="$HOOK_BASE_DIR/29-independent-review.sh"
+  GATE_HELPERS="$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh"
   export PROJECT_ROOT="$TEST_TMP"
   # 站点级 env 隔离：避免开发者 ~/.bashrc 的调优泄漏进"默认值"断言
   unset FLOW_KIT_L3_MAX_ARTIFACT_BYTES FLOW_KIT_L3_MAX_ARTIFACT_CHARS L3_MAX_ARTIFACT_CHARS
@@ -49,6 +50,37 @@ _l2v() {
 # ══════════════════════════════════════════════════════════════════════════
 # §B1 · fk_extract_l2_verdict
 # ══════════════════════════════════════════════════════════════════════════
+
+@test "AC2: 语料全量复算 —— 零非枚举、空值 <=8、且每个空值都在归因清单里" {
+  # AC-2 的验证方式（2026-09-18 依 L3 major 修订为可执行断言）。单次 bash 内跑完
+  # 全量语料单次 bash 内跑完，避免逐份子进程开销。
+  local attr="$FK_ROOT/.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
+  [ -f "$attr" ] || { echo "缺 AC-2 交付物: $attr"; false; }
+  local report
+  report=$(bash -c '
+    source "$1" 2>/dev/null
+    n=0; empty=0; nonenum=0; unattributed=""
+    while IFS= read -r f; do
+      n=$((n+1))
+      v=$(fk_extract_l2_verdict "$f" 2>/dev/null) || true
+      case "$v" in
+        "") empty=$((empty+1))
+            grep -qF "${f##*.specs/}" "$2" 2>/dev/null || unattributed="${unattributed}${f} " ;;
+        pass|fail) ;;
+        *) nonenum=$((nonenum+1)) ;;
+      esac
+    done < <(find "$3/.specs" -name "INDEPENDENT-REVIEW-*.md" | sort)
+    printf "n=%s empty=%s nonenum=%s unattributed=[%s]" "$n" "$empty" "$nonenum" "$unattributed"
+  ' _ "$L2_LIB" "$attr" "$FK_ROOT")
+  echo "$report"
+  [[ "$report" == *"nonenum=0"* ]]
+  [[ "$report" == *"unattributed=[]"* ]]
+  local e; e=$(echo "$report" | sed -n 's/.*empty=\([0-9]*\).*/\1/p')
+  [ -n "$e" ] && [ "$e" -le 8 ]
+  # 语料非空（防"找不到文件"式的恒真通过）
+  local n; n=$(echo "$report" | sed -n 's/.*n=\([0-9]*\).*/\1/p')
+  [ -n "$n" ] && [ "$n" -ge 200 ]
+}
 
 @test "B1-R1: 报告 §B1 的自包含复现 → 期望 fail（修复前实际 PASS）" {
   local f="$TEST_TMP/repro.md"
@@ -140,6 +172,310 @@ EOF
   [[ "$v" =~ ^(pass|fail|skipped)$ ]]
 }
 
+# ── R1 收口（1-requirement 的 L2 盲审 R1）：限定 L2 层 ──────────────────────
+# 修复前只靠「排除引号开头的行」免疫 L3 段 JSON，属**形态免疫**而非**边界免疫**：
+# 只要 L3 段里出现一行非围栏的行首 Verdict（模型把 JSON 包在 ``` 里会提前闭合围栏，
+# 其后一行即落到围栏外），仍会顶掉 L2 结论。
+
+@test "B1-R9: L3 段内非围栏的行首 Verdict 行不得顶掉 L2 结论（R1 合成反例）" {
+  local f="$TEST_TMP/l3-unfenced.md"
+  cat > "$f" <<'EOF'
+## L2 盲审
+**Verdict**: fail
+
+---
+
+## L3 重审（model · t）
+### 审查结论
+```json
+{"critical":[],"verdict":"pass"}
+```
+**Verdict**: pass
+EOF
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B1-R10: 主 agent 响应段内的 Verdict 行不得顶掉 L2 结论" {
+  local f="$TEST_TMP/main-agent.md"
+  printf '%s\n' "## L2 盲审" "**Verdict**: fail" "" "## 主 agent 响应" "已修 2 处" "**Verdict**: pass" > "$f"
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B1-R11: 多轮 L2 与主 agent 响应交替 → 仍取最后一轮 L2（不按首个响应截断）" {
+  local f="$TEST_TMP/interleaved.md"
+  cat > "$f" <<'EOF'
+## L2 盲审
+**Verdict**: fail
+## 主 agent 响应
+已修。
+## L2 二审
+**Verdict**: fail
+## 主 agent 响应
+再修。
+## L2 三审
+**Verdict**: pass
+EOF
+  [ "$(_l2v "$f")" = "pass" ]
+}
+
+@test "B1-R12: Verdict 落在 L2 报告的二级子标题段内仍可取（不按下一个 ## 截断）" {
+  local f="$TEST_TMP/l2-subheading.md"
+  cat > "$f" <<'EOF'
+## L2 盲审
+### R1 发现
+正文
+## 与主 agent REVIEW.md 的对照
+**Verdict**: pass
+EOF
+  [ "$(_l2v "$f")" = "pass" ]
+}
+
+@test "B1-R13: 仅含 L3 段（无 L2 段）的工件返回空，不把 L3 结论冒充 L2" {
+  local f="$TEST_TMP/only-l3.md"
+  printf '%s\n' "# IR" "" "---" "" "## L3 盲审（model · t）" '```json' '{"verdict":"fail"}' '```' > "$f"
+  [ -z "$(_l2v "$f")" ]
+}
+
+@test "B1-R14: _fk_l2_scope 保留全部 L2 轮次与 L2 子标题，仅排除 L3/主 agent 块" {
+  local f="$TEST_TMP/scope.md"
+  cat > "$f" <<'EOF'
+## L2 盲审
+A
+
+---
+
+## L3 重审（m）
+B
+## 主 agent 响应
+C
+## L2 二审
+D
+EOF
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"A"* ]]
+  [[ "$output" == *"D"* ]]
+  [[ "$output" != *"B"* ]]
+  [[ "$output" != *"C"* ]]
+}
+
+@test "B1-R15: 提取为空时门禁给出可观测告警（AC-12 · 不静默降级）" {
+  # 29 号模块：## L2 盲审 段存在但无 Verdict 行 → stderr 必须含 'L2 verdict not found'
+  run grep -q 'L2 verdict not found' "$H29"
+  [ "$status" -eq 0 ]
+  # 且必须仍落到合法枚举（不触发 l3_review_run 的值域闸）
+  grep -qE 'l2_verdict="fail"' "$H29"
+  # 反向：空值分支存在（else 分支，不是 `[ -n ] &&` 的静默写法）
+  grep -q 'l2v_extracted' "$H29"
+}
+
+@test "B1-R16: **生产写入路径**下 L3 载荷含行首 '## ' 时仍不得顶掉 L2 结论（R1 第二轮 🔴）" {
+  # 这是 R1 第二轮的原始复现：_l3_parse_result 写入的载荷里既有行首 '## '（§B2 的
+  # 常见形态），又有一行行首 `**Verdict**: pass`。若读侧用 `^## ` 复位来排除 L3 段，
+  # 载荷那行会把 L3 正文重新纳入"L2 层"→ 顶掉 L2 的 fail。
+  # 读侧与写侧现在共用 l3-section.sh::_l3_section_spans（边界判定单一来源）。
+  local d="$TEST_TMP/r1r2" f payload
+  mkdir -p "$d"
+  f="$d/INDEPENDENT-REVIEW-1.md"
+  printf '# IR-1\n\n## L2 盲审\n\n**Verdict**: fail\n' > "$f"
+  payload=$'{"critical":[],"verdict":"pass","summary":"模型自由发挥"}\n## 附录：发现明细\n**Verdict**: pass'
+  bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result \"\$1\" 1 \"\$2\" model-x >/dev/null 2>&1" \
+    _ "$payload" "$d"
+  # 写入侧确实落了段（否则本用例会因"没写进去"而假通过）
+  grep -q '^## L3 ' "$f"
+  grep -q '^<!-- /L3-SECTION -->$' "$f"
+  # 读侧必须只认 L2 段
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B1-R17: 读侧与写侧共用同一段边界判定（L-031 单一来源断言）" {
+  # _fk_l2_scope 必须消费 _l3_section_spans，而不是自己按 '^## ' 复位
+  grep -q '_l3_section_spans' "$L2_LIB"
+  # l2-detect.sh 自带依赖注入（被 done-validation / gate-checks-review 独立 source 时兜底）
+  grep -q 'l3-section.sh' "$L2_LIB"
+  # 且 _l3_section_spans 是 _l3_strip_sections 与 _fk_l2_scope 的共同来源
+  grep -q '_l3_section_spans' "$HOOK_BASE_DIR/lib/l3-section.sh"
+  grep -q '_l3_section_spans "$review_md"' "$HOOK_BASE_DIR/lib/l3-section.sh"
+  # 防重复定义（重复会让后定义覆盖前定义，静默退化）
+  [ "$(grep -c '^_l3_section_spans() {' "$HOOK_BASE_DIR/lib/l3-section.sh")" -eq 1 ]
+}
+
+# ── R1 第三轮（L2 三审）：载荷伪造「段边界信号」时不得穿透 ─────────────────
+# 三轮 fuzz 的结论：任何「行首 ## 」启发式与「取第一个标记」都可以被载荷伪造。
+# 现在的规则 = 「本段起 → 下一个真实 L3 标题（或 EOF）」之间**最后一个**标记行。
+# 下面三条即第二轮/第三轮报告给出的原始反例，用**生产写入路径**驱动。
+
+# 用 _l3_parse_result 真实写入一轮 L3 段，返回产物路径
+_l3_write_once() {
+  local d="$1" payload="$2"
+  mkdir -p "$d"
+  printf '# IR-1\n\n## L2 盲审\n\n**Verdict**: fail\n' > "$d/INDEPENDENT-REVIEW-1.md"
+  bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result \"\$1\" 1 \"\$2\" model-x >/dev/null 2>&1" \
+    _ "$payload" "$d"
+  printf '%s/INDEPENDENT-REVIEW-1.md' "$d"
+}
+
+@test "B1-R18: 载荷含行首 '## L2 ' 时不得穿透 L3 段边界（三审 R1 case5）" {
+  local f; f="$(_l3_write_once "$TEST_TMP/r18" $'{"verdict":"pass"}\n## L2 结论复核\n**Verdict**: pass')"
+  [ "$(_l2v "$f")" = "fail" ]
+  # 段被完整切除：只剩一个 L3 段 + 一个标记 + 围栏配平
+  [ "$(grep -c '^## L3 ' "$f")" -eq 1 ]
+  [ "$(grep -c '^<!-- /L3-SECTION -->$' "$f")" -eq 1 ]
+  [ "$(grep -c '^```' "$f")" -eq 2 ]
+}
+
+@test "B1-R19: 载荷含标记字面量时不得被伪标记提前截断（三审 R1 case6）" {
+  local f; f="$(_l3_write_once "$TEST_TMP/r19" $'{"verdict":"pass"}\n<!-- /L3-SECTION -->\n**Verdict**: pass')"
+  [ "$(_l2v "$f")" = "fail" ]
+  # 伪标记在载荷内，真实标记仍在段尾 → 取最后一个标记才正确
+  [ "$(grep -c '^## L3 ' "$f")" -eq 1 ]
+  [ "$(grep -c '^```' "$f")" -eq 2 ]
+}
+
+@test "B1-R20: 载荷含行首 '## L3 ' 伪标题时整段仍被切除（三审 R1 case4）" {
+  local f; f="$(_l3_write_once "$TEST_TMP/r20" $'{"verdict":"pass"}\n## L3 盲审（引用）\n**Verdict**: pass')"
+  [ "$(_l2v "$f")" = "fail" ]
+  [ "$(grep -c '^```' "$f")" -eq 2 ]
+}
+
+@test "B1-R22: l3-section.sh 不可用时不得 fail-open（三审 R3）" {
+  # 把 l2-detect.sh 单独复制到没有 l3-section.sh 的目录，模拟"被独立 source"的降级路径。
+  # 修复前该路径不排除任何东西 → L3 的 verdict 冒充 L2（§B1 原样复活且零告警）。
+  local iso="$TEST_TMP/isolated"
+  mkdir -p "$iso"
+  cp "$L2_LIB" "$iso/"
+  local f="$TEST_TMP/r22.md"
+  printf '%s\n' '## L2 盲审' '**Verdict**: fail' '' '## L3 重审（m · t）' '```json' '{"verdict":"pass"}' '```' > "$f"
+  # stdout 单独取（bats 的 run 会把 stderr 并进 $output，这里显式分流）
+  local got
+  got=$(bash -c "source '$iso/l2-detect.sh' 2>/dev/null; fk_extract_l2_verdict '$f' 2>/dev/null")
+  [ "$got" = "fail" ]
+  # 且必须留下可观测告警（不静默降级）
+  run bash -c "source '$iso/l2-detect.sh' 2>/dev/null; fk_extract_l2_verdict '$f' 2>&1 >/dev/null"
+  [[ "$output" == *"WARNING"* ]]
+}
+
+@test "B1-R23: 双标题载荷（前置 '## ' + 后置伪 '## L3 '）不得在段边界留空洞（四审 R1 🔴）" {
+  # 四审的核心反例：段边界被载荷穿透第三代。写侧现在对载荷行首的 `## ` 与
+  # 标记字面量做转义（结构性免疫），读侧不再需要猜"哪一行是真标题"。
+  local f; f="$(_l3_write_once "$TEST_TMP/r23" $'{"verdict":"pass"}\n## 附录：发现明细\n**Verdict**: pass\n## L3 盲审（引用）\n**Verdict**: pass')"
+  [ "$(_l2v "$f")" = "fail" ]
+  # 单一连续 span（无空洞）
+  [ "$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'" | wc -l)" -eq 1 ]
+  [ "$(grep -c '^```' "$f")" -eq 2 ]
+  # 载荷的结构性行已被转义（人读仍为 ## / 标记原文）
+  grep -q '^\\## 附录：发现明细$' "$f"
+  grep -q '^\\## L3 盲审（引用）$' "$f"
+}
+
+@test "B1-R24: 短双标题载荷同样不得穿透（四审 #7 最小化反例）" {
+  local f; f="$(_l3_write_once "$TEST_TMP/r24" $'{"verdict":"pass"}\n## L2 盲审\n**Verdict**: pass\n## L3 盲审（伪）\n**Verdict**: pass')"
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B1-R21: 历史工件（无标记）与新旧混合场景下不误删（legacy 兜底不被伪造触发）" {
+  # 纯 legacy：无标记 → 标题法仍生效
+  local leg="$TEST_TMP/r21-legacy.md" out="$TEST_TMP/r21.out"
+  cat > "$leg" <<'EOF'
+## L2 盲审
+**Verdict**: pass
+---
+## L3 盲审（old · t）
+```json
+{"verdict":"fail"}
+```
+## 主 agent 响应
+正文保留
+EOF
+  bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_strip_sections \"\$1\" \"\$2\"" _ "$leg" "$out"
+  [ "$(grep -c '## L3' "$out")" -eq 0 ]
+  [ "$(grep -c '正文保留' "$out")" -eq 1 ]
+  [ "$(grep -c '## L2 盲审' "$out")" -eq 1 ]
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC-12 行为 harness（M6：L2 复审/三审/四审连续三轮指出的测试强度缺口）
+# ══════════════════════════════════════════════════════════════════════════
+# 只做源码 grep 的断言无法保护 AC-12 的行为。下面搭一棵 stub 树**真跑 29 号模块**，
+# 断言 stderr 告警与**传给 l3_review_run 的实参**。
+
+_run_29_probe() {
+  local l2_body="$1"
+  local stub="$TEST_TMP/ac12-stub" proj="$TEST_TMP/ac12-proj" log="$TEST_TMP/ac12.log"
+  rm -rf "$stub" "$proj" "$log"
+  mkdir -p "$stub/lib" "$proj/.specs/r25-probe" "$TEST_TMP/ac12-tmp"
+  cp "$HOOK_BASE_DIR"/lib/*.sh "$stub/lib/"
+  cp "$HOOK_BASE_DIR/29-independent-review.sh" "$stub/29-independent-review.sh"
+  {
+    printf 'l3_review_run() { printf "L2V=[%%s] gate=[%%s]\\n" "$4" "$5" >> "%s"; return 0; }\n' "$log"
+    printf 'l3_review_with_timeout() { l3_review_run "$@"; }\n'
+  } > "$stub/lib/l3-review.sh"
+  cat > "$TEST_TMP/ac12-config.json" <<'CFG'
+{"modules":{"independent_review":{"enabled":true}},
+ "independent_review":{"max_artifact_bytes":20000,"max_failures_before_bypass":0}}
+CFG
+  cat > "$proj/.flow-active" <<'FLOW'
+{"change_id":"r25-probe","phase":"1","task_id":null,
+ "goal":{"condition":"probe","status":"active","scope":"pipeline","start_phase":"1",
+         "current_phase":"1","phases_done":[],"gates":{},"auto_advance":false,
+         "gate_config":{"1-requirement":"both"},
+         "active_since":"2026-09-18T00:00:00+08:00","turns":0,"mode":"fallback","phase_sub_goals":{}},
+ "interrupt":null,"token_spent":0,"updated_at":"2026-09-18T00:00:00+08:00"}
+FLOW
+  { printf '# 独立审查 · 阶段 1\n\n'; printf '%s\n' "$l2_body"; } \
+    > "$proj/.specs/r25-probe/INDEPENDENT-REVIEW-1.md"
+  PROBE_OUT="$(env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+    HOOK_BASE_DIR="$stub" PROJECT_ROOT="$proj" \
+    CONFIG_FILE="$TEST_TMP/ac12-config.json" \
+    HOOK_TMP_DIR="$TEST_TMP/ac12-tmp" \
+    FLOW_KIT_L3_MODEL="stub-model" \
+    bash "$stub/29-independent-review.sh" 2>&1)"
+  PROBE_LOG="$(cat "$log" 2>/dev/null || echo "")"
+}
+
+@test "B1-R25: AC-12 行为 —— L2 段无 verdict 时告警可见且实参仍为合法枚举" {
+  _run_29_probe '## L2 盲审
+
+正文没有任何 verdict 行'
+  [[ "$PROBE_OUT" == *"L2 verdict not found"* ]]
+  [[ "$PROBE_LOG" == *"L2V=[fail]"* ]]
+}
+
+@test "B1-R26: AC-12 对照 —— L2 段有 verdict 时取该值且不误报告警" {
+  _run_29_probe '## L2 盲审
+
+**Verdict**: pass'
+  [[ "$PROBE_LOG" == *"L2V=[pass]"* ]]
+  [[ "$PROBE_OUT" != *"L2 verdict not found"* ]]
+}
+
+@test "B1-R27: AC-12 变异防护 —— 空提取分支若被改成非 fail，本 harness 必须能抓到" {
+  _run_29_probe '## L2 盲审
+
+无结论行'
+  local mutant="$TEST_TMP/ac12-mutant" log2="$TEST_TMP/ac12-mutant.log"
+  rm -rf "$mutant" "$log2"; cp -R "$TEST_TMP/ac12-stub" "$mutant"
+  # 变异：保留告警文本，只把保守回落值改成 pass（模拟"静默带回 §B1 故障形态"的重构）
+  sed -i 's/l2_verdict=\"fail\"; echo \"\[independent-review\] L2 verdict not found/l2_verdict="pass"; echo "[independent-review] L2 verdict not found/' "$mutant/29-independent-review.sh" 2>/dev/null || true
+  python3 - "$mutant/29-independent-review.sh" <<'PYMUT'
+import sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+s = s.replace('    echo "[independent-review] L2 verdict not found',
+              '    l2_verdict="pass"\n    echo "[independent-review] L2 verdict not found', 1)
+open(p, 'w', encoding='utf-8').write(s)
+PYMUT
+  sed -i "s#>> \"$TEST_TMP/ac12.log\"#>> \"$log2\"#" "$mutant/lib/l3-review.sh"
+  env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+    HOOK_BASE_DIR="$mutant" PROJECT_ROOT="$TEST_TMP/ac12-proj" \
+    CONFIG_FILE="$TEST_TMP/ac12-config.json" \
+    HOOK_TMP_DIR="$TEST_TMP/ac12-tmp" \
+    FLOW_KIT_L3_MODEL="stub-model" \
+    bash "$mutant/29-independent-review.sh" >/dev/null 2>&1 || true
+  local got; got="$(cat "$log2" 2>/dev/null || echo "")"
+  [[ "$got" == *"L2V=[pass]"* ]]
+}
+
 # ══════════════════════════════════════════════════════════════════════════
 # §B2 · L3 段显式结束标记
 # ══════════════════════════════════════════════════════════════════════════
@@ -228,6 +564,176 @@ EOF
   run grep -c '## L3' "$out";    [ "$output" = "0" ]
 }
 
+@test "B2-R11: 主 agent 贴入的 '## L3 …' 行不构成 L3 段起点（设计期 L2 复审 N1 🔴）" {
+  # 主 agent 把 L2 子 agent 的报告贴进工件时，正文里引用一句 `## L3 盲审（…）` 不会有
+  # 写入方的「空行 + --- + 空行」preamble。判据①要求上方最近非空行为 ---，故不会被
+  # 误判为 L3 段起点（否则 _l3_strip_sections 会把其后的 L2 正文整体切除）。
+  local d="$TEST_TMP/b2r11"
+  mkdir -p "$d"
+  local f="$d/INDEPENDENT-REVIEW-1.md"
+  cat > "$f" <<'EOF'
+# 独立审查 · 阶段 1
+
+## L2 盲审
+
+**Verdict**: fail
+
+## 发现
+正文 A
+
+## L3 盲审（引用外部模型的历史结论）
+这是 L2 审查员引用的一句，不是真的 L3 段
+EOF
+  # ① 贴入内容不产生任何 span
+  local spans
+  spans="$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'")"
+  [ -z "$spans" ]
+  # ② 一次 L3 写入不会删掉正文
+  bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result '{\"verdict\":\"pass\"}' 1 '$d' model-x >/dev/null 2>&1" || true
+  grep -q '正文 A' "$f"
+  grep -q '这是 L2 审查员引用的一句' "$f"
+  # ③ 真实写入的 L3 段（带 --- preamble）仍被正确识别为 1 个 span
+  [ "$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'" | wc -l)" -eq 1 ]
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B2-R13: 贴入「--- + 伪 L3 标题」的引用块——断言**已知残余行为**（不假装已闭合，三审 R1）" {
+  # 读侧 --- preamble 判据是**纵深防御、不是保证**：贴入内容里出现「--- + ## L3 盲审（…）」
+  # 的引用块仍会产生伪 span。本用例把**已知行为**钉住：伪 span 会吞掉其后的 L2 正文
+  # （含 L2 自己的 Verdict 行），读侧取不到结论、写侧会把正文删掉。
+  # 根治手段是贴入方按契约转义（L2-blind-review.md 写入约束第 4 条），见本用例第 ③ 段。
+  local d="$TEST_TMP/b2r13"
+  mkdir -p "$d"
+  local f="$d/INDEPENDENT-REVIEW-1.md"
+  cat > "$f" <<'EOF'
+# 独立审查 · 阶段 1
+
+## L2 盲审
+
+---
+## L3 盲审（引用外部模型的历史结论）
+这是被引用的内容
+
+**Verdict**: fail
+EOF
+  # ① 该形态**确实**产生伪 span（伪标题上方有 ---）——已知行为，如实断言
+  local spans
+  spans="$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'")"
+  [ -n "$spans" ]
+  # ② 伪 span 吞掉了 L2 的 Verdict 行 → 读侧取不到结论（下游回落 fail，不阻塞）
+  [ -z "$(_l2v "$f")" ]
+  # ③ 写侧确实会删除伪段覆盖的正文（静默数据损坏）—— 补上删除腿的实断言
+  local out="$TEST_TMP/b2r13.out"
+  bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_strip_sections '$f' '$out'"
+  ! grep -q '\*\*Verdict\*\*: fail' "$out"        # L2 自己的结论行被删
+  ! grep -q '这是被引用的内容' "$out"
+  # ④ 转义后同一内容不再有 span（根治手段）
+  local d2="$TEST_TMP/b2r13b"
+  mkdir -p "$d2"
+  local f2="$d2/INDEPENDENT-REVIEW-1.md"
+  {
+    printf '# 独立审查 · 阶段 1\n\n## L2 盲审\n\n'
+    bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_escape_payload \"\$(cat '$f')\""
+  } > "$f2"
+  [ -z "$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f2'")" ]
+  grep -q '\*\*Verdict\*\*: fail' "$f2"
+}
+
+@test "B2-R14: 贴入路径的转义契约已写入 L2 固化指令（三审 R1 Remedy 1a）" {
+  local prompt="$FK_ROOT/flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md"
+  grep -q '_l3_escape_payload' "$prompt"
+  grep -q '贴入前必须对报告原文做载荷转义' "$prompt"
+}
+
+@test "B2-R12: --- preamble 判据在真实语料上零回归（份数/条数由 corpus-count.sh 现算，不写死快照）" {
+  # 若判据①过严，历史工件的 L3 段会识别不出来 → 语料取值分布会变。
+  # 实测口径（可复算）：`bash corpus-count.sh` → 含 L3 标题的工件 / 标题行 / 上方为 --- 的条数。
+  # 数字随语料增长而漂移（L2 第八轮指出旧快照 98/129 已过期），故只断言「100% 满足」。
+  # 本用例断言：全部带 L3 标题的工件仍能被识别出至少一个 span（判据①不得过严）。
+  local bad=0 n=0
+  local f
+  while IFS= read -r f; do
+    grep -qE '^## L3 (盲审|重审)' "$f" 2>/dev/null || continue
+    n=$((n+1))
+    local sp
+    sp="$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'")"
+    [ -n "$sp" ] || { bad=$((bad+1)); echo "  未识别: ${f##*/}"; }
+  done < <(find "$FK_ROOT/.specs" -name 'INDEPENDENT-REVIEW-*.md' | sort)
+  echo "  带 L3 标题的工件 = $n，未识别 = $bad"
+  [ "$n" -ge 50 ]
+  [ "$bad" -eq 0 ]
+}
+
+@test "B2-R10: 围栏行也被转义 —— 载荷无法破坏围栏配对（设计期 L2 R2）" {
+  local out
+  out="$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_escape_payload \"\$(printf '## 附录\n\`\`\`\ncode\n<!-- /L3-SECTION -->')\"")"
+  # 三种结构性行都以反斜杠开头
+  [ "$(printf '%s\n' "$out" | grep -c '^\\## 附录$')" -eq 1 ]
+  [ "$(printf '%s\n' "$out" | grep -c '^\\```$')" -eq 1 ]
+  [ "$(printf '%s\n' "$out" | grep -c '^\\<!-- /L3-SECTION -->$')" -eq 1 ]
+  # 转义后不再有任何"看起来是围栏"的行 → 工件围栏计数 = 写入方那 2 条
+  local d="$TEST_TMP/b2r10"; mkdir -p "$d"
+  printf '# IR\n\n## L2 盲审\n\n**Verdict**: fail\n' > "$d/INDEPENDENT-REVIEW-1.md"
+  bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result \"\$(printf '{\"verdict\":\"pass\"}\\n\`\`\`\\ncode')\" 1 '$d' model-x >/dev/null 2>&1" || true
+  [ "$(grep -c '^```' "$d/INDEPENDENT-REVIEW-1.md")" -eq 2 ]
+  [ "$(_l2v "$d/INDEPENDENT-REVIEW-1.md")" = "fail" ]
+}
+
+@test "B2-R8: 转义是契约 —— 两个载荷写入方都必须走 _l3_escape_payload（设计期 L2 R1 🔴）" {
+  local sec="$HOOK_BASE_DIR/lib/l3-section.sh"
+  # 唯一入口存在
+  grep -q '^_l3_escape_payload() {' "$sec"
+  # 写入方①：L3 载荷（l3-api.sh）
+  grep -q '_l3_escape_payload "\$content"' "$L3_API_LIB"
+  # 写入方②：L2 载荷（l2-detect.sh::l2_dispatch_agent，PreToolUse 生产路径）
+  grep -q '_l3_escape_payload "\$content"' "$L2_LIB"
+  # 反向：两处都不得再内联 sed 转义（否则又是一份实现）
+  [ "$(grep -c 's~^(## ' "$L3_API_LIB")" -eq 0 ]
+  [ "$(grep -c 's~^(## ' "$L2_LIB")" -eq 0 ]
+}
+
+@test "B2-R9: 经 _l3_escape_payload 的 L2 载荷无法伪造 L3 段起点（行为断言）" {
+  # 未转义时，载荷里一行 '## L3 盲审（引用…）' 会被 _l3_section_spans 判为 L3 段起点，
+  # 后续 _l3_strip_sections 会把该行之后的 L2 正文切除。转义后不应出现任何 span。
+  local payload=$'**Verdict**: fail\n## 发现\n正文 A\n## L3 盲审（引用外部模型的历史结论）\n引用内容'
+  local d="$TEST_TMP/b2r9"
+  local f="$d/INDEPENDENT-REVIEW-1.md"
+  mkdir -p "$d"
+  {
+    printf '# 独立审查 · 阶段 1\n\n## L2 盲审\n\n'
+    bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_escape_payload \"\$1\"" _ "$payload"
+  } > "$f"
+  # ① 转义后不存在可被识别的 L3 段
+  local spans
+  spans="$(bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans '$f'")"
+  [ -z "$spans" ]
+  # ② 一次 L3 写入不会删掉 L2 正文
+  bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result '{\"verdict\":\"pass\"}' 1 '$d' model-x >/dev/null 2>&1" || true
+  grep -q '正文 A' "$f"
+  grep -q '引用内容' "$f"
+  # ③ L2 结论仍可提取（且未被 L3 冒充）
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
+@test "B2-R7: 双标题载荷连跑 5 轮 → L3 段恰 1 个、真标记恰 1 个、零残留（四审 R1 的 AC-4 半）" {
+  # 四审证明：同一份载荷让 §B1（读侧被冒充）与 §B2（写侧累积污染）两个主 AC 同时失效。
+  # 本用例锁住写侧那一半。
+  local d="$TEST_TMP/b2r7" f r pl
+  mkdir -p "$d"; f="$d/INDEPENDENT-REVIEW-1.md"
+  printf '# IR-1\n\n## L2 盲审\n\n**Verdict**: fail\n' > "$f"
+  printf '# REQUIREMENT\n## v0\n' > "$d/REQUIREMENT.md"
+  for r in 1 2 3 4 5; do
+    printf '# REQUIREMENT\n## v%s\n' "$r" > "$d/REQUIREMENT.md"
+    pl=$(printf '{"verdict":"pass","summary":"r%s"}\n## 附录：发现明细%s\n**Verdict**: pass\n## L3 盲审（引用）%s\n**Verdict**: pass' "$r" "$r" "$r")
+    bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result \"\$1\" 1 \"\$2\" model-x >/dev/null 2>&1" _ "$pl" "$d"
+  done
+  [ "$(grep -c '^## L3 ' "$f")" -eq 1 ]                    # 段去重
+  [ "$(grep -c '^<!-- /L3-SECTION -->$' "$f")" -eq 1 ]     # 写入方产生的真标记恰 1
+  [ "$(grep -c '^```' "$f")" -eq 2 ]                       # 围栏配平
+  [ "$(grep -cE '附录：发现明细[1-4]|\"summary\":\"r[1-4]\"' "$f")" -eq 0 ]  # 零残留
+  [ "$(_l2v "$f")" = "fail" ]
+}
+
 @test "B2-R5: 三处写入方共用同一标记字面量（跨文件契约不漂移）" {
   local sec="$HOOK_BASE_DIR/lib/l3-section.sh"
   # 标记字面量唯一定义在 l3-section.sh
@@ -297,19 +803,54 @@ EOF
     "$L3_REVIEW_LIB"
 }
 
-@test "B3-R5: 配置模板与 l3.env 模板都写明单位=字节 + CJK ÷3" {
-  run grep -q 'max_artifact_bytes' "$HOOKS/config/stop-hook.json"
-  [ "$status" -eq 0 ]
-  local tpl="$FK_ROOT/.claude/l3.env.example"
-  grep -q 'max_artifact_bytes' "$tpl"
-  grep -qE '单位 = 字节|单位=字节' "$tpl"
-  grep -qE '÷3|÷ 3' "$tpl"
+@test "B3-R5: 四处文档载体一视同仁 —— 键名 + 单位=字节 + CJK ÷3 全断言" {
+  # §B3 的缺陷本质是「文档语义与实现单位不符」，其修复的保护面就是文档本身。
+  # 故四个载体每个都必须同时断言三件事，不能只断言键名（1-requirement 的 L2 盲审 R2：
+  # 原 B3-R5/R6 对 stop-hook.json 与 dsh-flow-kit/README.md 只查键名，
+  # 有人删掉单位说明 make check 仍全绿 —— 最容易回退的那一半恰好无保护）。
+  local f
+  for f in "$HOOKS/config/stop-hook.json" \
+           "$FK_ROOT/.claude/l3.env.example" \
+           "$FK_ROOT/README.md" \
+           "$FK_ROOT/dsh-flow-kit/README.md"; do
+    [ -f "$f" ] || { echo "缺文件: $f"; false; }
+    grep -q 'max_artifact_bytes' "$f" || { echo "缺规范键名: $f"; false; }
+    grep -qE '单位 ?= ?字节|单位=字节' "$f" || { echo "缺单位=字节 说明: $f"; false; }
+    grep -qE '÷ ?3' "$f" || { echo "缺 CJK ÷3 换算: $f"; false; }
+  done
 }
 
-@test "B3-R6: README 同步写明单位=字节（防文档漂移）" {
-  grep -q 'max_artifact_bytes' "$FK_ROOT/README.md"
-  grep -qE '单位 = 字节|单位=字节' "$FK_ROOT/README.md"
-  grep -q 'max_artifact_bytes' "$FK_ROOT/dsh-flow-kit/README.md"
+@test "B3-R5b: package-flow-kit.sh 的收尾横幅同样写明单位与 ÷3（第五处载体）" {
+  local f="$FK_ROOT/package-flow-kit.sh"
+  grep -q 'max_artifact_bytes' "$f"
+  grep -qE '单位 ?= ?字节|单位=字节' "$f"
+  grep -qE '÷ ?3' "$f"
+}
+
+@test "B3-R7: 提示词被截断时必须给出可见告警（含丢弃比例）—— 用户 2026-09-18 指出的盲区" {
+  # 由来：阶段 2 实测 cap=20000 而完整 prompt 37005B → 丢弃 45%，DESIGN.md 尾部从未送达 L3，
+  # 而 L3 的 verdict 看起来完全正常。§B3 修了「名实不符」，但**静默截断**仍在 —— 同族故障
+  # 在"审查输入"侧的复发。本用例锁住：截断发生 → stderr 告警且含比例；未截断 → 不告警。
+  local spec="$TEST_TMP/b3r7"
+  mkdir -p "$spec"
+  # 造一个明显超限的工件
+  { echo "# REQUIREMENT"; local i; for i in $(seq 1 200); do echo "## NFR-$i 需求条目填充内容用于跨过截断上限"; done; } \
+    > "$spec/REQUIREMENT.md"
+  # ① 超限 → 告警 + 比例
+  run bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000 >/dev/null"
+  [[ "$output" == *"提示词被截断"* ]]
+  [[ "$output" == *"丢弃"* ]]
+  [[ "$output" == *"max_artifact_bytes"* ]]
+  # ② 未超限 → 无告警
+  run bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000000 >/dev/null"
+  [[ "$output" != *"提示词被截断"* ]]
+}
+
+@test "B3-R8: 截断告警函数与调用点接线（防静默回退）" {
+  grep -q '^_l3_emit_prompt() {' "$L3_PROMPT_LIB"
+  grep -q '_l3_emit_prompt "\$_full" "\$max_bytes"' "$L3_PROMPT_LIB"
+  # 旧的直连管道写法不得再出现在 _l3_build_prompt 的最终输出点
+  [ "$(grep -c 'jq -nr' "$L3_PROMPT_LIB")" -ge 1 ]
 }
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -415,4 +956,271 @@ _phase7_prompt() {
     sed \"s#\\\$HOME/.claude/hooks#$fake#\" sync-hooks.sh > '$TEST_TMP/fake-sync.sh'
     bash '$TEST_TMP/fake-sync.sh' --check"
   [ "$status" -ne 0 ]
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# §B6 · M32 · L3 non-pass 必须**撤销**陈旧 .done
+#
+# 成因（本项目 phase 1 实测）：截断输入下判 pass 并写下锚点 → 输入修好后重审判 fail，
+# 旧实现只"不写"，不动既有锚点 → gate-checks-review / done-validation 仍读到锚点放行
+# （`.flow-active` 的 `1→2` gate 被置 passed，而当时最新 L3 结论是 fail）。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "B6-R1: 非 pass 时撤销既有锚点（陈旧 .done 必须失效）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf 'phase=1\nL3_verdict=pass\n' > "$d/.independent-review-1.done"
+  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  [ "$status" -eq 0 ]
+  [ ! -f "$d/.independent-review-1.done" ]
+  [[ "$output" == *"stale .done removed"* ]]
+}
+
+@test "B6-R2: 无锚点时撤销是静默 no-op（幂等，不产生噪声）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "B6-R3: 撤销只针对同阶段（不得误删其它阶段锚点）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf 'phase=1\n' > "$d/.independent-review-1.done"
+  printf 'phase=2\n' > "$d/.independent-review-2.done"
+  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  [ "$status" -eq 0 ]
+  [ ! -f "$d/.independent-review-1.done" ]
+  [ -f "$d/.independent-review-2.done" ]
+}
+
+@test "B6-R4: l3-review.sh 的 non-pass 分支真的调用撤销（接线断言）" {
+  local ctx
+  ctx=$(grep -B5 'verdict non-pass, .done not written' "$L3_REVIEW_LIB")
+  [[ "$ctx" == *"l3_invalidate_done"* ]]
+}
+
+@test "B6-R5: B6-R4 的接线断言不是恒真（删掉调用后必须失败 · 自证有效）" {
+  local mut="$TEST_TMP/l3-review-mut.sh"
+  sed '/l3_invalidate_done "\$phase" "\$artifacts_dir"/d' "$L3_REVIEW_LIB" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$L3_REVIEW_LIB")" ]
+  local ctx
+  ctx=$(grep -B5 'verdict non-pass, .done not written' "$mut")
+  [[ "$ctx" != *"l3_invalidate_done"* ]]
+}
+
+@test "B6-R6: timeout 不撤销（超时不携带「当前状态不通过」的信息）" {
+  local ctx
+  ctx=$(grep -A6 'L3 timed out after' "$L3_REVIEW_LIB")
+  [[ "$ctx" != *"l3_invalidate_done"* ]]
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# §B7 · M34 · 补充产物清单不得是硬编码白名单（否则审查者看不到交付物）
+#
+# 成因：旧实现只列 INTEGRATION.md / UAT.md / MINOR-DEFERRED.md，漏掉 AC-2 的交付物
+# `L2-EMPTY-ATTRIBUTION.md` → 完整版 L3 如实报「工件中未提供该清单的实际内容」
+# （对提示词为真、对仓库为假）。与 §B4 的 `head -30` 同源。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "B7-R1: 非白名单补充产物也列出正文（L2-EMPTY-ATTRIBUTION.md）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf '# 归因清单\n甲\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
+  printf '# 大而次要\n' > "$d/MINOR-DEFERRED.md"
+  printf 'req body\n' > "$d/REQUIREMENT.md"
+  printf 'review body\n' > "$d/INDEPENDENT-REVIEW-1.md"
+  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | grep -q '^=== L2-EMPTY-ATTRIBUTION.md ===$'
+  printf '%s\n' "$output" | grep -q '^# 归因清单$'
+  # 必备 6 件由调用方单独给正文；审查记录体积 100KB+ 且本轮正在写，均不得重复入包
+  # （不用 `grep -qv`：只要有一行不匹配它就会退 0，是恒真断言）
+  if printf '%s\n' "$output" | grep -q '^=== REQUIREMENT.md ===$'; then echo "必备件被重复入包"; false; fi
+  if printf '%s\n' "$output" | grep -q '^=== INDEPENDENT-REVIEW-1.md ===$'; then echo "审查记录不该入包"; false; fi
+}
+
+@test "B7-R2: 小交付物在前、大而次要者垫尾（截断只切最不具体的尾部）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf '# small\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
+  head -c 5000 /dev/zero | tr '\0' 'x' > "$d/MINOR-DEFERRED.md"
+  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  [ "$status" -eq 0 ]
+  local a b
+  a=$(printf '%s\n' "$output" | grep -n '^=== L2-EMPTY-ATTRIBUTION.md ===$' | cut -d: -f1)
+  b=$(printf '%s\n' "$output" | grep -n '^=== MINOR-DEFERRED.md ===$' | cut -d: -f1)
+  [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]
+}
+
+@test "B7-R3: 阶段 1 的 L3 提示词包含 CHANGE.md 与 AC-2 交付物正文（修复前只有 REQUIREMENT.md）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf '# REQ\nAC-1\n' > "$d/REQUIREMENT.md"
+  printf '# CHANGE\nP1\n' > "$d/CHANGE.md"
+  printf '# 归因清单\n甲\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
+  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt 1 '$d' 200000"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"=== CHANGE.md ==="* ]]
+  [[ "$output" == *"=== L2-EMPTY-ATTRIBUTION.md ==="* ]]
+  [[ "$output" == *"# 归因清单"* ]]
+}
+
+@test "B7-R4: 阶段 2/3/5/6 同样带上补充产物（不是只修阶段 1）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf '# 归因清单\n甲\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
+  printf '# DESIGN\nD\n' > "$d/DESIGN.md"
+  printf '# TASK\nT\n' > "$d/TASK.md"
+  printf '# TEST\nS\n' > "$d/TEST.md"
+  printf '# REVIEW\nR\n' > "$d/REVIEW.md"
+  local ph
+  for ph in 2 3 5 6; do
+    # 内层 2>/dev/null 是**必需**的：`run` 默认把 stderr 并入 $output，而"命令拼接写错"
+    # （例如把 $'\n' 误写成 $( 命令替换）时，bash 的报错文本里会**原样带上载荷**
+    # → 断言在报错文本上命中，得到假的绿（本用例曾因此假绿一次，2026-09-18 修复）。
+    run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt $ph '$d' 200000 2>/dev/null"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"=== L2-EMPTY-ATTRIBUTION.md ==="* ]] || { echo "阶段 $ph 缺补充产物"; false; }
+  done
+}
+
+@test "B7-R5: 拼接分隔符必须是 ANSI-C 引用（静态钉住，防 B7-R4 再次假绿）" {
+  # $( '\n' ... ) 会被 bash 当成「执行名为 \n 的命令」；其报错文本包含载荷 → 假绿。
+  ! grep -q "\$('\\\\n'" "$L3_PROMPT_LIB"
+  grep -q "\$'\\\\n'\"\$(_l3_extra_deliverables" "$L3_PROMPT_LIB"
+}
+
+@test "B2-R15: L2 写侧 fail-closed —— 转义函数不可用时拒绝落盘（阶段 2 的 L3 critical ②）" {
+  # 旧实现无条件直调 _l3_escape_payload：函数缺失（l3-section.sh 未加载）时
+  # `{ … } >> tmp` 半途失败，临时文件里留下**未转义**的头部与载荷 → 静默损坏换个形态。
+  local lib="$L2_LIB"
+  grep -q 'type _l3_escape_payload' "$lib"
+  grep -q '拒绝写入未转义 L2 载荷' "$lib"
+  # 守卫必须落在**同一个落盘段内且在调用之前**（先判定、后写入），
+  # 不能只是文件里孤立出现（按行数 grep -B 会随注释增删而假绿）
+  local seg gl cl
+  seg=$(awk '/追加写入 INDEPENDENT-REVIEW/,/atomic mv failed/' "$lib")
+  [[ "$seg" == *"type _l3_escape_payload"* ]] || { echo "落盘段内缺 fail-closed 守卫"; false; }
+  [[ "$seg" == *'_l3_escape_payload "$content"'* ]] || { echo "落盘段内缺转义调用"; false; }
+  gl=$(printf '%s\n' "$seg" | grep -n 'type _l3_escape_payload' | head -1 | cut -d: -f1)
+  cl=$(printf '%s\n' "$seg" | grep -n '_l3_escape_payload "\$content"' | head -1 | cut -d: -f1)
+  [ -n "$gl" ] && [ -n "$cl" ] && [ "$gl" -lt "$cl" ] || { echo "守卫不在调用之前"; false; }
+}
+
+@test "B2-R16: B2-R15 的断言不是恒真（删掉守卫后必须失败 · 自证有效）" {
+  local mut="$TEST_TMP/l2-detect-mut.sh"
+  awk '/type _l3_escape_payload/{skip=1} skip&&/exit 1/{skip=0; next} !skip' "$L2_LIB" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$L2_LIB")" ]
+  local seg
+  seg=$(awk '/追加写入 INDEPENDENT-REVIEW/,/atomic mv failed/' "$mut")
+  [[ "$seg" != *"type _l3_escape_payload"* ]]
+}
+
+@test "B2-R17: 无标记历史件的段终点收紧为 L2/主 agent/L3 或 EOF（载荷内 '## ' 不再切段）" {
+  # 设计期 L2 第八轮 critical ②：兜底若用「下一个二级标题」，载荷里一行 '## 附录：发现明细'
+  # 就把段尾切在它之前，其后的 '**Verdict**: pass' 漏进 L2 层 → 历史件上复活 §B1 缺陷。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  local f="$d/IR.md"
+  printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（外部模型 · x）\n\n## 附录：发现明细\n\n**Verdict**: pass\n' > "$f"
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  [ "${output//[$'\n']/}" = "fail" ]
+}
+
+@test "B2-R18: 收紧后仍止于已知区段（L2 段不被吞进 L3 段）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  local f="$d/IR.md"
+  # L3 段（无标记）之后紧跟下一轮 L2 → 段终点必须停在 L2 之前，后续 L2 结论仍可取
+  printf -- '---\n\n## L3 盲审（外部模型 · x）\n\n正文 A\n\n## L2 盲审（六审）\n\n**Verdict**: PASS\n' > "$f"
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  [ "${output//[$'\n']/}" = "pass" ]
+}
+
+@test "B2-R19: 有标记的新件终点恒为标记（收紧不改变新路径）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  local f="$d/IR.md"
+  printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（外部模型 · x）\n\n## 对抗标题\n\n**Verdict**: pass\n\n<!-- /L3-SECTION -->\n\n## 主 agent 响应\n\n**Verdict**: pass\n' > "$f"
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  [ "${output//[$'\n']/}" = "fail" ]
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# §B8 · D13 读侧还原转义（阶段 2 的 L3 major ①）
+#
+# 写侧为保护结构性解析器给行首加反斜杠；读侧的**内容级**解析路径（`## Verdict` 标题形）
+# 若不还原，合法 L2 结论会失配成空值 —— 与 §B1 同类的假阴性。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "B8-R1: 转义后的 '## Verdict' 标题形在 L2 层被还原（合法结论不失配）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  local f="$d/IR.md"
+  bash -c "source '$L3_SECTION_LIB'; { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''; _l3_escape_payload \"\$(printf '## Verdict\\npass\\n')\"; } > '$f'"
+  # 落盘内容确实被转义（否则本用例退化为恒真）
+  grep -q '^\\## Verdict$' "$f" || { echo "载荷未被转义，用例前提不成立"; false; }
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  [ "${output//[$'\n']/}" = "pass" ]
+}
+
+@test "B8-R2: 还原不越过段边界（L3 段内内容仍被排除）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  local f="$d/IR.md"
+  {
+    printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n'
+    printf -- '---\n\n## L3 盲审（m · t）\n\n'
+    printf -- '\\## Verdict\npass\n\n'
+    printf -- '<!-- /L3-SECTION -->\n'
+  } > "$f"
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  [ "${output//[$'\n']/}" = "fail" ]
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# §B9 · ADR-026 贴入路径的**可执行拦截**（阶段 2 的 L3 critical ①）
+#
+# 从"提示词约束"升级为 PreToolUse 拦截：未转义的「--- + ## L3 …」块禁止写入评审文件。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "B9-R1: 未转义的 '--- + ## L3 …' 贴入被判为应拒绝" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n结论：pass\\n')\""
+  [ "$status" -eq 0 ]
+}
+
+@test "B9-R2: 带结束标记的块放行（审查子系统自己写的段不被误拦）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n> 自动生成于 t。由 l3-review.sh 写入。\\n\\n<!-- /L3-SECTION -->\\n')\""
+  [ "$status" -ne 0 ]
+}
+
+@test "B9-R3: 已转义的 '\\## L3 …' 放行（合法引用形态）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
+  [ "$status" -ne 0 ]
+}
+
+@test "B9-R4: _gate_path_guard 对评审文件的未转义写入 exit 2（接线断言）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
+  [ "$status" -eq 2 ]
+}
+
+@test "B9-R5: 非评审文件路径不受该守卫影响（不误伤普通写入）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write 'README.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
+  [ "$status" -eq 0 ]
+}
+
+@test "B9-R6: 入口把 content 透传到守卫（静态接线 + 变异自证）" {
+  local gate="$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh"
+  grep -q "_gate_path_guard \"\$tool_name\" \"\$file_path\" \"\$cmd\" \"\$content\"" "$gate"
+  grep -q 'tool_input.content // .tool_input.new_string' "$gate"
+  local mut="$TEST_TMP/gate-mut.sh"
+  # 变异自证：删掉 content 解析行后，上面的静态断言必须失败（防恒真）
+  grep -v 'tool_input.content // .tool_input.new_string' "$gate" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$gate")" ]
+  ! grep -q 'tool_input.content // .tool_input.new_string' "$mut"
+}
+
+@test "B2-R20: 写入方 #1（_l3_parse_result）同样写入侧 fail-closed（阶段 2 的 L3 major ②）" {
+  # 旧实现只靠 set -e 隐式失败：`{ … } >> file` 会在转义那行中断，但**已写入的头部**留在文件里。
+  grep -q 'type _l3_escape_payload' "$L3_API_LIB"
+  local seg
+  seg=$(awk '/写入方 #1 fail-closed/,/^  \{/' "$L3_API_LIB")
+  [[ "$seg" == *"return 3"* ]] || { echo "缺 fail-closed 返回码"; false; }
+}
+
+@test "B2-R21: B2-R20 的断言不是恒真（删掉守卫后必须失败 · 自证有效）" {
+  local mut="$TEST_TMP/l3-api-mut.sh"
+  grep -v 'type _l3_escape_payload' "$L3_API_LIB" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$L3_API_LIB")" ]
+  ! grep -q 'type _l3_escape_payload' "$mut"
 }

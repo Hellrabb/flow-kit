@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -73,6 +73,12 @@ hooks-sync:
 check-hooks-sync:
 	@echo "🔍 make check-hooks-sync: hooks 副本漂移检测 ..."
 	@bash sync-hooks.sh --check
+
+# ── verify-claims: 对「响应段里的可验证声明」做机械复验（2-design 期 L2 盲审 的根因治理）──
+# 载体动态枚举 + 计数现场复算，避免"只核对了 2/9 份载体"这类复验不可复算的问题。
+verify-claims:
+	@echo "🔎 make verify-claims: 逐条机械复验 ..."
+	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
 check: test lint check-validate check-test-sync check-hooks-sync

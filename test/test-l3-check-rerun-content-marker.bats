@@ -50,7 +50,9 @@ _load_l3() {
   echo "requirement content" > "$TMP_DIR/.specs/c/REQUIREMENT.md"
   local sha
   sha=$(sha256sum "$TMP_DIR/.specs/c/REQUIREMENT.md" | awk '{print $1}')
-  printf '## L3 盲审（glm-5.1 · 2026）\n\nverdict: pass\n\nL3_artifact_hash: %s\n' "$sha" \
+  # 段前 --- preamble 是写入方（l3-api.sh / l3-done.sh）的固定输出，
+  # _l3_has_section 的判据依赖它（设计期 L2 三审 R6）。
+  printf '\n---\n\n## L3 盲审（glm-5.1 · 2026）\n\nverdict: pass\n\nL3_artifact_hash: %s\n' "$sha" \
     > "$TMP_DIR/.specs/c/INDEPENDENT-REVIEW-1.md"
   # touch artifact（mtime 变，内容/hash 不变）→ 仍 skip
   touch "$TMP_DIR/.specs/c/REQUIREMENT.md"
@@ -63,7 +65,7 @@ _load_l3() {
   echo "old content" > "$TMP_DIR/.specs/c/REQUIREMENT.md"
   local sha
   sha=$(sha256sum "$TMP_DIR/.specs/c/REQUIREMENT.md" | awk '{print $1}')
-  printf '## L3 重审（glm-5.1 · 2026）\n\nL3_artifact_hash: %s\n' "$sha" \
+  printf '\n---\n\n## L3 重审（glm-5.1 · 2026）\n\nL3_artifact_hash: %s\n' "$sha" \
     > "$TMP_DIR/.specs/c/INDEPENDENT-REVIEW-1.md"
   echo "new changed content" > "$TMP_DIR/.specs/c/REQUIREMENT.md"  # 内容改 → hash 变
   run _l3_check_rerun 1 "$TMP_DIR/.specs/c"

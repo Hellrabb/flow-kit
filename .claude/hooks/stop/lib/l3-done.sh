@@ -7,6 +7,7 @@
 #
 # 函数:
 #   _l3_write_done        — Step 4: .done 文件写入（含 D3 both 检查）
+#   l3_invalidate_done    — 非 pass 时撤销陈旧 .done 锚点（M32）
 #   l3_write_timeout_done — 超时降级: 追加 timeout 段到 review 文件（不写 .done）
 #   l3_write_bypass_done  — 熔断降级: 追加 bypass 段 + 写 .done（L3_verdict=skipped）
 #
@@ -37,7 +38,7 @@ _l3_write_done() {
 
   # 防御：L3 内容持久化验证（原子写入后二次确认）
   local review_md="${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md"
-  if [ ! -f "$review_md" ] || ! grep -q "^## L3 盲审\|^## L3 重审" "$review_md" 2>/dev/null; then
+  if [ ! -f "$review_md" ] || ! _l3_has_section "$review_md"; then
     echo "[l3-review] .done deferred: L3 content not found in ${review_md} (write may have failed)" >&2
     return 3
   fi
@@ -79,6 +80,31 @@ DONE_EOF
     return 3
   }
   echo "[l3-review] L3 pass — .done written (phase ${phase}, verdict=${verdict})" >&2
+  return 0
+}
+
+# ── l3_invalidate_done() · 非 pass 时撤销陈旧锚点（M32 · 2026-09-18）──
+# 用法: l3_invalidate_done <phase> <artifacts_dir>
+# 返回: 恒 0（撤销失败不阻断，但要能被观测到）
+#
+# 为什么必须撤销：`.done` 是**门禁的唯一凭证**（gate-checks-review / done-validation 只
+# 看它存在与否）。旧实现只在 pass 时写、non-pass 时「什么都不做」，于是存在这样一条
+# 静默通道：某一轮在**不完整输入**下判 pass 并写下 .done → 输入修好后重审判 fail →
+# 旧锚点仍在 → 门禁继续放行。本项目 phase 1 实测已发生过（`1→2` gate 被置 passed，
+# 而当时最新的 L3 结论是 fail）。
+#
+# 语义边界：撤销只在**拿到 verdict 且非 pass** 时发生（调用点 = l3-review.sh 的
+# `_write_rc=1` 分支）。timeout 不撤销——超时不携带「当前状态不通过」的信息，
+# 拿它去销毁一个已挣得的 pass 锚点是另一种错误。
+l3_invalidate_done() {
+  local phase="$1" artifacts_dir="$2"
+  local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
+  [ -f "$done_marker" ] || return 0
+  if rm -f "$done_marker" 2>/dev/null; then
+    echo "[l3-review] stale .done removed (phase ${phase}) — 上一轮 pass 的锚点在新一轮 non-pass 后失效" >&2
+  else
+    echo "[l3-review] WARNING: failed to remove stale .done (phase ${phase}): ${done_marker}" >&2
+  fi
   return 0
 }
 

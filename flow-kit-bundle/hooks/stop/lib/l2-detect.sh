@@ -27,6 +27,94 @@ type fk_resolve_api_credentials >/dev/null 2>&1 || {
   unset _L2_LIB_DIR
 }
 
+# 依赖注入：l3-section.sh（_l3_section_spans / L3 段边界判定单一来源，见 _fk_l2_scope）
+# 调用链（l3-review.sh）已 source；本文件亦被 done-validation.sh / gate-checks-review.sh
+# 独立 source，故此处按同目录兜底（type 守卫保证幂等）。
+type _l3_section_spans >/dev/null 2>&1 || {
+  _L2_SEC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+  if [ -n "${_L2_SEC_DIR:-}" ] && [ -f "${_L2_SEC_DIR}/l3-section.sh" ]; then
+    source "${_L2_SEC_DIR}/l3-section.sh"
+  fi
+  unset _L2_SEC_DIR
+}
+
+# _fk_l2_scope — 取工件的「L2 层」文本（B1 ②层收口 · 2026-09-18）
+# 用法: _fk_l2_scope <review_md>   → stdout
+#
+# 排除两类**非 L2 层**的块，其余（含全部 L2 轮次）原样保留：
+#   ① L3 段 —— 区间由 l3-section.sh::_l3_section_spans() 给出（**边界判定的唯一来源**）
+#   ② `^## 主 agent` 起，到下一个 `^## ` 标题——主 agent 的复述/反驳，按 L2 契约
+#      （L2-blind-review.md:142「主 agent 无权修改你的原文判断」）不参与 L2 结论
+#
+# 边界判定单一来源：本函数**不得**自己按 `^## ` 复位。载荷里出现行首 `## ` 是常见形态，
+# 那样会让 L3 正文回流进"L2 层"，其后的行首 `Verdict:` 顶掉 L2 结论（= §B2 已在删除侧
+# 否决的启发式在读侧复活）；同理也不能「从 ^## L2 起、到下一个 ^## 止」（会腰斩含二级
+# 子标题的 L2 报告与多轮 L2 交替形态）。完整论证见 DESIGN.md §D7 与 ADR-026。
+_fk_l2_scope() {
+  local review_md="$1"
+  local spans=""
+  if type _l3_section_spans >/dev/null 2>&1; then
+    spans="$(_l3_section_spans "$review_md")"
+  else
+    # 降级路径（l3-section.sh 不可用，例如本文件被单独复制走）：
+    # **绝不能 fail-open**（1-requirement 的 L2 三审 R3）——若此处什么都不排除，
+    # 整个文件都会落入"L2 层"，L3 的 verdict 又会冒充 L2，等于 §B1 原样复活且零告警。
+    # 故内联一份**保守**的标题法排除（旧规则）：它不抗载荷伪造，但能覆盖全部常规形态。
+    spans="$(awk '
+      { line[NR] = $0 }
+      END {
+        n = NR; i = 1
+        while (i <= n) {
+          if (line[i] ~ /^## L3 (盲审|重审)/) {
+            stop = n
+            # 终点与 _l3_spans_impl 的无标记分支同源收紧（2026-09-18）：只在**已知区段标题**
+            # 处收口，避免载荷里的 `## ` 把段尾切早、让其后 Verdict 漏进 L2 层。
+            for (j = i + 1; j <= n; j++) if (line[j] ~ /^## (L2 |主 agent|L3 )/) { stop = j - 1; break }
+            print i " " stop
+            i = stop + 1
+          } else i++
+        }
+      }' "$review_md" 2>/dev/null)"
+    echo "[l2-detect] WARNING: l3-section.sh 不可用，_fk_l2_scope 走保守降级路径（L3 段按标题法排除）" >&2
+  fi
+  awk -v spans="$spans" '
+    BEGIN {
+      if (spans != "") {
+        cnt = split(spans, arr, "\n")
+        for (i = 1; i <= cnt; i++) {
+          split(arr[i], p, " ")
+          for (j = p[1]; j <= p[2]; j++) del[j] = 1
+        }
+      }
+    }
+    { line[NR] = $0 }
+    END {
+      skip = 0
+      for (i = 1; i <= NR; i++) {
+        if (line[i] ~ /^## 主 agent/) skip = 1
+        else if (line[i] ~ /^## /) skip = 0
+        if (!(i in del) && !skip) print line[i]
+      }
+    }
+  ' "$review_md" 2>/dev/null | _l2_unescape_payload
+}
+
+# _l2_unescape_payload — 还原写入侧转义（ADR-026 · 设计 D13 · 阶段 2 的 L3 major ①）
+# 用法: … | _l2_unescape_payload
+#
+# 为什么需要：`_l3_escape_payload` 为保护**结构性解析器**（段边界、标记、围栏配对）会给行首
+# `## ` / `<!-- /L3-SECTION -->` / 围栏加反斜杠；而 L2 结论提取里有一条「`## Verdict` 标题 →
+# 取次行」的**内容级**解析路径，它看到的是转义后的 `\## Verdict` —— 合法结论会失配成空值
+# （阶段 2 的 L3 major ①）。故在**边界判定完成之后**把 L2 层文本还原为载荷原文。
+#
+# 安全性：还原只作用于已排除 L3 段与 `## 主 agent` 段之后的文本；段边界判定用的是**原始**
+# 文本（`_l3_section_spans`），故还原不会重新引入边界。
+_l2_unescape_payload() {
+  sed -e 's/^\\## /## /' \
+      -e 's/^\\<!-- \/L3-SECTION -->/<!-- \/L3-SECTION -->/' \
+      -e 's/^\\```/```/'
+}
+
 # fk_extract_l2_verdict — extract L2 verdict from INDEPENDENT-REVIEW-N.md（ADR-007 / D1 · gate-review-fix）
 # Single source for L2 verdict extraction across 4 consumers (4 files).
 #
@@ -37,23 +125,33 @@ type fk_resolve_api_credentials >/dev/null 2>&1 || {
 #     ② 无行首锚定 —— 散文 / 表格 / 主 agent 的「**有效 Verdict: pass**」全都命中；
 #     ③ `grep -o` 保留原大小写 —— 命中 `PASS` 就返回 `PASS`，调用方 ^(pass|fail|skipped)$
 #        校验失败 → `l3-review.sh:61` 直接 return 3，L3 从此不再运行且工件上看不出原因。
-#   现策略（锚定 + 最后一次 + 大小写归一）：
+#   现策略（**限定 L2 层** + 锚定 + 最后一次 + 大小写归一）：
+#     ① 先把文本限定在 **L2 层**（`_fk_l2_scope`）——排除 L3 层块与主 agent 响应块；
 #     ② 行首锚定，容忍列表符/标题符/粗体前缀；排除以引号开头的行 → 免疫 L3 段 JSON；
 #     ③ 取最后一处 = 最新一轮 L2 复审结论（同一工件可含多轮 `## L2 盲审（重审）`）；
 #     ④ 输出统一小写，满足调用方值域契约。
-#   兜底层：标题形（`## Verdict` → 取次行值）→ 旧式非锚定搜索。
-#   实测：本仓库 192 份归档工件的提取结果对 `.done` 记录值：修复 18 处、
-#         覆盖零回归（无一份从"有值"退化为"空值"）。
+#   兜底层：标题形（`## Verdict` → 取次行值）→ 旧式非锚定搜索。三层均在 L2 层文本内执行。
+#
+#   ②层收口（2026-09-18 · 1-requirement 的 L2 盲审 R1）：修复前只靠「排除引号开头的行」
+#   免疫 L3 段 JSON，属于**形态免疫**而非**边界免疫**——只要 L3 段里出现一行非围栏的
+#   行首 `Verdict: x`（模型把 JSON 包在 ``` 里会提前闭合围栏，其后一行即落到围栏外），
+#   仍会顶掉 L2 结论。现按层切分，与 l3-section.sh 的段边界处理同构。
+#   实测（语料份数随本 change 自身新增的审查文件增长，用 `bash corpus-count.sh` 现算；
+#   本 change 期间为 224 份）：结果变化 8 份，全部为「原本从 L3 段漏出的值」→ 变为空值，
+#   即恢复了 US-1 要的"读 L2 的结论"语义；空值在下游 4 个消费点均回落 `fail`（不阻塞）。
 # 用法: l2v="$(fk_extract_l2_verdict "$review_md")"
 # 返回: "pass" | "fail" | "" (未找到)
 fk_extract_l2_verdict() {
   local review_md="${1:-}"
   [ -f "$review_md" ] || { echo ""; return 1; }
 
+  local l2_text
+  l2_text="$(_fk_l2_scope "$review_md")"
+
   local verdict=""
   # ② 行内锚定形：[spaces][列表符][标题符][粗体]Verdict[粗体][:：]
   #    排除引号开头的行 → 不命中 L3 段 JSON 的 `"verdict": "..."`（缩进+引号）
-  verdict=$(grep -E '^[[:space:]]*([-*+][[:space:]]+)*#*[[:space:]]*\**[[:space:]]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][[:space:]]*\**[[:space:]]*[:：]' "$review_md" 2>/dev/null \
+  verdict=$(printf '%s\n' "$l2_text" | grep -E '^[[:space:]]*([-*+][[:space:]]+)*#*[[:space:]]*\**[[:space:]]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][[:space:]]*\**[[:space:]]*[:：]' 2>/dev/null \
     | grep -vE '^[[:space:]]*"' 2>/dev/null \
     | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
 
@@ -71,12 +169,12 @@ fk_extract_l2_verdict() {
         pend = 0; next
       }
       pend && NF { print; pend = 0 }
-    ' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
+    ' <(printf '%s\n' "$l2_text") 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
   fi
 
   # ④ 兜底：旧式非锚定搜索（同样只取最后一处；大小写归一）
   if [ -z "$verdict" ]; then
-    verdict=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null \
+    verdict=$(printf '%s\n' "$l2_text" | grep -iE 'verdict[^a-z]*[:：]' 2>/dev/null \
       | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
   fi
 
@@ -349,6 +447,15 @@ L2_PROMPT_EOF
     if [ -f "$review_md" ]; then
       cat "$review_md" > "$bg_tmp" 2>/dev/null || true
     fi
+    # ADR-026 · 写入侧 fail-closed（设计 D7 的写入侧缺口 · 阶段 2 的 L3 critical ②）：
+    # 转义函数不可用时必须**拒绝落盘**，绝不写未转义载荷。旧实现无条件直调，函数缺失
+    # 时 `{ … } >> tmp` 会半途失败并把**未转义的头部与载荷**留在临时文件里——
+    # 「静默损坏」换了个形态出现，仍然违反 AC-1 的 fail-closed 语义。
+    if ! type _l3_escape_payload >/dev/null 2>&1; then
+      echo "[l2-dispatch] CRITICAL: _l3_escape_payload 不可用（l3-section.sh 未加载）—— 拒绝写入未转义 L2 载荷（fail-closed · ADR-026）" >&2
+      rm -f "$bg_tmp" 2>/dev/null || true
+      exit 1
+    fi
     {
       echo ""
       echo "---"
@@ -356,7 +463,9 @@ L2_PROMPT_EOF
       echo ""
       echo "> 审查日期：$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ) | 阶段：${phase} | change-id：${change_id} | 自动派发"
       echo ""
-      echo "$content"
+      # ADR-026：L2 载荷同样是**不可信内容**，必须转义（否则其中的行首 '## L3 …'
+      # 会被判为 L3 段起点，导致本段正文在后续 L3 写入时被切除 —— 静默数据损坏）
+      _l3_escape_payload "$content"
     } >> "$bg_tmp"
     mv "$bg_tmp" "$review_md" 2>/dev/null || {
       echo "[l2-dispatch] CRITICAL: atomic mv failed for ${review_md}" >&2

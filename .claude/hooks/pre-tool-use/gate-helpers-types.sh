@@ -90,3 +90,30 @@ is_git_commit() {
   return 1
 }
 
+
+# _gate_is_unescaped_l3_paste — 未转义的「--- + ## L3 …」贴入检测（ADR-026 · 阶段 2 的 L3 critical ①）
+# 参数: $1 = 待写入内容（Write 的 content / Edit 的 new_string）
+# 返回: 0 = 命中（调用方应拒绝）; 1 = 未命中
+#
+# 判据：内容里存在行首 `## L3 (盲审|重审)`，其上方最近非空行为 `---`，且**其后再无**
+# 本系统写入方留下的结束标记 `<!-- /L3-SECTION -->`。
+# 为什么看标记：L3 子系统写的段一定带标记（_l3_parse_result / l3-done.sh），而"把模型回复
+# 贴进评审文件"的载荷不带 —— 前者不得误拦（整文件重写会把已有 L3 段随文带入）。
+_gate_is_unescaped_l3_paste() {
+  local content="${1:-}"
+  [ -n "$content" ] || return 1
+  printf '%s\n' "$content" | awk '
+    { line[NR] = $0 }
+    END {
+      n = NR
+      for (i = 1; i <= n; i++) {
+        if (line[i] !~ /^## L3 (盲审|重审)/) continue
+        k = i - 1
+        while (k >= 1 && line[k] ~ /^[[:space:]]*$/) k--
+        if (k < 1 || line[k] !~ /^---[[:space:]]*$/) continue
+        has_marker = 0
+        for (j = i + 1; j <= n; j++) if (line[j] ~ /^<!-- \/L3-SECTION -->[[:space:]]*$/) { has_marker = 1; break }
+        if (!has_marker) { print i; exit }
+      }
+    }' | grep -q .
+}

@@ -256,6 +256,13 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | 归档布局解析（archive-layout resolution） | artifacts_dir 为 `.specs/archive/<id>/` 形态时 project_root 必须解析到仓库根（`dirname ×3` 或等价逻辑），保证项目级 CHANGELOG/LESSONS 注入不失效。来自 `l3-prompt-loop-fix` |
 <!-- l3-prompt-loop-fix 追加 ↑ -->
 
+<!-- l3-review-defects-2026-09 追加 ↓ -->
+| L3 段结束标记（L3 section end marker） | 写入方在 L3 段尾落 `<!-- /L3-SECTION -->`，删除侧据此精确切分，取代"碰到下一个二级标题"的隐式边界；无标记的历史工件回落原标题法。定义在 `hooks/stop/lib/l3-section.sh`。来自 `l3-review-defects-2026-09` |
+| L2 结论锚定提取（anchored L2 verdict extraction） | 只在**行首锚定**的 `Verdict:` 行取 L2 结论（容忍列表符/标题符/粗体前缀，排除 JSON 引号键），取最后一轮并归一为小写。免疫 L3 段 JSON 与主 agent 的散文复述。来自 `l3-review-defects-2026-09` |
+| 工件上限单位（artifact cap unit） | 配置键 `independent_review.max_artifact_bytes` 的单位是**字节**（实现为 `head -c`），CJK 按 ÷3 估算汉字数（60000 字节 ≈ 2 万汉字）。旧键 `max_artifact_chars` 保留兼容读取并打印 DEPRECATED。来自 `l3-review-defects-2026-09` |
+| 副本漂移检测（hooks copy drift check） | 以 `flow-kit-bundle/hooks/` 为唯一源，比对 6 处已存在安装副本的 install 集**内容**一致性；`make check-hooks-sync` 纳入 `make check` 门禁。来自 `l3-review-defects-2026-09` |
+<!-- l3-review-defects-2026-09 追加 ↑ -->
+
 ## 已锁决策
 
 - `[2026-09-03]` L2/L3 模型解析链加入站点级默认 tier——L3: `ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > goal.l3_model > FLOW_KIT_L3_DEFAULT_MODEL > goal.l3_default_model`（L2 对称）。语义：显式永远压过默认；默认模型不改变无凭证跳过语义（凭证由 fk_resolve_api_credentials 独立判定）。不设硬编码模型名——用户 CC/opencode 均为自定义网关，模型目录站点相关。配置面：`/flow model l3-default=<m>` 持久化或 export env。来自 `l3-default-model`（mini change）
@@ -341,6 +348,12 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 <!-- l3-prompt-loop-fix 追加 ↓ -->
 - `[2026-09-04]` L3 重审 prompt 必须携带前轮反馈 — 单行摘要粒度（`severity|file|issue`，总量 ≤800B）；前轮审查文件无「## 主 agent 响应」段时仍注入发现摘要并显式标注「主 agent 未响应」；反馈段注入顺序优先于 7 文件工件正文（反馈优先截断立场）。用户已在 1-requirement 反问中确认两项粒度决策。来自 `l3-prompt-loop-fix`
 <!-- l3-prompt-loop-fix 追加 ↑ -->
+
+<!-- l3-review-defects-2026-09 追加 ↓ -->
+- `[2026-09-18]` **L2_verdict 取值语义 = L2 审查员原文结论**，不取主 agent 修复后的复述 —— 依据 `flow-kit/prompts/independent/L2-blind-review.md:142`「主 agent **无权修改你的原文判断**」。关键事实：该值只用于**审计记录 + 值域/一致性校验**，**任何调用点都不要求它等于 `pass`**（阶段放行由 L3 verdict 决定）。故这一取舍只影响审计记录准确性，不影响门禁行为。来自 `l3-review-defects-2026-09`
+- `[2026-09-18]` **工件上限选"改名"而非"改按字符截断"** —— 截断的真实目的是控制发给外部模型的字节/Token 量；改成按字符裁会让 CJK 工件的请求体最多膨胀 3 倍，重新引入超限风险。故让名字服从实现（`max_artifact_bytes`）+ 旧键兼容读取 + 文档写明单位与 ÷3 换算。否决"按字符截断"与"仅在文档里说明"两个方案。来自 `l3-review-defects-2026-09`
+- `[2026-09-18]` **副本同步工具只管内容、不改权限** —— 可执行位归 `install_hooks.sh` 的既有契约（只对 `stop/<module>.sh`、`session-start/*.sh`、`pre-tool-use/*.sh` 做 `chmod +x`）。理由：同步顺手改权限会搅出与修复无关的 mode 变更、淹没真正的 diff。`sync-hooks.sh` 对缺失 `+x` 只做只读提示。来自 `l3-review-defects-2026-09`
+<!-- l3-review-defects-2026-09 追加 ↑ -->
 
 ## 默认偏好（AI 在缺省时按此决策）
 

@@ -6,6 +6,22 @@
 #       L3 载荷里一旦出现行首 '## '（模型返回多行 markdown 时很常见），截断点错位：
 #       旧段尾（闭合围栏 / L3_artifact_hash / 载荷尾巴）残留下来，且逐轮累积，工件被静默污染。
 # 现契约: 所有写入方在段尾落 `<!-- /L3-SECTION -->`；删除方按该标记精确切分。
+#
+# ── 载荷转义：段边界的**收敛点**（§B2/§B1 共同依赖 · 2026-09-18）────────────────
+# 本 change 的段边界规则被模型载荷穿透了**三代**（每一代都由 L2 盲审在生产写入路径
+# 上实测复现）：
+#   G1 形态免疫  —— 只排除「引号开头的行」→ 载荷里一行非围栏 `Verdict:` 即穿透
+#   G2 边界免疫  —— 改按「L3 段区间」排除 → 载荷里行首 `## ` 让区间提前收口
+#   G3 双标题空洞 —— 改「取范围内最后一个标记」→ 载荷里 `## X` + 伪 `## L3 ` 造出空洞
+# 结论：**任何「猜哪一行是真标题」的读侧启发式都能被载荷再次伪造**。唯一收敛解是让
+# 不可信内容在结构上不可能伪造边界 —— 写入侧对载荷里行首的 `## ` 与标记字面量做转义
+# （`_l3_escape_payload` 的 sed）。**代价须如实说明**：载荷位于 ```json 围栏内，
+# 而 markdown 不在围栏内解释转义 —— 故 `\##` 对读者**可见**（不会渲染回 `##`）。
+# 即落盘载荷与模型原文有一处可见差异；这是本 ADR 的实质代价，不是"零成本"。
+# 另注：`**Verdict**:` **不在**转义集内（它是内容不是结构信号，且 L2 报告末尾就是它），
+# 故"顺带让载荷里的 Verdict 行失效"这一说法**不成立**（设计期 L2 三审 R2 更正）。
+# 读侧的区间规则（_l3_section_spans 取范围内**最后一个**标记）保留为纵深防御，
+# 并负责历史工件（无标记）与转义前写入的旧文件的兼容。
 #       历史工件没有标记 → 回落到原标题法（向后兼容）。
 #
 # 提供:
@@ -33,56 +49,162 @@ _l3_l3_marker() {
 }
 
 # ── _l3_strip_sections() · 移除既有 L3 段（B2 修复 · 显式结束标记）──
+# ── _l3_escape_payload() · 载荷转义（**唯一入口** · ADR-026）──
+# 用法: _l3_escape_payload "<模型原文>"   → stdout（可直接 >> 工件）
+#
+# 把不可信载荷里**行首**的 `## `、结束标记字面量与围栏行（\`\`\`）前插一个反斜杠，
+# 使其在结构上不可能伪造段边界**或破坏围栏配对**。
+# **代价如实说明**：载荷位于 ```json 围栏内，而 markdown 不在围栏内解释转义 ——
+# 故 `\##` 对读者**可见**（**不会**渲染回 `##`）。这是 ADR-026 的实质代价，不是零成本。
+# 围栏为何也要转义（设计期 L2 盲审 R2）：`_l3_extract_prior_findings` 靠 ``` 切换 in_json，
+# 载荷里一个多余的 ``` 会让围栏失同步，把其后的 L2 段误判为"仍在 JSON 内"→ 前轮发现提取退化；
+# 同时会让工件的 markdown 渲染错乱。
+#
+# 为什么必须走这个函数而不是各处内联 sed（1-requirement/2-design 的 L2 盲审 R1）：
+# 本项目有**两个**把模型原文写进 INDEPENDENT-REVIEW 的写入方 ——
+#   ① l3-api.sh::_l3_parse_result（L3 载荷）
+#   ② l2-detect.sh::l2_dispatch_agent（**L2 载荷**，PreToolUse 生产路径）
+# 只转义 ① 时，② 的载荷里一行 `## L3 盲审（引用…）` 会被判为 L3 段起点，
+# 随后 _l3_strip_sections 把该行到真标记之间的 **L2 报告正文一并切除** —— 静默数据损坏。
+# 故转义是**契约**：凡把模型/外部内容写进工件的写入方都必须调用本函数。
+# 回归守护：test_l3_review_defects_2026_09.bats 的 B2-R8（跨文件断言）。
+_l3_escape_payload() {
+  printf '%s\n' "$1" | sed -E 's~^(## |<!-- /L3-SECTION -->|```)~\\\1~'
+}
+
+# ── _l3_section_spans() · L3 段的行区间（**边界判定的唯一来源**）──
+# 用法: _l3_section_spans <review_md>   → 每行输出 "<start> <end>"（1-based，含端点）
+#
+# 判定规则（_l3_strip_sections 与 l2-detect.sh::_fk_l2_scope 都消费本函数的输出，
+# 保证"L3 段到哪结束"在**读侧与写侧只有一个判断**——避免同一契约两处不同实现，
+# 见 1-requirement 的 L2 盲审 R1 与 L-031）：
+#   ① 段起点：`^## L3 (盲审|重审)` **且上方最近非空行为 `---`**（写入方 preamble 契约 ·
+#      设计期 L2 复审 N1）—— 三个写入方总是输出「空行 + --- + 空行 + 标题」，
+#      语料实测全部满足（口径与数字以 `bash corpus-count.sh` 现算为准 —— 数字随语料
+#      增长而漂移，写死快照会过期）；该判据挡掉**主 agent 贴入路径**里
+#      引用的 `## L3 …` 句子（其上方通常没有 ---），否则那些正文会在 L3 写入时被切除
+#   ② 段终点：段内**最后一个** `<!-- /L3-SECTION -->` 行（取首个会被载荷里的伪标记提前截断；
+#      **不因载荷里的行首 '## ' 提前放弃**）
+#   ③ 无标记（历史工件）→ 原标题法：到下一个 '^## ' 标题之前
+#   ④ 多段：循环处理，残留多段一并给出
+#   ⑤ **无兼容回退**（设计期 L2 复审 N1）：`---` preamble 自 HEAD 起就是三个写入方的
+#      固定输出（`_l3_parse_result` / `l3_write_timeout_done` / `l3_write_bypass_done`
+#      均为 `echo ""; echo "---"; echo ""`），语料现算 100% 满足（同口径）。加"零命中则放宽"的
+#      回退会**正好在最需要判据时失效**——文件里没有真 L3 段时，贴入的伪标题就会被
+#      回退路径认成真段（B2-R11 实测）。
+_l3_section_spans() {
+  local _spans
+  _spans="$(_l3_spans_impl "$1" 1)"
+  # 逐行输出（含行尾换行），与直接 awk print 的输出形态一致 —— 调用方用 $() 取值时
+  # 行尾换行会被剥掉，但 `| wc -l` 这类直接消费需要它；空结果不输出任何字符。
+  [ -n "$_spans" ] && printf '%s\n' "$_spans"
+  return 0
+}
+
+# ── _l3_spans_impl <file> <require_sep> · 区间扫描实现（req=1 时启用 --- 判据）──
+_l3_spans_impl() {
+  awk -v req="${2:-0}" '
+    # _sep_ok(i) — 行 i 上方最近非空行是否为 ---
+    function _sep_ok(i,   k) {
+      for (k = i - 1; k >= 1; k--) {
+        if (line[k] ~ /^[[:space:]]*$/) continue
+        return (line[k] ~ /^---[[:space:]]*$/) ? 1 : 0
+      }
+      return 0
+    }
+    { line[NR] = $0 }
+    END {
+      n = NR
+      i = 1
+      while (i <= n) {
+        if (line[i] ~ /^## L3 (盲审|重审)/ && (req == 0 || _sep_ok(i))) {
+          # 段终点 = 「本段起」到「下一个**满足起点判据的** L3 标题（或 EOF）」之间
+          # **最后一个**标记行。
+          #
+          # 为什么不是「第一个」（1-requirement 的 L2 三审 R1，case 6）：
+          # 模型载荷里可能原样出现标记字面量（phase 7 的 prompt 会注入前轮发现，
+          # 从而把上一轮的标记回灌给模型）。取第一个会被载荷里的伪标记提前截断，
+          # 其后正文（含行首 Verdict）漏出段外。取最后一个天然免疫该伪造。
+          #
+          # 为什么不在中途因 `^## L2 ` / `^## L3 ` 提前 break（同 R1 的 case 4/5）：
+          # 这两类判定都会被**载荷内容**伪造（模型写 `## L2 结论复核` 是常见形态），
+          # 提前收口同样造成泄漏。现在只在「下一个真实 L3 标题」处收拢扫描范围。
+          stop = 0
+          for (j = i + 1; j <= n; j++) {
+            if (line[j] ~ /^<!-- \/L3-SECTION -->[[:space:]]*$/) { stop = j; continue }
+            if (line[j] ~ /^## L3 (盲审|重审)/ && (req == 0 || _sep_ok(j))) break
+          }
+          if (stop == 0) {
+            # 范围内零标记（历史工件）→ 终点收紧为「下一个**已知区段**标题」：L2 / 主 agent / L3，
+            # 或 EOF。**不再**用「下一个二级标题」（2026-09-18 依设计期 L2 第八轮 critical ②）：
+            # 载荷里一行 `## 附录：发现明细` 就会把段尾切在它之前，其后的 `**Verdict**: pass`
+            # 漏进 L2 层 —— 正是 §B1 那族「L3 内容冒充 L2」在历史件上的复活形态。
+            # 语料实测（224 份 / 128 个无标记段）：终点会因此改变的实例仅 1 个
+            # （.specs/archive/l2-l3-fix-compliance/INDEPENDENT-REVIEW-6.md，其后是
+            # `## 独立审查报告（盲审）`），且归档目录不参与 L3 重写。
+            stop = n
+            for (j = i + 1; j <= n; j++) if (line[j] ~ /^## (L2 |主 agent|L3 )/) { stop = j - 1; break }
+          }
+          print i " " stop
+          i = stop + 1
+        } else {
+          i++
+        }
+      }
+    }
+  ' "$1" 2>/dev/null
+}
+
+# ── _l3_has_section() · 工件是否含**可识别**的 L3 段（判据与 _l3_section_spans 同源）──
+# 用法: _l3_has_section <review_md>   → 0=有, 1=无
+#
+# 为什么要有这个包装（设计期 L2 三审 R6）：本 change 之前，三个调用点各自用裸正则
+# `^## L3 (盲审|重审)` 判断"L3 段存在"（l3-truncate.sh / l3-api.sh / l3-done.sh）。
+# 段起点判据收紧为「+ 上方最近非空行为 ---」之后，裸正则会与 _l3_section_spans 结论相反
+# （贴入的伪标题：裸正则说有、spans 说没有）→ 同一契约两处不同实现（L-031）。
+# 现统一走本函数。
+_l3_has_section() {
+  [ -n "$(_l3_section_spans "$1")" ]
+}
+
+# ── _l3_strip_sections() · 从工件中移除全部 L3 段 ──
 # 用法: _l3_strip_sections <review_md> <out_file>
 # 返回: 0（即使源文件不存在也会产出空 out_file）
 #
-# 切分规则（按优先级）:
-#   ① 段起点：`^## L3 (盲审|重审)` —— 与 _l3_check_rerun / l3-done.sh 的检测正则一致
-#   ② 段终点：段内首个 `<!-- /L3-SECTION -->` 行（不因载荷里的行首 '## ' 提前放弃）
-#      只有撞到「下一段 L3」或「回到 L2 段」才判定本段无标记 → 走 ③
-#   ③ 无标记（历史工件）→ 原标题法：删到下一个 '^## ' 标题之前
+# 边界判定委托 _l3_section_spans()（单一来源）。本函数只负责：
 #   ④ 一并回收紧邻上方的空行 + 单个 `---`，否则逐轮重写会累积空分隔条
-#   ⑤ 多段：循环处理，文件中若残留多段 L3（并发写入等）一并清除
 _l3_strip_sections() {
   local review_md="$1" out_file="$2"
   if [ ! -f "$review_md" ]; then
     : > "$out_file"
     return 0
   fi
-  awk '
-    { line[NR] = $0 }
-    END {
-      n = NR
-      i = 1
-      while (i <= n) {
-        if (line[i] ~ /^## L3 (盲审|重审)/) {
-          # 先在整段内找结束标记 —— 不因载荷里的行首 ## 提前放弃；
-          # 只有撞到"下一段 L3 / 回到 L2 段"才判定本段无标记（历史工件）。
-          stop = 0
-          for (j = i + 1; j <= n; j++) {
-            if (line[j] ~ /^<!-- \/L3-SECTION -->[[:space:]]*$/) { stop = j; break }
-            if (line[j] ~ /^## L3 (盲审|重审)/) break
-            if (line[j] ~ /^## L2 /) break
-          }
-          if (stop == 0) {
-            # 无标记（历史工件）→ 原标题法：删到下一个二级标题之前
-            stop = n
-            for (j = i + 1; j <= n; j++) if (line[j] ~ /^## /) { stop = j - 1; break }
-          }
-          # 一并回收紧邻上方的分隔符（空行 + 单个 ---），否则逐轮重写会累积空 '---' 条；
-          # 再吸收 start 上方的空行，否则每轮多留一个空行（写入方固定输出 "\n---\n\n"）。
-          start = i
-          k = i - 1
-          while (k >= 1 && line[k] ~ /^[[:space:]]*$/) k--
-          if (k >= 1 && line[k] ~ /^---[[:space:]]*$/) start = k
-          while (start > 1 && line[start - 1] ~ /^[[:space:]]*$/) start--
-          for (j = start; j <= stop; j++) del[j] = 1
-          i = stop + 1
-        } else {
-          i++
+  local spans
+  spans="$(_l3_section_spans "$review_md")"
+  awk -v spans="$spans" '
+    BEGIN {
+      if (spans != "") {
+        cnt = split(spans, arr, "\n")
+        for (i = 1; i <= cnt; i++) {
+          split(arr[i], p, " ")
+          for (j = p[1]; j <= p[2]; j++) del[j] = 1
         }
       }
-      for (j = 1; j <= n; j++) if (!(j in del)) print line[j]
+    }
+    { line[NR] = $0 }
+    END {
+      # 回收紧邻段上方的空行 + 单个 ---（否则逐轮重写累积空 '---' 条 / 空行）
+      for (i = 1; i <= NR; i++) {
+        if (!(i in del)) continue
+        if (i - 1 in del) continue
+        s = i
+        k = i - 1
+        while (k >= 1 && line[k] ~ /^[[:space:]]*$/) k--
+        if (k >= 1 && line[k] ~ /^---[[:space:]]*$/) s = k
+        while (s > 1 && line[s - 1] ~ /^[[:space:]]*$/) s--
+        for (j = s; j < i; j++) del[j] = 1
+      }
+      for (j = 1; j <= NR; j++) if (!(j in del)) print line[j]
     }
   ' "$review_md" > "$out_file" 2>/dev/null || cp "$review_md" "$out_file" 2>/dev/null || : > "$out_file"
 }

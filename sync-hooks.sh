@@ -45,16 +45,28 @@ DEST_ROOTS=(
   "$SCRIPT_DIR/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks"                 # dsh 插件包内 bundle 副本
   "$HOME/.dsh/profiles/web/node_modules/dsh-flow-kit/hooks"                    # dsh 运行时（已安装插件）
   "$HOME/.dsh/profiles/web/node_modules/dsh-flow-kit/vendor/flow-kit-bundle/hooks"
+  "$HOME/.config/opencode/hooks"                                               # opencode 平台安装
 )
 
-# ── 待镜像的相对路径（严格对齐 install_hooks.sh 的安装集）──
+# ── 待镜像的相对路径 ──
+# stop 模块**与 install_hooks.sh 同源**（common.sh::HOOK_MODULE_NAMES），而不是目录通配：
+# 通配会把安装器根本不会安装的脚本也纳入比对（草稿 / 实验脚本 / 已移除模块的遗留），
+# 产生假漂移噪音，最终把门禁磨成橡皮章（1-requirement 的 L2 盲审 R4）。
 collect_rel_paths() {
-  local f b
-  for f in "$SRC"/stop/*.sh; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    printf 'stop/%s\n' "$b"
-  done
+  local f b name
+  local names
+  names="$(bash -c "source '$SRC/stop/lib/common.sh' 2>/dev/null; printf '%s\n' \"\${HOOK_MODULE_NAMES[@]}\"" 2>/dev/null)"
+  if [ -n "$names" ]; then
+    while IFS= read -r name; do
+      [ -n "$name" ] && printf 'stop/%s.sh\n' "$name"
+    done <<< "$names"
+  else
+    # 兜底：common.sh 取不到清单时退回通配（宁可多比对，不可漏比对）
+    for f in "$SRC"/stop/*.sh; do
+      [ -e "$f" ] || continue
+      printf 'stop/%s\n' "$(basename "$f")"
+    done
+  fi
   for f in "$SRC"/stop/lib/*.sh; do
     [ -e "$f" ] || continue
     printf 'stop/lib/%s\n' "$(basename "$f")"
@@ -68,7 +80,66 @@ collect_rel_paths() {
   done
   [ -f "$SRC/pre-commit/pre-commit.sh" ] && printf 'pre-commit/pre-commit.sh\n'
 }
+
+# ── flow-kit/prompts 树（固化指令载体 · 2-design 期 L2 五审 R1/R2 补）──
+# 为什么 hooks 之外还要镜像 prompts：L2 固化指令 `L2-blind-review.md` 是**行为契约**
+# （本 change 在其中新增了"贴入前必须转义"第 4 条）。它同样存在 7~8 份安装副本，
+# 且此前**完全不在任何漂移门禁内** —— 上一轮主 agent 只手工同步了 2 处就宣称"已安装副本
+# clause4=1/1"，被 L2 盲审实测证伪（实际有 7 份，4 份陈旧）。
+# 镜像范围：<pkgroot>/flow-kit/prompts/** ↔ 源的 flow-kit-bundle/flow-kit/prompts/**
+PROMPT_SRC="$SCRIPT_DIR/flow-kit-bundle/flow-kit/prompts"
+
+# ── L2 reviewer agent（复合载体：头部 + L2 固化指令**全文拷贝**）──
+# `flow-kit/.opencode/agent/flow-kit-l2-reviewer.md` 自声明「本段是 L2-blind-review.md 的
+# 全文拷贝，必须与源文件保持一致（L-031 锚点）」。它是**复合**文件（yaml 头 + 角色 + 拷贝段），
+# 故不能用通用镜像 —— 这里按「保留头部、重放拷贝段」重新生成，保同步为机械动作。
+AGENT_REL=".opencode/agent/flow-kit-l2-reviewer.md"
+AGENT_SRC="$SCRIPT_DIR/flow-kit-bundle/flow-kit/$AGENT_REL"
+AGENT_MARK='# L2 独立盲审员 · 固化指令'
+
+regen_l2_agent() {
+  local head_tmp new_tmp
+  [ -f "$AGENT_SRC" ] || return 0
+  [ -f "$PROMPT_SRC/independent/L2-blind-review.md" ] || return 0
+  head_tmp="$(mktemp)" || return 0
+  # 头部 = 到拷贝段起点之前（含来源/同步要求说明）
+  awk -v m="$AGENT_MARK" 'index($0,m)==1{exit} {print}' "$AGENT_SRC" > "$head_tmp"
+  new_tmp="$(mktemp)" || { rm -f "$head_tmp"; return 0; }
+  cat "$head_tmp" "$PROMPT_SRC/independent/L2-blind-review.md" > "$new_tmp"
+  # **只读语义**（七审 R3）：--check/--list 绝不落盘。早先版本在脚本加载时无条件重放拷贝段，
+  # 导致"只读检查"改写仓库文件，且使复合载体的漂移**永远无法被报告**（先修好再比对，自然一致）。
+  if ! cmp -s "$new_tmp" "$AGENT_SRC" 2>/dev/null; then
+    AGENT_REGEN_NEEDED=1
+    [ "${MODE:-}" = "sync" ] && { cp "$new_tmp" "$AGENT_SRC"; AGENT_REGEN_NEEDED=0; }
+  fi
+  rm -f "$head_tmp" "$new_tmp"
+}
+AGENT_REGEN_NEEDED=0
+regen_l2_agent
+collect_prompt_paths() {
+  local rel
+  [ -d "$PROMPT_SRC" ] || return 0
+  (cd "$PROMPT_SRC" && find . -type f | sed 's|^\./||' | sort)
+  # 复合载体：L2 reviewer agent（其拷贝段由 regen_l2_agent 保证与源一致）
+  [ -f "$SCRIPT_DIR/flow-kit-bundle/flow-kit/$AGENT_REL" ] && printf '%s\n' "$AGENT_REL"
+}
+mapfile -t PROMPT_PATHS < <(collect_prompt_paths)
+
+
+# 反向告警：stop/ 下存在但不在 HOOK_MODULE_NAMES 里的脚本 —— 安装器不会安装它们，
+# 也就永远不会被同步/漂移检测覆盖。这是"安装集本身漂移"的信号，必须可见。
+collect_stop_extras() {
+  local names f b
+  names="$(bash -c "source '$SRC/stop/lib/common.sh' 2>/dev/null; printf '%s.sh\n' \"\${HOOK_MODULE_NAMES[@]}\"" 2>/dev/null)" || return 0
+  [ -n "$names" ] || return 0
+  for f in "$SRC"/stop/*.sh; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    printf '%s\n' "$names" | grep -qxF "$b" || printf '%s\n' "$b"
+  done
+}
 mapfile -t REL_PATHS < <(collect_rel_paths | sort -u)
+mapfile -t STOP_EXTRAS < <(collect_stop_extras | sort -u)
 
 drift_total=0
 synced_total=0
@@ -76,7 +147,12 @@ root_fail=0
 nonexec_total=0
 
 printf '源: %s\n' "$SRC"
-printf '镜像文件数: %d\n\n' "${#REL_PATHS[@]}"
+printf '镜像文件数: %d（stop 模块与 install_hooks.sh 同源计数）\n' "${#REL_PATHS[@]}"
+if [ "${#STOP_EXTRAS[@]}" -gt 0 ]; then
+  printf '⚠️  stop/ 下有 %d 个脚本不在 HOOK_MODULE_NAMES 中（安装器不会安装，故不纳入镜像/漂移检测）:\n' "${#STOP_EXTRAS[@]}"
+  printf '     %s\n' "${STOP_EXTRAS[@]}"
+fi
+printf '\n' 
 
 for root in "${DEST_ROOTS[@]}"; do
   if [ ! -d "$root" ]; then
@@ -86,6 +162,7 @@ for root in "${DEST_ROOTS[@]}"; do
   drift=0
   missing_dst=0
   nonexec=0
+  miss_prompt=0
   for rel in "${REL_PATHS[@]}"; do
     src_f="$SRC/$rel"
     dst_f="$root/$rel"
@@ -111,6 +188,30 @@ for root in "${DEST_ROOTS[@]}"; do
         ;;
     esac
   done
+
+  # ── prompts 树镜像（<pkgroot>/flow-kit/prompts）──
+  # pkgroot = 该 hooks 目录的父目录；仅当副本已带 flow-kit/prompts 时才镜像（不凭空创建安装）
+  pkgroot="$(dirname "$root")"
+  prompt_dst="$pkgroot/flow-kit/prompts"
+  if [ -d "$prompt_dst" ] && [ "${#PROMPT_PATHS[@]}" -gt 0 ]; then
+    for rel in "${PROMPT_PATHS[@]}"; do
+      # 复合载体（L2 reviewer agent）不在 prompts/ 下，而在 <pkgroot>/flow-kit/<AGENT_REL>
+      # 复合载体：源在 <pkgroot>/flow-kit/<AGENT_REL>，目的同构（**不在 prompts/ 之下**）
+      if [ "$rel" = "$AGENT_REL" ]; then
+        src_f="$AGENT_SRC"; dst_f="$pkgroot/flow-kit/$rel"
+      else
+        src_f="$PROMPT_SRC/$rel"; dst_f="$prompt_dst/$rel"
+      fi
+      if [ ! -f "$dst_f" ]; then
+        drift=$((drift + 1)); miss_prompt=$((miss_prompt + 1))
+        [ "$MODE" = "sync" ] && { mkdir -p "$(dirname "$dst_f")"; cp "$src_f" "$dst_f"; }
+      elif ! cmp -s "$src_f" "$dst_f"; then
+        drift=$((drift + 1))
+        [ "$MODE" = "sync" ] && cp "$src_f" "$dst_f"
+      fi
+    done
+    [ "$MODE" = "list" ] && printf '     ↳ prompts 树已纳入镜像: %s\n' "$prompt_dst"
+  fi
 
   # config/stop-hook.json：仅当副本自带 config/ 目录（插件包 / dist）才镜像
   if [ -d "$root/config" ] && [ -f "$SRC/config/stop-hook.json" ]; then
@@ -139,17 +240,46 @@ for root in "${DEST_ROOTS[@]}"; do
   esac
 done
 
+# ── 平台级 agent 目的路径（opencode 把 agent 装在 <PLATFORM_CONFIG_DIR>/agent/）──
+# install_hooks.sh:151 的等价位置；不在任何 flow-kit 子树下，故单列。
+# （2-design 期 L2 五审 R1/R2：这个载体此前完全不在漂移门禁内，是"已安装副本 clause4"被
+#   实测证伪的直接原因 —— 7 份 prompt 副本 + 1 份 agent 复合载体，此前只有 2 份被手工同步。）
+_agent_dst="$HOME/.config/opencode/agent/flow-kit-l2-reviewer.md"
+if [ -f "$_agent_dst" ] && ! cmp -s "$AGENT_SRC" "$_agent_dst" 2>/dev/null; then
+  drift_total=$((drift_total + 1))
+  case "$MODE" in
+    sync)  cp "$AGENT_SRC" "$_agent_dst"; printf '  🔄 同步平台级 agent: %s\n' "$_agent_dst" ;;
+    check) printf '  ❌ 平台级 agent 与源不一致: %s\n' "$_agent_dst"; root_fail=1 ;;
+    list)  printf '  ⚠️  平台级 agent 漂移: %s\n' "$_agent_dst" ;;
+  esac
+fi
+unset _agent_dst
+
 [ "$nonexec_total" -gt 0 ] && \
   echo "⚠️  ${nonexec_total} 个 hook 入口缺可执行位（本工具不改权限；跑 install.sh 修）"
+
+if [ "${AGENT_REGEN_NEEDED:-0}" = "1" ]; then
+  drift_total=$((drift_total + 1))
+  case "$MODE" in
+    check) printf '  ❌ 复合载体拷贝段与源不一致（需重放）: %s\n' "$AGENT_SRC"; root_fail=1 ;;
+    list)  printf '  ⚠️  复合载体拷贝段需重放: %s\n' "$AGENT_SRC" ;;
+  esac
+fi
 
 echo
 case "$MODE" in
   check)
+    # 源侧安装集漂移（stop/ 下有脚本不在 HOOK_MODULE_NAMES）→ 必须失败，不能只告警：
+    # 否则"安装集收缩"这类治理动作在 make check 上表现为全绿（1-requirement 的 L2 盲审 R6）。
+    if [ "${#STOP_EXTRAS[@]}" -gt 0 ]; then
+      echo "❌ 源侧安装集漂移：stop/ 下有 ${#STOP_EXTRAS[@]} 个脚本不在 HOOK_MODULE_NAMES 中（安装器不会安装它们）" >&2
+      root_fail=1
+    fi
     if [ "$root_fail" -eq 0 ]; then
       echo "✅ hooks 副本一致（漂移 0）"
       exit 0
     fi
-    echo "❌ hooks 副本存在漂移：共 ${drift_total} 个文件。跑 ./sync-hooks.sh 修（或 make hooks-sync）。" >&2
+    echo "❌ hooks 门禁失败（漂移 ${drift_total} 个文件 / 安装集漂移 ${#STOP_EXTRAS[@]} 项）。跑 ./sync-hooks.sh 或修 HOOK_MODULE_NAMES。" >&2
     exit 1
     ;;
   sync)

@@ -56,8 +56,24 @@ _command_first_tokens() {
 }
 
 _gate_path_guard() {
-  local tool_name="$1" file_path="$2" cmd="$3"
+  local tool_name="$1" file_path="$2" cmd="$3" content="${4:-}"
   if [[ "$tool_name" == "Write" || "$tool_name" == "Edit" ]]; then
+    # ── ADR-026 载荷守卫（阶段 2 的 L3 critical ①）────────────────────────────
+    # 把"贴入路径"从**提示词约束**升级为**可执行拦截**：未转义的「`---` + 行首 `## L3 …`」
+    # 块一旦落盘就会被判为 L3 段起点，后续 L3 写入时 `_l3_strip_sections` 会静默删除它
+    # 之后的正文 —— 这正是 §B2 的核心缺陷形态。豁免：带结束标记的块（= 审查子系统自己写的）
+    # 与已转义的 `\## L3 …`（见 `_gate_is_unescaped_l3_paste` 的判据）。
+    if [[ "$file_path" == *INDEPENDENT-REVIEW-*.md ]] && _gate_is_unescaped_l3_paste "$content"; then
+      cat >&2 <<'GUARD_EOF'
+⛔ L3 载荷守卫（ADR-026）：禁止把**未转义**的「`---` + 行首 `## L3 …`」块写入 INDEPENDENT-REVIEW-*.md。
+   该形态会被判为 L3 段起点，后续 L3 写入会把它之后的正文静默删除（§B2 缺陷的成因）。
+   处置（三选一）：
+     ① 让审查子系统自己写（推荐）：l3_review_run / l2_dispatch_agent 都会自动转义；
+     ② 贴入前先过 `_l3_escape_payload`（L2 固化指令写约束第 4 条）；
+     ③ 仅作引用时手动转义行首：`\## L3 …`（反斜杠 + 井号）。
+GUARD_EOF
+      return 2
+    fi
     if [[ "$file_path" == *.independent-review-*.done* ]]; then
       # 提取阶段号 N（文件路径中 .independent-review-<N>.done）
       local phase_num

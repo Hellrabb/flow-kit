@@ -216,11 +216,13 @@ _make_big_requirement() {
 @test "D2: pass 时清零计数并写 .done" {
   # 预置 L3 段 + 计数器，验证 pass 路径同时完成"清零"与"结案"
   echo "2" > "${ARTIFACTS_DIR}/.l3-attempts-1"
-  printf '# REVIEW\n\n## L2 盲审（stub）\n\nverdict=pass\n\n## L3 盲审（stub）\n\nVERDICT=pass\n' \
+  # 段前 --- preamble 是写入方（l3-api.sh / l3-done.sh）的固定输出，
+  # _l3_has_section 的判据依赖它（设计期 L2 三审 R6）。
+  printf '# REVIEW\n\n## L2 盲审（stub）\n\nverdict=pass\n\n---\n\n## L3 盲审（stub）\n\nVERDICT=pass\n' \
     > "${ARTIFACTS_DIR}/INDEPENDENT-REVIEW-1.md"
   bash -c "source '$L3_LIB' 2>/dev/null
     _l3_call_api() { echo '{\"verdict\":\"pass\"}'; }
-    _l3_parse_result() { printf '\n## L3 盲审（stub）\n\nVERDICT=pass\n' >> '$ARTIFACTS_DIR/INDEPENDENT-REVIEW-1.md'; echo 'VERDICT=pass'; echo 'SUMMARY=ok'; return 0; }
+    _l3_parse_result() { printf '\n---\n\n## L3 盲审（stub）\n\nVERDICT=pass\n' >> '$ARTIFACTS_DIR/INDEPENDENT-REVIEW-1.md'; echo 'VERDICT=pass'; echo 'SUMMARY=ok'; return 0; }
     export FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS=5
     l3_review_run 1 test-change '$ARTIFACTS_DIR' pass both || true" 2>/dev/null
   [ ! -f "${ARTIFACTS_DIR}/.l3-attempts-1" ]

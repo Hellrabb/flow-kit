@@ -264,7 +264,16 @@ gate_val=$(jq -r --arg pn "$phase_name" \
 l2_verdict="fail"  # 默认 fail（保守，both 模式 L2 未完成时）
 if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
   l2v_extracted="$(fk_extract_l2_verdict "$review_md")" || true
-  [ -n "$l2v_extracted" ] && l2_verdict="$l2v_extracted"
+  if [ -n "$l2v_extracted" ]; then
+    l2_verdict="$l2v_extracted"
+  else
+    # AC-12（1-requirement 的 L2 盲审 R3）：提取为空时**必须可观测**，不得静默降级。
+    # 触发场景：L2 段存在但无 `**Verdict**:` 行（子 agent 未按模板收尾）。
+    # 语义：保持 fail 保守默认（合法枚举，不触发 l3_review_run 的值域闸），
+    # 但把"读不到 L2 结论"这件事显式说出来 —— 正是 §B1 故障"看不出原因"的反面。
+    echo "[independent-review] L2 verdict not found in ${review_md} (## L2 盲审 段存在但无 Verdict 行) — 保守降级为 L2_verdict=fail（不阻塞；请检查 L2 子 agent 是否按模板收尾）" >&2
+    module_output "warning" "IR" "L2 verdict not found（阶段 ${phase}）— 已保守降级 L2_verdict=fail；工件：INDEPENDENT-REVIEW-${phase}.md" 2>/dev/null || true
+  fi
 elif [[ "$gate_val" == "L3" ]]; then
   l2_verdict="skipped"  # L3-only: L2 是刻意不跑，非失败
 fi

@@ -72,13 +72,20 @@ teardown() {
 
 @test "dedup: strips old L3 sections (盲审 + 重审) before writing new one" {
   local review_md="${ARTIFACTS_DIR}/INDEPENDENT-REVIEW-1.md"
+  # 注意：写入方（l3-api.sh / l3-done.sh）在段前总是输出「空行 + --- + 空行」，
+  # _l3_section_spans 的段起点判据依赖该 preamble（设计期 L2 复审 N1），
+  # 故 fixture 必须与真实写入输出同形。
   cat > "$review_md" << 'EOF'
 # 独立审查 · 阶段 1
 ## L2 盲审
 L2 content here
 
+---
+
 ## L3 盲审（first model · old date）
 old L3 content
+
+---
 
 ## L3 重审（second model · older date）
 old L3 re-review content

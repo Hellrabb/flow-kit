@@ -8,6 +8,14 @@
 # 函数:
 #   _l3_check_rerun — 重审检测（hash 标记 + ## L3 段检测）
 
+# 依赖注入：l3-section.sh（_l3_has_section · 段边界判定单一来源）
+# l3-review.sh 的 source 顺序是 truncate → section，故运行时可用；此处兜底独立 source 场景。
+type _l3_has_section >/dev/null 2>&1 || {
+  _L3T_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+  [ -n "${_L3T_DIR:-}" ] && [ -f "${_L3T_DIR}/l3-section.sh" ] && source "${_L3T_DIR}/l3-section.sh"
+  unset _L3T_DIR
+}
+
 # ── _l3_check_rerun() · 重审检测：比较工件 hash 与记录 hash ──
 # 用法: _l3_check_rerun <phase> <artifacts_dir>
 # 返回: 0=需重审(工件更新或首次), 2=跳过(工件未变)
@@ -17,9 +25,13 @@ _l3_check_rerun() {
   [ -f "$review_md" ] || return 0  # 无现有审查 → 首次运行
 
   # ADR-010 D4·J：判定基从 mtime 改内容标记（## L3 段 regex + artifact hash）。
-  # 判定优先级：hash 变→重审 / ## L3 段缺失或空→重审 / hash 提取失败→重审+警告 / 否则 skip。
-  # ① ## L3 段检测（^## L3 (盲审|重审) 前缀匹配真实 token · 与 _l3_parse_result section_title 一致）
-  if ! grep -qE '^## L3 (盲审|重审)' "$review_md" 2>/dev/null; then
+  # 判定优先级：hash 变→重审 / L3 段不存在或为空→重审 / hash 提取失败→重审+警告 / 否则 skip。
+  # ① L3 段检测：走 _l3_has_section（= _l3_section_spans 非空），判据与写侧同源；
+  #    注：裸正则 ^## L3 (盲审|重审) 已废弃 —— 段起点判据收紧为「+ 上方最近非空行为 ---」后，
+  #    裸正则会与 spans 结论相反（贴入的伪标题：裸正则有、spans 无）。与 _l3_parse_result 的
+  #    section_title 仍保持一致（写入方总是带 --- preamble）。
+  # 判据与 _l3_section_spans 同源（设计期 L2 三审 R6）：裸正则会把贴入的伪标题当真段
+  if ! _l3_has_section "$review_md"; then
     echo "[l3-review] re-review triggered for phase ${phase} (## L3 段缺失或空)" >&2
     return 0
   fi
