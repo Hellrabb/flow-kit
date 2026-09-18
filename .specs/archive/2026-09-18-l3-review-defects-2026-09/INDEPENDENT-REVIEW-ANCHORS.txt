@@ -1,5 +1,5 @@
 # 独立审查锚点清单（由 l3_review_run 写出，复制自 .specs/l3-review-defects-2026-09/）
-# 生成时间: 2026-09-19T06:51:30+08:00
+# 生成时间: 2026-09-19T07:11:08+08:00
 
 ## .independent-review-1.done
     phase=1

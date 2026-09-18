@@ -48,7 +48,10 @@ if [ "${#_prompts[@]}" -eq 0 ]; then
 else
   _bad=0
   for f in "${_prompts[@]}"; do
-    grep -q '贴入前必须对报告原文做载荷转义' "$f" || { _bad=$((_bad + 1)); printf '      缺 clause4: %s\n' "$f"; }
+    # clause4 的**契约本体在 2026-09-19 变更**（决策 b：手工贴入整体禁止）—— 旧文案
+    # 「贴入前必须对报告原文做载荷转义」已随守卫双形态判据废止（它正是 03:36 critical① 的漏洞本体）。
+    # 断言改为新契约的核心句（等价强度：必须写明谁写 + 禁止手工贴入）。
+    grep -q '手工贴入整体禁止' "$f" || { _bad=$((_bad + 1)); printf '      缺 clause4(新契约): %s\n' "$f"; }
   done
   [ "$_bad" -eq 0 ] && pass "carriers=${#_prompts[@]}，全部含 clause4" || fail "carriers=${#_prompts[@]}，缺 clause4 的有 ${_bad} 份"
 fi
@@ -61,7 +64,10 @@ if [ "${#_agents[@]}" -eq 0 ]; then
 else
   _bad=0
   for f in "${_agents[@]}"; do
-    grep -q '贴入前必须对报告原文做载荷转义' "$f" || { _bad=$((_bad + 1)); printf '      缺 clause4: %s\n' "$f"; }
+    # clause4 的**契约本体在 2026-09-19 变更**（决策 b：手工贴入整体禁止）—— 旧文案
+    # 「贴入前必须对报告原文做载荷转义」已随守卫双形态判据废止（它正是 03:36 critical① 的漏洞本体）。
+    # 断言改为新契约的核心句（等价强度：必须写明谁写 + 禁止手工贴入）。
+    grep -q '手工贴入整体禁止' "$f" || { _bad=$((_bad + 1)); printf '      缺 clause4(新契约): %s\n' "$f"; }
   done
   [ "$_bad" -eq 0 ] && pass "carriers=${#_agents[@]}，全部含 clause4" || fail "carriers=${#_agents[@]}，缺 clause4 的有 ${_bad} 份"
 fi
