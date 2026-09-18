@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -62,8 +62,20 @@ check-test-sync:
 		diff -rq test/ flow-kit-bundle/test/ && echo "✅ test 双源一致" || { echo "❌ test/ 与 flow-kit-bundle/test/ 不一致！请运行 make test-sync"; exit 1; }; \
 	fi
 
+# ── hooks-sync: flow-kit-bundle/hooks/ → 各安装副本（B5 单一源 → N 副本）──
+# 2026-09-17 §B5：~/.claude/hooks 曾停在 2026-09-03，缺 P0-1/P0-2 修复，
+# 导致「同一 change 换条运行路径结论不同」。修完源务必跑这条。
+hooks-sync:
+	@echo "🔄 make hooks-sync: flow-kit-bundle/hooks/ → 安装副本 ..."
+	@bash sync-hooks.sh
+
+# ── check-hooks-sync: 副本漂移机器检查（只读 · 有漂移 exit 1）──
+check-hooks-sync:
+	@echo "🔍 make check-hooks-sync: hooks 副本漂移检测 ..."
+	@bash sync-hooks.sh --check
+
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync
+check: test lint check-validate check-test-sync check-hooks-sync
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"

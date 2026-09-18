@@ -25,6 +25,7 @@
 #
 # 子模块（按依赖顺序 source）:
 #   l3-truncate.sh  — _l3_check_rerun
+#   l3-section.sh   — L3_SECTION_END_MARKER, _l3_l3_marker, _l3_strip_sections（§B2）
 #   l3-prompt.sh    — _l3_format_result, _l3_inject_context, _l3_build_prompt
 #   l3-api.sh       — smart_truncate, _l3_call_api, _l3_parse_result
 #   l3-done.sh      — _l3_write_done, l3_write_timeout_done
@@ -36,6 +37,7 @@ _l3r_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ -f "$_l3r_dir/l2-detect.sh" ] && source "$_l3r_dir/l2-detect.sh" 2>/dev/null || true
 source "$_l3r_dir/l3-truncate.sh"
+source "$_l3r_dir/l3-section.sh"
 source "$_l3r_dir/l3-prompt.sh"
 source "$_l3r_dir/l3-api.sh"
 source "$_l3r_dir/l3-done.sh"
@@ -46,11 +48,14 @@ unset _l3r_dir
 l3_review_run() {
   local phase="$1" change_id="$2" artifacts_dir="$3" l2_verdict="$4"
   local gate_config_value="${5:-both}"
-  # artifact cap 解析链（P0-2 修复 · 2026-09-11）：① 调用方从 stop-hook.json 导出的
-  # FLOW_KIT_L3_MAX_ARTIFACT_CHARS ② 历史直调/手工 export 的 L3_MAX_ARTIFACT_CHARS
-  # ③ 20000 兜底。修复前 29 号读了 independent_review.max_artifact_chars 但从未传入本函数，
-  # 项目级覆盖被静默丢弃（REQUIREMENT.md 被截到 20K 引发"NFR 缺失"假阳性的直接来源）。
-  local max_chars="${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}"
+  # artifact cap 解析链（P0-2 修复 · 2026-09-11；B3 改名 · 2026-09-18）
+  # ① 调用方从 stop-hook.json 导出的 FLOW_KIT_L3_MAX_ARTIFACT_BYTES（规范名）
+  # ② 旧名 FLOW_KIT_L3_MAX_ARTIFACT_CHARS（29 号 2026-09-11 前导出的名字）
+  # ③ 历史直调/手工 export 的 L3_MAX_ARTIFACT_CHARS
+  # ④ 20000 兜底
+  # 单位恒为**字节**（实现是 head -c）——§B3：旧名 max_artifact_chars 会让人按字符估算，
+  # 中文工件 60000 "chars" 实际只装 ~2 万汉字，导致"章节缺失"假阳性。改名 + 文档写明单位。
+  local max_bytes="${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}}"
   # 熔断阈值（P0-1 修复 · 2026-09-11）：0 = 关闭熔断（旧行为）
   local max_fail_count="${FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS:-0}"
 
@@ -59,7 +64,7 @@ l3_review_run() {
   [ -n "$change_id" ] || { echo "[l3-review] missing change_id" >&2; return 3; }
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
   [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
-  [[ "$max_chars" =~ ^[1-9][0-9]*$ ]] || max_chars=20000
+  [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=20000
   [[ "$max_fail_count" =~ ^[0-9]+$ ]] || max_fail_count=0
 
   # ── 熔断（P0-1 修复 · 2026-09-11）────────────────────────────────────────
@@ -109,7 +114,7 @@ l3_review_run() {
     (
       # 子进程独立执行 L3 API 调用
       local _prompt _content _output _verdict _summary
-      _prompt=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_chars" 2>/dev/null || echo "")
+      _prompt=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_bytes" 2>/dev/null || echo "")
       if [ -n "$_prompt" ]; then
         _ctx_pre=$(_l3_inject_context "$phase" "$artifacts_dir" 2>/dev/null || echo "")
         [ -n "$_ctx_pre" ] && _prompt="${_ctx_pre}"$'\n'"${_prompt}"
@@ -132,7 +137,7 @@ l3_review_run() {
 
   # Step 1: 构造 prompt（含前次审查上下文注入 · l3-pipeline-fix-2026-07 D4）
   local prompt_text context_preamble
-  prompt_text=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_chars") || return 3
+  prompt_text=$(_l3_build_prompt "$phase" "$artifacts_dir" "$max_bytes") || return 3
   context_preamble=$(_l3_inject_context "$phase" "$artifacts_dir" 2>/dev/null || echo "")
   [ -n "$context_preamble" ] && prompt_text="${context_preamble}"$'\n'"${prompt_text}"
 

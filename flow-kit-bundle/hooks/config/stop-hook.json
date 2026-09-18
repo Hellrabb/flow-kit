@@ -123,7 +123,8 @@
   "independent_review": {
     "phases": [],
     "model": "deepseek-v4-flash",
-    "max_artifact_chars": 20000,
+    "_comment_max_artifact_bytes": "L3 工件截断上限，单位=字节（实现是 head -c）。CJK 工件按 ÷3 估算汉字数：60000 字节 ≈ 2 万汉字。旧键 max_artifact_chars 仍可读（同按字节解释）但已废弃，会打印迁移提示。",
+    "max_artifact_bytes": 20000,
     "max_failures_before_bypass": 3
   },
   "pre_tool_use_gates": {

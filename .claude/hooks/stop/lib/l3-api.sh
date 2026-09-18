@@ -3,15 +3,14 @@
 #
 # 来源: split from l3-review.sh
 # change: final-debt-cleanup-2026-08 (initial split)
-# change: td072-lib-split-2026-08 (smart_truncate moved to l3-truncate.sh)
+# change: td072-lib-split-2026-08 (smart_truncate → l3-truncate.sh)
 # change: l2l3-cross-platform-2026-08 (T02: credential via fk_resolve_api_credentials)
+# change: L3-review-defects-2026-09-17 §B2 (L3 段标记/删除 → l3-section.sh)
 # date: 2026-08-03
 #
 # 函数:
 #   _l3_call_api     — Step 2: 调用外部模型 API + 解析响应
 #   _l3_parse_result — Step 3: 追加 L3 段 + verdict/summary 三层提取
-#
-# 注: smart_truncate 已于 td072-lib-split-2026-08 移至 l3-truncate.sh
 
 # ── _l3_call_api() · Step 2: 调用外部模型 API + 解析响应 ──
 # 用法: _l3_call_api <prompt_text> <model>
@@ -169,9 +168,9 @@ _l3_parse_result() {
   local tmp_review
   tmp_review="$(mktemp "${review_md}.tmp.XXXXXX")"
   if [ -f "$review_md" ]; then
-    # AC-3: 删除旧 L3 段（去重后再追加新段，文件中仅保留 1 个 L3 段）
-    # 用 awk 替代 sed：正确处理连续 ## L3 盲审 + ## L3 重审 段（R1 fix）
-    awk '/^## L3 (盲审|重审)/ { skip=1; next } /^## / && skip { skip=0 } !skip' "$review_md" > "$tmp_review" 2>/dev/null || cat "$review_md" > "$tmp_review" 2>/dev/null || true
+    # AC-3: 删除旧 L3 段（去重后仅保留 1 个）。§B2：按显式结束标记切分，载荷含行首 '## '
+    # 也不错位；`type` 守卫保证函数缺失时保留原文件，绝不写空。
+    type _l3_strip_sections >/dev/null 2>&1 && _l3_strip_sections "$review_md" "$tmp_review" || cp "$review_md" "$tmp_review"
   fi
   # ADR-010 D4·J：artifact hash 元数据（审后追加 · 供 _l3_check_rerun 内容标记判定 · 不触 .done）
   local artifact_file=""
@@ -190,6 +189,7 @@ _l3_parse_result() {
     echo ""; echo "### 审查结论"; echo ""; echo '```json'
     echo "$content"; echo '```'
     if [ -n "$artifact_hash" ]; then echo ""; echo "L3_artifact_hash: ${artifact_hash}"; fi
+    echo ""; echo "$L3_SECTION_END_MARKER"
   } >> "$tmp_review"
   mv "$tmp_review" "$review_md" 2>/dev/null || {
     echo "[l3-review] CRITICAL: atomic mv failed for ${review_md}" >&2

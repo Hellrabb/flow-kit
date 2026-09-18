@@ -2,15 +2,18 @@
 # test_l3_lifecycle_wiring.bats — P0-1/P0-2 修复测试（2026-09-11 · l3-lifecycle-wiring）
 #
 # 背景（经文件级复核的缺陷）：
-#   P0-2  artifact cap 断链：29-independent-review.sh:110 读了 independent_review.max_artifact_chars，
+#   P0-2  artifact cap 断链：29-independent-review.sh:110 读了 independent_review.max_artifact_bytes，
 #         但调用 l3_review_run 时从未传入 → l3-review.sh 恒用 ${L3_MAX_ARTIFACT_CHARS:-20000}，
+#   B3    （2026-09-18）改名 max_artifact_bytes（单位=字节）；旧键 max_artifact_bytes 兼容读取。
 #         项目级覆盖被静默丢弃（REQUIREMENT.md 截到 20K → 反复报"NFR 缺失"假阳性的直接来源）。
 #   P0-1  熔断死配置：max_failures_before_bypass 只被读进局部变量、全文零引用，
 #         L3 一旦不通过就永不写 .done → "修一轮→工件 hash 变→重审→再 fail" 无界循环
 #         （9/10 轮均 fail 且不收敛的机制成因）。
 #
 # 本文件断言修复后的契约：
-#   A. artifact cap 有解析链：FLOW_KIT_L3_MAX_ARTIFACT_CHARS > L3_MAX_ARTIFACT_CHARS > 20000
+#   A. artifact cap 有解析链：
+#      FLOW_KIT_L3_MAX_ARTIFACT_BYTES > FLOW_KIT_L3_MAX_ARTIFACT_CHARS > L3_MAX_ARTIFACT_CHARS > 20000
+#      （后两个是 B3 改名前的旧名，保留兼容读取；单位恒为字节）
 #   B. 熔断有真实出口：达阈值 → bypass 段 + .done(L3_verdict=skipped) → pipeline 继续
 #   C. 向后兼容：阈值 0 / 未设 env → 行为与修复前一致（不熔断）
 #   D. 计数与清理：fail 累加、pass 清零、已结案短路
@@ -30,7 +33,7 @@ setup() {
   mkdir -p "$ARTIFACTS_DIR"
   # 站点级 env 隔离（同 test_l3_review_params.bats 策略）：避免开发者 ~/.bashrc 的调优
   # 泄漏，令"默认值"断言假失败。
-  unset FLOW_KIT_L3_MAX_ARTIFACT_CHARS L3_MAX_ARTIFACT_CHARS
+  unset FLOW_KIT_L3_MAX_ARTIFACT_BYTES FLOW_KIT_L3_MAX_ARTIFACT_CHARS L3_MAX_ARTIFACT_CHARS
   unset FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS
   # 每个用例前写入合法的 L2 段（D3 契约要求 gate_config=both 时有 L2 段）
   printf '# REVIEW (fixture)\n\n## L2 盲审（stub）\n\nverdict=pass\n' \
@@ -59,7 +62,7 @@ _make_big_requirement() {
 # A. artifact cap 解析链（P0-2）
 # ══════════════════════════════════════════════════════════════════════════
 
-@test "A1: FLOW_KIT_L3_MAX_ARTIFACT_CHARS 生效（调用方从 stop-hook.json 导出的路径）" {
+@test "A1: FLOW_KIT_L3_MAX_ARTIFACT_BYTES 生效（调用方从 stop-hook.json 导出的路径）" {
   _make_big_requirement 1200
   local out
   out=$(bash -c "source '$L3_LIB' 2>/dev/null
@@ -75,8 +78,8 @@ _make_big_requirement() {
   [ "${#out}" -lt 25000 ]
 }
 
-@test "A3: 29 号模块把 max_artifact_chars 导出给 l3_review_run（断链修复断言）" {
-  run grep -q 'export FLOW_KIT_L3_MAX_ARTIFACT_CHARS="\$max_chars"' \
+@test "A3: 29 号模块把 max_artifact_bytes 导出给 l3_review_run（断链修复 + B3 改名断言）" {
+  run grep -q 'export FLOW_KIT_L3_MAX_ARTIFACT_BYTES="\$max_bytes"' \
     "$FK_ROOT/flow-kit-bundle/hooks/stop/29-independent-review.sh"
   [ "$status" -eq 0 ]
 }
@@ -89,15 +92,16 @@ _make_big_requirement() {
 
 @test "A5: 非法 artifact cap 值回落 20000（sanitize 不炸）" {
   local out
-  out=$(FLOW_KIT_L3_MAX_ARTIFACT_CHARS="abc" bash -c "source '$L3_LIB' 2>/dev/null
-    max_chars=\"\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-20000}}\"
-    [[ \"\$max_chars\" =~ ^[1-9][0-9]*\$ ]] || max_chars=20000
-    echo \"\$max_chars\"" 2>/dev/null)
+  out=$(FLOW_KIT_L3_MAX_ARTIFACT_BYTES="abc" bash -c "source '$L3_LIB' 2>/dev/null
+    max_bytes=\"\${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-20000}}}\"
+    [[ \"\$max_bytes\" =~ ^[1-9][0-9]*\$ ]] || max_bytes=20000
+    echo \"\$max_bytes\"" 2>/dev/null)
   [ "$out" = "20000" ]
 }
 
-@test "A6: 历史直调路径 L3_MAX_ARTIFACT_CHARS 仍在解析链中（向后兼容）" {
-  run grep -q 'FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-20000}' "$L3_LIB"
+@test "A6: 旧名（CHARS）与历史直调路径仍在解析链中（B3 向后兼容）" {
+  # 解析链字面量：BYTES > FLOW_KIT_L3_MAX_ARTIFACT_CHARS > L3_MAX_ARTIFACT_CHARS > 20000
+  run grep -qF 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}' "$L3_LIB"
   [ "$status" -eq 0 ]
 }
 
@@ -233,13 +237,13 @@ _make_big_requirement() {
 @test "E1: 项目级 .flow-kit/stop-hook.json 优先（dsh 运行时）" {
   local proj="${TEST_TMP}/proj"
   mkdir -p "${proj}/.flow-kit"
-  printf '{"independent_review":{"max_artifact_chars":60000,"max_failures_before_bypass":7}}\n' \
+  printf '{"independent_review":{"max_artifact_bytes":60000,"max_failures_before_bypass":7}}\n' \
     > "${proj}/.flow-kit/stop-hook.json"
   local out
   out=$(FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="$proj" bash -c "
     source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
     init_paths 2>/dev/null
-    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_chars' 20000)|\$(config_get '.independent_review.max_failures_before_bypass' 3)\"" 2>/dev/null)
+    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_bytes' 20000)|\$(config_get '.independent_review.max_failures_before_bypass' 3)\"" 2>/dev/null)
   [ "${out%%|*}" = "${proj}/.flow-kit/stop-hook.json" ]
   [[ "$out" == *"|60000|"* ]]
   [[ "$out" == *"|7" ]]
@@ -256,7 +260,7 @@ _make_big_requirement() {
   out=$(HOME="$fake_home" FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
     source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
     init_paths 2>/dev/null
-    config_get '.independent_review.max_artifact_chars' 20000" 2>/dev/null)
+    config_get '.independent_review.max_artifact_bytes' 20000" 2>/dev/null)
   [ "$out" = "20000" ]
 }
 
@@ -264,12 +268,12 @@ _make_big_requirement() {
   # 用假 HOME 锚定用户级，避免依赖宿主 ~/.dsh 的实际内容。
   local fake_home="${TEST_TMP}/fake-home"
   mkdir -p "${fake_home}/.dsh"
-  printf '{"independent_review":{"max_artifact_chars":77777}}\n' > "${fake_home}/.dsh/stop-hook.json"
+  printf '{"independent_review":{"max_artifact_bytes":77777}}\n' > "${fake_home}/.dsh/stop-hook.json"
   local out
   out=$(HOME="$fake_home" FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="${TEST_TMP}/no-such-proj" bash -c "
     source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
     init_paths 2>/dev/null
-    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_chars' 20000)\"" 2>/dev/null)
+    echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_bytes' 20000)\"" 2>/dev/null)
   [ "${out%%|*}" = "${fake_home}/.dsh/stop-hook.json" ]
   [[ "$out" == *"|77777" ]]
 }
@@ -283,11 +287,11 @@ _make_big_requirement() {
   [[ "$out" == *"/.claude/stop-hook.json" ]]
 }
 
-@test "E4: 29 号把 config 值导出为 FLOW_KIT_L3_MAX_ARTIFACT_CHARS（供 l3_review_run 读取）" {
+@test "E4: 29 号把 config 值导出为 FLOW_KIT_L3_MAX_ARTIFACT_BYTES（供 l3_review_run 读取）" {
   # 顺序断言：先 config_get，后 export，且导出的就是同一个变量
-  run grep -n 'max_chars=$(config_get' "$HOOK_BASE_DIR/29-independent-review.sh"
+  run grep -n 'max_bytes=$(config_get' "$HOOK_BASE_DIR/29-independent-review.sh"
   [ "$status" -eq 0 ]
-  run grep -n 'export FLOW_KIT_L3_MAX_ARTIFACT_CHARS="$max_chars"' "$HOOK_BASE_DIR/29-independent-review.sh"
+  run grep -n 'export FLOW_KIT_L3_MAX_ARTIFACT_BYTES="$max_bytes"' "$HOOK_BASE_DIR/29-independent-review.sh"
   [ "$status" -eq 0 ]
 }
 
@@ -296,8 +300,12 @@ _make_big_requirement() {
   [ -f "$tpl" ]
   grep -q 'FLOW_KIT_L3_BASE_URL' "$tpl"
   grep -q 'FLOW_KIT_L3_AUTH_TOKEN' "$tpl"
-  # 必须写明工件上限不在 env 里配（否则用户会找错地方）
-  grep -q 'max_artifact_chars' "$tpl"
+  # 必须写明工件上限不在 env 里配（否则用户会找错地方），且规范名是 _BYTES
+  grep -q 'max_artifact_bytes' "$tpl"
+  # §B3：必须写明单位=字节 + CJK ÷3 换算（否则中文工件仍会按字符低估截断风险）
+  grep -q 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES' "$tpl"
+  grep -qE '单位 = 字节|单位=字节' "$tpl"
+  grep -qE '÷3|÷ 3' "$tpl"
   # 必须给出 systemd drop-in 路径（dsh 侧凭证靠它注入）
   grep -q 'EnvironmentFile' "$tpl"
 }

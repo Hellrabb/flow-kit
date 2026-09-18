@@ -107,8 +107,18 @@ if ! fk_independent_review_gate_active "$phase" "L3"; then
 fi
 
 # ── 数值配置 sanitize（防 set -u/-e 下非数字炸）──
-max_chars=$(config_get '.independent_review.max_artifact_chars' "20000")
-[[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=20000
+# §B3（2026-09-18）：工件上限单位恒为**字节**（实现是 head -c）。规范键名 max_artifact_bytes；
+# 旧键 max_artifact_chars 仍读（语义按字节，行为不变）并提示迁移 —— 旧名会让人按字符估算，
+# 中文工件 60000 "chars" 实际只有 ~2 万汉字，是"NFR/章节缺失"假阳性的直接来源。
+max_bytes=$(config_get '.independent_review.max_artifact_bytes' "")
+[[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=""
+if [ -z "$max_bytes" ]; then
+  max_bytes=$(config_get '.independent_review.max_artifact_chars' "")
+  if [ -n "$max_bytes" ]; then
+    echo "[independent-review] DEPRECATED: independent_review.max_artifact_chars 已改名 max_artifact_bytes（单位=字节，语义未变）。CJK 工件请按 ÷3 估算汉字数。" >&2
+  fi
+fi
+[[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=20000
 max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
 # Model: 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）
@@ -154,10 +164,11 @@ L3_BG_FLAG=""
 [ "${L3_BACKGROUND:-0}" = "1" ] && L3_BG_FLAG="--background"
 
 # ── 把数值配置真正接到 l3_review_run（P0-2 / P0-1 修复 · 2026-09-11）──
-# 修复前：max_chars / max_fail 只在本模块读进局部变量，从未传给 l3_review_run
+# 修复前：max_bytes / max_fail 只在本模块读进局部变量，从未传给 l3_review_run
 # （artifact cap 恒为 20000；熔断全文零引用）→ 项目级配置被静默丢弃、L3 无界循环。
 # 这里按 l3-api.sh 既有的 FLOW_KIT_L3_* env 契约导出（export 跨函数调用生效）。
-export FLOW_KIT_L3_MAX_ARTIFACT_CHARS="$max_chars"
+# §B3：导出规范名 _BYTES（旧名 _CHARS 仍在 l3-review.sh 解析链里做兼容读取，但不再写出）。
+export FLOW_KIT_L3_MAX_ARTIFACT_BYTES="$max_bytes"
 export FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS="$max_fail"
 
 # ── _l3_scan_backlog() · 积压扫描（l3-pipeline-fix-2026-07 D3）──

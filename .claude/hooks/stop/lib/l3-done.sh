@@ -8,6 +8,16 @@
 # 函数:
 #   _l3_write_done        — Step 4: .done 文件写入（含 D3 both 检查）
 #   l3_write_timeout_done — 超时降级: 追加 timeout 段到 review 文件（不写 .done）
+#   l3_write_bypass_done  — 熔断降级: 追加 bypass 段 + 写 .done（L3_verdict=skipped）
+#
+# §B2 契约：本文件两个「追加 L3 段」的函数必须在段尾写 L3 段结束标记。
+# 标记字面量与 _l3_l3_marker() 唯一定义在 l3-section.sh（改字面量只需改那一处）；
+# 调用链（l3-review.sh）已 source，独立 source 场景（bats 直调本文件）按同目录兜底。
+type _l3_l3_marker >/dev/null 2>&1 || {
+  _L3D_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+  [ -n "${_L3D_DIR:-}" ] && [ -f "${_L3D_DIR}/l3-section.sh" ] && source "${_L3D_DIR}/l3-section.sh"
+  unset _L3D_DIR
+}
 
 # ── _l3_write_done() · Step 4: .done 文件写入（含 D3 both 检查 · 遵守 ARCHITECTURE.md §4.1 6键KVP）──
 # 用法: _l3_write_done <phase> <change_id> <verdict> <summary> <l2_verdict> <artifacts_dir> <gate_config_value>
@@ -93,6 +103,8 @@ l3_write_timeout_done() {
     echo "> L3 审查超时（30s），降级为 timeout。"
     echo "> 不写 .done——pipeline 暂停等待人工处理或重试。"
     echo "> 后续 session 可通过 Stop hook 29 号模块补跑 L3。"
+    echo ""
+    _l3_l3_marker
   } >> "$review_md"
 
   echo "[l3-review] timeout notice appended (phase ${phase}) — .done NOT written" >&2
@@ -124,6 +136,8 @@ l3_write_bypass_done() {
     echo "> 按 ADR-005 降级路径结案：写入 .done 且 L3_verdict=skipped，pipeline 继续推进。"
     echo "> 本段即审计痕迹——不伪装 L3 pass，人工可据此复核。"
     echo "> 清理计数：删除 \`.l3-attempts-${phase}\` 即可重新尝试 L3。"
+    echo ""
+    _l3_l3_marker
   } >> "$review_md"
 
   # D3 一致性：gate_config=both 时 L2 段仍需存在（与 _l3_write_done 同契约）

@@ -84,8 +84,11 @@ old L3 content
 old L3 re-review content
 EOF
 
+  # §B2（2026-09-18）：改为调用**生产函数** _l3_strip_sections，不在测试里另存一份
+  # awk 逻辑——复制版会随实现漂移，退化成"永远通过的假断言"。
   if [ -f "$review_md" ]; then
-    awk '/^## L3 (盲审|重审)/ { skip=1; next } /^## / && skip { skip=0 } !skip' "$review_md" > "${review_md}.tmp"
+    bash -c "source '$L3_LIB' 2>/dev/null; _l3_strip_sections \"\$1\" \"\$2\"" \
+      _ "$review_md" "${review_md}.tmp"
     mv "${review_md}.tmp" "$review_md"
   fi
 

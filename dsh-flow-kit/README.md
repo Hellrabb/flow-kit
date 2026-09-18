@@ -74,10 +74,13 @@ export FLOW_KIT_L2_DEFAULT_MODEL=<模型名>
 > [`.claude/l3.env.example`](../.claude/l3.env.example)。**L3 凭证缺失会导致门禁死锁**：
 > hook 不写 `.done`，而 PreToolUse 守卫禁止主 agent 自产 → commit / 阶段推进全部阻塞。
 
-**工件截断上限**（`max_artifact_chars`，缺省 20000）**不在环境变量里配**：由项目级
-`<项目>/.flow-kit/stop-hook.json` 的 `independent_review.max_artifact_chars` 决定，
+**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**，缺省 20000）**不在环境变量里配**：由项目级
+`<项目>/.flow-kit/stop-hook.json` 的 `independent_review.max_artifact_bytes` 决定，
 代码自动导出给 L3。大工件项目（如 27KB REQUIREMENT.md）务必提高，否则 L3 只看前
-20000 字符，反复报「NFR 缺失 / 锚点表被截断」假阳性。
+20000 字节（≈6.7K 汉字），反复报「NFR 缺失 / 锚点表被截断」假阳性。
+
+> ⚠️ 截断实现是 `head -c`，按字节裁 —— **CJK 工件请按 ÷3 估算**（60000 字节 ≈ 2 万汉字）。
+> 旧键 `max_artifact_chars` 仍可读（同按字节解释，行为不变），会打印迁移提示。
 
 ## 与 Claude Code / opencode 共存
 

@@ -29,28 +29,61 @@ type fk_resolve_api_credentials >/dev/null 2>&1 || {
 
 # fk_extract_l2_verdict — extract L2 verdict from INDEPENDENT-REVIEW-N.md（ADR-007 / D1 · gate-review-fix）
 # Single source for L2 verdict extraction across 4 consumers (4 files).
-# Strategy: grep verdict line → last match → case-insensitive pass|fail extraction.
-# Fallback: heading-style search (grep -iA 2 '^##.*Verdict' → extract pass|fail from heading context)
+#
+# B1 修复（2026-09-18 · L3-review-defects-2026-09-17 §B1）：
+#   修复前策略 = "整份文件里最后一处含 `verdict…:` 的行 → 抽 pass|fail"，三个缺陷：
+#     ① 命中 L3 段的 JSON（`  "verdict": "fail",`）——L3 段是后追加的，于是 L2 结论被 L3 改写；
+#        同一工件同一函数在不同时点给出不同结论，.done 不可复现；
+#     ② 无行首锚定 —— 散文 / 表格 / 主 agent 的「**有效 Verdict: pass**」全都命中；
+#     ③ `grep -o` 保留原大小写 —— 命中 `PASS` 就返回 `PASS`，调用方 ^(pass|fail|skipped)$
+#        校验失败 → `l3-review.sh:61` 直接 return 3，L3 从此不再运行且工件上看不出原因。
+#   现策略（锚定 + 最后一次 + 大小写归一）：
+#     ② 行首锚定，容忍列表符/标题符/粗体前缀；排除以引号开头的行 → 免疫 L3 段 JSON；
+#     ③ 取最后一处 = 最新一轮 L2 复审结论（同一工件可含多轮 `## L2 盲审（重审）`）；
+#     ④ 输出统一小写，满足调用方值域契约。
+#   兜底层：标题形（`## Verdict` → 取次行值）→ 旧式非锚定搜索。
+#   实测：本仓库 192 份归档工件的提取结果对 `.done` 记录值：修复 18 处、
+#         覆盖零回归（无一份从"有值"退化为"空值"）。
 # 用法: l2v="$(fk_extract_l2_verdict "$review_md")"
 # 返回: "pass" | "fail" | "" (未找到)
 fk_extract_l2_verdict() {
   local review_md="${1:-}"
   [ -f "$review_md" ] || { echo ""; return 1; }
-  local verdict
-  # Primary: grep verdict line → tail -1 → case-insensitive pass|fail
-  verdict=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1)
-  if [ -n "$verdict" ]; then
-    echo "$verdict"
-    return 0
+
+  local verdict=""
+  # ② 行内锚定形：[spaces][列表符][标题符][粗体]Verdict[粗体][:：]
+  #    排除引号开头的行 → 不命中 L3 段 JSON 的 `"verdict": "..."`（缩进+引号）
+  verdict=$(grep -E '^[[:space:]]*([-*+][[:space:]]+)*#*[[:space:]]*\**[[:space:]]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][[:space:]]*\**[[:space:]]*[:：]' "$review_md" 2>/dev/null \
+    | grep -vE '^[[:space:]]*"' 2>/dev/null \
+    | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
+
+  # ③ 标题形：`## Verdict` / `### 重审 Verdict` / `## Overall verdict` → 取其后首个非空行。
+  #    标题正文去掉 verdict 后须很短（≤8 个字母数字），以避开正文里以 verdict 结尾的发现标题。
+  if [ -z "$verdict" ]; then
+    verdict=$(awk '
+      /^#+[[:space:]]/ {
+        t = $0; sub(/^#+[[:space:]]*/, "", t); gsub(/[*_`[:space:]]/, "", t)
+        low = tolower(t)
+        if (low ~ /verdict$/) {
+          rest = low; sub(/verdict$/, "", rest); gsub(/[^a-z0-9]/, "", rest)
+          if (length(rest) <= 8) { pend = 1; next }
+        }
+        pend = 0; next
+      }
+      pend && NF { print; pend = 0 }
+    ' "$review_md" 2>/dev/null | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
   fi
-  # Fallback: heading-style search (## Verdict / **Verdict**: pass)
-  verdict=$(grep -iA 2 '^##.*Verdict' "$review_md" 2>/dev/null | grep -ioE 'pass|fail' | tail -1)
-  if [ -n "$verdict" ]; then
-    echo "$verdict"
-    return 0
+
+  # ④ 兜底：旧式非锚定搜索（同样只取最后一处；大小写归一）
+  if [ -z "$verdict" ]; then
+    verdict=$(grep -iE 'verdict[^a-z]*[:：]' "$review_md" 2>/dev/null \
+      | tail -1 | grep -ioE 'pass|fail' | tail -1) || true
   fi
-  echo ""
-  return 1
+
+  verdict=$(printf '%s' "$verdict" | tr 'A-Z' 'a-z')
+  [ -n "$verdict" ] || { echo ""; return 1; }
+  echo "$verdict"
+  return 0
 }
 
 # ── l2_detect_missing() ──────────────────────────────────────────────

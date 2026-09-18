@@ -99,11 +99,15 @@ _l3_extract_prior_findings() {
   moon_e=$(printf '\xf0\x9f\x9f\xa1')  # 🟡 lead bytes
   local pend_sev="" pend_summ=""
   while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      '## L2'*) section="L2" ;;
-      '## L3'*) section="L3" ;;
-      '## '*) section="other" ;;
-    esac
+    # §B2：载荷围栏内的行首 '## ' 不是标题语义 —— 若在此切段，L3 的 JSON 缓冲会被腰斩，
+    # 前轮发现随之丢失。故仅在非围栏行上做段切换判定。
+    if [ "$in_json" -eq 0 ]; then
+      case "$line" in
+        '## L2'*) section="L2" ;;
+        '## L3'*) section="L3" ;;
+        '## '*) section="other" ;;
+      esac
+    fi
     if [ "$section" = "L3" ]; then
       case "$line" in
         '```'*)
@@ -345,16 +349,31 @@ _l3_build_prompt() {
         artifact+="=== LESSONS.md ===\n$(_l3_utf8_head_bytes 2000 "$lessons" 2>/dev/null || true)"
       fi
       [ -n "$artifact" ] && artifact+="\n\n"
-      artifact+="=== 产物目录 ===\n$(ls -la "$artifacts_dir" 2>/dev/null | head -30)"
-      for f in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md INTEGRATION.md; do
-        if [ -f "${artifacts_dir}/$f" ]; then
-          artifact="${artifact}\n\n=== $f ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/$f" 2>/dev/null || true)"
+      # §B4 修复（2026-09-18 · L3-review-defects-2026-09-17）：
+      #   ① 原 `ls -la | head -30` 对顶层条目 > 28 的 change 会截掉按名序靠后的文件
+      #      （实测 41 条目时 TASK.md / TEST.md / REQUIREMENT.md / REVIEW.md / UAT.md 全不可见），
+      #      L3 据此报"产物缺失"并 verdict=fail —— 对提示词为真、对仓库为假。
+      #      → 改为全量清单（不再按行数截断）。整体仍受 $max_chars 约束，溢出只会切正文尾部。
+      #   ② 原名序含硬编码 INTEGRATION.md，本项目阶段 7 不产出该文件（flow-integration
+      #      skill 的产出是 UAT.md + CHANGELOG 更新），提示词里必然出现
+      #      `=== INTEGRATION.md === MISSING` → 模型如实报为 major 缺陷。
+      #      → 必备清单只留真实契约产物；INTEGRATION.md / UAT.md 改为「存在才列」。
+      artifact+="=== 产物目录（全量）===\n$(ls -la "$artifacts_dir" 2>/dev/null)"
+      local _req _opt
+      for _req in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md; do
+        if [ -f "${artifacts_dir}/${_req}" ]; then
+          artifact="${artifact}\n\n=== ${_req} ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_req}" 2>/dev/null || true)"
         else
-          artifact="${artifact}\n\n=== $f === MISSING"
+          artifact="${artifact}\n\n=== ${_req} === MISSING"
         fi
       done
+      for _opt in INTEGRATION.md UAT.md MINOR-DEFERRED.md; do
+        [ -f "${artifacts_dir}/${_opt}" ] && \
+          artifact="${artifact}\n\n=== ${_opt} ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_opt}" 2>/dev/null || true)"
+      done
+      unset _req _opt
       artifact=$(echo -e "$artifact" | _l3_utf8_head_stream "$max_chars")
-      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
+      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n注意：以「产物目录（全量）」清单为准（不再按行数截断）；INTEGRATION.md / UAT.md / MINOR-DEFERRED.md 非必备产物，未出现不构成缺陷。\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
       ;;
   esac
   [ -n "$artifact" ] || { echo "[l3-review] no artifact for phase $phase" >&2; return 3; }
