@@ -173,6 +173,40 @@ _l3_has_section() {
 #
 # 边界判定委托 _l3_section_spans()（单一来源）。本函数只负责：
 #   ④ 一并回收紧邻上方的空行 + 单个 `---`，否则逐轮重写会累积空分隔条
+# ── _l3_verify_review_structure() · 评审文件结构自检（M37 的「写入后校验」半 · 2026-09-18）──
+# 用法: _l3_verify_review_structure <review_md>   → 0=正常；1=异常（诊断到 stderr）
+#
+# 为什么需要：PreToolUse 只能拦**工具调用**；`Bash` 重定向、外部进程、编辑器直写等通道都能绕过，
+# 而"写坏"的后果是**静默**的（段尾缺失 → 后续写入把正文删掉）。故在 Stop 侧对**最终文件**做
+# 结构自检，与写入通道无关：① L3 段数 ≤1；② 段尾必须正好是结束标记；③ 段内围栏配平。
+# 非阻塞：只告警（评审文件是审计凭证，损坏时应当可见，但不该阻断整条 pipeline）。
+_l3_verify_review_structure() {
+  local review_md="${1:-}"
+  [ -f "$review_md" ] || return 0
+  local spans n start end last fences issues=""
+  spans="$(_l3_section_spans "$review_md")"
+  n=$(printf '%s\n' "$spans" | grep -c . 2>/dev/null || true)
+  [ -n "$n" ] || n=0
+  [ "$n" -le 1 ] || issues+="L3 段数=${n}（应 ≤1）；"
+  if [ "$n" -eq 1 ]; then
+    start=$(printf '%s\n' "$spans" | head -1 | cut -d' ' -f1)
+    end=$(printf '%s\n' "$spans" | head -1 | cut -d' ' -f2)
+    last=$(sed -n "${end}p" "$review_md" 2>/dev/null || true)
+    case "$last" in
+      *"$L3_SECTION_END_MARKER"*) ;;
+      *) issues+="段尾（第 ${end} 行）不是结束标记；" ;;
+    esac
+    fences=$(sed -n "${start},${end}p" "$review_md" 2>/dev/null | grep -c '^```' 2>/dev/null || true)
+    [ -n "$fences" ] || fences=0
+    [ $(( fences % 2 )) -eq 0 ] || issues+="L3 段内围栏不配平（${fences} 条）；"
+  fi
+  if [ -n "$issues" ]; then
+    echo "[l3-section] WARNING: 评审文件结构自检未通过 — ${review_md}: ${issues}（可能由未转义贴入或外部通道写入造成；见 ADR-026）" >&2
+    return 1
+  fi
+  return 0
+}
+
 _l3_strip_sections() {
   local review_md="$1" out_file="$2"
   if [ ! -f "$review_md" ]; then

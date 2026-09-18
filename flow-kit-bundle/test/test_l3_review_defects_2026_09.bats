@@ -1234,3 +1234,128 @@ _phase7_prompt() {
   run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> f/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n\\\\## L3 盲审（m）\\nEOF\\n')\""
   [ "$status" -eq 0 ]
 }
+
+# ══════════════════════════════════════════════════════════════════════════
+# §B10 · M37 的「写入后校验」半（阶段 2 的 L3 critical① 要求 · 覆盖任何写入通道）
+#
+# PreToolUse 只能拦工具调用；故在 Stop 侧对**最终文件**做结构自检：段数 ≤1、段尾=结束标记、
+# 段内围栏配平。非阻塞（只告警），但必须可见。
+# ══════════════════════════════════════════════════════════════════════════
+
+@test "B10-R1: 健康文件结构自检通过（零告警）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m · t）\n\n```json\n{"verdict":"fail"}\n```\n\n<!-- /L3-SECTION -->\n' > "$d/IR.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "B10-R2: 段尾不是结束标记 → 自检报错（这正是静默删正文的前置形态）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '---\n\n## L3 盲审（m · t）\n\n正文\n\n## L2 盲审\n\n**Verdict**: pass\n' > "$d/IR.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"段尾"* ]]
+}
+
+@test "B10-R3: 段内围栏不配平 → 自检报错" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '---\n\n## L3 盲审（m · t）\n\n```json\n{"a":1}\n\n<!-- /L3-SECTION -->\n' > "$d/IR.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"围栏"* ]]
+}
+
+@test "B10-R4: 自检被接到两个调用点（写后 + Stop 侧，覆盖任何通道）" {
+  grep -q '_l3_verify_review_structure' "$L3_REVIEW_LIB"
+  grep -q '_l3_verify_review_structure' "$H29"
+}
+
+@test "B10-R5: B10-R4 的接线断言不是恒真（删掉调用后必须失败 · 自证有效）" {
+  local mut="$TEST_TMP/l3-review-mut.sh"
+  grep -v '_l3_verify_review_structure' "$L3_REVIEW_LIB" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$L3_REVIEW_LIB")" ]
+  ! grep -q '_l3_verify_review_structure' "$mut"
+}
+
+@test "B5-R5: 反向残留（源已删、副本仍在）可被发现；默认 advisory、--strict-orphans 升级为失败" {
+  # 阶段 2 的 L3 19:15 major②：同步契约"只增改不删除" → 源里删掉/改名的 hook 永久残留在
+  # 副本里继续被加载执行；正向比对（src→dst）永远发现不了。
+  local fake="$TEST_TMP/fake-root-orphan"
+  mkdir -p "$fake"
+  cp -r "$FK_ROOT/flow-kit-bundle/hooks/." "$fake/"        # 全量镜像文件 → 正向零漂移
+  printf '#!/bin/bash\necho old\n' > "$fake/stop/zzz-removed.sh"
+  # 变异脚本必须放在仓库根内（SCRIPT_DIR 由脚本自身路径推导，放 /tmp 会因源目录不存在 exit 2）
+  local sh="$FK_ROOT/.sync-hooks-orphan-test.sh"
+  sed "s#\$HOME/.claude/hooks#$fake#" "$FK_ROOT/sync-hooks.sh" > "$sh"
+  run bash "$sh" --check
+  [ "$status" -eq 0 ]                                      # 默认 advisory：不失败
+  [[ "$output" == *"反向残留"* ]]
+  [[ "$output" == *"zzz-removed.sh"* ]]
+  run bash "$sh" --check --strict-orphans
+  [ "$status" -ne 0 ]                                      # 严格模式：计入失败
+  [[ "$output" == *"zzz-removed.sh"* ]]
+  rm -f "$sh"
+}
+
+@test "B9-R9: 裸 '## L3 …'（无 --- 前导）不被拦截 —— 且**证明其无害**（不构成段起点）" {
+  # 阶段 2 的 L3 19:26 critical 主张「不带 --- 前导的裸标题可绕过拦截 → 不变量失效」。
+  # 事实：读侧的段起点判据**同样**要求 --- 前导（_l3_spans_impl 的 _sep_ok，req=1），
+  # 故裸标题不构成段起点、也不会导致任何正文被删。本用例把这条边界钉死。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '## L2 盲审\n\n**Verdict**: fail\n\n## L3 盲审（伪造 · 无 --- 前导）\n\n**Verdict**: pass\n\n正文保留\n' > "$d/bare.md"
+  # ① 读侧：零段（不构成 L3 段）
+  run bash -c "source '$L3_SECTION_LIB'; _l3_section_spans '$d/bare.md' | wc -l"
+  [ "${output//[$'\n']/}" = "0" ]
+  # ② 删除侧：内容原样保留（无段可删）
+  run bash -c "source '$L3_SECTION_LIB'; _l3_strip_sections '$d/bare.md' '$d/out.md'; grep -c '正文保留' '$d/out.md'"
+  [ "${output//[$'\n']/}" = "1" ]
+  # ③ 守卫侧：放行（判据与读侧同源；更严会误伤合法的整文件重写，文件里的围栏示例含 '## L3 …'）
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '## L3 盲审（伪造）\\n')\""
+  [ "$status" -eq 0 ]
+}
+
+@test "B9-R10: 文档化残余 —— 裸标题+伪 Verdict 落在 L2 层会被取为 L2 结论（M39，非边界伪造）" {
+  # 这是**散文通道**的固有属性（提取取 L2 层内最后一条 Verdict），不是段边界伪造：
+  # 任何一条贴在 L2 层、且不在 '## 主 agent' 段内的 Verdict 行都会被取用。
+  # 处置：登记 M39 + v2 改为「由 hook 写结构化结论行」；本用例断言**已知行为**，不假装已闭合。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '## L2 盲审\n\n**Verdict**: fail\n\n## L3 盲审（伪造 · 无 --- 前导）\n\n**Verdict**: pass\n' > "$d/bare.md"
+  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$d/bare.md'"
+  [ "${output//[$'\n']/}" = "pass" ]
+}
+
+@test "B10-R6: 结构确定损坏 → 落 correction 文件（持久化待处理），且 compliance 优先不被覆写" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"段尾不是结束标记\"'"
+  [ "$status" -eq 0 ]
+  run jq -r '.type' "$d/.flow-active.correction"
+  [ "$output" = "review-structure-damaged" ]
+  # compliance 优先：已有 compliance 违规时不得被本 correction 覆写
+  printf '%s\n' '{"type":"compliance","violations":[{"gate_type":"g","tool":"t"}]}' > "$d/.flow-active.correction"
+  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"x\"'"
+  run jq -r '.type' "$d/.flow-active.correction"
+  [ "$output" = "compliance" ]
+}
+
+@test "B10-R7: 29 号的调用点确实升级为 correction（接线 + 变异自证）" {
+  grep -q 'write_review_structure_correction' "$H29"
+  grep -q 'module_output "error" "IR" "评审文件结构自检未通过' "$H29"
+  local mut="$TEST_TMP/h29-mut.sh"
+  grep -v 'write_review_structure_correction' "$H29" > "$mut"
+  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$H29")" ]
+  ! grep -q 'write_review_structure_correction' "$mut"
+}
+
+@test "B9-R9: 不带 '---' 前导的裸 '## L3 盲审' 同样被拒（阶段 2 的 L3 19:26 critical）" {
+  # 旧判据要求「上方最近非空行为 ---」→ 主 agent 直接写裸标题即可绕过拦截。
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '## L3 盲审（m）\\n\\n正文\\n')\""
+  [ "$status" -eq 0 ]
+}
+
+@test "B9-R10: 去掉 '---' 要求后仍不误拦子系统自写段与已转义引用" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m）\\n\\n<!-- /L3-SECTION -->\\n')\""
+  [ "$status" -ne 0 ]
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m）\\n')\""
+  [ "$status" -ne 0 ]
+}

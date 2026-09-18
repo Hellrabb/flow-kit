@@ -168,6 +168,11 @@ l3_review_run() {
     *) echo "[l3-review] UNEXPECTED: _l3_write_done rc=$_write_rc" >&2; return $_write_rc ;;
   esac
 
+  # M37「写入后校验」（与写入通道无关 · 非阻塞）：段数/段尾标记/围栏配平
+  if type _l3_verify_review_structure >/dev/null 2>&1; then
+    _l3_verify_review_structure "${artifacts_dir}/INDEPENDENT-REVIEW-${phase}.md" || true
+  fi
+
   # 返回 verdict 对应的 exit code
   case "$l3_verdict" in
     pass)

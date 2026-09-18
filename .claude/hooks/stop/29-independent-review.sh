@@ -261,6 +261,24 @@ gate_val=$(jq -r --arg pn "$phase_name" \
   '.goal.gate_config[$pn] // ""' "$flow_file" 2>/dev/null || echo "")
 	gate_val="$(fk_normalize_gate_val "$gate_val")"
 
+# ── M37「写入后校验」（Stop 侧 · 覆盖任何写入通道）──
+# PreToolUse 只能拦工具调用；Bash 重定向/外部进程/编辑器直写都能绕过。评审文件是审计凭证，
+# 结构损坏（段尾标记缺失、段数 >1、围栏不配平）必须可见 —— 否则后续 L3 写入会静默删除正文。
+if type _l3_verify_review_structure >/dev/null 2>&1; then
+  _struct_diag=$(_l3_verify_review_structure "$review_md" 2>&1) || {
+    printf '%s\n' "$_struct_diag" >&2
+    # 确定损坏 → 落 correction（持久化待处理），不只留一行 stderr；
+    # 仍 exit 0：Stop 阻断会制造「卡住且看不出原因」（§B1 原症状），故只升级可见性。
+    if ! type write_review_structure_correction >/dev/null 2>&1 && [ -f "${HOOK_BASE_DIR}/lib/correction-file.sh" ]; then
+      source "${HOOK_BASE_DIR}/lib/correction-file.sh" 2>/dev/null || true
+    fi
+    type write_review_structure_correction >/dev/null 2>&1 && \
+      write_review_structure_correction "$phase" "$change_id" "$(printf '%s' "$_struct_diag" | tail -1)"
+    module_output "error" "IR" "评审文件结构自检未通过（阶段 ${phase}）— 已写 correction（ADR-026）" 2>/dev/null || true
+  }
+  unset _struct_diag
+fi
+
 l2_verdict="fail"  # 默认 fail（保守，both 模式 L2 未完成时）
 if [ -f "$review_md" ] && grep -q "^## L2 盲审" "$review_md" 2>/dev/null; then
   l2v_extracted="$(fk_extract_l2_verdict "$review_md")" || true

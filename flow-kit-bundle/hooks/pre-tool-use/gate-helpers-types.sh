@@ -108,9 +108,6 @@ _gate_is_unescaped_l3_paste() {
       n = NR
       for (i = 1; i <= n; i++) {
         if (line[i] !~ /^## L3 (盲审|重审)/) continue
-        k = i - 1
-        while (k >= 1 && line[k] ~ /^[[:space:]]*$/) k--
-        if (k < 1 || line[k] !~ /^---[[:space:]]*$/) continue
         has_marker = 0
         for (j = i + 1; j <= n; j++) if (line[j] ~ /^<!-- \/L3-SECTION -->[[:space:]]*$/) { has_marker = 1; break }
         if (!has_marker) { print i; exit }

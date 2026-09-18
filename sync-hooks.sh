@@ -20,6 +20,7 @@
 # 用法:
 #   ./sync-hooks.sh            # 同步所有已存在的副本
 #   ./sync-hooks.sh --check    # 只比对不写盘；有漂移 exit 1（CI / make check 用）
+#   ./sync-hooks.sh --check --strict-orphans   # 反向残留（源已删、副本仍在）也计为失败
 #   ./sync-hooks.sh --list     # 列出会被处理的副本及其状态
 
 set -euo pipefail
@@ -28,12 +29,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$SCRIPT_DIR/flow-kit-bundle/hooks"
 
 MODE="sync"
-case "${1:-}" in
-  --check) MODE="check" ;;
-  --list)  MODE="list" ;;
-  "")      ;;
-  *) echo "用法: $0 [--check|--list]" >&2; exit 2 ;;
-esac
+STRICT_ORPHANS=0
+# 逐参数解析（原实现只看 $1，`--check --strict-orphans` 的第二个参数会被静默忽略 —— B5-R5 抓到）
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) MODE="check" ;;
+    --list)  MODE="list" ;;
+    --strict-orphans) STRICT_ORPHANS=1 ;;
+    *) echo "用法: $0 [--check|--list] [--strict-orphans]" >&2; exit 2 ;;
+  esac
+  shift
+done
 
 [ -d "$SRC" ] || { echo "ERROR: 源目录不存在: $SRC" >&2; exit 2; }
 
@@ -142,6 +148,7 @@ mapfile -t REL_PATHS < <(collect_rel_paths | sort -u)
 mapfile -t STOP_EXTRAS < <(collect_stop_extras | sort -u)
 
 drift_total=0
+orphan_total=0
 synced_total=0
 root_fail=0
 nonexec_total=0
@@ -220,6 +227,41 @@ for root in "${DEST_ROOTS[@]}"; do
       [ "$MODE" = "sync" ] && cp "$SRC/config/stop-hook.json" "$root/config/stop-hook.json"
     fi
   fi
+
+  # ── 反向残留（orphan）：副本里有、源里没有的 hook 文件 ──
+  # 为什么必须看反向（阶段 2 的 L3 19:15 major②）：同步契约是「只增改不删除」，源里删掉/改名的
+  # hook 会**永久残留**在副本里继续被加载执行（旧逻辑 = 潜在的行为回归，且正向比对永远发现不了）。
+  # 默认 advisory（`~/.claude/hooks` 可能含第三方工具的 hook，误报会拦住正常安装）；
+  # `--strict-orphans` 时计入失败（CI 想强约束时用）。
+  orphans=""
+  for _d in stop stop/lib pre-tool-use pre-commit; do
+    [ -d "$root/$_d" ] || continue
+    for _f in "$root/$_d"/*; do
+      [ -f "$_f" ] || continue
+      _rel="${_d}/$(basename "$_f")"
+      case "$_rel" in
+        stop/*.sh|stop/lib/*.sh|pre-tool-use/*.sh|pre-commit/*.sh) ;;
+        *) continue ;;
+      esac
+      [ -f "$SRC/$_rel" ] && continue          # 源里在 → 不是残留
+      case " ${REL_PATHS[*]} " in *" $_rel "*) continue ;; esac   # 源里在（镜像清单）→ 跳过
+      orphans+="$_rel "
+    done
+  done
+  if [ -n "$orphans" ]; then
+    _n=$(printf '%s' "$orphans" | wc -w)
+    orphan_total=$((orphan_total + _n))
+    case "$MODE" in
+      check)
+        if [ "$STRICT_ORPHANS" = "1" ]; then
+          printf '  ❌ %s — 反向残留 %d 个（源已删/改名，副本仍在跑）: %s\n' "$root" "$_n" "$orphans"; root_fail=1
+        else
+          printf '  ⚠️  %s — 反向残留 %d 个（advisory；--strict-orphans 可升级为失败）: %s\n' "$root" "$_n" "$orphans"
+        fi ;;
+      list) printf '     ↳ 反向残留: %s\n' "$orphans" ;;
+    esac
+  fi
+  unset _d _f _rel orphans _n
 
   drift_total=$((drift_total + drift))
   nonexec_total=$((nonexec_total + nonexec))

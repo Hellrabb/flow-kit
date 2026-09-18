@@ -126,6 +126,35 @@ write_model_missing_correction() {
   fi
 }
 
+# write_review_structure_correction <phase> <change_id> <detail> — M37 升级半（2026-09-18）：
+# 评审文件**结构确定损坏**（段尾缺结束标记 / 段数 >1 / 段内围栏不配平）时落 correction 文件，
+# 使损坏进入持久化待处理队列（与 `l2-missing` 同机制），而不是只留一行 stderr。
+#
+# 为什么不 exit 非零：Stop hook 阻断会制造「卡住且看不出原因」—— 正是本 change §B1 记录的原症状。
+# 故只升级**可见性**（correction + module_output error），不升级为阻塞。
+# Schema distinct from `l2-missing` / `*-model-missing`。
+write_review_structure_correction() {
+  local phase="$1" change_id="$2" detail="${3:-}"
+  local path="${PROJECT_ROOT:-}/.flow-active.correction"
+  local new_json
+  new_json=$(jq -nc --arg p "$phase" --arg c "$change_id" --arg d "$detail" \
+    '{type:"review-structure-damaged", phase:$p, change_id:$c,
+      message:("评审文件结构自检未通过：" + $d + "（ADR-026 · 可能由未转义贴入或外部通道写入造成；下一次 L3 写入会静默删除其后正文）")}') || return 0
+  if correction_file_exists "$path"; then
+    local tmp; tmp=$(mktemp "${path}.tmp.XXXXXX") || { echo "[correction-file] WARN: mktemp failed for review-structure" >&2; return 0; }
+    if jq --argjson new "$new_json" \
+        'if .type=="compliance" and ((.violations // []) | length > 0) then . else $new end' \
+        "$path" > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$path"
+    else
+      rm -f "$tmp"
+    fi
+  else
+    correction_file_write "$path" "$new_json" overwrite
+  fi
+  return 0
+}
+
 # write_model_missing_clear <layer> — clear the model-missing correction for a
 # layer (called on normal path when model is configured, AC-6 退场). Only
 # removes the file if current type matches (preserves compliance/l2-missing/other).
