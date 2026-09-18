@@ -108,6 +108,12 @@ _gate_is_unescaped_l3_paste() {
       n = NR
       for (i = 1; i <= n; i++) {
         if (line[i] !~ /^## L3 (盲审|重审)/) continue
+        # 与读侧**_l3_spans_impl** 的段起点判据同源：必须有 --- 前导才算"能伪造段边界"。
+        # 裸标题不构成 span（读侧也这么判），拦它会把合法内容（围栏内示例、历史件）一并误拦
+        # —— 阶段 2 的 L3 19:41 critical① 指出的"比读侧更严格、不再同源"。
+        k = i - 1
+        while (k >= 1 && line[k] ~ /^[[:space:]]*$/) k--
+        if (k < 1 || line[k] !~ /^---[[:space:]]*$/) continue
         has_marker = 0
         for (j = i + 1; j <= n; j++) if (line[j] ~ /^<!-- \/L3-SECTION -->[[:space:]]*$/) { has_marker = 1; break }
         if (!has_marker) { print i; exit }

@@ -1347,13 +1347,13 @@ _phase7_prompt() {
   ! grep -q 'write_review_structure_correction' "$mut"
 }
 
-@test "B9-R9: 不带 '---' 前导的裸 '## L3 盲审' 同样被拒（阶段 2 的 L3 19:26 critical）" {
+@test "B9-R9: 裸标题不构成段起点 → 守卫**不拦**（与读侧同源 · 阶段 2 的 L3 19:41 critical①）" {
   # 旧判据要求「上方最近非空行为 ---」→ 主 agent 直接写裸标题即可绕过拦截。
   run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '## L3 盲审（m）\\n\\n正文\\n')\""
-  [ "$status" -eq 0 ]
+  [ "$status" -ne 0 ]
 }
 
-@test "B9-R10: 去掉 '---' 要求后仍不误拦子系统自写段与已转义引用" {
+@test "B9-R10: 同源判据不误拦子系统自写段（带结束标记）与已转义引用" {
   run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m）\\n\\n<!-- /L3-SECTION -->\\n')\""
   [ "$status" -ne 0 ]
   run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m）\\n')\""
