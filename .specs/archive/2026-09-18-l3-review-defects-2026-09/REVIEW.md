@@ -126,9 +126,9 @@
 | **代码质量** | 🟡 1 项 Important 未闭合（R1 转义/还原方向耦合 → M38）；3 项 🟢/🟡 已收敛或声明例外 |
 | **Critical（历史项）** | 已落地为代码 + 回归：M32/M34/M36/M37、D13、写入侧 fail-closed、AC-2 活语料判据 |
 | **Minor** | 42 项登记 `MINOR-DEFERRED.md`（M1–M42），按 ADR-017 不进 fix loop |
-| **门禁** | `make check` 五门；`npx bats test/` 924 ok / 0 not ok；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13（以收尾实测为准，见 PROGRESS.md） |
+| **门禁（2026-09-18 21:0x 实测）** | `make check` 五门全绿；`npx bats test/` **926 ok / 0 not ok**；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13 |
 | **遗留** | M38（哨兵化转义）、M7/M8（历史兼容路径）、M17（外部写盘通道的兜底依赖 Stop 侧自检） |
-| **Toll-gate 6→7** | ⛔ **暂不放行（pending）** —— 依 ADR-017，须先满足：① 阶段 2 的最新 L3 为 `fail`（2 critical：文档口径自相矛盾【已按 49be722 统一】、转义/还原歧义 M38），处置与重审未完成；② 阶段 3/5/6/7 的 L2 均为 `fail`（已逐条响应，见各 `INDEPENDENT-REVIEW-N.md`），其 L3 轮次**尚未运行**。 |
+| **Toll-gate 6→7**（21:0x 复核） | ⛔ **暂不放行（pending）** —— 阶段 5 / 7 的 L3 = pass（阶段 5 已写 `.done`）；阶段 2 = fail（1C：伪标记可绕过 → **已收紧守卫**，待重审）、阶段 3 = fail（4C：TASK 依赖语义 → 已补说明，待重审）、阶段 6 = fail（1C：解码对历史文本非单射 → 登记 M43，待响应） —— 依 ADR-017，须先满足：① 阶段 2 的最新 L3 为 `fail`（2 critical：文档口径自相矛盾【已按 49be722 统一】、转义/还原歧义 M38），处置与重审未完成；② 阶段 3/5/6/7 的 L2 均为 `fail`（已逐条响应，见各 `INDEPENDENT-REVIEW-N.md`），其 L3 轮次**尚未运行**。 |
 
 ### 诚实性声明（本报告的自查）
 

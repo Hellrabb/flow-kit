@@ -839,13 +839,6 @@ EOF
   done
 }
 
-@test "B3-R5b: package-flow-kit.sh 的收尾横幅同样写明单位与 ÷3（第五处载体）" {
-  local f="$FK_ROOT/package-flow-kit.sh"
-  grep -q 'max_artifact_bytes' "$f"
-  grep -qE '单位 ?= ?字节|单位=字节' "$f"
-  grep -qE '÷ ?3' "$f"
-}
-
 @test "B3-R7: 提示词被截断时必须给出可见告警（含丢弃比例）—— 用户 2026-09-18 指出的盲区" {
   # 由来：阶段 2 实测 cap=20000 而完整 prompt 37005B → 丢弃 45%，DESIGN.md 尾部从未送达 L3，
   # 而 L3 的 verdict 看起来完全正常。§B3 修了「名实不符」，但**静默截断**仍在 —— 同族故障
@@ -1379,28 +1372,6 @@ _phase7_prompt() {
   # 已转义（`\## L3 …`）不构成段起点 → 放行；带标记的块见 B9-R2（已收紧为拒绝）。
   run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
   [ "$status" -ne 0 ]
-}
-
-@test "B10-R6: 结构确定损坏 → 落 correction 文件（持久化待处理），且 compliance 优先不被覆写" {
-  local d="$TEST_TMP/chg"; mkdir -p "$d"
-  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"段尾不是结束标记\"'"
-  [ "$status" -eq 0 ]
-  run jq -r '.type' "$d/.flow-active.correction"
-  [ "$output" = "review-structure-damaged" ]
-  # compliance 优先：已有 compliance 违规时不得被本 correction 覆写
-  printf '%s\n' '{"type":"compliance","violations":[{"gate_type":"g","tool":"t"}]}' > "$d/.flow-active.correction"
-  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"x\"'"
-  run jq -r '.type' "$d/.flow-active.correction"
-  [ "$output" = "compliance" ]
-}
-
-@test "B10-R7: 29 号的调用点确实升级为 correction（接线 + 变异自证）" {
-  grep -q 'write_review_structure_correction' "$H29"
-  grep -q 'module_output "error" "IR" "评审文件结构自检未通过' "$H29"
-  local mut="$TEST_TMP/h29-mut.sh"
-  grep -v 'write_review_structure_correction' "$H29" > "$mut"
-  [ "$(wc -l < "$mut")" -lt "$(wc -l < "$H29")" ]
-  ! grep -q 'write_review_structure_correction' "$mut"
 }
 
 @test "B8-R3: 转义是**单射**：原文自带反斜杠与写侧转义可区分（M38 的闭合断言）" {

@@ -63,16 +63,16 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 20:53）
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 21:14）
 
-> 自动生成于 2026-09-18 20:53。由 l3-review.sh 写入。
+> 自动生成于 2026-09-18 21:14。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{"critical":[],"major":[{"file":"CHANGELOG.md","issue":"2026-09-18 条目仍写 test_l3_review_defects_2026_09.bats（28 例）· 854 bats 0 fail · 222 份工件「空值 0 / 非枚举 0」，而 TEST.md/UAT.md/DEV-SUMMARY.md 已更新为 86 例缺陷套件、98 ok/924 ok not_ok=0、corpus-count 实测 228 102 133 133 11 0（empty=11）。","why":"项目级 CHANGELOG 是最终审计入口，数字停留在早期快照，读者会得到与正式测试/验收不一致的结论。","fix":"将该条目末段改为最终实测：86 例套件、924 bats 0 fail（数字增长时只断言 not_ok=0）、corpus-count empty=11/nonenum=0，并统一 6/6 副本与 7 落点口径。"},{"file":"REVIEW.md","issue":"AC-2 行写语料复算为 224 98 129 129 8 0，而 L2-EMPTY-ATTRIBUTION.md 有 11 行空值、TEST.md 记 n=227 empty=11 base_empty=8 nonenum=0、UAT.md 实测 228 102 133 133 11 0。","why":"最终 REVIEW 的 AC-2 验证证据与同一交付物集合不一致，削弱 AC-2 合规结论的可信度。","fix":"用最终 corpus-count --attribution 结果重算 AC-2 行，并与 L2-EMPTY-ATTRIBUTION/UAT 的 11 个空值保持一致。"}],"minor":[{"file":"PROGRESS.md","issue":"补档状态表仍写 3-task/4-dev/5-test/6-review/7-integration 未生成/未跑，但目录中 TASK.md/DEV-SUMMARY.md/TEST.md/REVIEW.md/UAT.md 均已存在。","why":"作为交付物中的进度记录，会误导读者以为阶段产物缺失。","fix":"标注该表为历史快照，或更新为最终状态；若保留历史记录需加明确时间点说明。"},{"file":"TASK.md","issue":"波次表包含 T11/T12/T13，且 T10 依赖它们，而 DEV-SUMMARY.md 标题/任务表按 T01–T10 归纳，未给出 T11–T13 的对应实现说明。","why":"任务编号与开发摘要不一致，影响任务到代码/测试的追溯。","fix":"在 DEV-SUMMARY 中补齐 T11–T13 的说明（或明确其无代码产出），并统一 T01–T13 口径。"}],"verdict":"pass","summary":"必备归档齐全且 INDEPENDENT-REVIEW-7 已补上，无 critical；但 CHANGELOG/REVIEW 存在实测数字漂移，major 项需同步修正。"}
+{"critical":[],"major":[{"file":"CHANGELOG.md","issue":"2026-09-18 条目仍是旧快照：写 test_l3_review_defects_2026_09.bats 28 例、854 bats、222 份工件「空值 0 / 非枚举 0」、6/6 副本；当前 TEST.md/UAT.md 为 98 ok、924 ok、n=227/228、empty=11、7 落点。","why":"CHANGELOG 是项目级变更记录，同一 change 的最终摘要应与归档文档一致，否则后续无法依据 CHANGELOG 判断真实规模与门禁结果。","fix":"按最终 `npx bats test/`、`corpus-count.sh`、`sync-hooks.sh --check` 的实测值重写该条目（例如 98 例、924 ok、228 102 133 133 11 0、7/7）。"},{"file":"REVIEW.md","issue":"AC-2 行写「224 98 129 129 8 0」和「8/8 归因」，但 L2-EMPTY-ATTRIBUTION.md 列了 11 行空值，TEST.md 记 n=227 empty=11 base_empty=8，UAT.md 实测 228 102 133 133 11 0。","why":"REVIEW 是阶段 6 必需归档，AC-2 验证结论必须与最终语料/归因清单一致；8/8 与 11 行交付物直接矛盾，削弱审查可信度。","fix":"将 AC-2 行改为最终 corpus-count 输出，并写明 11/11 归因（base_empty=8 + 3 份本期新工件），或与 L2-EMPTY/TEST/UAT 统一口径。"},{"file":"TEST.md","issue":"TEST.md 写「86 条 bats 回归（B1–B10 + AC2）」，UAT.md/DEV-SUMMARY.md 也写「86 例/86 条」，但同一文档实测为「98 ok / 0 not ok」。","why":"同一变更的回归用例数在必需产物与补充产物间不一致，读者无法确认实际回归规模。","fix":"将 TEST.md/UAT.md/DEV-SUMMARY.md 中的 86 统一改为最终实测 98 例（或明确 86 为子集口径），并与 `npx bats` 输出一致。"}],"minor":[],"verdict":"pass","summary":"必备归档六件套齐全，未发现阻断性 critical；主要问题是 CHANGELOG/REVIEW/TEST 中测试数与语料数口径不一致，需在后续修订中统一。"}
 ```
 
-L3_artifact_hash: 009b54b5008de86c7394924a529250dd2b1ee71b92f03dc1ce345e3171a1cf70
+L3_artifact_hash: 30ade8a5cd25b45cfe9108e679853ac57e415d16962adfe4539f96b3504fc249
 
 <!-- /L3-SECTION -->
