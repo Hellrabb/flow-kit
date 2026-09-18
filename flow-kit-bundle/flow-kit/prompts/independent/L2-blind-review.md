@@ -162,6 +162,8 @@ MINOR-DEFERRED.md 格式：
    ```bash
    source flow-kit-bundle/hooks/stop/lib/l3-section.sh
    _l3_escape_payload "$(cat 你的报告.md)" >> .specs/<id>/INDEPENDENT-REVIEW-<N>.md
+   # 并且必须**同时落签名行**（M38 门控解码只在含签名的文件上生效；只转义不落签名 = 不会被还原）：
+   printf '%s\n' '<!-- L2-PAYLOAD-ENCODED -->' >> .specs/<id>/INDEPENDENT-REVIEW-<N>.md
    ```
 
    **为什么**：这些是 flow-kit 用来划分 L3 段的**结构信号**。报告里若原样出现一行

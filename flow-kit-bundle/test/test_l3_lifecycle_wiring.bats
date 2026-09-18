@@ -222,7 +222,12 @@ _make_big_requirement() {
     > "${ARTIFACTS_DIR}/INDEPENDENT-REVIEW-1.md"
   bash -c "source '$L3_LIB' 2>/dev/null
     _l3_call_api() { echo '{\"verdict\":\"pass\"}'; }
-    _l3_parse_result() { printf '\n---\n\n## L3 盲审（stub）\n\nVERDICT=pass\n' >> '$ARTIFACTS_DIR/INDEPENDENT-REVIEW-1.md'; echo 'VERDICT=pass'; echo 'SUMMARY=ok'; return 0; }
+    # stub 必须复刻真实写入方的契约：段尾带结束标记 —— `_l3_write_done` 现在会在结构损坏时
+    # 拒绝发凭证（B10-R8），不带标记的 stub 会因此写不出 .done（2026-09-18 修）
+    # stub 必须复刻真实写入方的两个契约：① 段尾带结束标记；② **先删旧段再写**（真实
+    # `_l3_parse_result` 走 `_l3_strip_sections`，故文件里恒为 1 个 L3 段）。只 append 会让
+    # 结构自检报「L3 段数=2」，`_l3_write_done` 因此拒绝发凭证（B10-R8，2026-09-18 修）。
+    _l3_parse_result() { printf '# REVIEW\n\n## L2 盲审（stub）\n\nverdict=pass\n\n---\n\n## L3 盲审（stub）\n\nVERDICT=pass\n\n<!-- /L3-SECTION -->\n' > '$ARTIFACTS_DIR/INDEPENDENT-REVIEW-1.md'; echo 'VERDICT=pass'; echo 'SUMMARY=ok'; return 0; }
     export FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS=5
     l3_review_run 1 test-change '$ARTIFACTS_DIR' pass both || true" 2>/dev/null
   [ ! -f "${ARTIFACTS_DIR}/.l3-attempts-1" ]

@@ -17,7 +17,7 @@
 | AC | 实现锚点 | 验证 | 结论 |
 | --- | --- | --- | --- |
 | AC-1 L2 层限定 + 免疫 L3 段/大小写 | `l2-detect.sh::_fk_l2_scope`（62-64 调 `_l3_section_spans`）+ 三层提取 | B1-R2[1-4]、B2-R9/R11/R13/R17/R18/R19 | ✅ 合规 |
-| AC-2 语料零非枚举 / 空值 ≤8 且可归因 | 同上 + `L2-EMPTY-ATTRIBUTION.md` | 「AC2: 语料全量复算」→ `224 98 129 129 8 0` | ✅ 合规（8/8 归因） |
+| AC-2 活语料零非枚举 + 每份空值可归因（数值预算 ≤8 只对**基线语料**） | 同上 + `L2-EMPTY-ATTRIBUTION.md`（`corpus-count.sh --attribution` 机械再生） | 「AC2: 活语料零非枚举 + 每份空值可归因」→ 现场 `228 102 133 133 11 0`、`base_empty=8`、清单 11 行 | ✅ 合规 |
 | AC-3 §B1 五行回归 | 同上 | B1-R1 | ✅ 合规 |
 | AC-4 重写幂等（标记/围栏/空行） | `l3-section.sh` + `l3-api.sh::_l3_parse_result` | B2-R2/R6/R7/R10 | ✅ 合规 |
 | AC-5 无标记历史件清除 | `_l3_spans_impl` 的 `stop==0` 分支 | B1-R21、B2-R3/R4/R12 | ✅ 合规 |

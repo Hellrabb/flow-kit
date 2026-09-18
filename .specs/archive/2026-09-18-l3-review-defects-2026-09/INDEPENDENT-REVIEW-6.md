@@ -23,49 +23,16 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 20:49）
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 21:39）
 
-> 自动生成于 2026-09-18 20:49。由 l3-review.sh 写入。
+> 自动生成于 2026-09-18 21:39。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{
-  "critical": [
-    {
-      "file": "flow-kit-bundle/hooks/stop/lib/l2-detect.sh（_l2_unescape_payload）与 flow-kit-bundle/hooks/stop/lib/l3-section.sh（_l3_escape_payload）",
-      "issue": "读侧解码对未编码历史文本仍不是单射：`_l2_unescape_payload` 无条件把“以两个反斜杠开头的行”去掉一个反斜杠。单射只在所有输入都先经过 `_l3_escape_payload` 时才成立；对历史工件或任何绕过写侧转义的文本，原始行 `\\\\## ` 会被误改成 `\\## `，仍违反“不得修改审查员原文”的核心契约。同时 DESIGN.md D13 宣称“M38 闭合”，但 MINOR-DEFERRED.md M38 仍保留“原文遗留说明：需哨兵化转义……已在 DESIGN §D13 与本文登记”，且 INDEPENDENT-REVIEW-2 的 L3 重审明确指出现状描述在 D13 与风险表 R12 之间互相矛盾，读者无法确定当前行为。",
-      "why": "这是本 change 的核心安全不变量（不得改写审查员原文）。文档同时宣称“已修”和“仍有遗留/需哨兵化”，使实现与验收基准不可判定；读侧算法本身对未编码输入仍会破坏原文。",
-      "fix": "要么为未编码历史文本提供显式迁移或段级元数据，使读侧只对带转义标记的段解码；要么在文档中撤回“M38 已闭合”的声明，将单射前提明确限定为“所有写入方强制转义后的新文本”，并同步更新 DESIGN 风险表与 MINOR-DEFERRED.md 的状态描述，消除矛盾。"
-    }
-  ],
-  "major": [
-    {
-      "file": "REVIEW.md（AC 覆盖表）",
-      "issue": "AC-2 行写死 `224 98 129 129 8 0` 并称“8/8 归因”，但同工件 UAT.md 与 L2-EMPTY-ATTRIBUTION.md 的现场复算为 `228 102 133 133 11 0`，空值清单含 11 行。REVIEW 的验证数字过时且与交付物矛盾，导致 AC-2 合规声明不可信。",
-      "why": "AC 覆盖表是阶段 6 审查结论的依据，数字不一致会误导读者认为空值≤8 已满足，而实际清单有 11 条空值（若 AC 对空值数量有上限则直接违规；若无上限，REVIEW 的“8/8”也错误）。",
-      "fix": "统一改为与 corpus-count.sh --attribution 一致的现算结果，并明确 AC-2 的量化断言（上限还是仅归因），避免快照过期。"
-    },
-    {
-      "file": "flow-kit-bundle/hooks/stop/lib/l2-detect.sh / l3-section.sh",
-      "issue": "结构性行首集合（`## `、`<!-- /L3-SECTION -->`、` ``` `）在写侧 sed 和读侧 awk 两处重复，且写侧“行首反斜杠加倍”与读侧“先判两个反斜杠”的优先级通过注释约定，没有共享常量或测试以外的强制同步。",
-      "why": "若未来新增一种需转义的结构行首，只改一侧会导致转义/还原不对称，静默改变审查文本；这是知识重复带来的变更传播风险。",
-      "fix": "将结构行首集合提取为共享字符串/正则常量，或至少加一个在写侧和读侧同时使用的单一来源变量；在测试中增加该集合扩展时的跨文件回归。"
-    }
-  ],
-  "minor": [
-    {
-      "file": "UAT.md",
-      "issue": "UAT-2 第④步预期输出被截断为“stderr 打印 ⛔ L3 载荷守卫 …”，未给出完整预期文本；第⑤步在工件中未显示（或缺失），验收脚本仍不完整。",
-      "why": "UAT 应可完整执行并核对，截断/缺失会让执行者无法判断是否符合预期。",
-      "fix": "补全 UAT-2 ④的预期 stderr 与 rc=2，并确认⑤存在完整的放行用例。"
-    }
-  ],
-  "verdict": "fail",
-  "summary": "单射转义只覆盖经写侧编码的新文本，读侧对历史未编码文本仍会误改原文，且文档同时宣称“已修”和“仍有遗留”互相矛盾，核心契约未闭合，不能通过。"
-}
+{"critical":[{"file":".specs/l3-review-defects-2026-09/DESIGN.md","issue":"守卫判据最终形态仍自相矛盾：文档已多处改为“不看结束标记”，但“附·阶段 2 收口说明”的 19:41 引用块仍写「+「不看结束标记 无 <!-- /L3-SECTION -->」才拒绝」，语义上仍可读成“无结束标记才拒绝”，使带伪造结束标记的 --- + ## L3 块可能被放行。","why":"结束标记是内容、可被不可信载荷伪造；若按“无结束标记才拒绝”执行，21:10 已封堵的绕过路径会复活；同一文档内互斥的安全条件使实现者/读者无法确定守卫真实行为。","fix":"删除「无 <!-- /L3-SECTION -->」残留，统一为唯一权威判据：行首 ^## L3 (盲审|重审) 且上方最近非空行恰为 --- 即 exit 2，不看也不要求结束标记；并补 B9 回归用例：带伪结束标记的伪造块必须 exit 2。"}],"major":[{"file":"flow-kit-bundle/hooks/stop/lib/l2-detect.sh","issue":"签名门控是文件级而非段级：_l2_maybe_unescape 只要整个文件存在 <!-- L2-PAYLOAD-ENCODED --> 就对提取出的 L2 文本整体解码；历史无签名段在文件后续被写入带签名的新段后也会被解码，误吃行首反斜杠。","why":"M43 的承诺是“历史工件原样保留”，但该实现只保护从未出现签名的文件；同一文件一旦出现新签名，历史旧段保护即失效，仍可能修改审查员原文，违反 L2_verdict 必须为原文结论的契约。","fix":"把签名做成段级/写侧实例标记，仅对签名行之后且属于同一写入段的载荷解码；读侧按段记录是否带签名，避免对无签名历史段解码；增加“历史文件追加新段后旧段 \\\\## 原样保留”的回归测试。"},{"file":"flow-kit-bundle/hooks/stop/lib/l2-detect.sh 与 l3-section.sh","issue":"结构性行首集合（## 、<!-- /L3-SECTION -->、``` ``` ```）在写侧 sed 和读侧 awk 中重复维护，缺乏单一事实源。","why":"两侧任何一处漏更新都会造成转义/解码不对称，静默改变审查文本，属于知识重复与变更传播风险，正是本 change 要消除的静默损坏类别。","fix":"将结构行首判定收敛为单一函数/变量，写侧与读侧共用；并用回归测试锁定两侧集合一致。"},{"file":".claude/hooks/stop/29-independent-review.sh（含 flow-kit-bundle 镜像）","issue":"新增的“结构确定损坏时撤销已存在 pass 凭证”逻辑没有 bats 覆盖，且依赖 l3_invalidate_done 存在；若函数未加载或参数签名不匹配则静默跳过撤销。","why":"该逻辑直接关系到陈旧/损坏锚点是否被撤销（M32/D12 同族），无测试无法证伪；撤销失败会让门禁按 .done 存在性继续放行。","fix":"增加回归用例：预置 pass 凭证 + 结构损坏文件 → 触发结构自检失败路径后 .done 被删除；并显式验证 l3_invalidate_done 的参数（phase、artifacts_dir）与函数签名一致。"},{"file":".specs/l3-review-defects-2026-09/REVIEW.md","issue":"AC-2 阈值被重新解释为“≤8 只对基线语料”，活语料现场 11 个空值，但工件中未展示 REQUIREMENT.md 的同步修改；若原始 AC-2 是绝对值则当前不合规。","why":"读者无法从工件确认 spec 原文与新的阈值口径是否一致，合规声明依赖未展示的规格变更。","fix":"同步更新 REQUIREMENT.md 的 AC-2 口径，或在 REVIEW.md 中引用原始 AC-2 文本并明确阈值适用语料范围；否则重新协商阈值。"}],"minor":[{"file":"flow-kit-bundle/hooks/stop/lib/l3-section.sh","issue":"常量名 L3_PAYLOAD_ENCODED_MARK 以 L3 开头，但值是 <!-- L2-PAYLOAD-ENCODED -->，且实际用于 L2 载荷签名。","why":"名称与语义不一致会误导后续维护，尤其在 l2-detect.sh 引用该变量时更易混淆。","fix":"改名为 L2_PAYLOAD_ENCODED_MARK，或注释明确它是跨 L2/L3 共用的载荷编码签名。"},{"file":"flow-kit-bundle/hooks/stop/lib/l3-done.sh","issue":"_l3_write_done 的结构检查在 _l3_verify_review_structure 未定义时静默跳过（fail-open），若某调用路径未加载该函数，损坏文件仍可能拿到凭证。","why":"本 change 强调 fail-closed；静默跳过会让保护失效且无告警。","fix":"在函数缺失时输出明确错误并 return 1，或由调用方保证必先加载结构自检函数。"},{"file":"flow-kit-bundle/hooks/stop/lib/l2-detect.sh","issue":"写侧插入的签名行 <!-- L2-PAYLOAD-ENCODED --> 在读侧解码后仍保留在 L2 段文本中，未从最终提取结果剥离。","why":"落盘 L2 文本与子 agent 原文相比多一行注释，虽不影响 verdict 锚定提取，但“不得修改审查员原文”的契约在字面上不严格成立。","fix":"在 _l2_maybe_unescape 或 _fk_l2_scope 输出时剥离签名行，或文档明确签名行是允许的元数据附加。"},{"file":".specs/l3-review-defects-2026-09/DESIGN.md 与 MINOR-DEFERRED.md","issue":"M43 闭合记录时间写作“21:1x”，时间戳不精确。","why":"审查/修复时间不精确，难以审计与回放。","fix":"补全精确到分钟的时间戳。"}],"verdict":"fail","summary":"M43 文件级签名门控与凭证拒发已落地，但 DESIGN.md 守卫判据仍自相矛盾（“不看结束标记”与“无结束标记才拒绝”并存），安全不变量未闭合，不能通过。"}
 ```
 
-L3_artifact_hash: 009b54b5008de86c7394924a529250dd2b1ee71b92f03dc1ce345e3171a1cf70
+L3_artifact_hash: c7c99ff6ebd61d80fe99c5bc5c8c840d3d68c4175ad1dda2eed4df87434586d7
 
 <!-- /L3-SECTION -->

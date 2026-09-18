@@ -49,6 +49,16 @@ _l3_write_done() {
     return 1
   fi
 
+  # 结构确定损坏 ⇒ 拒绝发凭证（阶段 2 的 L3 21:10 major②）：结构自检本身是非阻塞的（D14），
+  # 但「非阻塞」= 不阻断流程，不等于「损坏的文件也能拿到 pass 凭证」—— 段尾缺标记的文件正是
+  # 下一次写入会静默删正文的形态，给它发凭证会放大损害。
+  if type _l3_verify_review_structure >/dev/null 2>&1; then
+    if ! _l3_verify_review_structure "$review_md" 2>/dev/null; then
+      echo "[l3-review] deferred: 评审文件结构自检未通过（见 stderr）—— 拒绝在损坏工件上写锚点" >&2
+      return 1
+    fi
+  fi
+
   local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
   local done_tmp="${done_marker}.tmp"
   local written_by="pre-tool-use-gate"

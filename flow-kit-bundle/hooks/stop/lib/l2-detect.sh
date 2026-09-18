@@ -96,7 +96,20 @@ _fk_l2_scope() {
         if (!(i in del) && !skip) print line[i]
       }
     }
-  ' "$review_md" 2>/dev/null | _l2_unescape_payload
+  ' "$review_md" 2>/dev/null
+}
+
+# _l2_maybe_unescape <review_md> — 签名门控解码（M43 · 阶段 6 的 L3 20:49 critical）
+# 只有文件里存在写侧签名（`<!-- L2-PAYLOAD-ENCODED -->`）时才还原转义；否则**原样输出**。
+# 理由：解码不是无条件单射 —— 对未经写侧编码的历史文本，行首 `\\` 会被误吃一个反斜杠。
+_l2_maybe_unescape() {
+  local review_md="$1"
+  local mark="${L3_PAYLOAD_ENCODED_MARK:-<!-- L2-PAYLOAD-ENCODED -->}"
+  if grep -qF "$mark" "$review_md" 2>/dev/null; then
+    _l2_unescape_payload
+  else
+    cat
+  fi
 }
 
 # _l2_unescape_payload — 还原写入侧转义（ADR-026 · 设计 D13 · 阶段 2 的 L3 major ①）
@@ -153,7 +166,7 @@ fk_extract_l2_verdict() {
   [ -f "$review_md" ] || { echo ""; return 1; }
 
   local l2_text
-  l2_text="$(_fk_l2_scope "$review_md")"
+  l2_text="$(_fk_l2_scope "$review_md" | _l2_maybe_unescape "$review_md")"
 
   local verdict=""
   # ② 行内锚定形：[spaces][列表符][标题符][粗体]Verdict[粗体][:：]
@@ -472,6 +485,7 @@ L2_PROMPT_EOF
       echo ""
       # ADR-026：L2 载荷同样是**不可信内容**，必须转义（否则其中的行首 '## L3 …'
       # 会被判为 L3 段起点，导致本段正文在后续 L3 写入时被切除 —— 静默数据损坏）
+      printf '%s\n' "${L3_PAYLOAD_ENCODED_MARK:-<!-- L2-PAYLOAD-ENCODED -->}"
       _l3_escape_payload "$content"
     } >> "$bg_tmp"
     mv "$bg_tmp" "$review_md" 2>/dev/null || {

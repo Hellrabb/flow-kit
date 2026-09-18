@@ -39,6 +39,9 @@
 
 # ── L3 段结束标记（跨文件契约 · §B2）──
 L3_SECTION_END_MARKER='<!-- /L3-SECTION -->'
+# 载荷编码签名（M43 · 2026-09-18）：写侧落下本行表示「本文件含经 `_l3_escape_payload` 编码的载荷」；
+# 读侧**只有见到签名才解码** —— 历史工件（未经编码）原样保留，避免被误吃一个反斜杠。
+L3_PAYLOAD_ENCODED_MARK='<!-- L2-PAYLOAD-ENCODED -->'
 
 # ── _l3_l3_marker() · 取标记字面量 ──
 # 输出: 标记字符串

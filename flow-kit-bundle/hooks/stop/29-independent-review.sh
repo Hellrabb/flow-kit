@@ -274,6 +274,14 @@ if type _l3_verify_review_structure >/dev/null 2>&1; then
     fi
     type write_review_structure_correction >/dev/null 2>&1 && \
       write_review_structure_correction "$phase" "$change_id" "$(printf '%s' "$_struct_diag" | tail -1)"
+    # 已存在的 pass 凭证必须在**确定损坏**时撤销（阶段 2 的 L3 21:20 major）：
+    # 凭证是"当前状态已通过"的断言，文件结构被写坏后该断言不再成立；撤销由审查子系统自己做
+    # （`l3_invalidate_done` 属 l3-done.sh，禁止主 agent 自产/自删凭证的守卫不适用于本 hook）。
+    if ! type l3_invalidate_done >/dev/null 2>&1 && [ -f "${HOOK_BASE_DIR}/lib/l3-done.sh" ]; then
+      source "${HOOK_BASE_DIR}/lib/l3-done.sh" 2>/dev/null || true
+    fi
+    type l3_invalidate_done >/dev/null 2>&1 && l3_invalidate_done "$phase" "$(dirname "$review_md")"
+
     module_output "error" "IR" "评审文件结构自检未通过（阶段 ${phase}）— 已写 correction（ADR-026）" 2>/dev/null || true
   }
   unset _struct_diag

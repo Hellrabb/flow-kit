@@ -429,3 +429,16 @@ Wave 5:            T10                                        （←T01..T09,T11
 
 复验命令：`git diff --name-only 61c4bf8..HEAD`（人工比对上表）+
 `bash verify-claims.sh`（覆盖"响应段声明 ↔ 现场事实"；**不**解析本表，边界如实标注）。
+
+---
+
+## 补档追加说明（2026-09-18 21:3x）
+
+- **M40 仍未闭合**（`bats -f <组>-` 命中 0 条即算通过）：本轮只把 **T08 的 verify 改为 `make check`**
+  （整目录），其余任务的 verify 仍是组过滤式。复现：
+  `npx bats test/test_l3_review_defects_2026_09.bats -f "ZZZ-NOPE"` → 输出 `1..0`，rc=0。
+  建议修法（下一轮）：verify 后加命中数下限校验，例如
+  `npx bats -f "B2-" … --formatter tap | awk '/^1\\.\\./{exit ($2>=15)?0:1}'`。
+- **T08 的产物与实现的依赖方向**：本 change 为回溯补档，套件与实现同批 co-develop，故
+  `verify` 是**回溯复验命令**而非波次门禁（见上方「补档语义」段）；若按波次真实推进，需把 T08
+  拆成「骨架（Wave 1）+ 补齐（Wave 3）」。

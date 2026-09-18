@@ -1160,7 +1160,7 @@ _phase7_prompt() {
 @test "B8-R1: 转义后的 '## Verdict' 标题形在 L2 层被还原（合法结论不失配）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   local f="$d/IR.md"
-  bash -c "source '$L3_SECTION_LIB'; { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''; _l3_escape_payload \"\$(printf '## Verdict\\npass\\n')\"; } > '$f'"
+  bash -c "source '$L3_SECTION_LIB'; { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''; printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\"; _l3_escape_payload \"\$(printf '## Verdict\\npass\\n')\"; } > '$f'"
   # 落盘内容确实被转义（否则本用例退化为恒真）
   grep -q '^\\## Verdict$' "$f" || { echo "载荷未被转义，用例前提不成立"; false; }
   run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
@@ -1399,4 +1399,31 @@ _phase7_prompt() {
     enc=\$(_l3_escape_payload \"\$payload\")
     [ \"\$enc\" != \"\$payload\" ] && echo ENCODED || echo SAME"
   [[ "$output" == *"ENCODED"* ]]
+}
+
+@test "B8-R6: 签名门控解码（M43）—— 无签名的历史文本原样保留，有签名才还原" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  # 历史文本（无签名）：行首 `\\## ` 必须原样保留（旧实现会吃掉一个反斜杠 → 改写原文）
+  printf -- '---\n\n## L2 盲审\n\n\\\\## 历史原文自带\n\n**Verdict**: fail\n' > "$d/hist.md"
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/hist.md' | _l2_maybe_unescape '$d/hist.md' | grep -c '^\\\\\\\\## 历史原文自带$'"
+  [ "${output//[$'\n']/}" = "1" ]
+  # 有签名：同一行应被还原为 `\## `
+  { printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n'; printf -- '\\\\## 编码后原文\n\n**Verdict**: fail\n'; } > "$d/enc.md"
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/enc.md' | _l2_maybe_unescape '$d/enc.md' | grep -c '^\\\\## 编码后原文$'"
+  [ "${output//[$'\n']/}" = "1" ]
+}
+
+@test "B10-R8: 结构损坏时拒绝写锚点（非阻塞≠可发凭证 · 阶段 2 的 L3 21:10 major②）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  # 损坏件：L3 段尾缺结束标记
+  printf -- '---\n\n## L2 盲审\n\n**Verdict**: pass\n\n---\n\n## L3 盲审（m · t）\n\n正文\n\n## 后面还有段\n' > "$d/INDEPENDENT-REVIEW-3.md"
+  run bash -c "source '$L3_DONE_LIB' 2>/dev/null
+    _l3_write_done 3 cid pass 'summary' pass '$d' both; echo rc=\$?"
+  [[ "$output" == *"rc=1"* ]]
+  [ ! -f "$d/.independent-review-3.done" ]
+  # 健康件：同一路径应能写出（证明拒绝是结构判据、不是路径问题）
+  printf -- '---\n\n## L2 盲审\n\n**Verdict**: pass\n\n---\n\n## L3 盲审（m · t）\n\n```json\n{"verdict":"pass"}\n```\n\n<!-- /L3-SECTION -->\n' > "$d/INDEPENDENT-REVIEW-3.md"
+  run bash -c "source '$L3_DONE_LIB' 2>/dev/null
+    _l3_write_done 3 cid pass 'summary' pass '$d' both >/dev/null 2>&1; echo rc=\$?"
+  [[ "$output" == *"rc=0"* ]]
 }
