@@ -208,18 +208,46 @@ _l3_verify_review_structure() {
     [ -n "$fences" ] || fences=0
     [ $(( fences % 2 )) -eq 0 ] || issues+="L3 段内围栏不配平（${fences} 条）；"
   fi
-  # ④ 有转义块却缺编码签名（M47 · 阶段 2 的 L3 21:59 critical③）：门控解码只在含签名的文件上生效，
-  #    缺签名时转义不会被还原 —— 正文会带多余反斜杠（静默不一致，且读侧内容级消费者看不到原样）。
-  # ④ 有转义块却缺编码签名 → **advisory**（不改判定）：转义行首在本项目是**常规写法**
-  #    （响应段用 `\## L2 盲审（N审）` 引用标题，渲染成标题但不构成段 —— 语料实测 5 行）。
-  #    这类"看起来像转义"的行并不都是载荷编码产物，故只提示、不让 `_l3_write_done` 拒绝发凭证。
-  local esc sig
-  esc=$(grep -cE '^\\(## |<!-- /L3-SECTION -->|```)' "$review_md" 2>/dev/null || true); esc=${esc:-0}
-  if [ "$esc" -gt 0 ]; then
-    sig=$(grep -cF "${L3_PAYLOAD_ENCODED_MARK:-<!-- L2-PAYLOAD-ENCODED -->}" "$review_md" 2>/dev/null || true); sig=${sig:-0}
-    [ "$sig" -gt 0 ] || echo "[l3-section] NOTE: ${review_md} 含 ${esc} 行转义行首但无编码签名（若为载荷编码产物则不会被还原；常规标题引用可忽略）" >&2
+  # ④ 转义行首 ↔ 编码签名的**绑定**检查（阶段 6 的 L3 04:46 critical①：旧实现只问"整文件是否出现签名"，
+  #    不要求签名与段内转义行绑定，且一律 advisory → 无法发现"旧未签名段 + 新签名段混合"的损坏形态）。
+  #    精确判据（两级，避免误伤）：
+  #      · 文件**有**签名，且仍有 esc_out 行转义行首落在**签名区间之外** → **fail-closed**
+  #        （读侧会解码一部分、原样保留另一部分 → 同一文件两种渲染，正是混合损坏的指纹）；
+  #      · 文件**完全没有**签名（sig==0）却有转义行首 → **advisory**：转义行首在本项目是常规写法
+  #        （`\## L2 盲审（N审）` 作标题引用），读侧全程不解码，无害。
+  #    语料实测（2026-09-19 04:5x，`find .specs -name '*.md'` 979 份）：fail-closed 形态命中 **0** 份。
+  local esc sig esc_out _rc_esc=0 _rc_sig=0 _arc=0
+  # 与 grep 同源地使用**同一个**标记变量（评审 06:0x major：awk 里硬编码第二份字面量）
+  local _mark="${L3_PAYLOAD_ENCODED_MARK:-<!-- L2-PAYLOAD-ENCODED -->}"
+  esc=$(grep -cE '^\\(## |<!-- /L3-SECTION -->|```)' "$review_md" 2>/dev/null) || _rc_esc=$?
+  # grep -c：rc=1 = 无匹配（正常，输出 0）；rc>=2 = 真失败（文件不可读/grep 缺失）→ 必须 fail-closed
+  if [ "$_rc_esc" -ge 2 ]; then
+    issues+="自检无法扫描转义行（grep rc=${_rc_esc}）；"
+    esc=0
   fi
-
+  if [ "${esc:-0}" -gt 0 ]; then
+    sig=$(grep -cF "$_mark" "$review_md" 2>/dev/null) || _rc_sig=$?
+    [ "$_rc_sig" -ge 2 ] && { issues+="自检无法扫描签名（grep rc=${_rc_sig}）；"; sig=0; }
+    esc_out=$(awk -v mark="$_mark" '
+      /^## / { on = 0 }
+      index($0, mark) { on = 1; next }
+      on == 1 { next }
+      /^\\(## |<!-- \/L3-SECTION -->|```)/ { n++ }
+      END { print n+0 }
+    ' "$review_md" 2>/dev/null) || _arc=$?
+    # awk 的退出码语义与 grep **不同**：rc=1 没有"无匹配"含义（POSIX 只规定非零=失败）
+    # → 任何非零都按失败处理（评审 06:1x critical：只判 rc>=2 仍留下静默 fail-open 路径）
+    if [ "$_arc" -ne 0 ]; then
+      issues+="自检无法统计签名区间外的转义行（awk rc=${_arc}）；"
+    else
+      esc_out=${esc_out:-0}
+      if [ "${sig:-0}" -gt 0 ] && [ "$esc_out" -gt 0 ]; then
+        issues+="签名与转义行未绑定（${esc_out} 行转义行首落在签名区间之外，文件含 ${sig} 处签名）；"
+      elif [ "${sig:-0}" -eq 0 ]; then
+        echo "[l3-section] NOTE: ${review_md} 含 ${esc} 行转义行首但无编码签名（若为载荷编码产物则不会被还原；常规标题引用可忽略）" >&2
+      fi
+    fi
+  fi
   if [ -n "$issues" ]; then
     echo "[l3-section] WARNING: 评审文件结构自检未通过 — ${review_md}: ${issues}（可能由未转义贴入或外部通道写入造成；见 ADR-026）" >&2
     return 1

@@ -63,16 +63,36 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 21:14）
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-19 06:35）
 
-> 自动生成于 2026-09-18 21:14。由 l3-review.sh 写入。
+> 自动生成于 2026-09-19 06:35。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{"critical":[],"major":[{"file":"CHANGELOG.md","issue":"2026-09-18 条目仍是旧快照：写 test_l3_review_defects_2026_09.bats 28 例、854 bats、222 份工件「空值 0 / 非枚举 0」、6/6 副本；当前 TEST.md/UAT.md 为 98 ok、924 ok、n=227/228、empty=11、7 落点。","why":"CHANGELOG 是项目级变更记录，同一 change 的最终摘要应与归档文档一致，否则后续无法依据 CHANGELOG 判断真实规模与门禁结果。","fix":"按最终 `npx bats test/`、`corpus-count.sh`、`sync-hooks.sh --check` 的实测值重写该条目（例如 98 例、924 ok、228 102 133 133 11 0、7/7）。"},{"file":"REVIEW.md","issue":"AC-2 行写「224 98 129 129 8 0」和「8/8 归因」，但 L2-EMPTY-ATTRIBUTION.md 列了 11 行空值，TEST.md 记 n=227 empty=11 base_empty=8，UAT.md 实测 228 102 133 133 11 0。","why":"REVIEW 是阶段 6 必需归档，AC-2 验证结论必须与最终语料/归因清单一致；8/8 与 11 行交付物直接矛盾，削弱审查可信度。","fix":"将 AC-2 行改为最终 corpus-count 输出，并写明 11/11 归因（base_empty=8 + 3 份本期新工件），或与 L2-EMPTY/TEST/UAT 统一口径。"},{"file":"TEST.md","issue":"TEST.md 写「86 条 bats 回归（B1–B10 + AC2）」，UAT.md/DEV-SUMMARY.md 也写「86 例/86 条」，但同一文档实测为「98 ok / 0 not ok」。","why":"同一变更的回归用例数在必需产物与补充产物间不一致，读者无法确认实际回归规模。","fix":"将 TEST.md/UAT.md/DEV-SUMMARY.md 中的 86 统一改为最终实测 98 例（或明确 86 为子集口径），并与 `npx bats` 输出一致。"}],"minor":[],"verdict":"pass","summary":"必备归档六件套齐全，未发现阻断性 critical；主要问题是 CHANGELOG/REVIEW/TEST 中测试数与语料数口径不一致，需在后续修订中统一。"}
+{
+  "critical": [],
+  "major": [
+    {
+      "file": "产物目录（全量）",
+      "issue": "审查完成锚点不完整：目录中存在 `INDEPENDENT-REVIEW-5.md` 与 `INDEPENDENT-REVIEW-7.md`，且 REVIEW.md 将其列为独立审查记录，但缺少对应的 `.independent-review-5.done` 与 `.independent-review-7.done`（仅有 1/2/3/6 的锚点）。",
+      "why": "CHANGELOG 收尾轮写明审查状态以 `.specs/<id>/.independent-review-*` 现状为准，REVIEW.md 也称每份记录由 L2+L3 双轨产出；缺失两个 done 锚点使阶段 5 与阶段 7 的审查完成状态无法按项目自述方式复验，归档审查记录不完整。",
+      "fix": "补齐 `.independent-review-5.done` 与 `.independent-review-7.done`（内容与对应 INDEPENDENT-REVIEW-*.md 的最终 verdict/hash 一致），或在 REVIEW.md/CHANGELOG 中明确这两份记录不产生锚点的原因并保持格式统一。"
+    }
+  ],
+  "minor": [
+    {
+      "file": "DEV-SUMMARY.md",
+      "issue": "头部写 DESIGN.md（D1–D13），而 TEST.md 头部写 DESIGN.md（D1–D14），设计决策编号范围不一致。",
+      "why": "同一归档内对 DESIGN 决策编号的引用范围互相矛盾，读者无法确定设计文档当前是否含 D14。",
+      "fix": "核对 DESIGN.md 实际最后一个决策编号，统一 DEV-SUMMARY.md 与 TEST.md 中的 D 范围。"
+    }
+  ],
+  "verdict": "pass",
+  "summary": "必备归档六件与 CHANGELOG 均齐备，但独立审查完成锚点缺失两处，且设计决策编号范围表述不一致。"
+}
 ```
 
-L3_artifact_hash: 30ade8a5cd25b45cfe9108e679853ac57e415d16962adfe4539f96b3504fc249
+L3_artifact_hash: 5b268701881dc4f84ae3f827fb7ab826d0bb2bc7cb425112e5c1b3d2108a18ef
 
 <!-- /L3-SECTION -->

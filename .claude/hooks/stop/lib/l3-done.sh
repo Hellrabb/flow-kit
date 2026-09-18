@@ -110,11 +110,18 @@ l3_invalidate_done() {
   local phase="$1" artifacts_dir="$2"
   local done_marker="${artifacts_dir}/.independent-review-${phase}.done"
   [ -f "$done_marker" ] || return 0
-  if rm -f "$done_marker" 2>/dev/null; then
+  if rm -f "$done_marker" 2>/dev/null && [ ! -f "$done_marker" ]; then
     echo "[l3-review] stale .done removed (phase ${phase}) — 上一轮 pass 的锚点在新一轮 non-pass 后失效" >&2
-  else
-    echo "[l3-review] WARNING: failed to remove stale .done (phase ${phase}): ${done_marker}" >&2
+    return 0
   fi
+  # 删除失败 / 删除后仍在 → **不能只 WARN**（04:18 critical②）：陈旧凭证会被门禁按存在性放行。
+  # 再试一次并显式复核；仍失败则打印 CRITICAL 并返回非零，调用方据此落 correction。
+  rm -f "$done_marker" 2>/dev/null || true
+  if [ -f "$done_marker" ]; then
+    echo "[l3-review] CRITICAL: 陈旧凭证无法撤销（phase ${phase}）: ${done_marker} —— 门禁可能按存在性放行，请人工处理或跑 /flow doctor" >&2
+    return 1
+  fi
+  echo "[l3-review] stale .done removed (phase ${phase})（第二次尝试成功）" >&2
   return 0
 }
 

@@ -38,7 +38,7 @@ pipeline 迭代期又补了 5 项实现（M32/M34/M35/M36/M37 + D13），均由 
 | T06 | `sync-hooks.sh` | +139 −9 | 新建：四类树 → 7 个 DEST_ROOTS，`--check` 只读 |
 | T09 | `verify-claims.sh` / `corpus-count.sh` | +164 / +44 | 新建：13 项机械复验 / 语料现算 |
 | T06/T09 | `Makefile` | +7 −1 | `hooks-sync` / `check-hooks-sync` / `verify-claims` 接线 |
-| T08 | `test/test_l3_review_defects_2026_09.bats`（双源） | +829 −11 | 86 条回归（B1/B2/B3/B4/B5/B6/B7/B8/B9 + AC2） |
+| T08/T08B | `test/test_l3_review_defects_2026_09.bats`（双源） | +829 −11 | **119 条**回归（B1=27 B2=21 B3=7 B4=4 B5=5 B6=6 B7=5 B8=8 B9=17 B10=12 B11=6 AC2=1）（快照 2026-09-19 06:4x） |
 | T08 | 另 3 个既有 bats（双源） | +15 −4 | 断言随契约更名；夹具补 `---` preamble |
 | T10 | `.specs/adr/026-*.md`、`CONTEXT.md`、`CHANGELOG.md`、`STATE.md`、`.flow-kit/stop-hook.json` | — | 新 ADR + 域语言 + cap 20000→200000 |
 
@@ -54,13 +54,13 @@ pipeline 迭代期又补了 5 项实现（M32/M34/M35/M36/M37 + D13），均由 
 
 ```
 $ npx bats test/ --formatter tap | awk '/^ok/{o++} /^not ok/{n++} END{...}'
-FULL ok=912 not_ok=0 total=912
+FULL ok=945 not_ok=0 total=945
 
 $ npx bats test/test_l3_review_defects_2026_09.bats --formatter tap
-DEFECTS ok=86 not_ok=0 total=86
+DEFECTS ok=119 not_ok=0 total=119
 
 $ bash corpus-count.sh
-224 98 129 129 8 0        # 工件总数 / 含 L3 标题数 / 标题行数 / 有 --- 前导数 / 空值数 / 非枚举数
+234 108 139 139 8 0        #（2026-09-19 05:0x 现算） 工件总数 / 含 L3 标题数 / 标题行数 / 有 --- 前导数 / 空值数 / 非枚举数
 
 $ ./sync-hooks.sh --check; echo $?
 ✅ hooks 副本一致（漂移 0）

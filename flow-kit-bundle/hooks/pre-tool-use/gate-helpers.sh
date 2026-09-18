@@ -81,7 +81,21 @@ _gate_path_guard() {
       local _deny_l3=0
       _gate_is_unescaped_l3_paste "$_probe" && _deny_l3=1
       if [ "$_deny_l3" -eq 0 ] && [[ "$_probe" == *"<!-- L2-PAYLOAD-ENCODED -->"* ]]; then
-        _gate_is_unescaped_l3_paste "$(printf '%s\n' "$_probe" | _gate_l3_decode_payload)" && _deny_l3=2
+        # 内容自带签名 → 必须能验证**解码后**形态；解码器不可用时 fail-closed（04:46 critical②）
+        local _dec _drc=0
+        _dec=$(printf '%s\n' "$_probe" | _gate_l3_decode_payload) || _drc=$?
+        if [ "$_drc" -ne 0 ]; then
+          _deny_l3=3
+        elif _gate_is_unescaped_l3_paste "$_dec"; then
+          _deny_l3=2
+        fi
+      fi
+      if [ "$_deny_l3" -eq 3 ]; then
+        cat >&2 <<'GUARD_EOF'
+⛔ L3 载荷守卫（ADR-026）：内容自带编码签名，但**解码器不可用**，无法验证「解码后形态」→ 按 fail-closed 拒绝。
+   修法：`./sync-hooks.sh` 同步副本，或 `/flow doctor` 诊断；确认 `stop/lib/l2-detect.sh` 可被 source。
+GUARD_EOF
+        return 2
       fi
       if [ "$_deny_l3" -ne 0 ]; then
         cat >&2 <<'GUARD_EOF'
@@ -89,10 +103,12 @@ _gate_path_guard() {
    命中的形态（原文或**解码后**）：「`---` + 行首 `## L3 …`」。
    该形态会被判为 L3 段起点，后续 L3 写入会把它之后的正文静默删除（§B2 缺陷的成因）。
    注意：`\## L3 …` 只有在**没有编码签名**时才是安全引用 —— 带签名时读侧会把它解码回 `## L3`。
-   处置（三选一）：
-     ① 让审查子系统自己写（推荐）：l3_review_run / l2_dispatch_agent 都会自动转义；
-     ② 贴入前先过 `_l3_escape_payload`（L2 固化指令写约束第 4 条）；
-     ③ 仅作引用时：**不要**带 `---` 前导，也不要带编码签名。
+   处置（D11 #3 决策 b · 2026-09-19：**手动贴入已禁止**）：
+     · L3 段只允许审查子系统写入：`l3_review_run` / `l2_dispatch_agent` 会自动转义后落盘；
+     · 仍需引用 L3 标题时：**不要**带 `---` 前导，也**不要**带编码签名（纯引用形态放行）；
+     · API 不可用时用子系统写出的 timeout / bypass 锚点，不要手写 L3 段。
+   注：原第 ② 条"贴入前先过 `_l3_escape_payload`"已随决策 b 废止（它正是 03:36 critical① 的
+   漏洞本体：带签名的转义块会被解码后判为真段起点）。
 GUARD_EOF
         return 2
       fi

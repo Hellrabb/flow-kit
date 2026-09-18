@@ -23,16 +23,66 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 22:47）
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-19 06:32）
 
-> 自动生成于 2026-09-18 22:47。由 l3-review.sh 写入。
+> 自动生成于 2026-09-19 06:32。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{"critical":[{"file":".claude/hooks/stop/lib/l3-section.sh（判据④；解码作用域见 _l2_maybe_unescape）","issue":"新增判据④只检查整个文件是否出现一次签名标记（sig>0），且注释明确“门控解码只在含签名的文件上生效”；签名门控仍是文件级，不是段级。若同一评审文件混有旧的未签名转义块与新的签名段，自检通过，但文件级解码会把历史段中的字面行首反斜杠## / 反斜杠<!-- 当作写侧转义还原。","why":"多轮 L2 写入的评审文件必然混合未编码旧段和编码新段；文件级签名会让解码器改写审查员原文，违反“不得修改审查员原文/历史文本原样保留”的核心不变量，并可能污染后续 L2 verdict 提取。新增的全文件存在性检查恰好给这种损坏提供了“已通过”的错误信号。","fix":"将签名改为段级范围标记（如成对 START/END 注释包围每个编码段），让 _l2_maybe_unescape 只解码签名包围的区间；_l3_verify_review_structure 对每个检测到的转义块确认其位于签名区间内，并补充“旧未编码段+新签名段混合”回归用例。"}],"major":[{"file":".specs/l3-review-defects-2026-09/REVIEW.md","issue":"Toll-gate 行声称“2/3/6 = fail，其 critical 均已逐条处置”，但同一工件中的 INDEPENDENT-REVIEW-2.md（22:41）仍为 fail，且 critical 正是文件级签名作用域问题。","why":"门禁摘要与所附审查结论互相矛盾，会让读者/自动化误以为剩余 critical 已被解决，削弱 toll-gate 的可信度。","fix":"将 REVIEW.md 更新到与最新 L3 审查一致，明确该 critical 尚未处置、门禁仍为 pending，直到段级签名方案落地。"}],"minor":[{"file":".claude/hooks/stop/lib/l3-section.sh","issue":"转义块检测的三种前缀是硬编码列表，与 _l3_escape_payload 的转义规则重复但不同源。","why":"若转义规则新增加前缀，本判据会漏检缺签名，属于知识重复/变更传播风险。","fix":"抽取单一转义块判定谓词或统一前缀常量，自检与写侧转义共用同一来源。"},{"file":".specs/l3-review-defects-2026-09/REVIEW.md / MINOR-DEFERRED.md","issue":"新增代码/设计引用 M47，但 REVIEW.md 的登记计数仍为 M1–M42，未看到 M47 条目，跟踪编号不一致。","why":"残余风险追踪依赖 M47，但读者无法在登记表中找到该编号，无法判断其处置状态。","fix":"补登 M47 到 MINOR-DEFERRED.md，或把正文引用改为实际存在的编号。"},{"file":"flow-kit-bundle/test/test_l3_review_defects_2026_09.bats","issue":"B10-R9 只覆盖“全域无签名→报错/有签名→通过”，没有覆盖“签名出现在无关位置而转义块未真正受保护”的混合场景。","why":"该用例与文件级签名弱点同构，通过测试不能证明判据④能拦住静默损坏。","fix":"增加混合段用例：旧段含字面反斜杠##、新段含签名，断言自检应拒绝（或断言解码不污染旧段），并纳入回归。"}],"verdict":"fail","summary":"新增判据④只补上了“全文件无签名”的直接漏报，但签名门控仍是文件级，历史未编码段会在混合文件中被误解码；工件自带的 22:41 L3 重审也仍然 fail，核心“不改审查原文”不变量未闭合，不能放行。"}
+{
+  "critical": [],
+  "major": [
+    {
+      "file": ".claude/hooks/stop/lib/l2-detect.sh（flow-kit-bundle 同）",
+      "issue": "l2_dispatch_agent 中 mktemp 失败与 jq 构造失败分支均使用 `exit 1` 而非 `return 1`，在函数内部会直接终止整个 hook 脚本。",
+      "why": "与同 diff 中 l3-api.sh 的 `return 3` 错误处理语义不一致；`exit` 会绕过调用方的错误处理/资源清理链，导致 hook 异常中断，且失败路径无法被调用方捕获降级，增加维护与排障成本。",
+      "fix": "将两处 `exit 1` 改为 `return 1`（mktemp 分支无文件可清理；jq 分支已有 `rm -f`），保持与 l3-api.sh 的返回语义一致。"
+    },
+    {
+      "file": ".specs/l3-review-defects-2026-09/TEST.md",
+      "issue": "B10 组用例计数不一致：矩阵列 `B10-R1..R11`（11 例），但 DEV-SUMMARY/CHANGELOG 声称 B10=12 且正文与 backlog 提到 B10-R12；同一工件内无法从矩阵复算 119 的总数。",
+      "why": "测试规模是 AC 验收的关键证据，计数不一致使 119 的总数无法复核，削弱测试矩阵可信度；与前轮已判 major 的同类计数口径问题同型。",
+      "fix": "将 B10 矩阵更新为 `B10-R1..R12`（或明确 B10-R12 的归属），并确保各组计数加总等于 119。"
+    },
+    {
+      "file": ".specs/l3-review-defects-2026-09/TASK.md",
+      "issue": "T08B 的 depends_on 未包含 T13，但 T08B verify 运行全量缺陷套件，其中 B5 组用例受 T13 对 sync-hooks.sh 的修改影响。",
+      "why": "T08B 的 verify 是对 test_l3_review_defects_2026_09.bats 的全量复验并断言 ≥119 例 0 失败；B5 组依赖 T13 修改后的行为。depends_on 缺 T13 使依赖图无法机械保证 T08B 复验时 T13 产物已就位，与本工件声明的依赖原则不符。",
+      "fix": "在 T08B 的 depends_on 中加入 T13。"
+    }
+  ],
+  "minor": [
+    {
+      "file": ".claude/hooks/stop/lib/l2-detect.sh / l3-api.sh / l3-prompt.sh（flow-kit-bundle 同）",
+      "issue": "三处 `printf '%s' ... > \"$_pt_file\"` / `> \"$_art_file\"` 均未检查写失败。",
+      "why": "若磁盘满或路径不可写，后续 jq 可能读取空/部分文件并成功构造出错误请求体，导致静默数据错误。",
+      "fix": "在写入后检查 `$?`，失败则清理临时文件并返回非零（或至少 stderr 报错）。"
+    },
+    {
+      "file": ".claude/hooks/stop/lib/l3-prompt.sh（flow-kit-bundle 同）",
+      "issue": "`_l3_extra_deliverables` 的超限截断使用 `sed '$d'` 无条件删除最后一行，即使最后一行是完整行也会被丢弃。",
+      "why": "虽然目的是避免半行命令被读成缺陷，但会额外丢失一行完整内容，使补充产物信息损失大于实际截断需要。",
+      "fix": "检测末行是否带换行符（如用 `tail -c1` 判断），仅在末行不完整时丢弃；或保留当前行为但注释说明这是有意取舍。"
+    },
+    {
+      "file": ".claude/hooks/pre-tool-use/gate-helpers-types.sh（flow-kit-bundle 同）",
+      "issue": "`_gate_l3_decode_payload` 的候选路径 `${HOOK_BASE_DIR:-.}/lib/l2-detect.sh` 在 `HOOK_BASE_DIR` 未设置时退化为 `./lib/l2-detect.sh`，依赖调用时的 CWD。",
+      "why": "守卫可能在任意 CWD 下运行，相对路径回退不稳定，虽然最终 fail-closed 是安全侧，但可能误伤正常操作。",
+      "fix": "在 `HOOK_BASE_DIR` 未设置时基于 `BASH_SOURCE[0]` 推导绝对路径，或移除该回退路径仅保留基于脚本位置的路径。"
+    },
+    {
+      "file": ".claude/hooks/pre-tool-use/gate-helpers-types.sh（flow-kit-bundle 同）",
+      "issue": "`_gate_l3_decode_payload` 在解码器不可用时执行 `cat` 透传，但调用方在 `_drc` 非零时不会使用 `_dec`，`cat` 输出被浪费且可能让读者误解为透传是有效路径。",
+      "why": "该 `cat` 不会影响 fail-closed 结果，但作为死代码/误导性分支增加认知负担。",
+      "fix": "删除 `cat`，或改为空操作并加注释说明仅消费 stdin。"
+    }
+  ],
+  "verdict": "pass",
+  "summary": "代码修复整体收敛，fail-closed、委托解码、锚点撤销等安全门禁已落地且回归覆盖增强；但存在 l2-detect.sh 错误处理使用 exit、TEST.md 计数不一致、TASK.md 依赖图残留等 major 问题，无 critical 故判 pass。"
+}
 ```
 
-L3_artifact_hash: 3394fc5b28b7e19e80c9f23a2d6c6b8f1ae2321760b7ee3f3877c21cdb4a9ef1
+L3_artifact_hash: 5b268701881dc4f84ae3f827fb7ab826d0bb2bc7cb425112e5c1b3d2108a18ef
 
 <!-- /L3-SECTION -->

@@ -428,14 +428,20 @@ L2_PROMPT_EOF
     local ai_response="" content="" http_code=0
 
     # 构造 JSON payload（jq --arg 防注入）
-    local payload
+    local payload _pt_file
+    # 同 l3-api.sh 的 ARG_MAX 修法：提示词落文件 + `--rawfile`，避免单个 argv > 128 KiB
+    _pt_file=$(mktemp "${TMPDIR:-/tmp}/fk-l2-prompt.XXXXXX") || {
+      echo "[l2-dispatch] mktemp 失败：无法创建提示词临时文件" >&2; exit 1; }
+    printf '%s' "$prompt_text" > "$_pt_file"
     payload=$(jq -n \
       --arg m "$model" \
-      --arg p "$prompt_text" \
+      --rawfile p "$_pt_file" \
       '{model:$m, max_tokens:4096, messages:[{role:"user", content:$p}]}' 2>/dev/null) || {
+      rm -f "$_pt_file"
       echo "[l2-dispatch] jq payload construction failed" >&2
       exit 1
     }
+    rm -f "$_pt_file"
 
     # API 调用 — 按共享解析的 scheme 区分（D1 约定：bearer | x-api-key）
     if [ -n "$auth_token" ]; then
@@ -445,10 +451,10 @@ L2_PROMPT_EOF
       else
         _auth_header="Authorization: Bearer ${auth_token}"
       fi
-      ai_response=$(curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
+      ai_response=$(printf '%s' "$payload" | curl -s -w '\n%{http_code}' --max-time 90 "${base_url}/v1/messages" \
         -H "$_auth_header" \
         -H "Content-Type: application/json" \
-        -d "$payload" 2>/dev/null || true)
+        --data-binary @- 2>/dev/null || true)
       http_code=$(echo "$ai_response" | tail -1)
       ai_response=$(echo "$ai_response" | sed '$d')
     fi

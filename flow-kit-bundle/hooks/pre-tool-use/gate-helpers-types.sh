@@ -132,14 +132,36 @@ _gate_is_unescaped_l3_paste() {
 # _gate_l3_decode_payload — 守卫侧的解码器（阶段 2 的 L3 23:23 critical）
 # 用法: printf '%s\n' "$content" | _gate_l3_decode_payload
 #
-# 语义与读侧 `l2-detect.sh::_l2_unescape_payload` 的**单趟解码**对齐（先判两个反斜杠、再判一个
-# 反斜杠 + 结构行首）。**差异（台账已记）**：读侧按**段级签名门控**自行决定是否解码；本函数是
-# **纯解码器**，由调用方 `_gate_path_guard` 先确认内容自带签名 `<!-- L2-PAYLOAD-ENCODED -->`
-# 再调用（否则纯引用会被误判成"解码后成段"）。
+# **它就是读侧实现本身**（委托 `l2-detect.sh::_l2_unescape_payload`，不存第二份解码器）：
+# 单趟规则（先判两个反斜杠、再判一个反斜杠 + 结构行首）**且**段级签名门控（只有签名行之后、
+# 下一个 `^## ` 之前的行才解码）。调用方 `_gate_path_guard` 已先确认内容自带签名
+# `<!-- L2-PAYLOAD-ENCODED -->` 才调用；无签名的纯引用原样通过 → 不会被误判成"解码后成段"。
+# 更正（2026-09-19 04:3x）：原注释自称"纯解码器、与读侧有差异"，与委托实现的门控语义不符，
+# 且直接导致 `B9-R15` 的 fixture 缺签名而**假红**（该用例已按真实语义重写）。
 _gate_l3_decode_payload() {
-  awk '
-    /^\\\\/ { print substr($0, 2); next }
-    /^\\(## |<!-- \/L3-SECTION -->|```)/ { print substr($0, 2); next }
-    { print }
-  '
+  # 转义/解码的**唯一实现**在 `stop/lib/l2-detect.sh::_l2_unescape_payload`（段级签名门控）。
+  # 本函数只是它的**委托入口**：优先直接用已加载的实现；否则按相对路径 source 它；
+  # 两者都不可用时**不改写地透传并返回非 0**（fail-closed），由调用方按"无法验证"拒绝写入
+  # —— 阶段 6 的 L3 04:46 critical② 指出旧实现 `cat` + `|| true` 是静默 fail-open。
+  # 也**不再内联第二份解码器**（重复实现曾被 L3 判 critical 04:18 critical①）。
+  if ! type _l2_unescape_payload >/dev/null 2>&1; then
+    local _lib
+    for _lib in "$(dirname "${BASH_SOURCE[0]}")/../stop/lib/l2-detect.sh" \
+                "${HOOK_BASE_DIR:-.}/lib/l2-detect.sh"; do
+      # 路径不存在 → 试下一个；source 失败（语法/依赖问题）也继续试下一个，
+      # 不能像旧实现那样 `break`（minor：source 失败后不再尝试第二路径）
+      [ -f "$_lib" ] || continue
+      # shellcheck disable=SC1090
+      source "$_lib" 2>/dev/null && break
+    done
+    unset _lib
+  fi
+  if type _l2_unescape_payload >/dev/null 2>&1; then
+    _l2_unescape_payload
+    return $?
+  fi
+  echo "[gate-helpers] ERROR: 解码器不可用（l2-detect.sh 未加载/未找到）—— 守卫无法验证解码后形态，按 fail-closed 拒绝；跑 ./sync-hooks.sh 或 /flow doctor 修副本" >&2
+  cat
+  return 3
 }
+

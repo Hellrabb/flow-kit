@@ -1,0 +1,57 @@
+# 独立审查锚点清单（由 l3_review_run 写出，复制自 .specs/l3-review-defects-2026-09/）
+# 生成时间: 2026-09-19T06:51:30+08:00
+
+## .independent-review-1.done
+    phase=1
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=需求整体结构完整、v1/v2/out 切分合理，但 AC-3/AC-5/AC-8 存在输入未内联或边界未定义的 major 缺口，且 Gen-1 布局与旧环境变量兼容缺少直接 AC 验证。
+    artifacts=REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-1.md
+
+## .independent-review-2.done
+    phase=2
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=设计决策整体合理且有充分理由（写入侧转义、fail-closed、单一事实源、字节单位改名、副本镜像），关键风险与残余面均有登记；主要缺陷是文档把多轮审查的中间态与最终决策混排、多处「唯一权威」并存，且架构图未覆盖新增的守卫/自检/锚点撤销机制，但不构成设计本身的 critical 错误。
+    artifacts=DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-2.md
+
+## .independent-review-3.done
+    phase=3
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=无 critical，任务拆解覆盖全部 AC 且依赖无环，但 T08B 缺 T13 依赖、AC-6 引用不存在的 B3-R5b、T06 缺 verify_phase 三处 major 需在后续修订中收敛。
+    artifacts=TASK.md,DESIGN.md,REQUIREMENT.md,INDEPENDENT-REVIEW-3.md
+
+## .independent-review-5.done
+    phase=5
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=测试矩阵已明确区分行为断言与接线断言，12 条 AC 均有行为覆盖，UAT 关键守卫命令已在工件内补全且可复现，未发现 mock 屏蔽真实失败；主要不足是 5 处安全分支仍缺真实失败触发测试及 AC-2 断言未完全自动化。
+    artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md
+
+## .independent-review-6.done
+    phase=6
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=代码修复整体收敛，fail-closed、委托解码、锚点撤销等安全门禁已落地且回归覆盖增强；但存在 l2-detect.sh 错误处理使用 exit、TEST.md 计数不一致、TASK.md 依赖图残留等 major 问题，无 critical 故判 pass。
+    artifacts=REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-6.md
+
+## .independent-review-7.done
+    phase=7
+    change_id=l3-review-defects-2026-09
+    written_by=pre-tool-use-gate
+    L2_verdict=pass
+    L3_verdict=pass
+    L3_summary=必备归档六件与 CHANGELOG 均齐备，但独立审查完成锚点缺失两处，且设计决策编号范围表述不一致。
+    artifacts=REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-7.md
+

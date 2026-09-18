@@ -26,6 +26,9 @@ setup() {
   # stub curl：捕获命令行到 CAPFILE，返回模拟 200 + text block 响应
   curl() {
     echo "ARGS:$*" >> "$CAPFILE"
+    # 请求体自 2026-09-19 05:0x 起走 stdin（`--data-binary @-`，避开 MAX_ARG_STRLEN=128 KiB），
+    # 故 stub 必须把 stdin 也捕获进同一文件，否则"请求体断言"会退化为恒假（阶段 6 实测）。
+    cat >> "$CAPFILE"
     printf '{"content":[{"type":"text","text":"test verdict"}],"stop_reason":"end_turn"}\n200'
   }
   export -f curl

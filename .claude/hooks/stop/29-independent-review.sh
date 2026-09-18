@@ -280,7 +280,19 @@ if type _l3_verify_review_structure >/dev/null 2>&1; then
     if ! type l3_invalidate_done >/dev/null 2>&1 && [ -f "${HOOK_BASE_DIR}/lib/l3-done.sh" ]; then
       source "${HOOK_BASE_DIR}/lib/l3-done.sh" 2>/dev/null || true
     fi
-    type l3_invalidate_done >/dev/null 2>&1 && l3_invalidate_done "$phase" "$(dirname "$review_md")"
+    if type l3_invalidate_done >/dev/null 2>&1; then
+      # 撤销失败 = 陈旧凭证残留（04:18 critical②）→ 必须落 correction，不能只留一行日志。
+      # **必须用显式 if**：`A || B && C` 在 shell 里结合为 `(A||B) && C`，会在**撤销成功**时也写
+      # "撤销失败"的 correction（阶段 6 的 L3 04:46 major 实测指出）。
+      if ! l3_invalidate_done "$phase" "$(dirname "$review_md")"; then
+        if type write_review_structure_correction >/dev/null 2>&1; then
+          write_review_structure_correction "$phase" "$change_id" "陈旧凭证撤销失败（门禁可能按存在性放行）"
+        else
+          # 兜底不得静默（评审 06:1x major）：写入器不可用时至少 CRITICAL + 修复指引
+          echo "[29-independent-review] CRITICAL: 陈旧凭证撤销失败且 correction 写入器不可用（阶段 ${phase}，${review_md}）—— 门禁可能按存在性放行；跑 /flow doctor" >&2
+        fi
+      fi
+    fi
 
     module_output "error" "IR" "评审文件结构自检未通过（阶段 ${phase}）— 已写 correction（ADR-026）" 2>/dev/null || true
   }

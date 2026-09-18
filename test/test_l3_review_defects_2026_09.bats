@@ -13,6 +13,11 @@
 #   §B5 安装树不同步                        → ~/.claude/hooks 跑旧代码，同 change 换路径结论不同
 #
 # 命名约定：用例标题前缀 = 缺陷编号；末尾 `R<n>` 为同名缺陷的第 n 条断言。
+#
+# 断言约定（阶段 5 的 L3 04:42 critical：`run` 默认把 stderr 合进 $output 会造成假绿）：
+# 全文件统一 `run --separate-stderr` —— **内容断言只看 stdout（$output）**，
+# 需要断言 stderr 时显式用 `$stderr`。该 flag 需要 bats ≥ 1.5，故下一行声明最低版本。
+bats_require_minimum_version 1.5.0
 
 setup() {
   TEST_TMP=$(mktemp -d)
@@ -65,7 +70,7 @@ _l2v() {
   [ -f "$attr" ] || { echo "缺 AC-2 交付物: $attr"; false; }
   grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; }
   local tmp_attr; tmp_attr="$TEST_TMP/attr-regen.md"
-  run bash -c "cd '$FK_ROOT' && bash corpus-count.sh --attribution '$tmp_attr'"
+  run --separate-stderr bash -c "cd '$FK_ROOT' && bash corpus-count.sh --attribution '$tmp_attr'"
   [ "$status" -eq 0 ]
   local rows; rows=$(grep -c '^| [0-9]' "$tmp_attr" || true)
   local report
@@ -180,7 +185,7 @@ EOF
   local f="$TEST_TMP/none.md"
   printf '%s\n' "## L2 盲审" "" "正文没有任何结论行" > "$f"
   # set +e：l2-detect.sh 自带 set -e，函数返回 1 会让 shell 在取 rc 之前退出
-  run bash -c "source '$L2_LIB' 2>/dev/null; set +e; out=\$(fk_extract_l2_verdict '$f'); rc=\$?; echo \"[\$out][\$rc]\""
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; set +e; out=\$(fk_extract_l2_verdict '$f'); rc=\$?; echo \"[\$out][\$rc]\""
   [ "$output" = "[][1]" ]
 }
 
@@ -270,7 +275,7 @@ C
 ## L2 二审
 D
 EOF
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f'"
   [ "$status" -eq 0 ]
   [[ "$output" == *"A"* ]]
   [[ "$output" == *"D"* ]]
@@ -280,7 +285,7 @@ EOF
 
 @test "B1-R15: 提取为空时门禁给出可观测告警（AC-12 · 不静默降级）" {
   # 29 号模块：## L2 盲审 段存在但无 Verdict 行 → stderr 必须含 'L2 verdict not found'
-  run grep -q 'L2 verdict not found' "$H29"
+  run --separate-stderr grep -q 'L2 verdict not found' "$H29"
   [ "$status" -eq 0 ]
   # 且必须仍落到合法枚举（不触发 l3_review_run 的值域闸）
   grep -qE 'l2_verdict="fail"' "$H29"
@@ -370,7 +375,7 @@ _l3_write_once() {
   got=$(bash -c "source '$iso/l2-detect.sh' 2>/dev/null; fk_extract_l2_verdict '$f' 2>/dev/null")
   [ "$got" = "fail" ]
   # 且必须留下可观测告警（不静默降级）
-  run bash -c "source '$iso/l2-detect.sh' 2>/dev/null; fk_extract_l2_verdict '$f' 2>&1 >/dev/null"
+  run --separate-stderr bash -c "source '$iso/l2-detect.sh' 2>/dev/null; fk_extract_l2_verdict '$f' 2>&1 >/dev/null"
   [[ "$output" == *"WARNING"* ]]
 }
 
@@ -521,10 +526,10 @@ _l3_write_round() {
   printf '%s\n' "# IR-7" "" "## L2 盲审" "" "**Verdict**: fail" > "$rmd"
   _l3_write_round "$rmd" $'{"summary":"round 2"}\n## 附录：模型自由发挥的标题\nmore text' "R2"
   _l3_write_round "$rmd" '{"summary":"round 3"}' "R3"
-  run grep -c '^## L3 ' "$rmd"; [ "$output" = "1" ]
-  run grep -c '附录' "$rmd";      [ "$output" = "0" ]
-  run grep -c 'hash-R2' "$rmd";   [ "$output" = "0" ]
-  run grep -c 'round 3' "$rmd";   [ "$output" = "1" ]
+  run --separate-stderr grep -c '^## L3 ' "$rmd"; [ "$output" = "1" ]
+  run --separate-stderr grep -c '附录' "$rmd";      [ "$output" = "0" ]
+  run --separate-stderr grep -c 'hash-R2' "$rmd";   [ "$output" = "0" ]
+  run --separate-stderr grep -c 'round 3' "$rmd";   [ "$output" = "1" ]
 }
 
 @test "B2-R2: 连续 4 轮后围栏配平、标记唯一、分隔符不累积" {
@@ -534,10 +539,10 @@ _l3_write_round() {
   _l3_write_round "$rmd" '{"summary":"r3"}' "R3"
   _l3_write_round "$rmd" $'{"summary":"r4"}\n## 行首标题 B' "R4"
   _l3_write_round "$rmd" '{"summary":"r5"}' "R5"
-  run grep -c '^```' "$rmd";                    [ "$output" = "2" ]   # json 围栏配平
-  run grep -c '^<!-- /L3-SECTION -->$' "$rmd";  [ "$output" = "1" ]   # 标记唯一
-  run grep -c '^---$' "$rmd";                   [ "$output" = "1" ]   # 分隔符不累积
-  run grep -cE '行首标题|hash-R[234]' "$rmd";   [ "$output" = "0" ]   # 零残留
+  run --separate-stderr grep -c '^```' "$rmd";                    [ "$output" = "2" ]   # json 围栏配平
+  run --separate-stderr grep -c '^<!-- /L3-SECTION -->$' "$rmd";  [ "$output" = "1" ]   # 标记唯一
+  run --separate-stderr grep -c '^---$' "$rmd";                   [ "$output" = "1" ]   # 分隔符不累积
+  run --separate-stderr grep -cE '行首标题|hash-R[234]' "$rmd";   [ "$output" = "0" ]   # 零残留
   # L2 结论仍可提取（B1 与 B2 组合不互相破坏）
   [ "$(_l2v "$rmd")" = "fail" ]
 }
@@ -558,10 +563,10 @@ L3_artifact_hash: x
 正文保留
 EOF
   bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_strip_sections \"\$1\" \"\$2\"" _ "$legacy" "$out"
-  run grep -c '## L3' "$out";        [ "$output" = "0" ]
-  run grep -c 'L3_artifact_hash' "$out"; [ "$output" = "0" ]
-  run grep -c '正文保留' "$out";      [ "$output" = "1" ]
-  run grep -c '## L2 盲审' "$out";    [ "$output" = "1" ]
+  run --separate-stderr grep -c '## L3' "$out";        [ "$output" = "0" ]
+  run --separate-stderr grep -c 'L3_artifact_hash' "$out"; [ "$output" = "0" ]
+  run --separate-stderr grep -c '正文保留' "$out";      [ "$output" = "1" ]
+  run --separate-stderr grep -c '## L2 盲审' "$out";    [ "$output" = "1" ]
 }
 
 @test "B2-R4: 标记之后的后续内容不被误删" {
@@ -579,8 +584,8 @@ EOF
 保留我
 EOF
   bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_strip_sections \"\$1\" \"\$2\"" _ "$m" "$out"
-  run grep -c '保留我' "$out";   [ "$output" = "1" ]
-  run grep -c '## L3' "$out";    [ "$output" = "0" ]
+  run --separate-stderr grep -c '保留我' "$out";   [ "$output" = "1" ]
+  run --separate-stderr grep -c '## L3' "$out";    [ "$output" = "0" ]
 }
 
 @test "B2-R11: 主 agent 贴入的 '## L3 …' 行不构成 L3 段起点（设计期 L2 复审 N1 🔴）" {
@@ -658,10 +663,16 @@ EOF
   grep -q '\*\*Verdict\*\*: fail' "$f2"
 }
 
-@test "B2-R14: 贴入路径的转义契约已写入 L2 固化指令（三审 R1 Remedy 1a）" {
+@test "B2-R14: 贴入路径的**新**契约已写入 L2 固化指令（决策 b：手工贴入整体禁止）" {
+  # 契约在 2026-09-19 变更：原"贴入前必须先过 _l3_escape_payload"随决策 b 废止
+  # （它正是守卫 03:36 critical① 的漏洞本体）；改为"报告由子系统写入 + 手工贴入禁止"。
   local prompt="$FK_ROOT/flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md"
-  grep -q '_l3_escape_payload' "$prompt"
-  grep -q '贴入前必须对报告原文做载荷转义' "$prompt"
+  grep -q '手工贴入整体禁止' "$prompt"
+  grep -q 'l2_dispatch_agent' "$prompt"
+  grep -q 'L2-PAYLOAD-ENCODED' "$prompt"
+  grep -q '主 agent 手写只允许' "$prompt"
+  # 旧豁免措辞必须已删净（否则与守卫的双形态判据、D11 #3 并存互斥表述）
+  ! grep -q '贴入前必须对报告原文做载荷转义' "$prompt"
 }
 
 @test "B2-R12: --- preamble 判据在真实语料上零回归（份数/条数由 corpus-count.sh 现算，不写死快照）" {
@@ -784,12 +795,12 @@ EOF
     bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_parse_result \"\$1\" 1 \"\$2\" model-x >/dev/null 2>&1" \
       _ "$payload" "$d"
   done
-  run grep -c '^## L3 ' "$f";                 [ "$output" = "1" ]   # 段去重
-  run grep -c '^<!-- /L3-SECTION -->$' "$f";  [ "$output" = "1" ]   # 标记唯一
-  run grep -c '^---$' "$f";                   [ "$output" = "1" ]   # 分隔符不累积
-  run grep -c '^```' "$f";                    [ "$output" = "2" ]   # 围栏配平
-  run grep -cE '行首标题|"summary":"r[1-4]"' "$f"; [ "$output" = "0" ]  # 零残留
-  run grep -c '^$' "$f";                      [ "$output" = "7" ]   # 空行数逐轮不增长
+  run --separate-stderr grep -c '^## L3 ' "$f";                 [ "$output" = "1" ]   # 段去重
+  run --separate-stderr grep -c '^<!-- /L3-SECTION -->$' "$f";  [ "$output" = "1" ]   # 标记唯一
+  run --separate-stderr grep -c '^---$' "$f";                   [ "$output" = "1" ]   # 分隔符不累积
+  run --separate-stderr grep -c '^```' "$f";                    [ "$output" = "2" ]   # 围栏配平
+  run --separate-stderr grep -cE '行首标题|"summary":"r[1-4]"' "$f"; [ "$output" = "0" ]  # 零残留
+  run --separate-stderr grep -c '^$' "$f";                      [ "$output" = "7" ]   # 空行数逐轮不增长
   [ "$(_l2v "$f")" = "fail" ]                                       # L2 结论未被 L3 覆盖
 }
 
@@ -800,9 +811,9 @@ EOF
 @test "B3-R1: 截断按字节执行（60000 字节 ≈ 20000 汉字，不是 60000 字符）" {
   local f="$TEST_TMP/cjk.md"
   python3 -c "import sys; sys.stdout.write('中文测试内容'*5000)" > "$f"
-  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_utf8_head_bytes 60000 '$f' | wc -c"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_utf8_head_bytes 60000 '$f' | wc -c"
   [ "$output" -eq 60000 ]
-  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_utf8_head_bytes 60000 '$f' | python3 -c 'import sys;print(len(sys.stdin.read()))'"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_utf8_head_bytes 60000 '$f' | python3 -c 'import sys;print(len(sys.stdin.read()))'"
   [ "$output" -eq 20000 ]
 }
 
@@ -848,13 +859,14 @@ EOF
   # 造一个明显超限的工件
   { echo "# REQUIREMENT"; local i; for i in $(seq 1 200); do echo "## NFR-$i 需求条目填充内容用于跨过截断上限"; done; } \
     > "$spec/REQUIREMENT.md"
-  # ① 超限 → 告警 + 比例
-  run bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000 >/dev/null"
-  [[ "$output" == *"提示词被截断"* ]]
-  [[ "$output" == *"丢弃"* ]]
-  [[ "$output" == *"max_artifact_bytes"* ]]
+  # ① 超限 → 告警 + 比例（告警走 stderr → 断言 $stderr；阶段 5 的 L3 04:42 critical 的假绿修法）
+  run --separate-stderr bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000 >/dev/null"
+  [[ "$stderr" == *"提示词被截断"* ]]
+  [[ "$stderr" == *"丢弃"* ]]
+  [[ "$stderr" == *"max_artifact_bytes"* ]]
   # ② 未超限 → 无告警
-  run bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000000 >/dev/null"
+  run --separate-stderr bash -c "source '$L3_REVIEW_LIB' 2>/dev/null; _l3_build_prompt 1 '$spec' 2000000 >/dev/null"
+  [[ "$stderr" != *"提示词被截断"* ]]
   [[ "$output" != *"提示词被截断"* ]]
 }
 
@@ -907,7 +919,7 @@ _phase7_prompt() {
 @test "B4-R2: 不再凭空产出 INTEGRATION.md === MISSING（本项目阶段 7 不产该文件）" {
   local spec="$TEST_TMP/.specs/chg2"; _build_phase7_tree "$spec" 10
   local out; out="$(_phase7_prompt "$spec")"
-  run bash -c "printf '%s' \"\$1\" | grep -c 'INTEGRATION.md === MISSING'" _ "$out"
+  run --separate-stderr bash -c "printf '%s' \"\$1\" | grep -c 'INTEGRATION.md === MISSING'" _ "$out"
   [ "$output" = "0" ]
 }
 
@@ -915,7 +927,7 @@ _phase7_prompt() {
   local spec="$TEST_TMP/.specs/chg3"; _build_phase7_tree "$spec" 5
   local out; out="$(_phase7_prompt "$spec")"
   printf '%s' "$out" | grep -q '=== UAT.md ==='
-  run bash -c "printf '%s' \"\$1\" | grep -c 'MINOR-DEFERRED.md ==='" _ "$out"
+  run --separate-stderr bash -c "printf '%s' \"\$1\" | grep -c 'MINOR-DEFERRED.md ==='" _ "$out"
   [ "$output" = "0" ]
 }
 
@@ -938,12 +950,12 @@ _phase7_prompt() {
   # 契约：本工具只管**内容**，不改副本权限 —— 可执行位归 install_hooks.sh。
   # （否则同步会顺手把 stop/lib/*.sh 也 chmod +x，搅出一堆与修复无关的 mode 变更。）
   # 只断言"没有真正调用 chmod"，注释里提到 chmod 不算。
-  run grep -cE '^[[:space:]]*chmod|&&[[:space:]]*chmod|\|\|[[:space:]]*chmod' "$FK_ROOT/sync-hooks.sh"
+  run --separate-stderr grep -cE '^[[:space:]]*chmod|&&[[:space:]]*chmod|\|\|[[:space:]]*chmod' "$FK_ROOT/sync-hooks.sh"
   [ "$output" = "0" ]
 }
 
 @test "B5-R2: 所有已存在的 hooks 副本与源一致（漂移=0 · 报告 §7 要求的机器检查）" {
-  run bash "$FK_ROOT/sync-hooks.sh" --check
+  run --separate-stderr bash "$FK_ROOT/sync-hooks.sh" --check
   [ "$status" -eq 0 ]
   [[ "$output" == *"漂移 0"* ]]
 }
@@ -963,7 +975,7 @@ _phase7_prompt() {
   local fake="$TEST_TMP/fake-root-hooks"
   mkdir -p "$fake/stop/lib"
   # 造一个副本：所有镜像文件都缺 → 漂移必须 > 0
-  run bash -c "
+  run --separate-stderr bash -c "
     cd '$FK_ROOT'
     sed \"s#\\\$HOME/.claude/hooks#$fake#\" sync-hooks.sh > '$TEST_TMP/fake-sync.sh'
     bash '$TEST_TMP/fake-sync.sh' --check"
@@ -981,15 +993,16 @@ _phase7_prompt() {
 @test "B6-R1: 非 pass 时撤销既有锚点（陈旧 .done 必须失效）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf 'phase=1\nL3_verdict=pass\n' > "$d/.independent-review-1.done"
-  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  run --separate-stderr bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
   [ "$status" -eq 0 ]
   [ ! -f "$d/.independent-review-1.done" ]
-  [[ "$output" == *"stale .done removed"* ]]
+  # 撤销日志走 stderr → 断言 $stderr（阶段 5 的 L3 04:42 critical 的假绿修法）
+  [[ "$stderr" == *"stale .done removed"* ]]
 }
 
 @test "B6-R2: 无锚点时撤销是静默 no-op（幂等，不产生噪声）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
-  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  run --separate-stderr bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
@@ -998,7 +1011,7 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf 'phase=1\n' > "$d/.independent-review-1.done"
   printf 'phase=2\n' > "$d/.independent-review-2.done"
-  run bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
+  run --separate-stderr bash -c "source '$L3_DONE_LIB' 2>/dev/null; l3_invalidate_done 1 '$d'"
   [ "$status" -eq 0 ]
   [ ! -f "$d/.independent-review-1.done" ]
   [ -f "$d/.independent-review-2.done" ]
@@ -1039,7 +1052,7 @@ _phase7_prompt() {
   printf '# 大而次要\n' > "$d/MINOR-DEFERRED.md"
   printf 'req body\n' > "$d/REQUIREMENT.md"
   printf 'review body\n' > "$d/INDEPENDENT-REVIEW-1.md"
-  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | grep -q '^=== L2-EMPTY-ATTRIBUTION.md ===$'
   printf '%s\n' "$output" | grep -q '^# 归因清单$'
@@ -1053,7 +1066,7 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf '# small\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
   head -c 5000 /dev/zero | tr '\0' 'x' > "$d/MINOR-DEFERRED.md"
-  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
   [ "$status" -eq 0 ]
   local a b
   a=$(printf '%s\n' "$output" | grep -n '^=== L2-EMPTY-ATTRIBUTION.md ===$' | cut -d: -f1)
@@ -1066,7 +1079,7 @@ _phase7_prompt() {
   printf '# REQ\nAC-1\n' > "$d/REQUIREMENT.md"
   printf '# CHANGE\nP1\n' > "$d/CHANGE.md"
   printf '# 归因清单\n甲\n' > "$d/L2-EMPTY-ATTRIBUTION.md"
-  run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt 1 '$d' 200000"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt 1 '$d' 200000"
   [ "$status" -eq 0 ]
   [[ "$output" == *"=== CHANGE.md ==="* ]]
   [[ "$output" == *"=== L2-EMPTY-ATTRIBUTION.md ==="* ]]
@@ -1085,7 +1098,7 @@ _phase7_prompt() {
     # 内层 2>/dev/null 是**必需**的：`run` 默认把 stderr 并入 $output，而"命令拼接写错"
     # （例如把 $'\n' 误写成 $( 命令替换）时，bash 的报错文本里会**原样带上载荷**
     # → 断言在报错文本上命中，得到假的绿（本用例曾因此假绿一次，2026-09-18 修复）。
-    run bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt $ph '$d' 200000 2>/dev/null"
+    run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt $ph '$d' 200000 2>/dev/null"
     [ "$status" -eq 0 ]
     [[ "$output" == *"=== L2-EMPTY-ATTRIBUTION.md ==="* ]] || { echo "阶段 $ph 缺补充产物"; false; }
   done
@@ -1129,7 +1142,7 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   local f="$d/IR.md"
   printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（外部模型 · x）\n\n## 附录：发现明细\n\n**Verdict**: pass\n' > "$f"
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
   [ "${output//[$'\n']/}" = "fail" ]
 }
 
@@ -1138,7 +1151,7 @@ _phase7_prompt() {
   local f="$d/IR.md"
   # L3 段（无标记）之后紧跟下一轮 L2 → 段终点必须停在 L2 之前，后续 L2 结论仍可取
   printf -- '---\n\n## L3 盲审（外部模型 · x）\n\n正文 A\n\n## L2 盲审（六审）\n\n**Verdict**: PASS\n' > "$f"
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
   [ "${output//[$'\n']/}" = "pass" ]
 }
 
@@ -1146,7 +1159,7 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   local f="$d/IR.md"
   printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（外部模型 · x）\n\n## 对抗标题\n\n**Verdict**: pass\n\n<!-- /L3-SECTION -->\n\n## 主 agent 响应\n\n**Verdict**: pass\n' > "$f"
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
   [ "${output//[$'\n']/}" = "fail" ]
 }
 
@@ -1163,7 +1176,7 @@ _phase7_prompt() {
   bash -c "source '$L3_SECTION_LIB'; { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''; printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\"; _l3_escape_payload \"\$(printf '## Verdict\\npass\\n')\"; } > '$f'"
   # 落盘内容确实被转义（否则本用例退化为恒真）
   grep -q '^\\## Verdict$' "$f" || { echo "载荷未被转义，用例前提不成立"; false; }
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
   [ "${output//[$'\n']/}" = "pass" ]
 }
 
@@ -1176,7 +1189,7 @@ _phase7_prompt() {
     printf -- '\\## Verdict\npass\n\n'
     printf -- '<!-- /L3-SECTION -->\n'
   } > "$f"
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$f'"
   [ "${output//[$'\n']/}" = "fail" ]
 }
 
@@ -1187,7 +1200,7 @@ _phase7_prompt() {
 # ══════════════════════════════════════════════════════════════════════════
 
 @test "B9-R1: 未转义的 '--- + ## L3 …' 贴入被判为应拒绝" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n结论：pass\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n结论：pass\\n')\""
   [ "$status" -eq 0 ]
 }
 
@@ -1195,22 +1208,22 @@ _phase7_prompt() {
   # 旧策略豁免"带标记=子系统自写"，但不可信载荷可以原样伪造一行 <!-- /L3-SECTION -->，
   # 于是「--- + 伪 ## L3 … + 伪标记」可绕过拦截并重新引入伪段边界。
   # 内容层无法证明来源，故一刀切：只要可能构成段起点就拒。
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n<!-- /L3-SECTION -->\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n\\n<!-- /L3-SECTION -->\\n')\""
   [ "$status" -eq 0 ]
 }
 
 @test "B9-R3: 已转义的 '\\## L3 …' 放行（合法引用形态）" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
   [ "$status" -ne 0 ]
 }
 
 @test "B9-R4: _gate_path_guard 对评审文件的未转义写入 exit 2（接线断言）" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
   [ "$status" -eq 2 ]
 }
 
 @test "B9-R5: 非评审文件路径不受该守卫影响（不误伤普通写入）" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write 'README.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write 'README.md' '' \"\$(printf -- '---\\n\\n## L3 盲审（m · t）\\n')\""
   [ "$status" -eq 0 ]
 }
 
@@ -1241,12 +1254,12 @@ _phase7_prompt() {
 }
 
 @test "B9-R7: Bash 通道同样被拦截（M37 · 通道覆盖）" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> x/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n## L3 盲审（m）\\nEOF\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> x/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n## L3 盲审（m）\\nEOF\\n')\""
   [ "$status" -eq 2 ]
 }
 
 @test "B9-R8: Bash 命令提及评审文件但载荷已转义时放行（不误伤）" {
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> f/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n\\\\## L3 盲审（m）\\nEOF\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> f/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n\\\\## L3 盲审（m）\\nEOF\\n')\""
   [ "$status" -eq 0 ]
 }
 
@@ -1260,7 +1273,7 @@ _phase7_prompt() {
 @test "B10-R1: 健康文件结构自检通过（零告警）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '---\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m · t）\n\n```json\n{"verdict":"fail"}\n```\n\n<!-- /L3-SECTION -->\n' > "$d/IR.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
@@ -1268,17 +1281,18 @@ _phase7_prompt() {
 @test "B10-R2: 段尾不是结束标记 → 自检报错（这正是静默删正文的前置形态）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '---\n\n## L3 盲审（m · t）\n\n正文\n\n## L2 盲审\n\n**Verdict**: pass\n' > "$d/IR.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"段尾"* ]]
+  # 自检告警走 stderr → 断言 $stderr（阶段 5 的 L3 04:42 critical：旧版读 $output 是假绿）
+  [[ "$stderr" == *"段尾"* ]]
 }
 
 @test "B10-R3: 段内围栏不配平 → 自检报错" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '---\n\n## L3 盲审（m · t）\n\n```json\n{"a":1}\n\n<!-- /L3-SECTION -->\n' > "$d/IR.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/IR.md'"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"围栏"* ]]
+  [[ "$stderr" == *"围栏"* ]]
 }
 
 @test "B10-R4: 自检被接到两个调用点（写后 + Stop 侧，覆盖任何通道）" {
@@ -1303,11 +1317,11 @@ _phase7_prompt() {
   # 变异脚本必须放在仓库根内（SCRIPT_DIR 由脚本自身路径推导，放 /tmp 会因源目录不存在 exit 2）
   local sh="$FK_ROOT/.sync-hooks-orphan-test.sh"
   sed "s#\$HOME/.claude/hooks#$fake#" "$FK_ROOT/sync-hooks.sh" > "$sh"
-  run bash "$sh" --check
+  run --separate-stderr bash "$sh" --check
   [ "$status" -eq 0 ]                                      # 默认 advisory：不失败
   [[ "$output" == *"反向残留"* ]]
   [[ "$output" == *"zzz-removed.sh"* ]]
-  run bash "$sh" --check --strict-orphans
+  run --separate-stderr bash "$sh" --check --strict-orphans
   [ "$status" -ne 0 ]                                      # 严格模式：计入失败
   [[ "$output" == *"zzz-removed.sh"* ]]
   rm -f "$sh"
@@ -1320,13 +1334,13 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '## L2 盲审\n\n**Verdict**: fail\n\n## L3 盲审（伪造 · 无 --- 前导）\n\n**Verdict**: pass\n\n正文保留\n' > "$d/bare.md"
   # ① 读侧：零段（不构成 L3 段）
-  run bash -c "source '$L3_SECTION_LIB'; _l3_section_spans '$d/bare.md' | wc -l"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_section_spans '$d/bare.md' | wc -l"
   [ "${output//[$'\n']/}" = "0" ]
   # ② 删除侧：内容原样保留（无段可删）
-  run bash -c "source '$L3_SECTION_LIB'; _l3_strip_sections '$d/bare.md' '$d/out.md'; grep -c '正文保留' '$d/out.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_strip_sections '$d/bare.md' '$d/out.md'; grep -c '正文保留' '$d/out.md'"
   [ "${output//[$'\n']/}" = "1" ]
   # ③ 守卫侧：放行（判据与读侧同源；更严会误伤合法的整文件重写，文件里的围栏示例含 '## L3 …'）
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '## L3 盲审（伪造）\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(printf -- '## L3 盲审（伪造）\\n')\""
   [ "$status" -eq 0 ]
 }
 
@@ -1336,20 +1350,20 @@ _phase7_prompt() {
   # 处置：登记 M39 + v2 改为「由 hook 写结构化结论行」；本用例断言**已知行为**，不假装已闭合。
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '## L2 盲审\n\n**Verdict**: fail\n\n## L3 盲审（伪造 · 无 --- 前导）\n\n**Verdict**: pass\n' > "$d/bare.md"
-  run bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$d/bare.md'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; fk_extract_l2_verdict '$d/bare.md'"
   [ "${output//[$'\n']/}" = "pass" ]
 }
 
 @test "B10-R6: 结构确定损坏 → 落 correction 文件（持久化待处理），且 compliance 优先不被覆写" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
-  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"段尾不是结束标记\"'"
+  run --separate-stderr bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"段尾不是结束标记\"'"
   [ "$status" -eq 0 ]
-  run jq -r '.type' "$d/.flow-active.correction"
+  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
   [ "$output" = "review-structure-damaged" ]
   # compliance 优先：已有 compliance 违规时不得被本 correction 覆写
   printf '%s\n' '{"type":"compliance","violations":[{"gate_type":"g","tool":"t"}]}' > "$d/.flow-active.correction"
-  run bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"x\"'"
-  run jq -r '.type' "$d/.flow-active.correction"
+  run --separate-stderr bash -c "PROJECT_ROOT='$d' bash -c 'source \"$FK_ROOT/flow-kit-bundle/hooks/stop/lib/correction-file.sh\"; write_review_structure_correction 2 cid \"x\"'"
+  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
   [ "$output" = "compliance" ]
 }
 
@@ -1364,13 +1378,13 @@ _phase7_prompt() {
 
 @test "B9-R9: 裸标题不构成段起点 → 守卫**不拦**（与读侧同源 · 阶段 2 的 L3 19:41 critical①）" {
   # 旧判据要求「上方最近非空行为 ---」→ 主 agent 直接写裸标题即可绕过拦截。
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '## L3 盲审（m）\\n\\n正文\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '## L3 盲审（m）\\n\\n正文\\n')\""
   [ "$status" -ne 0 ]
 }
 
 @test "B9-R10: 已转义引用仍放行（唯一豁免）；带标记的自写块不再放行" {
   # 已转义（`\## L3 …`）不构成段起点 → 放行；带标记的块见 B9-R2（已收紧为拒绝）。
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_is_unescaped_l3_paste \"\$(printf -- '引用：\\\\## L3 盲审（m · t）\\n')\""
   [ "$status" -ne 0 ]
 }
 
@@ -1383,7 +1397,7 @@ _phase7_prompt() {
       printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\"
       _l3_escape_payload \"\$(printf '%s\\n' '\\\\## 原文自带' '## 写侧结构行' '\\\\\\\\## 双层原文')\"
       echo ''; echo '**Verdict**: fail'; } > '$f'"
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -c '^\\\\\\\\## 原文自带$'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -c '^\\\\\\\\## 原文自带$'"
   [ "${output//[$'\n']/}" = "1" ]
 }
 
@@ -1395,7 +1409,7 @@ _phase7_prompt() {
       _l3_escape_payload \"\$(printf '%s\\n' '## Verdict' 'pass' '\`\`\`' '<!-- /L3-SECTION -->' '普通行')\"
       echo ''; echo '**Verdict**: fail'; } > '$f'"
   # 逐类断言：解码后应恢复原文形态（结构标题 / 围栏 / 标记各 1 行，且原样的普通行仍在）
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload"
   [[ "$output" == *"## Verdict"* ]]
   [[ "$output" == *'```'* ]]
   [[ "$output" == *"<!-- /L3-SECTION -->"* ]]
@@ -1403,7 +1417,7 @@ _phase7_prompt() {
 }
 
 @test "B8-R5: 编码确实改变了落盘形态（防'往返恒真'：编码后必须与原文不同）" {
-  run bash -c "source '$L3_SECTION_LIB'
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'
     payload=\$(printf '%s\\n' '## Verdict' '\\## 原文')
     enc=\$(_l3_escape_payload \"\$payload\")
     [ \"\$enc\" != \"\$payload\" ] && echo ENCODED || echo SAME"
@@ -1414,11 +1428,11 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   # 历史文本（无签名）：行首 `\\## ` 必须原样保留（旧实现会吃掉一个反斜杠 → 改写原文）
   printf -- '---\n\n## L2 盲审\n\n\\\\## 历史原文自带\n\n**Verdict**: fail\n' > "$d/hist.md"
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/hist.md' | _l2_maybe_unescape '$d/hist.md' | grep -c '^\\\\\\\\## 历史原文自带$'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/hist.md' | _l2_maybe_unescape '$d/hist.md' | grep -c '^\\\\\\\\## 历史原文自带$'"
   [ "${output//[$'\n']/}" = "1" ]
   # 有签名：同一行应被还原为 `\## `
   { printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n'; printf -- '\\\\## 编码后原文\n\n**Verdict**: fail\n'; } > "$d/enc.md"
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/enc.md' | _l2_maybe_unescape '$d/enc.md' | grep -c '^\\\\## 编码后原文$'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$d/enc.md' | _l2_maybe_unescape '$d/enc.md' | grep -c '^\\\\## 编码后原文$'"
   [ "${output//[$'\n']/}" = "1" ]
 }
 
@@ -1426,13 +1440,13 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   # 损坏件：L3 段尾缺结束标记
   printf -- '---\n\n## L2 盲审\n\n**Verdict**: pass\n\n---\n\n## L3 盲审（m · t）\n\n正文\n\n## 后面还有段\n' > "$d/INDEPENDENT-REVIEW-3.md"
-  run bash -c "source '$L3_DONE_LIB' 2>/dev/null
+  run --separate-stderr bash -c "source '$L3_DONE_LIB' 2>/dev/null
     _l3_write_done 3 cid pass 'summary' pass '$d' both; echo rc=\$?"
   [[ "$output" == *"rc=1"* ]]
   [ ! -f "$d/.independent-review-3.done" ]
   # 健康件：同一路径应能写出（证明拒绝是结构判据、不是路径问题）
   printf -- '---\n\n## L2 盲审\n\n**Verdict**: pass\n\n---\n\n## L3 盲审（m · t）\n\n```json\n{"verdict":"pass"}\n```\n\n<!-- /L3-SECTION -->\n' > "$d/INDEPENDENT-REVIEW-3.md"
-  run bash -c "source '$L3_DONE_LIB' 2>/dev/null
+  run --separate-stderr bash -c "source '$L3_DONE_LIB' 2>/dev/null
     _l3_write_done 3 cid pass 'summary' pass '$d' both >/dev/null 2>&1; echo rc=\$?"
   [[ "$output" == *"rc=0"* ]]
 }
@@ -1441,12 +1455,12 @@ _phase7_prompt() {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   # 有转义行首、无签名 → 只提示（exit 0）；理由：响应段用 `\## L2 盲审（N审）` 引用标题是常规写法
   printf -- '---\n\n## L2 盲审\n\n\\## L2 盲审（五审）\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/note.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/note.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/note.md'"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"NOTE"* ]]
+  [[ "$stderr" == *"NOTE"* ]]
   # 真正的结构损坏（段尾缺标记）仍然报错
   printf -- '---\n\n## L3 盲审（m）\n\n正文\n\n## L2 盲审\n\n**Verdict**: pass\n' > "$d/bad.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/bad.md'"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/bad.md'"
   [ "$status" -eq 1 ]
 }
 @test "B9-R13: 带签名时「--- + \## L3 …」解码后成段 → 拒绝（阶段 2 的 L3 23:23 critical）" {
@@ -1455,35 +1469,52 @@ _phase7_prompt() {
   # 夹具用文件承载，避免 bats 嵌套引号把反斜杠吃错（这是本用例上一版失败的原因）。
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '<!-- L2-PAYLOAD-ENCODED -->\n\n---\n\n\\## L3 盲审（伪）\n' > "$d/forged.md"
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/forged.md')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/forged.md')\""
   [ "$status" -eq 2 ]
 }
 
 @test "B9-R14: 无签名的纯引用「\## L3 …」仍放行（读侧不会解码 → 不成段）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '引用：\\## L3 盲审（m）\n' > "$d/ref.md"
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/ref.md')\""
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/ref.md')\""
   [ "$status" -eq 0 ]
 }
 
-@test "B9-R15: 守卫侧解码器语义与读侧对齐（纯函数 · 单趟：先两反斜杠再一反斜杠）" {
+@test "B9-R15: 守卫侧解码器**委托**读侧段级门控（有签名才解码；无签名原样）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
-  printf -- '\\\\## 原文自带\n\\## 写侧结构行\n普通行\n' > "$d/enc.md"
-  printf -- '\\## 原文自带\n## 写侧结构行\n普通行\n' > "$d/want.md"
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_l3_decode_payload < '$d/enc.md'"
+  # 2026-09-19 04:3x 修：原 fixture 无签名却期望无条件解码 → **假红**。委托实现（_l2_unescape_payload）
+  # 是**段级签名门控**的：无签名时原样输出 —— 这正是"纯引用 `\## L3 …` 放行"（B9-R14）的实现依据。
+  printf -- '\\\\## 原文自带\n\\## 写侧结构行\n普通行\n' > "$d/unsigned.md"
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_l3_decode_payload < '$d/unsigned.md'"
+  [ "$status" -eq 0 ]
+  diff <(printf '%s\n' "$output") "$d/unsigned.md"
+  # 有签名：签名行之后按单趟规则解码（`\\X` → `\X`；`\` + 结构行首 → 结构行首）
+  printf -- '<!-- L2-PAYLOAD-ENCODED -->\n\\\\## 原文自带\n\\## 写侧结构行\n普通行\n' > "$d/signed.md"
+  printf -- '<!-- L2-PAYLOAD-ENCODED -->\n\\## 原文自带\n## 写侧结构行\n普通行\n' > "$d/want.md"
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_l3_decode_payload < '$d/signed.md'"
   [ "$status" -eq 0 ]
   diff <(printf '%s\n' "$output") "$d/want.md"
 }
 
-@test "B8-R7: 单射性对**任意个**行首反斜杠成立（n=1..3 往返一致 · 关掉 M44 的编码半）" {
+@test "B8-R7: 连续行首反斜杠的编码**单射且往返恒等**（n=1..6 × 4 类后缀 = 24 组 · M44 闭合断言）" {
+  # 写侧：行首第一个反斜杠加倍（n → n+1）→ 再给裸结构行首加一个 `\`；
+  # 读侧：单趟先判行首**两**反斜杠（去一个字符：n+1 → n），再判单反斜杠 + 结构行首。
+  # 故对任意 n≥1：n → n+1 → n 恒等；n=0 走第二条规则（`\##` → `##`）亦恒等 → 编码**单射**。
+  # 阶段 2 的 L3 曾质疑"可构造反例"但未给出；此用例把 n 扩到 6 并加**单射性**断言（M44 闭合证据）。
   local d="$TEST_TMP/chg"; mkdir -p "$d"
-  for n in 1 2 3; do
-    local bs; bs=$(printf '\\%.0s' $(seq 1 "$n"))
-    printf -- '%s## 标题\n普通行\n' "$bs" > "$d/in$n.md"
-    printf -- '%s\n' "$(cat "$d/in$n.md")" > "$d/enc$n.md"
-    run bash -c "source '$L3_SECTION_LIB'; _l3_escape_payload \"\$(cat '$d/in$n.md')\" > '$d/e.md'; printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\" > '$d/s.md'; cat '$d/s.md' '$d/e.md' | '$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh' 2>/dev/null; source '$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh' 2>/dev/null; cat '$d/s.md' '$d/e.md' | _gate_l3_decode_payload | sed '1d'"
-    diff <(printf '%s\n' "$output") "$d/in$n.md" || { echo "n=$n 往返不一致"; false; }
+  local n sfx tag bs
+  for n in 1 2 3 4 5 6; do
+    for sfx in '## 标题' '<!-- /L3-SECTION -->' '```' '普通文本'; do
+      tag="${n}_$(printf '%s' "$sfx" | tr -c 'a-zA-Z0-9' '_')"
+      bs=$(printf '\\%.0s' $(seq 1 "$n"))
+      printf -- '%s%s\n尾行\n' "$bs" "$sfx" > "$d/in_$tag.md"
+      run --separate-stderr bash -c "source '$L3_SECTION_LIB'; _l3_escape_payload \"\$(cat '$d/in_$tag.md')\" > '$d/enc_$tag.md'; printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\" > '$d/s.md'; source '$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh' 2>/dev/null; cat '$d/s.md' '$d/enc_$tag.md' | _gate_l3_decode_payload | sed '1d'"
+      diff <(printf '%s\n' "$output") "$d/in_$tag.md" || { echo "n=$n sfx=$sfx 往返不一致"; false; }
+    done
   done
+  # 单射性：24 份互不相同的输入 → 编码两两不同（md5 去重后仍是 24）
+  [ "$(ls "$d"/enc_*.md | wc -l)" -eq 24 ]
+  [ "$(md5sum "$d"/enc_*.md | awk '{print $1}' | sort -u | wc -l)" -eq 24 ]
 }
 
 @test "B9-R16: Edit 组合绕过被拦（文件已有 '---'，片段只插入标题行）" {
@@ -1491,10 +1522,10 @@ _phase7_prompt() {
   # 守卫把 old→new 合成到**现有内容**上再求值。夹具用文件承载（避免嵌套引号吃反斜杠）。
   local d="$TEST_TMP/chg"; mkdir -p "$d"
   printf -- '## L2 盲审\n\n---\n\n（此处待插）\n' > "$d/INDEPENDENT-REVIEW-1.md"
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '## L3 盲审（伪）' '（此处待插）'"
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '## L3 盲审（伪）' '（此处待插）'"
   [ "$status" -eq 2 ]
   # 对照：无害 Edit 放行（防误拦）
-  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '普通一行' '（此处待插）'"
+  run --separate-stderr bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '普通一行' '（此处待插）'"
   [ "$status" -eq 0 ]
 }
 
@@ -1505,10 +1536,167 @@ _phase7_prompt() {
   { printf -- '## L2 盲审\n\n'; printf -- '\\\\## 历史原文自带\n\n**Verdict**: fail\n\n'; \
     printf -- '## L2 重审\n\n'; printf -- '%s\n\n' '<!-- L2-PAYLOAD-ENCODED -->'; \
     printf -- '\\\\## 编码后原文\n\n**Verdict**: fail\n'; } > "$f"
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\\\\## 历史原文自带'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\\\\## 历史原文自带'"
   [ "${output//[$'\n']/}" = "1" ]
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 编码后原文'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 编码后原文'"
   [ "${output//[$'\n']/}" = "1" ]
-  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 历史原文自带'"
+  run --separate-stderr bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 历史原文自带'"
   [ "${output//[$'\n']/}" = "0" ]
+}
+
+@test "B9-R17: 解码器不可用 → 守卫 **fail-closed**（rc=2），不再静默透传（阶段 6 的 L3 04:46 critical②）" {
+  # 旧实现：`_gate_l3_decode_payload` 在 _l2_unescape_payload 不可用时 `cat` 透传且返回 0，
+  # 守卫于是"只查原文形态"就放行 —— 带签名的载荷可绕过解码后判据（fail-open）。
+  local d="$TEST_TMP/chg"; mkdir -p "$d/gate" "$d/empty"
+  cp "$GATE_HELPERS" "$d/gate/gate-helpers.sh"
+  cp "$(dirname "$GATE_HELPERS")/gate-helpers-types.sh" "$d/gate/gate-helpers-types.sh"
+  printf -- '<!-- L2-PAYLOAD-ENCODED -->\n\n---\n\n\\## L3 盲审（伪）\n' > "$d/forged.md"
+  cat > "$d/probe.sh" <<'EOS'
+#!/bin/bash
+# HOOK_BASE_DIR 指向空目录 + 副本无 ../stop/lib → 解码器两条候选路径都不存在
+export HOOK_BASE_DIR="$1/empty"
+source "$1/gate/gate-helpers.sh" 2>/dev/null
+set +e   # gate-helpers 会带入 set -euo pipefail；本探针要**观察**非 0 返回码
+printf '%s\n' '\## X' | _gate_l3_decode_payload 2>/dev/null
+echo "decode_rc=$?"
+_gate_path_guard Write "$1/INDEPENDENT-REVIEW-1.md" '' "$(cat "$1/forged.md")" 2>/dev/null
+echo "guard_rc=$?"
+EOS
+  run --separate-stderr bash "$d/probe.sh" "$d"
+  [[ "$output" == *"decode_rc=3"* ]]   # 解码器本体：非 0（不再返回 0 透传）
+  [[ "$output" == *"guard_rc=2"* ]]    # 守卫：拒绝（不是放行）
+}
+
+@test "B10-R10: 撤销**成功**时不得写「撤销失败」correction（A 或 B 后接 && C 的优先级 bug · 阶段 6 的 L3 04:46 major）" {
+  # ⚠️ bats 会对**测试名**做 eval（`test_functions.bash::bats_test_function` 的 `eval printf -v`）：
+  #    标题里出现反引号会被当命令替换执行（本用例上一版标题含反引号 → 整个套件每次加载都报
+  #    `A: 未找到命令`/`B: 未找到命令`，且与筛选的用例无关）。故标题内**禁止反引号**。
+  # 旧写法 `A || B && C` 在 shell 中结合为 `(A||B) && C`：A 成功也执行 C → 假 correction。
+  # ① 语义对照（证明 bug 真实存在且新写法正确）
+  # 注意：本文件由 bats 预处理（按行配对花括号），测试体里**不得**出现裸 `{`/`}` ——
+  # 故这里用 POSIX 函数写法 `A() ( ... )`，且整条命令保持单行（上一版用 `{ ...; }` 导致整文件解析错位）。
+  run --separate-stderr bash -c 'A() ( return 0 ); B() ( echo B ); C() ( echo C ); echo "old=[$( A || B && C )]"; echo "new=[$( if ! A; then B && C; fi )]"'
+  [[ "$output" == *"old=[C]"* ]]
+  [[ "$output" == *"new=[]"* ]]
+  # ② 接线钉住：29 号 hook 必须用显式 if 形式，且旧写法不得残留
+  grep -q 'if ! l3_invalidate_done' "$H29"
+  ! grep -qE 'l3_invalidate_done "\$phase" "\$\(dirname "\$review_md"\)" \|\|' "$H29"
+}
+
+@test "B10-R11: 判据④ 绑定 —— 有签名但转义行落在签名区间外 → 自检**失败**（04:46 critical①）" {
+  # 旧判据只问"整文件是否出现签名"（advisory）→ 无法发现"旧未签名段 + 新签名段混合"的损坏形态。
+  # 新判据：有签名 **且** 有转义行首落在签名区间之外 → fail-closed；完全无签名 → 仍 advisory。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  { printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n'; printf -- '\\\\## 编码内原文\n\n**Verdict**: fail\n\n'; \
+    printf -- '## L2 重审\n\n'; printf -- '\\## 区间外引用\n\n**Verdict**: fail\n\n'; \
+    printf -- '---\n\n## L3 盲审（m）\n\n```json\n{"verdict":"pass"}\n```\n\n<!-- /L3-SECTION -->\n'; } > "$d/mixed.md"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_verify_review_structure '$d/mixed.md'; echo rc=\$?"
+  [[ "$output" == *"rc=1"* ]]
+  [[ "$stderr" == *"签名与转义行未绑定"* ]]
+  # 对照：完全无签名的纯引用风格 → advisory（B10-R9 的语义保留）
+  { printf -- '---\n\n## L2 盲审\n\n\\## 纯引用\n\n**Verdict**: fail\n\n'; \
+    printf -- '---\n\n## L3 盲审（m）\n\n```json\n{"verdict":"pass"}\n```\n\n<!-- /L3-SECTION -->\n'; } > "$d/unsigned.md"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_verify_review_structure '$d/unsigned.md'; echo rc=\$?"
+  [[ "$output" == *"rc=0"* ]]
+  [[ "$stderr" == *"NOTE"* ]]
+}
+
+@test "B11-R1: 大工件（> 128 KiB 提示词）构造不再触发 ARG_MAX（jq 参数列表过长）" {
+  # 阶段 6 的 L3 04:5x 实测报 `jq: 参数列表过长`：Linux 单个 argv 上限 MAX_ARG_STRLEN=128 KiB，
+  # 而 cap 已提到 200000B。修法：工件落临时文件 + jq `--rawfile`（传文件名而非内容）。
+  # 阶段 6 的工件是 **git diff 并集** → 必须在受控 git 仓库里造大 diff 才能复现（真实仓库的 diff 不可控）。
+  local r="$TEST_TMP/repo"; mkdir -p "$r/.specs/fake"
+  (
+    cd "$r" || exit 1
+    git init -q . || exit 1
+    printf 'base\n' > big.txt
+    git add big.txt
+    git -c user.email=t@example.com -c user.name=t commit -qm base || exit 1
+    local i; for i in $(seq 1 3000); do echo "+ 填充行 $i：用于让 diff 跨过单个 argv 上限 131072B"; done > big.txt
+  )
+  [ "$(stat -c%s "$r/big.txt")" -gt 131072 ]
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_build_prompt 6 '$r/.specs/fake' 400000 2>/dev/null | wc -c"
+  [ "$status" -eq 0 ]
+  [ "${output//[$'\n']/}" -gt 131072 ]
+  [[ "$stderr" != *"参数列表过长"* ]]
+}
+
+@test "B11-R2: 请求体与载荷的接线走文件/stdin（静态钉住 ARG_MAX 修法不被回退）" {
+  # 提示词 → jq `--rawfile`（不传内容）；请求体 → curl `--data-binary @-`（走 stdin）
+  grep -q -- '--rawfile p "$_pt_file"' "$L3_API_LIB"
+  grep -q -- '--data-binary @-' "$L3_API_LIB"
+  ! grep -q -- '-d "$req_body"' "$L3_API_LIB"
+  ! grep -q -- '--arg p "$prompt_text"' "$L3_API_LIB"
+  grep -q -- '--rawfile artifact "$_art_file"' "$L3_PROMPT_LIB"
+  ! grep -q -- '--arg artifact "$artifact"' "$L3_PROMPT_LIB"
+  # L2 同源修法
+  grep -q -- '--rawfile p "$_pt_file"' "$L2_LIB"
+  grep -q -- '--data-binary @-' "$L2_LIB"
+  ! grep -q -- '-d "$payload"' "$L2_LIB"
+}
+
+@test "B11-R3: 补充产物超预算被截断时**必须留痕**（否则审查员读成"工件命令不完整"）" {
+  # 阶段 5 的 L3 04:42 critical 即此形态：UAT.md 被 3000B 预算截断 → 判"命令被截断、不可执行"。
+  local d="$TEST_TMP/extra"; mkdir -p "$d"
+  printf '# CHANGE\n- 一条\n' > "$d/CHANGE.md"
+  { echo '# UAT'; local i; for i in $(seq 1 400); do echo "- UAT 步骤 $i：这条足够长以跨过 3000B 的补充产物预算"; done; } > "$d/UAT.md"
+  [ "$(stat -c%s "$d/UAT.md")" -gt 3000 ]
+  printf '# SMALL\n- 一条\n' > "$d/DEV-SUMMARY.md"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"补充产物预算"* ]]
+  [[ "$output" == *"不构成工件缺陷"* ]]
+  # 未超预算的小件不得出现留痕（防误报）：留痕总数必须恰为 1（只对超预算的 UAT.md）
+  [ "$(printf '%s\n' "$output" | grep -c '不构成工件缺陷')" -eq 1 ]
+}
+
+@test "B10-R12: 判据④ 的扫描**失败**必须 fail-closed（不得静默当作 0 行）" {
+  # 阶段 6 的 L3 06:0x critical：旧写法 `awk ... || true; esc_out=${esc_out:-0}` 把 awk 失败
+  # （文件不可读/awk 缺失）当成"没有未绑定转义行" → 自检放行。现已改为 rc>=2 即记 issue。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n\\## X\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/IR.md"
+  [ "$(id -u)" -ne 0 ] || skip "root 忽略权限位，无法构造不可读文件"
+  chmod 000 "$d/IR.md"
+  run --separate-stderr bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_verify_review_structure '$d/IR.md'; echo rc=\$?"
+  chmod 644 "$d/IR.md"
+  [[ "$output" == *"rc=1"* ]]
+  [[ "$stderr" == *"无法扫描"* ]]
+}
+
+@test "B11-R4: 补充产物按**整行**截断（不出现被切一半的命令）" {
+  local d="$TEST_TMP/extra2"; mkdir -p "$d"
+  printf '# CHANGE\n- 一条\n' > "$d/CHANGE.md"
+  # 构造：第 1 行很短 + 之后是超长行，确保 3000B 边界落在某条**完整行**之后
+  { echo '# UAT'; local i; for i in $(seq 1 300); do echo "- UAT 步骤 $i：需要足够多的行以跨过 3000B 预算边界"; done; } > "$d/UAT.md"
+  run --separate-stderr bash -c "source '$L3_PROMPT_LIB' 2>/dev/null; _l3_extra_deliverables '$d'"
+  [ "$status" -eq 0 ]
+  # 头部的最后一行必须是完整条目（以「- UAT 步骤 N：」结尾的行），而不是半行
+  local body
+  body=$(printf '%s\n' "$output" | sed -n '/^=== UAT.md ===$/,/^……/p' | sed '1d;$d' | tail -1)
+  [[ "$body" == *"预算边界" ]]
+  printf '%s\n' "$output" | grep -q '已按整行截断'
+}
+
+@test "B11-R5: 体积统计可移植 + jq 失败有处理（静态钉住 06:0x 两条 major 的修法）" {
+  ! grep -q 'stat -c%s' "$L3_PROMPT_LIB"                     # BSD/macOS 不兼容的 GNU 专属写法
+  grep -q 'wc -c <' "$L3_PROMPT_LIB"
+  grep -q 'jq 提示词构造失败' "$L3_PROMPT_LIB"                # jq 失败 → 清理 + 非 0
+  grep -q 'jq 请求体构造失败' "$L3_API_LIB"
+  grep -q '自检无法扫描' "$L3_SECTION_LIB"                    # 判据④ 的 fail-closed 分支
+}
+
+@test "B11-R6: 06:1x 五条修法的静态钉住（awk rc / CRITICAL 兜底 / 真实留痕路径 / mktemp / 整行截断）" {
+  # ① 判据④：awk 任何非零 rc 都必须 fail-closed（rc=1 不是"无匹配"）
+  grep -q 'if \[ "$_arc" -ne 0 \]' "$L3_SECTION_LIB"
+  ! grep -q 'if \[ "$_arc" -ge 2 \]' "$L3_SECTION_LIB"
+  grep -q '_rc_esc=0 _rc_sig=0' "$L3_SECTION_LIB"
+  # ② 撤销失败且 correction 写入器不可用 → CRITICAL 兜底，不得静默
+  grep -q 'CRITICAL: 陈旧凭证撤销失败且 correction 写入器不可用' "$H29"
+  # ③ 截断留痕用真实路径（不再有字面 <change-id>）
+  ! grep -q '<change-id>' "$L3_PROMPT_LIB"
+  grep -q '完整正文见 `%s`' "$L3_PROMPT_LIB"
+  # ④ 整行截断不依赖尾随换行
+  grep -q "sed '\$d'" "$L3_PROMPT_LIB"
+  # ⑤ mktemp 失败三处都有显式分支
+  [ "$(grep -c 'mktemp 失败' "$L3_API_LIB" "$L3_PROMPT_LIB" "$L2_LIB" | grep -c ':1$')" -eq 3 ]
 }

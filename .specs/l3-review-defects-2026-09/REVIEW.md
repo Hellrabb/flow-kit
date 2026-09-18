@@ -5,6 +5,12 @@
 - **独立审查记录**: `INDEPENDENT-REVIEW-1.md`（阶段 1/3）、`INDEPENDENT-REVIEW-2.md`（阶段 2）、
   `INDEPENDENT-REVIEW-3.md`（阶段 3）、`INDEPENDENT-REVIEW-5.md`（阶段 5）、`INDEPENDENT-REVIEW-6.md`（本阶段）、
   `INDEPENDENT-REVIEW-7.md`（阶段 7）——每份由 L2 盲审（全新上下文子 agent）+ L3（真实外部 API）双轨产出。
+- **时间戳语义（防"时间倒挂"误读）**：`INDEPENDENT-REVIEW-*.md` 由审查子系统在工件定稿**之后**追加，
+  其 mtime 必然 **≥** 工件 mtime；绑定关系以记录内的 `L3_artifact_hash:` 行为准，**不以 mtime 判断**。
+- **阶段 4 无独立审查记录（有意）**：`gate_config` 只含六键 `1-requirement / 2-design / 3-task / 5-test / 6-review / 7-integration`，
+  阶段 4（开发）不在其中 → 不存在 `INDEPENDENT-REVIEW-4.md` 与对应锚点；`DEV-SUMMARY.md` 是它的产物。
+- **不产出 `INTEGRATION.md`（有意）**：本项目阶段 7 的验收产物是 `UAT.md` + CHANGELOG 更新；这也正是 §B4 的修复点
+  （清单"存在才列"，不再硬编码 INTEGRATION.md 造成假缺失）。
 - **severity gating（ADR-017）**：🔴 Critical 阻塞 toll-gate；🟡 Important 进入 fix loop；
   🟢 Minor 只登记 `MINOR-DEFERRED.md`（**M1–M47**）不进 fix loop。
 
@@ -17,11 +23,11 @@
 | AC | 实现锚点 | 验证 | 结论 |
 | --- | --- | --- | --- |
 | AC-1 L2 层限定 + 免疫 L3 段/大小写 | `l2-detect.sh::_fk_l2_scope`（62-64 调 `_l3_section_spans`）+ 三层提取 | B1-R2[1-4]、B2-R9/R11/R13/R17/R18/R19 | ✅ 合规 |
-| AC-2 活语料零非枚举 + 每份空值可归因（数值预算 ≤8 只对**基线语料**） | 同上 + `L2-EMPTY-ATTRIBUTION.md`（`corpus-count.sh --attribution` 机械再生） | 「AC2: 活语料零非枚举 + 每份空值可归因」→ 现场 `228 102 133 133 11 0`、`base_empty=8`、清单 11 行 | ✅ 合规 |
+| AC-2 活语料零非枚举 + 每份空值可归因（数值预算 ≤8 只对**基线语料**） | 同上 + `L2-EMPTY-ATTRIBUTION.md`（`corpus-count.sh --attribution` 机械再生） | 「AC2: 活语料零非枚举 + 每份空值可归因」→ 现场 `234 108 139 139 8 0`、`base_empty=8`、清单 8 行 | ✅ 合规 |
 | AC-3 §B1 五行回归 | 同上 | B1-R1 | ✅ 合规 |
 | AC-4 重写幂等（标记/围栏/空行） | `l3-section.sh` + `l3-api.sh::_l3_parse_result` | B2-R2/R6/R7/R10 | ✅ 合规 |
 | AC-5 无标记历史件清除 | `_l3_spans_impl` 的 `stop==0` 分支 | B1-R21、B2-R3/R4/R12 | ✅ 合规 |
-| AC-6 上限=字节 | `29-independent-review.sh` 解析链 | B3-R4/R5/R5b | ✅ 合规 |
+| AC-6 上限=字节 | `29-independent-review.sh` 解析链 | B3-R4/R5 | ✅ 合规 |
 | AC-7 旧键可用 + DEPRECATED | 同上 | B3-R1..R3 | ✅ 合规 |
 | AC-8 产物清单不截断 | `l3-prompt.sh::_l3_build_prompt` + `_l3_extra_deliverables` | B4-R1、B7-R1..R4 | ✅ 合规 |
 | AC-9 必备件 MISSING 严格 | 必备 6 件循环 | B4-R2/R4 | ✅ 合规 |
@@ -37,7 +43,7 @@
 | --- | --- | --- | --- |
 | §B1 提取抽错 verdict（取到 L3 段/JSON/大小写） | 五行临时件复现 | 限定 L2 层 + 行首锚定 + 末次 + 小写归一 | B1（27 例） |
 | §B2 L3 段重写按标题截断、无结束标记 | 载荷含行首 `## ` 复现 | 显式结束标记 + 写入侧转义（ADR-026） | B2（21 例） |
-| §B3 `max_artifact_chars` 名"字符"实"字节" | CJK 件被截 2/3 | 改名 + 保留旧键 + 5 处载体写明 | B3（8 例） |
+| §B3 `max_artifact_chars` 名"字符"实"字节" | CJK 件被截 2/3 | 改名 + 保留旧键 + 5 处载体写明 | B3（7 例） |
 | §B4 阶段 7 清单 `head -30` + 硬编码 INTEGRATION.md | 41 条目目录漏 14 | 全量清单 + 必备/补充分离 | B4（4 例）+ B7（5 例） |
 | §B5 安装树不同步 | 7 份 prompt 副本/`~/.claude/hooks`/`~/.config/opencode/hooks` 陈旧 | `sync-hooks.sh` 四类树 × 7 落点 + 门禁 | B5（5 例） |
 
@@ -119,17 +125,37 @@
 
 ---
 
+## 第五轮 · 阶段 6 的 L3（2026-09-19 04:46）结论处置
+
+| # | 发现（严重度） | 处置 | 证据（可复跑） |
+| --- | --- | --- | --- |
+| 1 | 自检判据④「签名 ↔ 转义行」未**绑定**，且一律 advisory（🔴 critical①） | 判据④ 升级为**两级精确判据**：文件**有**签名且仍有转义行首落在签名区间之外 → **fail-closed**（自检失败 → 拒发凭证 + 落 correction）；文件**完全没有**签名 → 保留 advisory（常规 `\## L2 盲审（N审）` 引用风格，读侧全程不解码，无害） | `B10-R11`（绑定 → rc=1 + stderr 含「签名与转义行未绑定」）、`B10-R9`（无签名 → advisory）；**语料探针**：`find .specs -name '*.md'` 979 份，fail-closed 形态命中 **0** 份 → 不误伤 |
+| 2 | `_gate_l3_decode_payload` 在解码器不可用时 `cat` 透传并返回 0（🔴 critical②，fail-open） | 改为 **fail-closed**：两条候选路径都拿不到解码器 → stderr 明确报错 + `return 3`；调用方 `_gate_path_guard` 视为「无法验证解码后形态」→ **rc=2 拒绝** + 专门提示（`./sync-hooks.sh` / `/flow doctor`）；顺带修 minor：`${HOOK_BASE_DIR:-}` 空值展开成 `/lib/...`、source 失败后不再 `break` 而是继续试下一路径 | `B9-R17`（无解码器 → `decode_rc=3` 且 `guard_rc=2`） |
+| 3 | `29-independent-review.sh` 的 `A \|\| B && C` 结合为 `(A\|\|B) && C` → 撤销**成功**也写「撤销失败」correction（🟡 major） | 改显式 `if ! l3_invalidate_done ...; then ...; fi` | `B10-R10`（语义对照 `old=[C]` / `new=[]` + 接线钉住旧写法不残留） |
+| 4 | UAT-2 ④ 的预期行不可执行（L3 侧读成 `预期：s`）（🟡 major） | 预期文本改 ASCII 关键字表述：`rc=2 且 stderr 含 "L3 载荷守卫"`；⑤ 去重复行并写明「无签名才是安全引用」。**并登记为流水线观察**：该行原文含 ⛔/… 等非 ASCII 装饰符，疑似提示词侧被截断成 `预期：s` | UAT.md §UAT-2（本轮改） |
+| 5 | 套件 `run` 默认合并 stderr → 内容断言可被 stderr 报错文本满足（假绿）（🔴 阶段 5 的 L3 04:42 critical + 🟡 本轮 major） | **全量审计并统一**：87 处 `run` → `run --separate-stderr`（并声明 `bats_require_minimum_version 1.5.0`）；断言约定写入文件头：内容断言只看 `$output`，stderr 断言显式用 `$stderr`。**修正 4 处原本靠 stderr 泄漏"通过"的断言** | 改后首轮实跑即暴露 `B10-R2`/`B10-R3`/`B10-R9`/`B3-R7`/`B6-R1` 五处（`[[ "$output" == *"段尾"* ]]` 之类）→ 全部改 `$stderr`；现套件 **112 ok / 0 not ok** |
+| 6 | **提示词容量边界**：阶段 6 的 L3 04:5x 直接 `verdict=error` —— `jq: 参数列表过长`（🔴 流水线缺陷，非工件缺陷） | 根因：Linux 单个 argv 上限 `MAX_ARG_STRLEN = 128 KiB`，而 cap 已提到 200000B，提示词却仍作为 argv 传给 `jq`/`curl`。修法：工件落临时文件 + jq `--rawfile`（传文件名）；请求体与 L2 载荷改走 stdin（`--data-binary @-`）；**顺带**给补充产物的 3000B 截断加**留痕**（上一行 4 的根因：截断不留痕 → 审查员读成"工件命令不完整"） | `B11-R1`（受控 git 仓库造 >131072B diff → 提示词仍构造成功）、`B11-R2`（静态钉住三处接线不被回退）、`B11-R3`（超预算留痕，且小件不误报）；实测阶段 1/2/3/5/7 提示词 43/84/59/30/41 KB，阶段 6 = 200000B（cap） |
+| 8 | 判据④ 的 awk 失败处理只判 `rc>=2`（🔴 06:1x critical） | awk 的退出码语义与 grep **不同**（rc=1 没有"无匹配"含义）→ 任何非零都 fail-closed；顺带按 minor 拆开 `_rc_esc`/`_rc_sig` 两个 rc 变量 | `B11-R6`（静态钉住 `-ne 0` + 独立 rc）；`l3-section.sh` 源码 |
+| 9 | 撤销失败且 correction 写入器不可用时**静默**（🟡 major） | `29-independent-review.sh` 增 else 分支：CRITICAL + `/flow doctor` 指引 | `B11-R6` 静态钉住 |
+| 10 | 截断留痕写死 `.specs/<change-id>/`（🟡 major）+ 整行截断在无尾随换行时失效（🟢 minor） | 留痕改用**真实** `${artifacts_dir}/${_b}`；整行截断改 `sed '$d'`（无条件丢掉可能不完整的末行） | `B11-R3`/`B11-R4`/`B11-R6` |
+| 11 | `mktemp` 失败未检查（🟡 major，3 处） | l3-api.sh / l3-prompt.sh / l2-detect.sh 均加显式失败分支（清理 + 非 0 + stderr） | `B11-R6` 静态钉住；`l3-api.sh` 仍 **250/250** |
+| 12 | 计数口径（TEST.md 115/941 vs CHANGELOG 118/944 等）（🟡 major） | 全库统一到**同一快照时点**的现场实测值（当前口径：缺陷套件 **119**、全量 **945**，快照 2026-09-19 06:4x）；§3.4 的 `/tmp` 夹具补齐前置命令；M41/M42 引用直接给出定义位置 | 见 §总结 门禁行 |
+
+**本轮附带发现的套件级陷阱（写入用例约定）**：bats 会对**测试名**做 `eval`（`bats-core/test_functions.bash::bats_test_function` 的 `eval printf -v test_description`）——
+用例标题里出现反引号会被当成命令替换执行：本 change 曾因标题含 `` `A||B&&C` `` 导致**整个套件每次加载**都打印 `A: 未找到命令`/`B: 未找到命令`（与被筛选的用例无关，极易误判为环境问题）。
+约定：**测试名内禁止反引号与 `$`**（新用例 `B10-R10` 已按此改写并记录原因）。
+
 ## 总结
 
 | 维度 | 结论 |
 | --- | --- |
-| **Spec 合规** | ✅ AC-1–AC-12 全部实现且有回归（缺陷套件 **108 ok / 0 not ok**，2026-09-19 04:2x 现算；全量套件同轮现算，见下方门禁行）。**AC-1..AC-12 → 任务 → 复验命令 → 用例 ID 的零空白矩阵**已写入 `TASK.md`（含可跑的空白自检，实测零输出）。 |
+| **Spec 合规** | ✅ AC-1–AC-12 全部实现且有回归（缺陷套件 **119 ok / 0 not ok**（快照 2026-09-19 06:4x）；全量套件同轮现算，见下方门禁行）。**AC-1..AC-12 → 任务 → 复验命令 → 用例 ID 的零空白矩阵**已写入 `TASK.md`（含可跑的空白自检，实测零输出）。 |
 | **代码质量** | 🟡 1 项 Important 未闭合（R1 转义/还原方向耦合 → M38）；3 项 🟢/🟡 已收敛或声明例外 |
 | **Critical（历史项）** | 已落地为代码 + 回归：M32/M34/M36/M37、D13、写入侧 fail-closed、AC-2 活语料判据 |
 | **Minor** | 47 项登记 `MINOR-DEFERRED.md`（M1–M47），按 ADR-017 不进 fix loop |
-| **门禁（2026-09-19 04:2x 实测）** | TASK.md 的 14 个 `<verify>` 块**逐条实跑 14/14 PASS**（含 `make check` 五门、`npx bats`、`verify-claims.sh` 13/13、`./sync-hooks.sh --check` 漂移 0、`corpus-count.sh` → `234 108 139 139 8 0`）；缺陷套件 108 ok / 0 not ok |
+| **门禁（2026-09-19 06:2x 实测）** | TASK.md 的 14 个 `<verify>` 块**逐条实跑 14/14 PASS**（含 `make check` 五门、`npx bats`、`verify-claims.sh` 13/13、`./sync-hooks.sh --check` 漂移 0、`corpus-count.sh` → `234 108 139 139 8 0`）；缺陷套件 119 ok / 0 not ok；全量套件 945 ok / 0 not ok（快照 2026-09-19 06:4x） |
 | **遗留** | M38（哨兵化转义）、M44（连续反斜杠编码语义 —— 待实测后定"已定义"或"未闭合"）、M46（守卫"验证转义来源"= 评审翻转）、M47②（签名一致性判据为 advisory）、M7/M8（历史兼容路径） |
-| **Toll-gate 6→7**（2026-09-19 04:0x 复核） | ⛔ **暂不放行（pending）** —— 锚点 **3/6**：阶段 **1/5/7** = pass（锚点由 `l3_review_run` 写出）；阶段 **2/3/6 = fail**。**更正**：22:3x 版本此处曾写"其 critical 均已逐条处置"——该表述把"已派人修"当成"已闭合"，**已作废**，改为逐条列「已闭合 / 残余 / 归属」：<br>① **阶段 2**（2026-09-19 03:46，1 critical）：D11 的「唯一豁免是已转义行首」与双形态守卫判据自相矛盾（按文档贴入的转义块要么被拒、要么无效）→ **处置已定：删除豁免**（手动贴入禁止，`INDEPENDENT-REVIEW-*.md` 的 L3 段只允许子系统写入），DESIGN 修订 + 重审进行中；<br>② **阶段 3**（2026-09-18 22:18，1 critical + 5 major）：critical = `AC-4`/`AC-5` 无任何任务映射 → **已修**（新增「AC ↔ 任务覆盖矩阵（AC-1..AC-12 零空白）」+ T01/T05/T12 与 T01/T07 在 `done` 里显式认领 + 全表锚定过滤器 + T08 拆「骨架 Wave 1 / 补齐 Wave 6」）；<br>③ **阶段 6**（2026-09-18 22:47，1 critical）：签名门控是**文件级**而非段级 → **核心损害已闭合**（`_l2_unescape_payload` 已升级为**段级**门控：只有签名行之后、下一个 `^## ` 之前的行才解码，历史无签名段原样输出，审查员原文不被改写）；**残余** = 结构自检的"转义行首 ↔ 签名"一致性判据仍是 **advisory**（`B10-R9` 钉住；理由：转义行首在本仓库是常规写法，语料实测 5 行，一律阻断会误伤）+ **缺一条同文件「旧未签名段 + 新签名段」混合回归**（已派单到套件维护者）。<br>三者未全部 pass 前不放行；放行后须重跑四门 + 重跑 L2 盲审。 |
+| **Toll-gate 6→7**（判定方法 · **不复制易失状态**） | 判定依据：① 六个受门禁阶段的锚点 `.specs/<id>/.independent-review-{1,2,3,5,6,7}`（此处省略后缀）由 `l3_review_run` 写出、`written_by=pre-tool-use-gate`，且 L2 + L3 双 pass；② PreToolUse 门禁 `independent-review-gate.sh` 在缺失锚点时**拒绝** commit/切阶段（实测 rc=2，见 `B9-*`/门禁自测）；③ **现状请看当时的锚点**（`ls .specs/<id>/` 或 `/flow goal`）—— 本节**不再枚举"哪几个 fail"**：06:2x 的 L3 已两次因"状态行过期/自相矛盾"判缺陷（本文件第 8–12 行是当时的处置记录）。 |
 
 ### 诚实性声明（本报告的自查 · 2026-09-19 04:0x 更新）
 
@@ -140,7 +166,7 @@
   当成了"已闭合"，且阶段 6 那条的根因（文件级签名门控）当时仍有残余。已按 ADR-017 改为逐条列
   「已闭合 / 残余 / 归属」。
 - **数字口径**：本文件出现的 `ok/not ok` 都是**带时点的快照**；被断言的不变量只有两条 ——
-  `not_ok=0` 与"缺陷套件 ≥108 例"。现场复算：`npx bats test/`、`npx bats test/test_l3_review_defects_2026_09.bats`、
+  `not_ok=0` 与"缺陷套件 ≥119 例"。现场复算：`npx bats test/`、`npx bats test/test_l3_review_defects_2026_09.bats`、
   `bash corpus-count.sh`、`bash verify-claims.sh`。
 - 阶段 6 的 L2 盲审结论（`L2-ROUND-P6.json`）指出的数字与路径问题已修正；
   **L3 结论未产出前，本报告不宣称通过**。

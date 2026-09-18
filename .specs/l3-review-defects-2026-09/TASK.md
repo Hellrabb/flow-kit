@@ -15,7 +15,7 @@ Wave 1:            T08[P]                                     （套件骨架：
 Wave 2 (parallel): T01[P] T03[P] T04[P] T06[P]                （均 ←T08）
 Wave 3 (parallel): T02[P] T07[P]                              （T02←T01,T08；T07←T01,T08）
 Wave 4 (parallel): T05[P] T11[P] T13[P]                       （T05←T01,T02,T08；T11←T01,T02,T08；T13←T06,T08）
-Wave 5:            T12                                        （←T05,T11,T08）
+Wave 5:            T12                                        （←T03,T05,T11,T08）
 Wave 6:            T08B                                       （←T01..T08,T11,T12；套件补齐 + 变异自证）
 Wave 7:            T09                                        （←T08B）
 Wave 8:            T10                                        （←T01..T09,T11,T12,T13,T08B）
@@ -72,7 +72,7 @@ Wave 8:            T10                                        （←T01..T09,T11
 | 4 | T05 | T01,T02,T08 | ✅（与 T02 都写 `l2-detect.sh`，故串行于 T02 之后） |
 | 4 | T11 | T01,T02,T08 | ✅ |
 | 4 | T13 | T06,T08 | ✅（与 T06 都写 `sync-hooks.sh`，故串行于 T06 之后） |
-| 5 | T12 | T05,T11,T08 | ✅（与 T11 都写 `l3-review.sh`，故串行于 T11 之后） |
+| 5 | T12 | T03,T05,T11,T08 | ✅（与 T11 都写 `l3-review.sh`、与 T03 都写 `29-independent-review.sh`，故串行于两者之后） |
 | 6 | T08B（补齐） | T01,T02,T03,T04,T05,T06,T07,T08,T11,T12 | ✅ |
 | 7 | T09 | T08B | ✅（与 T06 都写 `Makefile`，故串行于 T06 之后） |
 | 8 | T10 | T01..T09,T11,T12,T13,T08B | ✅ |
@@ -84,7 +84,9 @@ Wave 8:            T10                                        （←T01..T09,T11
 | 共享文件 | 写者（波次） | 串行化依据 | 行级/段落边界声明 |
 | --- | --- | --- | --- |
 | `hooks/stop/lib/l2-detect.sh` | T02(3) → T05(4) | T05∈depends_on T02 ✅ | T02 改 `fk_extract_l2_verdict`；T05 加写入侧 fail-closed（不同函数） |
+| `hooks/stop/lib/l3-api.sh` | **仅 T05(4)** | 单一写者（评审 04:13 major① 指出的"T07 私改未登记"已收敛） | T05 加写入侧 fail-closed **并把行数压回 250/250**；T07 不写该文件（只读以保证判据同源） |
 | `hooks/stop/lib/l3-section.sh` | T01(2) → T12(5) | T12←T05←T01 ✅（传递） | T01 建段边界唯一来源；T12 只加 `_l3_verify_review_structure` |
+| `hooks/stop/29-independent-review.sh` | T03(2) → T12(5) | T12∈depends_on T03 ✅（评审 04:13 major② 补齐） | T03 改键名解析链 + AC-12 告警；T12 加结构自检调用（不同函数） |
 | `sync-hooks.sh` | T06(2) → T13(4) | T13∈depends_on T06 ✅ | T06 建镜像与 `--check/--list`；T13 加 `--strict-orphans` 与参数解析 |
 | `Makefile` | T06(2) → T09(7) | T09←T08B←T06 ✅（传递） | T06 只动 `hooks-sync`/`check-hooks-sync`；T09 只动 `verify-claims`（T06 的 action 已写死此边界） |
 | `.flow-kit/stop-hook.json` | **仅 T03(2)** | 单一写者（评审 22:18 major ② 指出的 T03/T10 双重归属已收敛） | T03 改 cap=200000；T10 **只断言不写**（`jq -e` 于 verify） |
@@ -109,7 +111,7 @@ Wave 8:            T10                                        （←T01..T09,T11
 | AC-8 阶段 7 清单不截断 | T04(2) | T04 verify | `B4-R1`..`B4-R4` | 全量目录 + `_l3_extra_deliverables` |
 | AC-9 必备件 MISSING 语义 | T04(2) | T04 verify | `B4-R2`、`B4-R4` | 必备 6 件缺失仍报 MISSING |
 | AC-10 副本零漂移 | T06(2) + T13(4) | T06 verify + T13 verify | `B5-R1`..`B5-R4` | `--check` 漂移 0 + 自证能发现漂移 |
-| AC-11 结构与既有门禁不回退 | T07(3)（`l3-api.sh` ≤250）+ T08/T08B（`make check`） | T07 verify + T08B verify | `test_lib_split_metrics.bats` | 行数/结构/`check-lint` 逐条 |
+| AC-11 结构与既有门禁不回退 | T05(4)（`l3-api.sh` 行数 250/250）+ T08B(6)（`make check` 五门） | T05 verify + T07 verify（结构门槛复验）+ T08B verify | `test_lib_split_metrics.bats` | 行数/结构/`check-lint` 逐条 |
 | AC-12 提取失败语义可见 | T03(2)（`29-independent-review.sh` 告警）+ T02(3)（用例） | T03 verify + T02 verify | `B1-R25`、`B1-R26`、`B1-R27` | 空值 → stderr 含 `L2 verdict not found`，实参仍合法 |
 
 **空白自检（可跑）**：
@@ -244,8 +246,10 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
       done
   </verify>
   <done>
-    B3 组 7/7 全绿（含 `B3-R5` 四处载体三要素断言、`B3-R5b` 第五处载体、`B3-R7/R8` 截断告警）。
-    对应 **AC-6**（`B3-R4/R5/R5b`）、**AC-7**（`B3-R1..R3`）、**AC-12 实现侧**（`B1-R25/R26/R27`）。
+    B3 组 **7/7**（`@test` 实测 7 条：`R1 R2 R3 R4 R5 R7 R8`；"第五处载体" `dsh-flow-kit/README.md`
+    已并入 `B3-R5` 的载体循环，**不存在**独立的 `B3-R5b` 用例 —— 评审 04:13 minor① 指出的计数与 ID
+    枚举不一致已按实测口径修正）。对应 **AC-6**（`B3-R4/R5`）、**AC-7**（`B3-R1..R3`）、
+    **AC-12 实现侧**（`B1-R25/R26/R27`）。
     项目级 `.flow-kit/stop-hook.json` 的 cap=200000 由本任务写入（单一写者；T10 只 `jq -e` 断言）。
   </done>
   <depends_on>T08</depends_on>
@@ -303,6 +307,9 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
     `_l3_parse_result` 与 `l2_dispatch_agent` 的载荷一律经 `_l3_escape_payload`（禁止内联 sed）；
     `l2_dispatch_agent` 增加**写入侧 fail-closed**：转义函数不可用时拒绝落盘（stderr CRITICAL +
     清理临时文件 + exit 1），不留未转义的半截文件；固化指令写约束新增第 4 条（贴入路径亦须转义）。
+    **本任务同时负责 `l3-api.sh` 的行数收敛**（新增 fail-closed 后曾达 257 行 → 压回 **250/250**，
+    `AC-B1-metric` 绿）——评审 04:13 major① 指出原表把这条写入错记在 T07 名下，现已收归本任务
+    （`write_files` 是任务边界的权威声明；T07 只读该文件）。
   </action>
   <verify>
     # 锚定过滤器（M1）：每个 ID 精确 1 条。本任务负责**写侧接线**用例，T01 不再越界跑到它们。
@@ -318,6 +325,7 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
     两个写入方（`_l3_parse_result`、`l2_dispatch_agent`）均写入侧 fail-closed（`B2-R15/R16`、`B2-R20/R21`）。
     **AC-4**（重写幂等 · 零残留）：本任务交付"两个自动写入方都经 `_l3_escape_payload`"，
     由 `B2-R6`（5 轮字节稳定）、`B2-R7`（标记恰 1）、`B2-R10`（围栏不被破坏）断言。
+    **AC-11 的实现侧**（结构门槛不回退）：`l3-api.sh` 行数 **250/250**（实测 `wc -l`）。
   </done>
   <depends_on>T01,T02,T08</depends_on>
   <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
@@ -372,7 +380,8 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
   </write_files>
   <action>
     裸正则 `^## L3 (盲审|重审)` 判据废弃，改调 `_l3_has_section`（与写侧同源），并做依赖注入兜底；
-    夹具补 `---` preamble 以符合新判据。顺带把 l3-api.sh 压回 ≤250 行结构门槛（冻结在 249 行）。
+    夹具补 `---` preamble 以符合新判据。**本任务不写 `l3-api.sh`**：其行数收敛归 T05
+    （评审 04:13 major①：action 里出现而 write_files 未列 = 隐藏写入，故删去该句、收归文件所有者）。
   </action>
   <verify>
     set -o pipefail
@@ -384,9 +393,10 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
       done
   </verify>
   <done>
-    重审触发判据与写侧同源；结构门槛不回退（`l3-api.sh` **250/250**，实测 `wc -l` = 250）。
+    重审触发判据与写侧同源。结构门槛由本任务**复验**（`test_lib_split_metrics.bats` 两文件实跑），
+    其**实现**（`l3-api.sh` 行数收敛到 250/250）归 T05 —— 见共享写文件表"单一写者"行。
     对应 **AC-5**（判据同源后无标记历史件仍按 `stop==0` 分支清除：`B2-R3`/`B2-R4`/`B1-R21`）、
-    **AC-11**（`test_lib_split_metrics.bats` 的结构/行数门槛逐条不回退）。
+    **AC-11 的复验侧**。
   </done>
   <depends_on>T01,T08</depends_on>
   <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
@@ -415,7 +425,8 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
       test -s test/test_l3_review_defects_2026_09.bats || exit 1
       cmp -s test/test_l3_review_defects_2026_09.bats flow-kit-bundle/test/test_l3_review_defects_2026_09.bats || exit 1
       for g in B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 AC2; do
-        grep -q "@test \"$g" test/test_l3_review_defects_2026_09.bats || { echo "缺分组: $g"; exit 1; }
+        # 锚定到组名后的分隔符（`-` 或 `:`）：否则 g=B1 会被 `@test "B10-…"` 命中 → 假绿（评审 04:13 major③）
+        grep -qE "@test \"$g[-:]" test/test_l3_review_defects_2026_09.bats || { echo "缺分组: $g"; exit 1; }
       done
   </verify>
   <done>
@@ -448,11 +459,11 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
       printf '缺陷套件: ok=%s not_ok=%s\n' \
         "$(grep -c '^ok' /tmp/t08b.tap)" "$(grep -c '^not ok' /tmp/t08b.tap)"
       grep -q '^not ok' /tmp/t08b.tap && exit 1
-      head -1 /tmp/t08b.tap | awk -F'[.][.]' '/^1\.\./{exit ($2+0>=108)?0:1}' || exit 1
+      head -1 /tmp/t08b.tap | awk -F'[.][.]' '/^1\.\./{exit ($2+0>=119)?0:1}' || exit 1
       make check || exit 1
   </verify>
   <done>
-    五门全绿（含全量 bats、双源一致、hooks 漂移 0）；缺陷套件**单独统计 ≥108 例 0 失败**（实测 108/0）。
+    五门全绿（含全量 bats、双源一致、hooks 漂移 0）；缺陷套件**单独统计 ≥119 例 0 失败**（实测 119/0）。
     AC-2 的活语料不变量 = 零非枚举 + 每份空值可归因（清单由 `bash corpus-count.sh --attribution` 再生，
     数值预算 ≤8 只对**基线语料**成立）。对应 **AC-2 的用例侧**、**AC-11**、**AC-12 的用例侧**。
   </done>
@@ -602,14 +613,14 @@ awk -F'|' '/^\| (AC-[0-9]+|\*\*AC-[0-9]+)/ {n=gsub(/T[0-9]+[A-Z]?/,"&"); if(n==0
       printf '%s\n' "$out" | awk -F'[.][.]' '/^1\.\./{exit ($2+0>=16)?0:1}' || exit 1
       out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "^B10-" --formatter tap) || exit 1
       printf '%s\n' "$out" | grep -q '^not ok' && exit 1
-      printf '%s\n' "$out" | awk -F'[.][.]' '/^1\.\./{exit ($2+0>=7)?0:1}' || exit 1
+      printf '%s\n' "$out" | awk -F'[.][.]' '/^1\.\./{exit ($2+0>=9)?0:1}' || exit 1
   </verify>
   <done>
-    B9 组（16 例）与 B10 组（7 例）全绿；裸标题=放行且**证明无害**、`---`+标题+无标记=拒绝。对应 M36/M37/D14。
+    B9 组（16 例）与 B10 组（9 例）全绿；裸标题=放行且**证明无害**、`---`+标题+无标记=拒绝。对应 M36/M37/D14。
     **AC-4**（重写幂等 · 零残留）：本任务交付「写入后结构自检」（段数 ≤1 / 段尾=结束标记 / 段内围栏配平），
     由 `B10-*` 断言 —— 写入侧转义与段判据分别归 T05/T01，三者共同构成 AC-4 的完整证据链。
   </done>
-  <depends_on>T05,T11,T08</depends_on>
+  <depends_on>T03,T05,T11,T08</depends_on>
   <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 

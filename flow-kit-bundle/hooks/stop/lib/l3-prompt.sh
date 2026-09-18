@@ -297,7 +297,21 @@ _l3_extra_deliverables() {
     done | sort -n -k1,1 -k2,2 | cut -f2
   } | while IFS= read -r _b; do
     [ -n "$_b" ] || continue
-    printf '\n\n=== %s ===\n%s' "$_b" "$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_b}" 2>/dev/null || true)"
+    local _sz _head
+    # 可移植体积（评审 06:0x major：`stat -c%s` 是 GNU 专属，BSD/macOS 失败会静默回退 0）
+    _sz=$(wc -c < "${artifacts_dir}/${_b}" 2>/dev/null || echo 0); _sz=${_sz// /}
+    _head=$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_b}" 2>/dev/null || true)
+    if [ "${_sz:-0}" -gt 3000 ]; then
+      # ① **整行**截断：不要把一个命令切一半（评审 05:56 critical：截断处被读成"工件命令不完整"）
+      # `sed '$d'` 无条件丢掉最后一行（可能是半行）—— 比 `${_head%$'\n'*}` 更稳，
+      # 后者在"裁切点无尾随换行"时不会删掉不完整行（评审 06:1x minor）
+      _head=$(printf '%s' "$_head" | sed '$d')
+      printf '\n\n=== %s ===\n%s\n' "$_b" "$_head"
+      # ② 截断**必须留痕**（阶段 5 的 L3 04:42 critical 的根因：截断不留痕 → 被读成工件缺陷）
+      printf '……（本件 %sB 超过补充产物预算 3000B，已按整行截断；完整正文见 `%s`。\n本条是**提示词预算**产物，不构成工件缺陷；本件后续小节未出现在此处属预期。）' "$_sz" "${artifacts_dir}/${_b}"
+    else
+      printf '\n\n=== %s ===\n%s' "$_b" "$_head"
+    fi
   done
 }
 
@@ -444,12 +458,18 @@ _l3_build_prompt() {
 
   # 构造 prompt (jq --arg 避免工件中反引号/$ 被 shell 解释)
   # 固定指令（含 JSON 回复契约）置于工件之前：总输出按 max_bytes 截断时只切工件尾部，不切指令
-  local _full
+  local _full _art_file
+  # ⚠️ ARG_MAX（2026-09-19 05:0x：阶段 6 实测 `jq: 参数列表过长`）：单个 argv 上限
+  # MAX_ARG_STRLEN = 128 KiB，cap 已提到 200000B → 工件正文必须**落文件**后经 `--rawfile` 传入。
+  _art_file=$(mktemp "${TMPDIR:-/tmp}/fk-l3-artifact.XXXXXX") || {
+    echo "[l3-review] mktemp 失败：无法创建工件临时文件（TMPDIR=${TMPDIR:-/tmp}）" >&2; return 3; }
+  printf '%s' "$artifact" > "$_art_file"
   _full=$(jq -nr \
     --arg checklist "$checklist" \
     --arg phase "$phase" \
-    --arg artifact "$artifact" \
-    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。\n\n工件（阶段 " + $phase + "）：\n" + $artifact'
-  )
+    --rawfile artifact "$_art_file" \
+    '"你是独立审查员，对以下 flow-kit 工件做盲审。独立性要求：禁止假设作者意图，只看工件本身；不接受也不引用任何「作者认为/主 agent 结论」类外部陈述。\n\n审查重点：" + $checklist + "\n\n请严格按 JSON 回复，不要 markdown 代码块包裹：\n{\"critical\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"major\":[{\"file\":\"\",\"issue\":\"\",\"why\":\"\",\"fix\":\"\"}],\"minor\":[...],\"verdict\":\"pass 或 fail\",\"summary\":\"一句话总评\"}\ncritical/major/minor 每项含 file/issue/why/fix 四要素。无问题给空数组。verdict=fail 当且仅当存在 critical。\n若某工件正文标注「超过补充产物预算」或提示词被截断，那是**提示词预算**造成（整行截断），不要据此判缺陷；未出现的小节属预期。\n\n工件（阶段 " + $phase + "）：\n" + $artifact'
+  ) || { rm -f "$_art_file"; echo "[l3-review] jq 提示词构造失败（见上）" >&2; return 3; }
+  rm -f "$_art_file"
   _l3_emit_prompt "$_full" "$max_bytes"
 }

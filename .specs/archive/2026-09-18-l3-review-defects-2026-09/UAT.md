@@ -13,9 +13,10 @@
 make check
 # 预期：✅ make check: 全部通过
 
-# 2) 全量 bats（含本 change 的 86 例缺陷套件）
-npx bats test/ --formatter tap | awk '/^ok/{o++} /^not ok/{n++} END{printf "ok=%d not_ok=%d\n", o, n+0}'   # 判据：not_ok=0（ok 数随用例增长，不写死）
-# 预期：not_ok=0（ok 数随用例自然增长，**不硬编码**；判据只看 not_ok）
+# 2) 全量 bats（含本 change 的缺陷套件；**条数以命令输出为准，不写死**）
+# 判据：not_ok=0 **且 ok>0**（防空跑 —— bats 未运行/环境错误时空 stdout 会让两者都是 0，旧判据会误判通过；阶段 5 的 L3 06:0x major）
+npx bats test/ --formatter tap | awk '/^ok/{o++} /^not ok/{n++} END{printf "ok=%d not_ok=%d\n", o, n+0; exit (n==0 && o>0)?0:1}'
+# 预期：ok>0 且 not_ok=0（ok 数随用例自然增长，**不硬编码**）
 
 # 3) 副本一致性（7 个落点 × 四类树）
 ./sync-hooks.sh --check
@@ -28,7 +29,7 @@ bash verify-claims.sh | tail -3
 # 5) 语料现算
 bash corpus-count.sh
 # 预期：六个字段现算（数量随审查轮次自增）；**末位必须为 0**（零非枚举）。
-#   本次实测（2026-09-18）：228 102 133 133 11 0
+#   现场复算即输出六字段（数量随审查轮次自增）；最近一次（2026-09-19 05:0x）：234 108 139 139 8 0
 # 归因清单再生（AC-2 交付物，提交前必跑）：bash corpus-count.sh --attribution
 ```
 
@@ -61,14 +62,15 @@ bash -c "source $L2LIB 2>/dev/null; fk_extract_l2_verdict /tmp/uat-hist.md"
 # ④ PreToolUse 守卫：未转义的「--- + ## L3 …」贴入 → 拒绝（exit 2）
 bash -c 'source flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh 2>/dev/null;
   _gate_path_guard Write ".specs/x/INDEPENDENT-REVIEW-1.md" "" "$(printf -- "---\n\n## L3 盲审（m）\n")"'; echo "rc=$?"
-# 预期：stderr 打印 ⛔ L3 载荷守卫 …；rc=2
+# 预期：拒绝写入 —— rc=2 且 stderr 含 "L3 载荷守卫"（阶段 6 的 L3 曾把本行读成 `预期：s`，
+#   疑为提示词侧对非 ASCII 装饰符的截断；故预期文本一律用 ASCII 关键字表述）
 # （写法要点：`_gate_path_guard` 里是 `return 2` 且守卫信息走 stderr —— 把 `echo rc=$?` 放在**外层**
 #   才能拿到 2；写在同一条 bash -c 内时 `return 2` 会终止该子 shell，echo 不执行 —— 阶段 7 的 L2 实测）
 
 # ⑤ 同一载荷经转义后 → 放行（rc=0）
 bash -c 'source flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh 2>/dev/null;
   _gate_path_guard Write ".specs/x/INDEPENDENT-REVIEW-1.md" "" "$(printf -- "\\\\## L3 盲审（m）\n")"; echo "rc=$?"'
-# 预期：rc=0（已转义引用形态放行）
+# 预期：rc=0（已转义引用形态放行；**无签名**才是安全引用）
 # 写法要点：`echo rc=$?` 必须在**外层** —— `_gate_path_guard` 内是 `return 2`，写在同一 `bash -c` 里时子 shell 直接返回、echo 不执行（阶段 5/7 的 L2 都实测到）
 # 预期：rc=0
 ```
@@ -117,7 +119,7 @@ grep -rn 'max_artifact_chars' README.md dsh-flow-kit/README.md .claude/l3.env.ex
 # 注意：载体是仓库根的 `.claude/l3.env.example`（原文写的 flow-kit-bundle/flow-kit/l3.env.example 不存在 —— 阶段 7 L2 实测）；加 `|| true` 防 grep rc=2 被 head 掩盖
 # 预期：出现过（文档写明旧键仍读取 + DEPRECATED 提示）
 npx bats test/test_l3_review_defects_2026_09.bats -f "B3-"
-# 预期：8 ok / 0 not ok
+# 预期：7 ok / 0 not ok（B3 组实测 `^B3-` = 7）
 ```
 
 ---
@@ -126,7 +128,7 @@ npx bats test/test_l3_review_defects_2026_09.bats -f "B3-"
 
 | UAT | 执行人 | 时间 | 结果 | 备注 |
 | --- | --- | --- | --- | --- |
-| UAT-1 冒烟 | 主 agent | 2026-09-18 | ✅ | `make check` 全绿；912 ok / 0 not ok；漂移 0；13/13；语料末位 0 |
+| UAT-1 冒烟 | 主 agent | 2026-09-19 | ✅ | `make check` 全绿；**945 ok / 0 not ok**（快照 2026-09-19 06:4x）；漂移 0；13/13；语料末位（非枚举）=0（早先 2026-09-18 一轮为 912、09-19 04:2x 为 935、05:0x 为 938） |
 | UAT-2 对抗 | 主 agent | 2026-09-18 | ✅ | ①fail ②空 ③fail ④rc=2 ⑤rc=0（本 change 的 bats B1/B2/B9 为等价自动化断言） |
 | UAT-3 自检/漂移 | 主 agent | 2026-09-18 | ✅ | B10-R1..R5 + B5-R5 自动化等价 |
-| UAT-4 配置兼容 | 主 agent | 2026-09-18 | ✅ | B3 组 8/8 |
+| UAT-4 配置兼容 | 主 agent | 2026-09-19 | ✅ | B3 组 **7/7**（实测 `^B3-` = 7；早先写的 8/8 把不存在的 `B3-R5b` 也算了一条） |

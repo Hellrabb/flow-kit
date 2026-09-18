@@ -93,26 +93,26 @@ _l3_call_api() {
   echo "[l3-review] credential source: ${credential_source}" >&2
   echo "[l3-review] using max_tokens=$max_tokens timeout=$timeout thinking=$thinking" >&2
 
-  # 请求体构造（DESIGN §2.3）：thinking=disabled 时加 thinking:{type:disabled} 字段
-  # 用 jq -nc 条件构造（D4：jq 而非字符串拼接，防 JSON 注入；-c compact 输出，省字节 + 易测试匹配）
-  local req_body
-  if [[ "$thinking" == "disabled" ]]; then
-    req_body=$(jq -nc --arg m "$model" --arg p "$prompt_text" --argjson mt "$max_tokens" \
-      '{model:$m, max_tokens:$mt, thinking:{type:"disabled"}, messages:[{role:"user", content:$p}]}')
-  else
-    req_body=$(jq -nc --arg m "$model" --arg p "$prompt_text" --argjson mt "$max_tokens" \
-      '{model:$m, max_tokens:$mt, messages:[{role:"user", content:$p}]}')
-  fi
+  # 请求体构造（DESIGN §2.3）：jq -nc 条件构造（D4：防 JSON 注入；-c compact 省字节 + 易测试匹配）
+  # ARG_MAX（05:0x 实测 `jq: 参数列表过长`）：单 argv 上限 128 KiB < cap → 提示词 `--rawfile`、请求体 stdin
+  local req_body _pt_file
+  _pt_file=$(mktemp "${TMPDIR:-/tmp}/fk-l3-prompt.XXXXXX") || { echo "[l3-review] mktemp 失败" >&2; return 3; }
+  printf '%s' "$prompt_text" > "$_pt_file"
+  req_body=$(jq -nc --arg m "$model" --rawfile p "$_pt_file" --argjson mt "$max_tokens" --arg th "$thinking" \
+    '{model:$m,max_tokens:$mt}+(if $th=="disabled" then {thinking:{type:"disabled"}} else {} end)+{messages:[{role:"user",content:$p}]}') || {
+    rm -f "$_pt_file"; echo "[l3-review] jq 请求体构造失败（见上）" >&2; return 3; }
+  rm -f "$_pt_file"
 
   # 统一 curl（DESIGN D1：按 scheme 选 header；端点即 FK_API_BASE_URL，无需硬编码区分 Path1/2）
   local _auth_header="Authorization: Bearer ${api_auth_token}"
   if [ "$api_scheme" = "x-api-key" ]; then
     _auth_header="x-api-key: ${api_auth_token}"
   fi
-  ai_response=$(curl -s -w '\n%{http_code}' --max-time "$timeout" "${api_base_url}/v1/messages" \
+  # 请求体走 stdin（`--data-binary @-`），不再作为 argv
+  ai_response=$(printf '%s' "$req_body" | curl -s -w '\n%{http_code}' --max-time "$timeout" "${api_base_url}/v1/messages" \
     -H "$_auth_header" \
     -H "Content-Type: application/json" \
-    -d "$req_body" 2>/dev/null || true)
+    --data-binary @- 2>/dev/null || true)
   local _http_code
   _http_code=$(echo "$ai_response" | tail -1)
   ai_response=$(echo "$ai_response" | sed '$d')
