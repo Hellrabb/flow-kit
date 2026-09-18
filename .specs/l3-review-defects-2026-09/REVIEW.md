@@ -128,7 +128,7 @@
 | **Minor** | 42 项登记 `MINOR-DEFERRED.md`（M1–M42），按 ADR-017 不进 fix loop |
 | **门禁（2026-09-18 21:0x 实测）** | `make check` 五门全绿；`npx bats test/` **926 ok / 0 not ok**；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13 |
 | **遗留** | M38（哨兵化转义）、M7/M8（历史兼容路径）、M17（外部写盘通道的兜底依赖 Stop 侧自检） |
-| **Toll-gate 6→7**（21:5x 复核） | ⛔ **暂不放行（pending）** —— 阶段 1/5/7 = pass（锚点齐）；**阶段 2 = fail、阶段 3 = fail、阶段 6 = fail**。三者的 critical 已逐条处置：① 阶段 2/6 同源的「判据表述矛盾」→ DESIGN 全量统一（`grep -c '其后再无' DESIGN.md` = 0）；② 阶段 2 的「转义未落签名」→ 贴入示例补签名行 + D13 配套；③ 阶段 3 的依赖图 → M45 重排（波次 + `verify_depends_on` + 命令层过滤）。对应轮次见 `INDEPENDENT-REVIEW-{2,3,6}.md` 末段；未 pass 前不放行。 |
+| **Toll-gate 6→7**（22:3x 复核） | ⛔ **暂不放行（pending）** —— 1/5/7 = pass（锚点齐）；2/3/6 = fail，其 critical 均已逐条处置：① 2/6 同源的「DESIGN 判据表述矛盾」→ 全量统一（`grep -c '其后再无' DESIGN.md` = 0）；② 阶段 2 的「自检缺签名一致性判据」→ **已真修**（第 ④ 条判据 + `B10-R9`）；③ 阶段 2 的「守卫须验证来源」→ M46（内容层无法证明来源，属评审翻转）；④ 阶段 3 的依赖图 → `verify_phase=final` 建模（W1..W7 严格拓扑）。未 pass 前不放行。 |
 
 ### 诚实性声明（本报告的自查）
 

@@ -1376,21 +1376,30 @@ _phase7_prompt() {
 
 @test "B8-R3: 转义是**单射**：原文自带反斜杠与写侧转义可区分（M38 的闭合断言）" {
   # 旧实现下 `\## X`（原文自带）与写侧转义出的 `\## X` 编码相同 → 还原时前者被误改成 `## X`。
-  run bash -c "source '$L3_SECTION_LIB'; source '$L2_LIB' 2>/dev/null
-    payload=\$(printf '%s\\n' '\\## 原文自带' '## 写侧结构行' '\\\\## 双层原文')
-    enc=\$(_l3_escape_payload \"\$payload\")
-    dec=\$(printf '%s\\n' \"\$enc\" | _l2_unescape_payload)
-    [ \"\$dec\" = \"\$payload\" ] && echo ROUNDTRIP_OK || { echo MISMATCH; printf '%s\\n' \"\$dec\"; }"
-  [[ "$output" == *"ROUNDTRIP_OK"* ]]
+  # 走**真实路径**（文件 + `_fk_l2_scope` + 段级门控解码），与 B8-R6 同构。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"; local f="$d/IR.md"
+  bash -c "source '$L3_SECTION_LIB'
+    { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''
+      printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\"
+      _l3_escape_payload \"\$(printf '%s\\n' '\\\\## 原文自带' '## 写侧结构行' '\\\\\\\\## 双层原文')\"
+      echo ''; echo '**Verdict**: fail'; } > '$f'"
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -c '^\\\\\\\\## 原文自带$'"
+  [ "${output//[$'\n']/}" = "1" ]
 }
 
 @test "B8-R4: 往返覆盖 5 类行首（结构标题 / 围栏 / 标记 / 单反斜杠 / 普通行）" {
-  run bash -c "source '$L3_SECTION_LIB'; source '$L2_LIB' 2>/dev/null
-    payload=\$(printf '%s\\n' '## Verdict' 'pass' '\`\`\`' '<!-- /L3-SECTION -->' '\\## 原文' '普通行')
-    enc=\$(_l3_escape_payload \"\$payload\")
-    dec=\$(printf '%s\\n' \"\$enc\" | _l2_unescape_payload)
-    [ \"\$dec\" = \"\$payload\" ] && echo ALL5_OK || echo MISMATCH"
-  [[ "$output" == *"ALL5_OK"* ]]
+  local d="$TEST_TMP/chg"; mkdir -p "$d"; local f="$d/IR.md"
+  bash -c "source '$L3_SECTION_LIB'
+    { echo ''; echo '---'; echo ''; echo '## L2 盲审'; echo ''
+      printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\"
+      _l3_escape_payload \"\$(printf '%s\\n' '## Verdict' 'pass' '\`\`\`' '<!-- /L3-SECTION -->' '普通行')\"
+      echo ''; echo '**Verdict**: fail'; } > '$f'"
+  # 逐类断言：解码后应恢复原文形态（结构标题 / 围栏 / 标记各 1 行，且原样的普通行仍在）
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload"
+  [[ "$output" == *"## Verdict"* ]]
+  [[ "$output" == *'```'* ]]
+  [[ "$output" == *"<!-- /L3-SECTION -->"* ]]
+  [[ "$output" == *"普通行"* ]]
 }
 
 @test "B8-R5: 编码确实改变了落盘形态（防'往返恒真'：编码后必须与原文不同）" {
@@ -1426,4 +1435,17 @@ _phase7_prompt() {
   run bash -c "source '$L3_DONE_LIB' 2>/dev/null
     _l3_write_done 3 cid pass 'summary' pass '$d' both >/dev/null 2>&1; echo rc=\$?"
   [[ "$output" == *"rc=0"* ]]
+}
+
+@test "B10-R9: 有转义块却缺编码签名 → 自检报错（M47 · 转义不会被还原）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  # 有转义块 + 无签名 → 应报错
+  printf -- '---\n\n## L2 盲审\n\n\\## 被转义的行\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/bad.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/bad.md'"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"缺编码签名"* ]]
+  # 补上签名 → 通过
+  printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n\n\\## 被转义的行\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/ok.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/ok.md'"
+  [ "$status" -eq 0 ]
 }
