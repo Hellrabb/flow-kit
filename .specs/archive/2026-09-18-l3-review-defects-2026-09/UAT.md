@@ -68,6 +68,8 @@ bash -c 'source flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh 2>/dev/null;
 # ⑤ 同一载荷经转义后 → 放行（rc=0）
 bash -c 'source flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh 2>/dev/null;
   _gate_path_guard Write ".specs/x/INDEPENDENT-REVIEW-1.md" "" "$(printf -- "\\\\## L3 盲审（m）\n")"; echo "rc=$?"'
+# 预期：rc=0（已转义引用形态放行）
+# 写法要点：`echo rc=$?` 必须在**外层** —— `_gate_path_guard` 内是 `return 2`，写在同一 `bash -c` 里时子 shell 直接返回、echo 不执行（阶段 5/7 的 L2 都实测到）
 # 预期：rc=0
 ```
 

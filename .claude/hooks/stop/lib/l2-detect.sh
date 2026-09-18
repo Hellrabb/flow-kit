@@ -110,10 +110,17 @@ _fk_l2_scope() {
 # 安全性：还原只作用于已排除 L3 段与 `## 主 agent` 段之后的文本；段边界判定用的是**原始**
 # 文本（`_l3_section_spans`），故还原不会重新引入边界。
 _l2_unescape_payload() {
-  sed -e 's/^\\## /## /' \
-      -e 's/^\\<!-- \/L3-SECTION -->/<!-- \/L3-SECTION -->/' \
-      -e 's/^\\```/```/'
+  # 单趟解码（M38 · 2026-09-18）：**先判两个反斜杠，再判一个反斜杠**，顺序即优先级 ——
+  # 多趟 sed 会互相干扰（去掉一个后再被当成"写侧转义"吃第二次）。
+  # 语义：`\\X`（两个）→ `\X`（原文自带）；`\`+结构行首 → 结构行首（写侧转义）；其余原样。
+  awk '
+    /^\\\\/ { print substr($0, 2); next }
+    /^\\(## |<!-- \/L3-SECTION -->|```)/ { print substr($0, 2); next }
+    { print }
+  '
 }
+
+
 
 # fk_extract_l2_verdict — extract L2 verdict from INDEPENDENT-REVIEW-N.md（ADR-007 / D1 · gate-review-fix）
 # Single source for L2 verdict extraction across 4 consumers (4 files).

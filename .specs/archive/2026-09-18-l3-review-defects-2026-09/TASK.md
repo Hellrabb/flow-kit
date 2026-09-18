@@ -19,6 +19,16 @@ Wave 5:            T10                                        （←T01..T09,T11
 ```
 
 > 同 wave = 可并行；跨 wave = 必须顺序执行。
+>
+> **补档语义（阶段 3 的 L3 20:46 三条 critical 的处置）**：本 change 是**回溯补档** —— 回归套件
+> `test/test_l3_review_defects_2026_09.bats`（T08 的产物）与各实现任务是**同批co-develop**的，
+> 因此 T01–T05/T07/T11/T12 的 verify 都引用该文件，却不 `depends_on` T08。这不是波次错误，而是
+> **verify 的语义不同**：它们是**回溯复验命令**（执行时全部产物已存在），不是"按波次推进时的门禁"。
+> 若要在新项目里按同一张表真实推进，需要把 T08 拆成「骨架（Wave 1，与 T01 同波次创建文件）+
+> 补齐（Wave 3）」两步 —— 已在 T08 的 action 中注明。
+>
+> **T01 的 verify 只跑本任务可判定的用例**：B2 组含 R8/R14/R15/R16（写侧接线，属 T05），
+> 故 T01 的验收范围显式限定为 `B2-R1..R4 / R6 / R7 / R9..R13 / R17..R19`（见该任务 verify 内注释）。
 > **不变量（依阶段 3 的 L2 盲审 major：原表把 T09/T10 同列一个 [P] 波次，却又有 T10←T09 依赖）**：
 > 同一波次内任意两个任务的 `depends_on` **不得**相交。复验：
 > `awk '/^<task id=/{id=$2} /<depends_on>/{…}' TASK.md`（或用下表人工核对）。
@@ -78,8 +88,9 @@ Wave 5:            T10                                        （←T01..T09,T11
   </read_files>
   <write_files>
     flow-kit-bundle/hooks/stop/lib/l2-detect.sh
-    .specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md
   </write_files>
+  <!-- AC-2 的交付物 L2-EMPTY-ATTRIBUTION.md 的**生产者是 T09**（corpus-count.sh --attribution），
+       本任务只消费它；阶段 3 的 L3 20:46 指出原表把它错列在本任务下 -->
   <action>
     重写 fk_extract_l2_verdict：先用 _fk_l2_scope 得「L2 层」文本（排除 L3 段区间 —— 区间来自
     _l3_section_spans，不得自行按 `^## ` 复位；排除 `^## 主 agent` 段），再做三层提取
@@ -243,6 +254,7 @@ Wave 5:            T10                                        （←T01..T09,T11
   </write_files>
   <action>
     按缺陷编号分组（B1/B2/B3/B4/B5 + B6=M32 + B7=M34 + B8=D13 + B9=M36/M37 拦截 + B10=M37 写入后自检 + AC2），
+    补档说明：本套件与实现同批 co-develop，若按波次真实推进应先落**骨架**（Wave 1）再补齐（Wave 3）。
     每条断言可独立运行；关键断言配**变异自证**
     （`B2-R16` / `B5-R4` / `B6-R5` / `B1-R27`：把实现改坏，断言必须失败），避免恒真断言。
   </action>
@@ -268,6 +280,7 @@ Wave 5:            T10                                        （←T01..T09,T11
     verify-claims.sh
     corpus-count.sh
     Makefile
+    .specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md
   </write_files>
   <action>
     把响应段里的可验证声明做成机械复验：载体**动态枚举**（读 `sync-hooks.sh --list`，不写死路径/数量）、

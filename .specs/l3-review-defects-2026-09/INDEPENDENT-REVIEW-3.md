@@ -1,97 +1,6 @@
 
 ---
 
-## L3 盲审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 19:47）
-
-> 自动生成于 2026-09-18 19:47。由 l3-review.sh 写入。
-
-### 审查结论
-
-```json
-{
-  "critical": [
-    {
-      "file": "TASK.md (任务清单)",
-      "issue": "M32（l3_invalidate_done 撤销陈旧锚点）与 M36/M37（PreToolUse 载荷守卫）的实现无任何任务覆盖",
-      "why": "PROGRESS.md 将 M32/M36/M37 列为本次会话修复，DEV-SUMMARY.md 显示实际改动位于 l3-done.sh、l3-review.sh、pre-tool-use/gate-helpers-types.sh、pre-tool-use/gate-helpers.sh、pre-tool-use/independent-review-gate.sh；但 T01-T10 的 write_files 只覆盖 l3-section/l2-detect/l3-api/l3-truncate/l3-prompt/prompts/sync-hooks/verify/测试/文档，未包含上述文件，任务拆解不完整，相关 AC 无法落实",
-      "fix": "新增任务或将 T05/T07/T10 扩展，将这些文件修改纳入 write_files，并配置对应 verify 与变异自证用例"
-    },
-    {
-      "file": "TASK.md (AC-2 交付物)",
-      "issue": "L2-EMPTY-ATTRIBUTION.md 被标注为 AC-2 交付物，但没有任何任务的 write_files 包含它",
-      "why": "T02 只写 l2-detect.sh，T09 只写 corpus-count.sh，均未生成或更新该清单；AC-2 的交付物在任务拆解中缺失，无法保证其内容与当前实现一致",
-      "fix": "在 T02 或 T09 增加 write_files: L2-EMPTY-ATTRIBUTION.md，并加 verify 断言其 8 条空值归因均来自当前实现复算"
-    }
-  ],
-  "major": [
-    {
-      "file": "TASK.md (波次划分)",
-      "issue": "Wave 4 标注 T09[P] T10 parallel，但 T10 depends_on 包含 T09，二者不能并行",
-      "why": "同 wave 可并行与 depends_on 顺序矛盾，若按波次执行可能使 T10 在 T09 未完成时启动，破坏依赖",
-      "fix": "将 T10 移到 Wave 5，或从 Wave 4 parallel 列表中移除，保持串行"
-    },
-    {
-      "file": "T01/T02/T03/T04/T05 verify",
-      "issue": "这些任务的 verify 均引用 test/test_l3_review_defects_2026_09.bats，但该文件由 T08 才创建",
-      "why": "在按波次执行的真实任务流中，T01-T05 执行时测试文件不存在，verify 无法运行；虽回溯补档使当前文件已存在，但任务编排未体现该依赖",
-      "fix": "要么将 T01-T05 的 verify 改为依赖已存在的基础测试，要么将 T08 提前并加入 depends_on，或明确声明该测试文件为 pre-existing"
-    },
-    {
-      "file": "T04 verify",
-      "issue": "verify 仅运行 -f 'B4-'，但 done 声明 B4 与 B7 全绿，且 action 涉及阶段 7 提示词全量清单",
-      "why": "B7 相关断言未在 verify 中覆盖，无法证伪 B7 部分（如 INTEGRATION.md 不再凭空 MISSING）",
-      "fix": "将 verify 改为 npx bats ... -f 'B4-' -f 'B7-' 或直接跑全量 B4/B7 组"
-    },
-    {
-      "file": "T05 verify",
-      "issue": "verify 仅运行 -f 'B2-R8'，但 action 修改 l3-api.sh、l2-detect.sh、L2-blind-review.md 三处，done 声明 B2-R5/R8/R9/R10/R14/R15/R16 全绿",
-      "why": "单条 R8 不能覆盖转义契约、fail-closed 等其余断言，verify 覆盖严重不足",
-      "fix": "扩展 verify 为 -f 'B2-R5' -f 'B2-R8' -f 'B2-R9' -f 'B2-R10' -f 'B2-R14' -f 'B2-R15' -f 'B2-R16'，或跑完整 B2 组"
-    },
-    {
-      "file": "T08 verify",
-      "issue": "verify 只跑 npx bats test/test_l3_review_defects_2026_09.bats，未检查 flow-kit-bundle/test/ 双源一致",
-      "why": "write_files 包含双源两个测试文件，done 也声称 make check-test-sync 双源一致，但 verify 不含该检查，不能证伪双源漂移",
-      "fix": "在 verify 中加入 make check-test-sync"
-    },
-    {
-      "file": "T03 write_files 与边界表",
-      "issue": "write_files 包含 .flow-kit/stop-hook.json，但 R6.5 边界表未将其列入 T03 变更；action 又将其 cap 提升推到 T10，而 T10 也写同一文件",
-      "why": "T03 的 write_files、action、边界表三者不一致，造成职责重叠与边界不清晰",
-      "fix": "将 .flow-kit/stop-hook.json 从 T03 write_files 移除，保留在 T10；或在边界表中明确登记并说明与 T10 的交接"
-    }
-  ],
-  "minor": [
-    {
-      "file": "T03 verify",
-      "issue": "done 声明 B3-R5b（第五处载体）与 B3-R7/R8 等，但 verify 仅 -f 'B3-'，未明确列出覆盖全部 B3 断言",
-      "why": "前缀匹配可能覆盖，但若 B3 组内存在不以 B3- 开头的用例则可能漏跑",
-      "fix": "将 verify 保持 -f 'B3-'，并在 done 中明确列出覆盖的 R 编号以供核对"
-    },
-    {
-      "file": "T01 verify",
-      "issue": "done 声明 AC-4/AC-5 及转义契约，verify 仅 -f 'B2-'，未确认是否覆盖 B2 全组",
-      "why": "前缀匹配一般可行，但未在任务中显式说明覆盖范围",
-      "fix": "在 verify 后加注释或 done 中列出 B2 组用例范围，避免歧义"
-    },
-    {
-      "file": "T06/T09 Makefile 双写",
-      "issue": "T06 与 T09 都 write_files 含 Makefile，且无显式 depends_on T09→T06（仅传递依赖）",
-      "why": "传递依赖可保证顺序，但同文件被两个任务修改未在 write_files 边界说明合并方式，易产生编辑冲突",
-      "fix": "在 T09 的 read_files 增加 Makefile，并注明基于 T06 版本修改"
-    }
-  ],
-  "verdict": "fail",
-  "summary": "任务拆解存在关键缺漏（M32/M36/M37 实现、AC-2 交付物无对应任务），且多处 verify 覆盖不足、波次依赖矛盾，不能通过盲审。"
-}
-```
-
-L3_artifact_hash: 4a1691aac1254860d60597634162650500b890df66782fee9b33db9cfc2dd5de
-
-<!-- /L3-SECTION -->
-
----
-
 ## 主 agent 响应（阶段 3 L2 盲审 · 2026-09-18）
 
 > 派发方式：`workflow` 的 `agent()`（**全新上下文**，不继承作者会话）；只读审查 + 自行落盘 JSON。
@@ -233,3 +142,19 @@ L3_artifact_hash: 4a1691aac1254860d60597634162650500b890df66782fee9b33db9cfc2dd5
 **Verdict**: fail
 
 （依据：TASK.md 的 verify 契约整体不成立（T07 的 make check-structure 目标不存在 rc=2；T08 的套件与 T09/T10 的 verify-claims 在 HEAD=49be722 实测 rc=1，AC2 用例现场扫描活的 .specs/ 被本 change 自己的审查件打红），write_files 漏列 12 个实际被改文件（pre-tool-use/**、l3-done.sh、l3-review.sh、correction-file.sh、agent 与既有 bats）且 R6.5 第 301 行的边界自述被 diff 证伪，另有波次与依赖互相矛盾、过滤式 verify 恒真（1..0 rc=0）、禁动清单未申报、T08 粒度 1361 行/98 用例等；作者声明（DEV-SUMMARY：86 条用例、48 files/8067 insertions、13✅rc=0）与我的实测（98 条、54 files/9318 insertions、11✅2❌）均不符——以上均为我独立跑出的结果，DEV-SUMMARY/DESIGN 只作为待复核声明使用。）
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-18 20:55）
+
+> 自动生成于 2026-09-18 20:55。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{"critical":[{"file":"TASK.md (T01,T02,T03,T04,T05,T11,T12,T13 verify)","issue":"多个任务的 verify 引用 test/test_l3_review_defects_2026_09.bats，但该文件由 T08 创建，而这些任务均不 depends_on T08。","why":"按依赖顺序执行时这些 verify 在 T08 之前不可运行；verify 依赖未声明产物，任务间边界不成立，无法作为独立门禁。","fix":"将 T08 的测试骨架前置（或拆分 T08 为骨架+补齐），并在相关任务 depends_on 中加入骨架；或将这些 verify 改为不依赖该文件的局部检查。"},{"file":"TASK.md (T01 verify)","issue":"T01 verify 命令 `npx bats ... -f \"B2-\"` 会运行整个 B2 组，其中含 T05 的写侧接线用例（R8/R14/R15/R16），而 T01 不依赖 T05。","why":"T01 单独验收会因 T05 未实现而失败，导致 verify 不能证伪 T01 自身；也违反任务边界。","fix":"限定 T01 verify 只运行本任务可判定的用例（显式列出编号），或重新设计波次使 T01 不依赖 T05 的测试。"},{"file":"TASK.md (T04,T05,T12 verify)","issue":"verify 命令与 done 声明范围不一致：T04 verify 只跑 B4- 但 done 声明 B7 组；T05 verify 只跑 B2-R8 但 done 声明 R5/R9/R10/R14/R15/R16；T12 verify 只跑 B9- 但 done 声明 B10 组。","why":"verify 未覆盖完成标准中的关键断言，无法对相关 AC/M 项进行证伪。","fix":"将 T04 的 verify 加入 B7-，T05 加入 B2-R5/R9/R10/R14/R15/R16，T12 加入 B10-，或在 done 中明确这些断言归属其他任务。"},{"file":"TASK.md (波次表 vs depends_on 元数据)","issue":"波次表声明 T08 依赖 T01..T07,T11,T12、T10 依赖 T01..T09,T11,T12,T13，但任务元数据中 T08 只有 T01..T07、T10 只有 T01..T09。","why":"同一份 TASK 内依赖关系有两个版本，执行计划不确定；若按波次表，T08 依赖 T11/T12，而 T11/T12 的 verify 又依赖 T08，存在循环/未定义顺序。","fix":"统一依赖声明，删除波次表中未在元数据中体现的依赖，或反向补充；并确保 T11/T12 的 verify 不依赖 T08 产物。"}],"major":[{"file":"TASK.md (T09 write_files)","issue":"T09 同时 write_files corpus-count.sh 与 L2-EMPTY-ATTRIBUTION.md，而后者声明由 corpus-count.sh --attribution 机械再生。","why":"write_files 将生成产物作为手写交付物列出，verify-claims.sh 未校验该文件与脚本输出一致，存在快照过期风险，也使任务边界不清。","fix":"将 L2-EMPTY-ATTRIBUTION.md 改为 generated 产物并在 verify 中执行 corpus-count.sh --attribution 比对，或明确该文件由 T09 手工生成并纳入校验。"},{"file":"TASK.md (T03/T10, T06/T09 write_files)","issue":".flow-kit/stop-hook.json 同时被 T03 和 T10 写入，Makefile 同时被 T06 和 T09 写入，但未标注各自改动范围。","why":"同一文件多任务 write_files 而未明确增量时，评审无法判断边界是否越界，也容易出现覆盖冲突。","fix":"在任务描述中注明对共享文件的具体变动（如 T03 改键名、T10 改 cap；T06 加 hooks-sync 目标、T09 加 verify-claims 目标）。"},{"file":"TASK.md (T12 write_files 与禁动清单)","issue":"T12 的 write_files 包含 pre-tool-use/independent-review-gate.sh，而 R6.5 禁动清单声明该校验顺序不可改，T12 声称仅新增 content 透传。","why":"该文件属于禁动项，write_files 直接列出可能被理解为允许整体重写，边界不清。","fix":"将 T12 对该文件的改动描述为精确追加/修改（如 diff 范围），并在 write_files 中注明禁动约束。"}],"minor":[{"file":"TASK.md (T08 write_files)","issue":"T08 同时写 test/test_l3_review_defects_2026_09.bats 和 flow-kit-bundle/test/test_l3_review_defects_2026_09.bats，但 verify make check 未显式断言双源一致。","why":"双份副本若不同步，make check 可能只测一份，另一份过期不可知。","fix":"在 make check 或 T08 verify 中增加双源 diff 断言（如 cmp）。"},{"file":"TASK.md (T01 verify 注释)","issue":"T01 verify 命令后注释声明“验收范围以注释为准”，但命令本身是硬编码的全组 -f \"B2-\"，注释不改变行为。","why":"注释不具备约束力，验证者执行命令时仍会运行跨任务用例。","fix":"将注释限定转换为实际命令参数（按编号列白名单），或使用 bats 标签选择器。"}],"verdict":"fail","summary":"TASK 的 verify 与 depends_on 存在多处系统性缺陷：多个任务引用未依赖的 T08 测试文件、T01 跨组运行 T05 用例、若干任务 verify 未覆盖完成声明，且波次表与元数据依赖不一致，导致任务拆解不可独立验证和推进。"}
+```
+
+L3_artifact_hash: ee0fc80429aae7407664ca781b345f4f870d684e382276186a3537a2ed88b46a
+
+<!-- /L3-SECTION -->

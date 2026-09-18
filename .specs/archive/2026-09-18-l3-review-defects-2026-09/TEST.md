@@ -175,7 +175,7 @@ $ bash -c 'source lib/l2-detect.sh; fk_extract_l2_verdict /tmp/c1-adv.md'      #
 fail
 $ bash -c 'source lib/l2-detect.sh; fk_extract_l2_verdict /tmp/c2-only-l3.md'  # 仅含 L3 段
 （空）
-$ source pre-tool-use/gate-helpers.sh; _gate_is_unescaped_l3_paste "$fake"; echo $?
+$ source pre-tool-use/gate-helpers.sh; _gate_is_unescaped_l3_paste "$(printf -- '---\n\n## L3 盲审（m）\n')"; echo $?
 0        # 命中 → 调用方 exit 2
 ```
 
