@@ -58,7 +58,7 @@ is_gh_pr_create() {
 
 # ══ _run_review_gates() · 编排器（≤40 行 · DESIGN D2）════
 _run_review_gates() {
-  local tool_name="$1" file_path="$2" cmd="$3" cwd="$4" content="${5:-}"
+  local tool_name="$1" file_path="$2" cmd="$3" cwd="$4" content="${5:-}" old_str="${6:-}"
 
   local flow_file="${cwd}/.flow-active"
   [ -f "$flow_file" ] || exit 0
@@ -73,7 +73,7 @@ _run_review_gates() {
   export PROJECT_ROOT
 
   # Gate 1: path-guard (D7 · fail-open)
-  _gate_path_guard "$tool_name" "$file_path" "$cmd" "$content" || exit 2
+  _gate_path_guard "$tool_name" "$file_path" "$cmd" "$content" "$old_str" || exit 2
 
   # Gate 2: phase filter → extract phase + change_id
   # _gate_phase_filter 语义：return 0=skip(非review phase/无效change_id)，return 1=continue
@@ -123,6 +123,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   file_path=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
   # Write 的 content / Edit 的 new_string —— 供 ADR-026 载荷守卫检查（缺省空串 → 不拦截）
   content=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.new_string // ""' 2>/dev/null || echo "")
+  # Edit 的 old_string —— 供守卫把 old→new 合成到现有内容上（major 2）
+  old_str=$(echo "$INPUT" | jq -r '.tool_input.old_string // ""' 2>/dev/null || echo "")
 
-  _run_review_gates "$tool_name" "$file_path" "$cmd" "$cwd" "$content"
+  _run_review_gates "$tool_name" "$file_path" "$cmd" "$cwd" "$content" "$old_str"
 fi

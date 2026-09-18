@@ -151,6 +151,11 @@ _l3_extract_prior_findings() {
           ;;
       esac
     fi
+  # 读侧消费者 #2（阶段 2 的 L3 23:46 major③）：本函数**直接消费原始文本**（不做还原）。
+  # 为什么可以：它的键控是 ```` ```json ```` 围栏 + `"critical"` 等 JSON 键，而转义只作用于
+  # **行首**的结构信号；被转义的围栏行会退化为普通行，最坏情况是该段 JSON 不被识别（**少提取**
+  # 前轮发现，而非错提取）。补还原会改变 `_l3_inject_context` 的配额语料（实测使
+  # `test_l3_pipeline_fix.bats` 的 T03/T05fix 两组配额断言失败），收益/风险不成比例 → 登记 M49。
   done < "$review_md"
   local l trimmed final=""
   while IFS= read -r l; do

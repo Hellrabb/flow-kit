@@ -105,8 +105,9 @@ if [ "$MODE" = "attribution" ]; then
 $(printf '%s\n' "$verdicts" | grep '^EMPTY')
 EOF
     echo
-    echo "**归因结论**：本清单覆盖全部空值（行数 = \`corpus-count.sh\` 的 \`empty\` 字段），"
-    echo "每行四字段均来自现场复算；非枚举恒为 0（第 6 个字段）。"
+    echo "**归因结论**：本清单覆盖全部空值（**表格行数 = corpus-count.sh 的 empty 字段**，即第 5 个字段），"
+    echo "每行 4 个数据列（相对路径 / 旧实现取值 / 旧值来源段 / L2 段内锚定 verdict 行数）均来自现场复算；"
+    echo "**非枚举数恒为 0**（输出六字段，第 6 个 = 非枚举）。"
   } > "$out"
   echo "[corpus-count] 已再生归因清单: $out（$i 行）" >&2
 fi

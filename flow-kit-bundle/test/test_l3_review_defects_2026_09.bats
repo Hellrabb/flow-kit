@@ -1474,3 +1474,41 @@ _phase7_prompt() {
   [ "$status" -eq 0 ]
   diff <(printf '%s\n' "$output") "$d/want.md"
 }
+
+@test "B8-R7: 单射性对**任意个**行首反斜杠成立（n=1..3 往返一致 · 关掉 M44 的编码半）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  for n in 1 2 3; do
+    local bs; bs=$(printf '\\%.0s' $(seq 1 "$n"))
+    printf -- '%s## 标题\n普通行\n' "$bs" > "$d/in$n.md"
+    printf -- '%s\n' "$(cat "$d/in$n.md")" > "$d/enc$n.md"
+    run bash -c "source '$L3_SECTION_LIB'; _l3_escape_payload \"\$(cat '$d/in$n.md')\" > '$d/e.md'; printf '%s\\n' \"\$L3_PAYLOAD_ENCODED_MARK\" > '$d/s.md'; cat '$d/s.md' '$d/e.md' | '$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh' 2>/dev/null; source '$FK_ROOT/flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh' 2>/dev/null; cat '$d/s.md' '$d/e.md' | _gate_l3_decode_payload | sed '1d'"
+    diff <(printf '%s\n' "$output") "$d/in$n.md" || { echo "n=$n 往返不一致"; false; }
+  done
+}
+
+@test "B9-R16: Edit 组合绕过被拦（文件已有 '---'，片段只插入标题行）" {
+  # Edit 只给 old/new 片段；`---` 可能已在文件里 → 只查片段会漏（阶段 2 的 L3 23:46 major②）。
+  # 守卫把 old→new 合成到**现有内容**上再求值。夹具用文件承载（避免嵌套引号吃反斜杠）。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '## L2 盲审\n\n---\n\n（此处待插）\n' > "$d/INDEPENDENT-REVIEW-1.md"
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '## L3 盲审（伪）' '（此处待插）'"
+  [ "$status" -eq 2 ]
+  # 对照：无害 Edit 放行（防误拦）
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Edit '$d/INDEPENDENT-REVIEW-1.md' '' '普通一行' '（此处待插）'"
+  [ "$status" -eq 0 ]
+}
+
+@test "B8-R8: **同文件**混合「旧无签名段 + 新签名段」—— 段级门控只解码签名段，历史段原样保留" {
+  # 阶段 6 的 L3 22:47 critical 要求的回归：B8-R6 只用两个独立文件分别验，未覆盖同文件混合。
+  # 断言用 grep -F（反斜杠按字面量），避免多层引号吃掉反斜杠（上一版即因此假失败）。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"; local f="$d/IR.md"
+  { printf -- '## L2 盲审\n\n'; printf -- '\\\\## 历史原文自带\n\n**Verdict**: fail\n\n'; \
+    printf -- '## L2 重审\n\n'; printf -- '%s\n\n' '<!-- L2-PAYLOAD-ENCODED -->'; \
+    printf -- '\\\\## 编码后原文\n\n**Verdict**: fail\n'; } > "$f"
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\\\\## 历史原文自带'"
+  [ "${output//[$'\n']/}" = "1" ]
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 编码后原文'"
+  [ "${output//[$'\n']/}" = "1" ]
+  run bash -c "source '$L2_LIB' 2>/dev/null; _fk_l2_scope '$f' | _l2_unescape_payload | grep -cxF '\## 历史原文自带'"
+  [ "${output//[$'\n']/}" = "0" ]
+}

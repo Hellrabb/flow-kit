@@ -14,8 +14,8 @@ make check
 # 预期：✅ make check: 全部通过
 
 # 2) 全量 bats（含本 change 的 86 例缺陷套件）
-npx bats test/ --formatter tap | awk '/^ok/{o++} /^not ok/{n++} END{printf "ok=%d not_ok=%d\n", o, n+0}'   # 本次实测 ok=924 not_ok=0
-# 预期：not_ok=0（数字随用例自然增长；本次实测 ok=924 / not_ok=0）
+npx bats test/ --formatter tap | awk '/^ok/{o++} /^not ok/{n++} END{printf "ok=%d not_ok=%d\n", o, n+0}'   # 判据：not_ok=0（ok 数随用例增长，不写死）
+# 预期：not_ok=0（ok 数随用例自然增长，**不硬编码**；判据只看 not_ok）
 
 # 3) 副本一致性（7 个落点 × 四类树）
 ./sync-hooks.sh --check

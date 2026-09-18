@@ -56,7 +56,7 @@ _command_first_tokens() {
 }
 
 _gate_path_guard() {
-  local tool_name="$1" file_path="$2" cmd="$3" content="${4:-}"
+  local tool_name="$1" file_path="$2" cmd="$3" content="${4:-}" old_str="${5:-}"
   if [[ "$tool_name" == "Write" || "$tool_name" == "Edit" ]]; then
     # ── ADR-026 载荷守卫（阶段 2 的 L3 critical ① · 23:23 加固）────────────────
     # 两道判据，任一命中即拒绝：
@@ -67,10 +67,21 @@ _gate_path_guard() {
     # ② 只在内容**自带签名**时做（与读侧段级门控同门控）；无签名的纯引用（`\## L3 …`、无 `---`）
     # 读侧不会解码，也就不会成段 —— 保持放行（B9-R14）。
     if [[ "$file_path" == *INDEPENDENT-REVIEW-*.md ]]; then
+      # Edit 组合绕过（阶段 2 的 L3 23:46 major②）：Edit 只给 old/new 片段，而「`---`」可能在
+      # **文件现有内容**里、片段只插入标题行 —— 只查片段会漏。故先把 old→new 合成到现有内容上。
+      # Bash 通道无法合成 → 该通道由 D14 的写入后自检兜底（文档已如实降级声明，不再宣称可拦）。
+      local _probe="$content"
+      if [[ "$tool_name" == "Edit" && -n "${5:-}" && -f "$file_path" ]]; then
+        local _cur
+        _cur=$(cat "$file_path" 2>/dev/null || true)
+        case "$_cur" in
+          *"${5}"*) _probe="${_cur/"${5}"/"$content"}" ;;
+        esac
+      fi
       local _deny_l3=0
-      _gate_is_unescaped_l3_paste "$content" && _deny_l3=1
-      if [ "$_deny_l3" -eq 0 ] && [[ "$content" == *"<!-- L2-PAYLOAD-ENCODED -->"* ]]; then
-        _gate_is_unescaped_l3_paste "$(printf '%s\n' "$content" | _gate_l3_decode_payload)" && _deny_l3=2
+      _gate_is_unescaped_l3_paste "$_probe" && _deny_l3=1
+      if [ "$_deny_l3" -eq 0 ] && [[ "$_probe" == *"<!-- L2-PAYLOAD-ENCODED -->"* ]]; then
+        _gate_is_unescaped_l3_paste "$(printf '%s\n' "$_probe" | _gate_l3_decode_payload)" && _deny_l3=2
       fi
       if [ "$_deny_l3" -ne 0 ]; then
         cat >&2 <<'GUARD_EOF'
