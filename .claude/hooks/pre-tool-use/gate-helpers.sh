@@ -90,6 +90,16 @@ EOF
       return 2
     fi
   elif [[ "$tool_name" == "Bash" ]]; then
+    # Bash 通道同判据（M37 · 阶段 2 的 L3 critical① 的通道覆盖）：命令文本里既**提及**评审文件、
+    # 又含未转义的「--- + ## L3 …」块（heredoc / printf / cat 追加的正文都在命令文本里）→ 拒绝。
+    if [[ "$cmd" == *INDEPENDENT-REVIEW-*.md* ]] && _gate_is_unescaped_l3_paste "$cmd"; then
+      cat >&2 <<'GUARD_EOF'
+⛔ L3 载荷守卫（ADR-026 · Bash 通道）：该命令同时提及 INDEPENDENT-REVIEW-*.md 与未转义的
+   「`---` + 行首 `## L3 …`」块。此类写入会伪造 L3 段起点，后续 L3 写入将静默删除其后正文。
+   处置：走审查子系统写入，或贴入前先过 `_l3_escape_payload`（引用时用 `\## L3 …`）。
+GUARD_EOF
+      return 2
+    fi
     if _is_dotdone_write "$cmd" 2>/dev/null; then
       # 从命令中提取阶段号 N
       local phase_num

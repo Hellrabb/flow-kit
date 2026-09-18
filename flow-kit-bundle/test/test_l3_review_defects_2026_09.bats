@@ -1224,3 +1224,13 @@ _phase7_prompt() {
   [ "$(wc -l < "$mut")" -lt "$(wc -l < "$L3_API_LIB")" ]
   ! grep -q 'type _l3_escape_payload' "$mut"
 }
+
+@test "B9-R7: Bash 通道同样被拦截（M37 · 通道覆盖）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> x/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n## L3 盲审（m）\\nEOF\\n')\""
+  [ "$status" -eq 2 ]
+}
+
+@test "B9-R8: Bash 命令提及评审文件但载荷已转义时放行（不误伤）" {
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Bash '.specs/x/INDEPENDENT-REVIEW-1.md' \"\$(printf -- 'cat >> f/INDEPENDENT-REVIEW-1.md <<EOF\\n---\\n\\n\\\\## L3 盲审（m）\\nEOF\\n')\""
+  [ "$status" -eq 0 ]
+}
