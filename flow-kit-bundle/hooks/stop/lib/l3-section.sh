@@ -186,7 +186,7 @@ _l3_has_section() {
 # 为什么需要：PreToolUse 只能拦**工具调用**；`Bash` 重定向、外部进程、编辑器直写等通道都能绕过，
 # 而"写坏"的后果是**静默**的（段尾缺失 → 后续写入把正文删掉）。故在 Stop 侧对**最终文件**做
 # 结构自检，与写入通道无关：① L3 段数 ≤1；② 段尾必须正好是结束标记；③ 段内围栏配平；
-# ④ 有转义块则必须有编码签名（M47）。
+# ④ 转义行首与编码签名的一致性 —— **advisory only**（不改判定，见函数内说明）。
 # 非阻塞：只告警（评审文件是审计凭证，损坏时应当可见，但不该阻断整条 pipeline）。
 _l3_verify_review_structure() {
   local review_md="${1:-}"
@@ -210,11 +210,14 @@ _l3_verify_review_structure() {
   fi
   # ④ 有转义块却缺编码签名（M47 · 阶段 2 的 L3 21:59 critical③）：门控解码只在含签名的文件上生效，
   #    缺签名时转义不会被还原 —— 正文会带多余反斜杠（静默不一致，且读侧内容级消费者看不到原样）。
+  # ④ 有转义块却缺编码签名 → **advisory**（不改判定）：转义行首在本项目是**常规写法**
+  #    （响应段用 `\## L2 盲审（N审）` 引用标题，渲染成标题但不构成段 —— 语料实测 5 行）。
+  #    这类"看起来像转义"的行并不都是载荷编码产物，故只提示、不让 `_l3_write_done` 拒绝发凭证。
   local esc sig
   esc=$(grep -cE '^\\(## |<!-- /L3-SECTION -->|```)' "$review_md" 2>/dev/null || true); esc=${esc:-0}
   if [ "$esc" -gt 0 ]; then
     sig=$(grep -cF "${L3_PAYLOAD_ENCODED_MARK:-<!-- L2-PAYLOAD-ENCODED -->}" "$review_md" 2>/dev/null || true); sig=${sig:-0}
-    [ "$sig" -gt 0 ] || issues+="含 ${esc} 行转义块但缺编码签名（转义不会被还原）；"
+    [ "$sig" -gt 0 ] || echo "[l3-section] NOTE: ${review_md} 含 ${esc} 行转义行首但无编码签名（若为载荷编码产物则不会被还原；常规标题引用可忽略）" >&2
   fi
 
   if [ -n "$issues" ]; then

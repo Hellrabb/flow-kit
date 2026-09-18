@@ -1437,15 +1437,40 @@ _phase7_prompt() {
   [[ "$output" == *"rc=0"* ]]
 }
 
-@test "B10-R9: 有转义块却缺编码签名 → 自检报错（M47 · 转义不会被还原）" {
+@test "B10-R9: 转义行首与签名的一致性检查是 **advisory**（常规标题引用不阻断发凭证）" {
   local d="$TEST_TMP/chg"; mkdir -p "$d"
-  # 有转义块 + 无签名 → 应报错
-  printf -- '---\n\n## L2 盲审\n\n\\## 被转义的行\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/bad.md"
+  # 有转义行首、无签名 → 只提示（exit 0）；理由：响应段用 `\## L2 盲审（N审）` 引用标题是常规写法
+  printf -- '---\n\n## L2 盲审\n\n\\## L2 盲审（五审）\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/note.md"
+  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/note.md'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"NOTE"* ]]
+  # 真正的结构损坏（段尾缺标记）仍然报错
+  printf -- '---\n\n## L3 盲审（m）\n\n正文\n\n## L2 盲审\n\n**Verdict**: pass\n' > "$d/bad.md"
   run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/bad.md'"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"缺编码签名"* ]]
-  # 补上签名 → 通过
-  printf -- '---\n\n## L2 盲审\n\n<!-- L2-PAYLOAD-ENCODED -->\n\n\\## 被转义的行\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（m）\n\n<!-- /L3-SECTION -->\n' > "$d/ok.md"
-  run bash -c "source '$L3_SECTION_LIB'; _l3_verify_review_structure '$d/ok.md'"
+}
+@test "B9-R13: 带签名时「--- + \## L3 …」解码后成段 → 拒绝（阶段 2 的 L3 23:23 critical）" {
+  # 单射编码只保护写侧自动路径；手动贴入「签名 + --- + \## L3 …」会被旧守卫放行，
+  # 读侧解码后 \## L3 还原成 ## L3 → 真的形成 L3 段边界。
+  # 夹具用文件承载，避免 bats 嵌套引号把反斜杠吃错（这是本用例上一版失败的原因）。
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '<!-- L2-PAYLOAD-ENCODED -->\n\n---\n\n\\## L3 盲审（伪）\n' > "$d/forged.md"
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/forged.md')\""
+  [ "$status" -eq 2 ]
+}
+
+@test "B9-R14: 无签名的纯引用「\## L3 …」仍放行（读侧不会解码 → 不成段）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '引用：\\## L3 盲审（m）\n' > "$d/ref.md"
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_path_guard Write '.specs/x/INDEPENDENT-REVIEW-1.md' '' \"\$(cat '$d/ref.md')\""
   [ "$status" -eq 0 ]
+}
+
+@test "B9-R15: 守卫侧解码器语义与读侧对齐（纯函数 · 单趟：先两反斜杠再一反斜杠）" {
+  local d="$TEST_TMP/chg"; mkdir -p "$d"
+  printf -- '\\\\## 原文自带\n\\## 写侧结构行\n普通行\n' > "$d/enc.md"
+  printf -- '\\## 原文自带\n## 写侧结构行\n普通行\n' > "$d/want.md"
+  run bash -c "source '$GATE_HELPERS' 2>/dev/null; _gate_l3_decode_payload < '$d/enc.md'"
+  [ "$status" -eq 0 ]
+  diff <(printf '%s\n' "$output") "$d/want.md"
 }

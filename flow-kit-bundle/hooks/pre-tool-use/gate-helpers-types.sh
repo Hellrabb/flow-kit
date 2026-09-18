@@ -128,3 +128,18 @@ _gate_is_unescaped_l3_paste() {
     }' | grep -q .
 }
 
+
+# _gate_l3_decode_payload — 守卫侧的解码器（阶段 2 的 L3 23:23 critical）
+# 用法: printf '%s\n' "$content" | _gate_l3_decode_payload
+#
+# 语义与读侧 `l2-detect.sh::_l2_unescape_payload` 的**单趟解码**对齐（先判两个反斜杠、再判一个
+# 反斜杠 + 结构行首）。**差异（台账已记）**：读侧按**段级签名门控**自行决定是否解码；本函数是
+# **纯解码器**，由调用方 `_gate_path_guard` 先确认内容自带签名 `<!-- L2-PAYLOAD-ENCODED -->`
+# 再调用（否则纯引用会被误判成"解码后成段"）。
+_gate_l3_decode_payload() {
+  awk '
+    /^\\\\/ { print substr($0, 2); next }
+    /^\\(## |<!-- \/L3-SECTION -->|```)/ { print substr($0, 2); next }
+    { print }
+  '
+}

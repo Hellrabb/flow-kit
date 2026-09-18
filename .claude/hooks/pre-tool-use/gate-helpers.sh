@@ -58,21 +58,33 @@ _command_first_tokens() {
 _gate_path_guard() {
   local tool_name="$1" file_path="$2" cmd="$3" content="${4:-}"
   if [[ "$tool_name" == "Write" || "$tool_name" == "Edit" ]]; then
-    # ── ADR-026 载荷守卫（阶段 2 的 L3 critical ①）────────────────────────────
-    # 把"贴入路径"从**提示词约束**升级为**可执行拦截**：未转义的「`---` + 行首 `## L3 …`」
-    # 块一旦落盘就会被判为 L3 段起点，后续 L3 写入时 `_l3_strip_sections` 会静默删除它
-    # 之后的正文 —— 这正是 §B2 的核心缺陷形态。豁免：带结束标记的块（= 审查子系统自己写的）
-    # 与已转义的 `\## L3 …`（见 `_gate_is_unescaped_l3_paste` 的判据）。
-    if [[ "$file_path" == *INDEPENDENT-REVIEW-*.md ]] && _gate_is_unescaped_l3_paste "$content"; then
-      cat >&2 <<'GUARD_EOF'
-⛔ L3 载荷守卫（ADR-026）：禁止把**未转义**的「`---` + 行首 `## L3 …`」块写入 INDEPENDENT-REVIEW-*.md。
+    # ── ADR-026 载荷守卫（阶段 2 的 L3 critical ① · 23:23 加固）────────────────
+    # 两道判据，任一命中即拒绝：
+    #   ① **原文**是否构成段起点（`---` + 行首 `## L3 …`）；
+    #   ② **解码后形态**是否构成段起点 —— 单射编码只保护写侧自动路径，校验不了手动贴入内容：
+    #      「`---` + `\## L3 …` + 编码签名」会被 ① 放行，但读侧解码会把 `\## L3` 还原成 `## L3`
+    #      → 真的形成 L3 段边界。
+    # ② 只在内容**自带签名**时做（与读侧段级门控同门控）；无签名的纯引用（`\## L3 …`、无 `---`）
+    # 读侧不会解码，也就不会成段 —— 保持放行（B9-R14）。
+    if [[ "$file_path" == *INDEPENDENT-REVIEW-*.md ]]; then
+      local _deny_l3=0
+      _gate_is_unescaped_l3_paste "$content" && _deny_l3=1
+      if [ "$_deny_l3" -eq 0 ] && [[ "$content" == *"<!-- L2-PAYLOAD-ENCODED -->"* ]]; then
+        _gate_is_unescaped_l3_paste "$(printf '%s\n' "$content" | _gate_l3_decode_payload)" && _deny_l3=2
+      fi
+      if [ "$_deny_l3" -ne 0 ]; then
+        cat >&2 <<'GUARD_EOF'
+⛔ L3 载荷守卫（ADR-026）：禁止把会形成 L3 段起点的内容写入 INDEPENDENT-REVIEW-*.md。
+   命中的形态（原文或**解码后**）：「`---` + 行首 `## L3 …`」。
    该形态会被判为 L3 段起点，后续 L3 写入会把它之后的正文静默删除（§B2 缺陷的成因）。
+   注意：`\## L3 …` 只有在**没有编码签名**时才是安全引用 —— 带签名时读侧会把它解码回 `## L3`。
    处置（三选一）：
      ① 让审查子系统自己写（推荐）：l3_review_run / l2_dispatch_agent 都会自动转义；
      ② 贴入前先过 `_l3_escape_payload`（L2 固化指令写约束第 4 条）；
-     ③ 仅作引用时手动转义行首：`\## L3 …`（反斜杠 + 井号）。
+     ③ 仅作引用时：**不要**带 `---` 前导，也不要带编码签名。
 GUARD_EOF
-      return 2
+        return 2
+      fi
     fi
     if [[ "$file_path" == *.independent-review-*.done* ]]; then
       # 提取阶段号 N（文件路径中 .independent-review-<N>.done）
