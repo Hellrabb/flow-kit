@@ -51,32 +51,40 @@ _l2v() {
 # §B1 · fk_extract_l2_verdict
 # ══════════════════════════════════════════════════════════════════════════
 
-@test "AC2: 语料全量复算 —— 零非枚举、空值 <=8、且每个空值都在归因清单里" {
-  # AC-2 的验证方式（2026-09-18 依 L3 major 修订为可执行断言）。单次 bash 内跑完
-  # 全量语料单次 bash 内跑完，避免逐份子进程开销。
+@test "AC2: 活语料零非枚举 + 每份空值可归因（数值预算按基线语料口径）" {
+  # 2026-09-18 依阶段 3 的 L2 盲审 critical 重修：语料是**活的** —— 本 change 自己的
+  # 审查文件（INDEPENDENT-REVIEW-3/5/6…）每新增一份没有 L2 段结论的工件，空值就 +1。
+  # 故把两件事分开断言：
+  #   ① 活语料不变量：零非枚举 + **每份空值都在归因清单里**（清单由 corpus-count.sh --attribution 机械再生）；
+  #   ② 数值预算「空值 ≤8」：只对**基线语料**（commit 61c4bf8 时点存在的工件）成立 —— 这才是
+  #      AC-2 原始测量口径；对活语料套用固定数字会让门禁随轮次自然变红（假失败）。
   local attr="$FK_ROOT/.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
   [ -f "$attr" ] || { echo "缺 AC-2 交付物: $attr"; false; }
+  grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; }
   local report
   report=$(bash -c '
     source "$1" 2>/dev/null
-    n=0; empty=0; nonenum=0; unattributed=""
+    base_list=$(git -C "$3" ls-tree -r --name-only 61c4bf8 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
+    n=0; empty=0; base_empty=0; nonenum=0; unattributed=""
     while IFS= read -r f; do
       n=$((n+1))
+      rel="${f##*/.specs/}"; rel="${rel#.specs/}"   # 绝对/相对两种 find 形态统一
       v=$(fk_extract_l2_verdict "$f" 2>/dev/null) || true
       case "$v" in
         "") empty=$((empty+1))
-            grep -qF "${f##*.specs/}" "$2" 2>/dev/null || unattributed="${unattributed}${f} " ;;
+            printf "%s\n" "$base_list" | grep -qxF "$rel" && base_empty=$((base_empty+1))
+            grep -qF "$rel" "$2" 2>/dev/null || unattributed="${unattributed}${rel} " ;;
         pass|fail) ;;
         *) nonenum=$((nonenum+1)) ;;
       esac
     done < <(find "$3/.specs" -name "INDEPENDENT-REVIEW-*.md" | sort)
-    printf "n=%s empty=%s nonenum=%s unattributed=[%s]" "$n" "$empty" "$nonenum" "$unattributed"
+    printf "n=%s empty=%s base_empty=%s nonenum=%s unattributed=[%s]" "$n" "$empty" "$base_empty" "$nonenum" "$unattributed"
   ' _ "$L2_LIB" "$attr" "$FK_ROOT")
   echo "$report"
-  [[ "$report" == *"nonenum=0"* ]]
-  [[ "$report" == *"unattributed=[]"* ]]
-  local e; e=$(echo "$report" | sed -n 's/.*empty=\([0-9]*\).*/\1/p')
-  [ -n "$e" ] && [ "$e" -le 8 ]
+  [[ "$report" == *"nonenum=0"* ]]        # ① 活语料：零非枚举
+  [[ "$report" == *"unattributed=[]"* ]]  # ① 活语料：每份空值都被清单覆盖
+  local be; be=$(echo "$report" | sed -n 's/.*base_empty=\([0-9]*\).*/\1/p')
+  [ -n "$be" ] && [ "$be" -le 8 ]         # ② 数值预算：基线语料 ≤8（AC-2 原始口径）
   # 语料非空（防"找不到文件"式的恒真通过）
   local n; n=$(echo "$report" | sed -n 's/.*n=\([0-9]*\).*/\1/p')
   [ -n "$n" ] && [ "$n" -ge 200 ]

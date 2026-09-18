@@ -25,7 +25,7 @@
 | AC | 用例 | 结果 |
 | --- | --- | --- |
 | AC-1 L3 段不冒充 L2（含 L3 段内行首 `## `） | B1-R2[1-4]、B1-R27、B2-R9、B2-R11、B2-R13、B2-R17/R18/R19 | ✅ 27(B1)+21(B2) |
-| AC-2 语料零非枚举 / 空值 ≤8 / 可归因 | 「AC2: 语料全量复算」+ `L2-EMPTY-ATTRIBUTION.md` | ✅ 1 |
+| AC-2 活语料零非枚举 + 每份空值可归因（数值预算按基线语料 ≤8） | 「AC2: 活语料零非枚举 + 每份空值可归因」+ `L2-EMPTY-ATTRIBUTION.md`（`corpus-count.sh --attribution` 机械再生） | ✅ 1（`n=227 empty=11 base_empty=8 nonenum=0`） |
 | AC-3 §B1 的五行输入回归 | B1-R1 | ✅ |
 | AC-4 段重写幂等（标记/围栏/空行零残留） | B2-R2、B2-R6、B2-R7、B2-R10 | ✅ |
 | AC-5 无标记历史件仍可清除 | B1-R21、B2-R3、B2-R4 | ✅ |
@@ -55,7 +55,7 @@
 | --- | --- | --- |
 | AC 覆盖 | 12 条 AC 全部有用例（§1.1） | 12/12 |
 | 降级分支覆盖 | 每个 fail-closed / 降级分支都有"能失败"的断言 | 6 处（B1-R27 / B2-R16 / B2-R21 / B5-R4+R5 / B6-R5 / B9-R6 / B10-R5） |
-| 语料回归 | 全仓 `INDEPENDENT-REVIEW-*.md` 复算 | `bash corpus-count.sh` → `224 98 129 129 8 0`（0 非枚举） |
+| 语料回归 | 全仓 `INDEPENDENT-REVIEW-*.md` 复算（活语料） | `bash corpus-count.sh` → `227 101 132 132 11 0`（0 非枚举；基线 `base_empty=8`） |
 | 镜像一致性 | 47 个镜像文件 × 7 个落点 | 漂移 0（`./sync-hooks.sh --check`） |
 
 ### 1.4 边界 / 错误路径用例

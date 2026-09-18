@@ -11,13 +11,29 @@
 ## 波次划分
 
 ```
-Wave 1 (parallel): T01[P] T02[P] T03[P] T04[P]
-Wave 2 (parallel): T05[P] T06[P] T07     (T05 ← T01,T02；T06 独立；T07 ← T01)
-Wave 3:            T08                    (← T01..T07)
-Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
+Wave 1 (parallel): T01[P] T02[P] T03[P] T04[P] T06[P]        （互不依赖）
+Wave 2 (parallel): T05[P] T07[P] T11[P] T12[P]               （T05←T01,T02；T07←T01；T11←T01,T02；T12←T05）
+Wave 3:            T08  T13                                   （T08←T01..T07,T11,T12；T13←T06）
+Wave 4:            T09                                        （←T08）
+Wave 5:            T10                                        （←T01..T09,T11,T12,T13）
 ```
 
 > 同 wave = 可并行；跨 wave = 必须顺序执行。
+> **不变量（依阶段 3 的 L2 盲审 major：原表把 T09/T10 同列一个 [P] 波次，却又有 T10←T09 依赖）**：
+> 同一波次内任意两个任务的 `depends_on` **不得**相交。复验：
+> `awk '/^<task id=/{id=$2} /<depends_on>/{…}' TASK.md`（或用下表人工核对）。
+
+| 波次 | 任务 | depends_on | 与前序波次一致？ |
+| --- | --- | --- | --- |
+| 1 | T01 T02 T03 T04 T06 | — | ✅ |
+| 2 | T05 | T01,T02 | ✅ |
+| 2 | T07 | T01 | ✅ |
+| 2 | T11 | T01,T02 | ✅ |
+| 2 | T12 | T05 | ✅ |
+| 3 | T08 | T01..T07,T11,T12 | ✅ |
+| 3 | T13 | T06 | ✅ |
+| 4 | T09 | T08 | ✅ |
+| 5 | T10 | T01..T09,T11,T12,T13 | ✅ |
 
 ---
 
@@ -44,9 +60,11 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
   </action>
   <verify>
     npx bats test/test_l3_review_defects_2026_09.bats -f "B2-"
+    # B2 组含跨任务用例（R8/R14/R15/R16 断言写侧接线，属 T05）；本任务验收以下列为准：
+    # B2-R1..R4 / R6 / R7 / R9..R13 / R17..R19（l3-section.sh 自身可判定）
   </verify>
   <done>
-    L3 段边界只有一个实现，且 B2 组（含 AC-4 围栏/幂等、AC-5 历史件、转义契约）全绿。
+    L3 段边界只有一个实现；本任务范围内的 B2 用例全绿（跨任务断言归 T05 验收）。
   </done>
   <depends_on></depends_on>
 </task>
@@ -60,6 +78,7 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
   </read_files>
   <write_files>
     flow-kit-bundle/hooks/stop/lib/l2-detect.sh
+    .specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md
   </write_files>
   <action>
     重写 fk_extract_l2_verdict：先用 _fk_l2_scope 得「L2 层」文本（排除 L3 段区间 —— 区间来自
@@ -84,14 +103,14 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
     flow-kit-bundle/hooks/config/stop-hook.json
     README.md
     dsh-flow-kit/README.md
-    flow-kit-bundle/flow-kit/l3.env.example
+    .claude/l3.env.example
   </read_files>
   <write_files>
     flow-kit-bundle/hooks/stop/29-independent-review.sh
     flow-kit-bundle/hooks/config/stop-hook.json
     README.md
     dsh-flow-kit/README.md
-    flow-kit-bundle/flow-kit/l3.env.example
+    .claude/l3.env.example
     package-flow-kit.sh
     .flow-kit/stop-hook.json
   </write_files>
@@ -204,7 +223,7 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
     夹具补 `---` preamble 以符合新判据。顺带把 l3-api.sh 压回 ≤250 行结构门槛（冻结在 249 行）。
   </action>
   <verify>
-    npx bats test/test-l3-check-rerun-content-marker.bats && make check-structure
+    npx bats test/test-l3-check-rerun-content-marker.bats test/test_lib_split_metrics.bats
   </verify>
   <done>
     重审触发判据与写侧同源；结构门槛不回退（`l3-api.sh` 249/250）。
@@ -227,10 +246,12 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
     （`B2-R16` / `B5-R4` / `B6-R5` / `B1-R27`：把实现改坏，断言必须失败），避免恒真断言。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats
+    make check
   </verify>
   <done>
-    套件全绿且含 ≥4 处自证用例；`make check-test-sync` 双源一致。对应 AC-11/AC-12。
+    五门全绿（含全量 bats、双源一致、hooks 漂移 0）；缺陷套件含 ≥8 处自证用例。
+    AC-2 的活语料不变量 = 零非枚举 + 每份空值可归因（清单由 `bash corpus-count.sh --attribution` 再生，
+    数值预算 ≤8 只对**基线语料**成立）。对应 AC-2/AC-11/AC-12。
   </done>
   <depends_on>T01,T02,T03,T04,T05,T06,T07</depends_on>
 </task>
@@ -255,7 +276,9 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
     bash verify-claims.sh
   </verify>
   <done>
-    13 项检查全 ✅、rc=0，且第 5 项（裸正则残留）已用真实裸正则证明其可失败。
+    13 项检查全 ✅、rc=0（含 §0.5.1 载体覆盖、hooks 漂移、门禁）；第 5 项（裸正则残留）已用真实裸正则
+    证明其可失败。**覆盖边界（如实）**：本脚本核对「响应段声明 ↔ 现场事实」，**不**解析 TASK.md 的
+    write_files（R6.5 的 diff 边界由 `git diff --name-only` 在评审中核对）。
   </done>
   <depends_on>T08</depends_on>
 </task>
@@ -290,6 +313,81 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
   </done>
   <depends_on>T01,T02,T03,T04,T05,T06,T07,T08,T09</depends_on>
 </task>
+
+<task id="T11" parallel="true" status="done" model-tier="standard">
+  <name>M32：非 pass 时撤销陈旧 .done 锚点</name>
+  <read_files>
+    flow-kit-bundle/hooks/stop/lib/l3-review.sh
+    flow-kit-bundle/hooks/stop/lib/l3-done.sh
+  </read_files>
+  <write_files>
+    flow-kit-bundle/hooks/stop/lib/l3-done.sh
+    flow-kit-bundle/hooks/stop/lib/l3-review.sh
+  </write_files>
+  <action>
+    新增 `l3_invalidate_done`（幂等、失败仅 WARN），由 `l3-review.sh` 的 non-pass 分支调用；
+    timeout 分支**刻意不撤销**（超时不携带"当前状态不通过"的信息）。
+  </action>
+  <verify>
+    npx bats test/test_l3_review_defects_2026_09.bats -f "B6-"
+  </verify>
+  <done>
+    B6 组 6/6；实测已阻止"截断版 pass 的锚点"在新一轮 fail 后继续放行。对应 M32。
+  </done>
+  <depends_on>T01,T02</depends_on>
+</task>
+
+<task id="T12" parallel="true" status="done" model-tier="standard">
+  <name>M36/M37 + D14：贴入路径的可执行拦截与写入后结构自检</name>
+  <read_files>
+    flow-kit-bundle/hooks/pre-tool-use/**
+    flow-kit-bundle/hooks/stop/lib/l3-section.sh
+    flow-kit-bundle/hooks/stop/lib/correction-file.sh
+    29-independent-review.sh
+  </read_files>
+  <write_files>
+    flow-kit-bundle/hooks/pre-tool-use/gate-helpers-types.sh
+    flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh
+    flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh
+    flow-kit-bundle/hooks/stop/lib/l3-section.sh
+    flow-kit-bundle/hooks/stop/lib/correction-file.sh
+    flow-kit-bundle/hooks/stop/lib/l3-review.sh
+    flow-kit-bundle/hooks/stop/29-independent-review.sh
+  </write_files>
+  <action>
+    ① `_gate_is_unescaped_l3_paste`（Write/Edit + Bash 两通道，判据与读侧段起点同源）；
+    ② `_l3_verify_review_structure`（段数 ≤1 / 段尾=结束标记 / 段内围栏配平）；
+    ③ 确定损坏 → `write_review_structure_correction`（compliance 优先）+ `module_output error`（非阻塞）。
+  </action>
+  <verify>
+    npx bats test/test_l3_review_defects_2026_09.bats -f "B9-"
+  </verify>
+  <done>
+    B9 组（12 例）与 B10 组（7 例）全绿；裸标题=放行且**证明无害**、`---`+标题+无标记=拒绝。对应 M36/M37/D14。
+  </done>
+  <depends_on>T05</depends_on>
+</task>
+
+<task id="T13" parallel="false" status="done" model-tier="standard">
+  <name>sync-hooks 反向残留发现能力（源已删、副本仍在）</name>
+  <read_files>
+    sync-hooks.sh
+  </read_files>
+  <write_files>
+    sync-hooks.sh
+  </write_files>
+  <action>
+    `--check` 增反向残留扫描（副本有、源无的 hook 文件）默认 advisory；`--strict-orphans` 计入失败；
+    顺带修参数解析只看 `$1` 的 bug（`--check --strict-orphans` 的第二个参数曾被静默忽略）。
+  </action>
+  <verify>
+    npx bats test/test_l3_review_defects_2026_09.bats -f "B5-"
+  </verify>
+  <done>
+    B5 组 5/5；`--check` 在真实树仍为漂移 0。对应阶段 2 的 L3 19:15 major②。
+  </done>
+  <depends_on>T06</depends_on>
+</task>
 ```
 
 ---
@@ -298,9 +396,20 @@ Wave 4 (parallel): T09[P] T10            (T09 ← T08；T10 ← T01..T09)
 
 | 任务 | write_files 与实际 diff |
 | --- | --- |
-| T01–T05 | 全部落在 `flow-kit-bundle/hooks/stop/**` 与 `flow-kit-bundle/flow-kit/prompts/**` 内（受 `sync-hooks.sh` 镜像） |
+| T01–T05, T07, T11 | `flow-kit-bundle/hooks/stop/**`、`flow-kit-bundle/flow-kit/prompts/**`（受 `sync-hooks.sh` 镜像） |
+| T12 | `flow-kit-bundle/hooks/pre-tool-use/**` 三文件（**事后扩界**：M36/M37/D14 修复期新增）+ `hooks/stop/lib/{l3-section,correction-file,l3-review}.sh` + `29-independent-review.sh` |
 | T03 | 额外命中 `package-flow-kit.sh` 的 heredoc 文本 = **禁动偏差**（已声明 + M10 + 回滚方案） |
-| T06 | `sync-hooks.sh` / `Makefile` 为新增/接线，未改 `install_hooks.sh`（只读引用） |
-| T10 | `.specs/**` 与 `.flow-kit/stop-hook.json`，无源码改动 |
+| T06, T13 | `sync-hooks.sh` / `Makefile` 新增与接线，未改 `install_hooks.sh`（只读引用） |
+| T10 | `.specs/**`、`.flow-kit/stop-hook.json`（后者被 `.gitignore` 忽略，故 diff 不可见 → 由 `jq -e` 断言替代） |
 
-复验命令：`bash verify-claims.sh`（含「响应段声明 ↔ 现场事实」逐条核对）。
+**禁动清单命中登记（依阶段 3 的 L2 盲审 major：原 §0.5.1 只声明 1 项，实际 ≥4）**：
+
+| 文件 | 禁动条目 | 本次改动 | 登记 |
+| --- | --- | --- | --- |
+| `package-flow-kit.sh` | Part A~G 逻辑禁改 | 仅 emitted 文档 heredoc 文本 | M10 + §0.5.1 偏差声明 |
+| `hooks/stop/29-independent-review.sh` | gate 校验核心链 | 键名解析链 + AC-12 告警 + 结构自检调用 | §0.5.1 + T12 |
+| `hooks/pre-tool-use/independent-review-gate.sh` | 校验顺序（真实性→实效性→放行） | 仅新增 content 透传（不改顺序） | §0.5.1 + T12 |
+| `hooks/stop/lib/correction-file.sh` | 既有 4 函数签名 | **仅追加** `write_review_structure_correction`（不改既有函数） | §0.5.1 + T12 |
+
+复验命令：`git diff --name-only 61c4bf8..HEAD`（人工比对上表）+
+`bash verify-claims.sh`（覆盖"响应段声明 ↔ 现场事实"；**不**解析本表，边界如实标注）。

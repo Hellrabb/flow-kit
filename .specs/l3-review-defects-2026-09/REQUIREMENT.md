@@ -76,9 +76,16 @@
   有 **8 份**工件的**L2 段本身不含任何 verdict** —— 修复前这 8 份的值来自 L3 段
   （或主 agent 自审段），正是本 change 要消除的"L3 冒充 L2"。故空值由 0 变为 8 是
   **正确化**而非回归，且下游 4 个消费点对空值均回落 `fail`（不阻塞）。
-  本 AC 要求空值数 **≤ 8 且每份可归因**，**归因清单是本 change 的具体交付物**：
+  本 AC 对**数值**的要求按语料口径分层（2026-09-18 依阶段 3 的 L2 盲审 critical 修订）：
+  - **基线语料**（commit `61c4bf8` 时点已存在的工件）：空值数 **≤ 8** —— 这正是 AC-2 的原始测量口径，
+    实测 `base_empty=8`；
+  - **活语料**（含本 change 自己不断新增的审查文件）：不变量是**零非枚举**且**每份空值都在归因清单里**。
+    对活语料套用固定数字会让门禁随轮次自然变红（假失败）：`INDEPENDENT-REVIEW-3/5/6.md` 一生成，
+    空值就由 8 涨到 11 —— 这是语料增长，不是回归。
+  **归因清单是本 change 的具体交付物且必须能机械再生**（不得手抄）：
   `@.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md`，每份空值一行，格式
-  `<归档相对路径> | <旧实现取值> | <旧值来源段> | <L2 段内锚定 verdict 行数>`。
+  `<工件相对路径> | <旧实现取值> | <旧值来源段> | <L2 段内锚定 verdict 行数>`；
+  再生命令 `bash corpus-count.sh --attribution`（保留上一版的逐文件归因，新增件标注「本期新增工件」）。
   （2026-09-18 依 L3 major 修订：原文把清单推给 `2-design`，导致本 AC 在阶段 1 内不可判定。
   现改为本工件内的固定路径交付物。）
   **下游对空值的处理（2026-09-18 依 L2 盲审 R3 更正措辞）**：4 个消费点均**不阻塞**，
@@ -173,7 +180,7 @@
 
 - **Given** 修复引入新 lib 文件 `l3-section.sh`
 - **When** 执行 `make check`
-- **Then** 以下结构门槛**逐条**仍通过（2026-09-18 依 L3 major 展开，原文只写「等」）：① `lib/l3-api.sh ≤ 250 行`；② `scripts/check-structure.sh` 的全部既有断言；③ `hooks/stop/` 单文件行数门禁；④ `make check-lint`（shellcheck）零 error；
+- **Then** 以下结构门槛**逐条**仍通过（2026-09-18 依 L3 major 展开，原文只写「等」）：① `lib/l3-api.sh ≤ 250 行`；② 结构与行数门槛：`test/test_lib_split_metrics.bats`（AC-B1/B2/B3 metric，4 例）—— **更正**：原文写的 `scripts/check-structure.sh` 在仓库中不存在（阶段 3 的 L2 盲审实测）；③ `hooks/stop/` 单文件行数门禁；④ `make check-lint`（shellcheck）零 error；
   打包 `--validate` 漏配 0；`test/` ↔ `flow-kit-bundle/test/` **双源一致**
   （基准：`test/` 为权威源，`flow-kit-bundle/test/` 是分发副本；同步责任在本 change ——
   提交前跑 `make test-sync`；`make check-test-sync` 是**只读**比对，不一致即非零退出，

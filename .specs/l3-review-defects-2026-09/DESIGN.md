@@ -50,6 +50,7 @@
 | `flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md` | 既有 · 改 | §B1/§B2 | 文件写入约束新增**第 4 条**：贴入前必须过 `_l3_escape_payload`（贴入路径不经 hook，转义责任在贴入方）。它是**行为契约**，故成为镜像对象 |
 | `flow-kit-bundle/flow-kit/.opencode/agent/flow-kit-l2-reviewer.md` | 既有 · 改 | §B1/§B2 | 复合载体：头部 + L2 固化指令**全文拷贝**段（自声明必须同步）。由 `sync-hooks.sh::regen_l2_agent` 从源 prompt 重放该段 |
 | `~/.config/opencode/hooks/**` | 既有 · **改（此前完全未纳入门禁）** | §B5 | opencode 平台安装树 —— 二轮 L2 复审 R1 实测它与源有 **10 个文件差异**，从未被覆盖（B5 同类缺陷在另一平台复发） |
+| `flow-kit-bundle/hooks/stop/lib/correction-file.sh` | 既有 · 改（**禁动：既有 4 函数签名**） | D14 | **仅追加** `write_review_structure_correction`（结构损坏 → 落 correction），不改既有函数签名 |
 | `flow-kit-bundle/hooks/pre-tool-use/gate-helpers-types.sh` | 既有 · 改 | D11 #3 | **新增** `_gate_is_unescaped_l3_paste`（未转义 L3 贴入判据 · 纯函数便于单测） |
 | `flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh` | 既有 · 改 | D11 #3 | `_gate_path_guard` 增 `content` 形参 + 载荷守卫（命中 exit 2） |
 | `flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh` | 既有 · 改 | D11 #3 | 入口解析 `tool_input.content // new_string` 并透传到守卫（3 处小改） |
@@ -579,3 +580,19 @@ _l3_build_prompt 7 <artifacts_dir> <max_bytes>
 > 去掉后**比读侧更严格、会误拦合法内容**（围栏内示例、无标记历史件）——两者结合的正确解是"同源"：
 > 裸标题在读侧**本来就不构成 span**（`B9-R9/R11` 断言该语义），拦它没有安全收益却会误伤。
 > 复算：`npx bats -f "B9-"`（12 例）。
+
+> **补记 · 风险表增补 R12（阶段 2 的 L3 19:41 critical②）**：
+> **R12 · 转义/还原的歧义性** —— `_l3_escape_payload` 只做「行首加 `\`」，而 `_l2_unescape_payload`
+> 按格式还原，二者无法区分「写侧转义」与「载荷原文自带 `\## `」；理论上会把原文 `\##` 改成 `##`。
+> 概率：**低**（要求模型回复的某行恰好以 `\` + `#` 开头）；影响：**低**（仅该行首两字符，且
+> 读侧还原只作用于 L2 层文本、不参与边界判定）。
+> 缓解：① 现有：还原只作用于**已排除 L3 段之后**的文本，段边界判定用原始文本（D13）；
+> ② 现在：把该风险入表（本节即风险表增补，与 R1「逐行一致性」区分）；
+> ③ v2 方案（可判别编码，已列具体步骤）：转义时先双写行首 `\`（`\## ` → `\\## `），
+> 还原时以占位符做单趟替换（`\\` → `\`，`\## ` → `## `，`\``` → ` ``` `）使编码成为单射；
+> 回归用例：载荷含 `\## Verdict` 原文时，还原后仍为 `\## Verdict`（当前会变成 `## Verdict`）。
+>
+> **补记 · JSON 围栏兼容性（同一 critical）**：`_l3_escape_payload` 转义的是**行首结构性行**，
+> JSON 单行载荷不受影响；多行 JSON 中若某行以 `## ` 开头会被加 `\`，导致该行不再是合法 JSON 行的
+> 风险存在。缓解：① 载荷是模型回复正文（JSON 通常在围栏内单行）；② `_l3_extract_prior_findings`
+> 的围栏感知已按行处理，转义不破坏围栏配对（`B2-R10`）；③ v2 与 R12 的单射编码一并解决。
