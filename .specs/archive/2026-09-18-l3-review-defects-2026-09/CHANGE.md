@@ -1,81 +1,114 @@
-# CHANGE · l3-review-defects-2026-09
+# CHANGE: L3 审查链 5 条缺陷修复（对外部报告的直接响应）
 
-- **change-id**: `l3-review-defects-2026-09`
-- **日期**: 2026-09-18
-- **类型**: 缺陷修复型（**直接修复，未走 7 阶段 pipeline** —— 见 §4 声明）
-- **来源**: chisel-skill 开发过程中在 `chisel_env` 的 change `verify-ac-env-fix`（阶段 7）
-  踩到的 flow-kit 缺陷，由报告方整理为 `L3-review-defects-2026-09-17.md`（本目录内，内容零改动）
+- **Change ID**: `l3-review-defects-2026-09`
+- **创建日期**: 2026-09-18
+- **路径建议**: 完整（`0→1→2→3→4→5→6→7`）
+- **状态**: active
 
-## 1 · 为什么做
+---
 
-报告方对 commit `19b3463`（`develop`）提出 5 条 L3 审查链缺陷（§B1~§B5）。
-由于报告距今有时日，**先重新实测与过滤，再决定修什么**：
+## Why（为什么做）
 
-**过滤结论：5 条全部成立（0 条失效 / 0 条误报），另新增 1 条报告未列出的缺陷。**
+chisel-skill 开发过程中，在 `chisel_env` 仓库的 change `verify-ac-env-fix`（阶段 7 / 7-integration）
+实际使用 flow-kit 时踩到 5 条缺陷，由报告方整理为 `L3-review-defects-2026-09-17.md`
+（核对基线 commit `19b3463` / `develop`）。
 
-| ID | 缺陷 | 原报告验证状态 | 本次复测 |
-|----|------|--------|------|
-| B1 | `fk_extract_l2_verdict` 抽错 verdict（取 L3 段 JSON / 无锚定 / 大小写不归一） | 已实测复现 | ✅ 成立（并量化出 18 处提取错误） |
-| B2 | L3 段重写按标题截断、无结束标记 | 代码可推演（未触发） | ✅ 成立（**本次实际触发**） |
-| B3 | `max_artifact_chars` 名"字符"实"字节" | 已实测 | ✅ 成立 |
-| B4 | 阶段 7 产物清单 `head -30` + 硬编码 `INTEGRATION.md` | 已实测复现 | ✅ 成立 |
-| B5 | 安装树不同步（`~/.claude/hooks` 缺 P0-1/P0-2） | 已实测 | ✅ 成立 |
-| **新增** | 防漂移断言只覆盖 `l3-prompt.sh` 单文件 → 副本真漂移时测试仍绿 | — | ➕ 已修 |
+其中两条已造成真实故障，不是理论风险：
 
-完整证据链与判定依据见本目录 `L3-review-defects-2026-09-18-retest.md`。
+1. **§B1 大小写不归一** → `invalid L2_verdict: PASS` → `l3-review.sh:61` 校验失败
+   `return 3` → **L3 从此不再运行**；Stop hook 不写 `.done` → PreToolUse 守卫把阶段推进
+   与 commit 全部挡住，而**从工件上完全看不出原因**。报告方当时的绕过办法是
+   在工件末尾手工追加一行干净的 `**Verdict**: pass`，且每次 L3 写入后都必须重新追加。
+2. **§B4 产物清单被 `head -30` 截断** → L3 看不到 `TASK.md`/`TEST.md` 等文件 →
+   报"产物缺失"并 `verdict=fail`。这些结论**对提示词为真、对仓库为假**。
 
-## 2 · 范围（做了什么）
+另三条（§B2 段重写无结束标记、§B3 配置名与单位不符、§B5 安装树不同步）中，
+§B5 已实测造成"同一 change 换条运行路径结论不同"——Claude Code 路径跑的是 2026-09-03 的旧代码。
 
-- §B1 → `hooks/stop/lib/l2-detect.sh`：`fk_extract_l2_verdict` 重写（行首锚定 + 排除围栏
-  JSON 引号键 + 取最后一轮 L2 结论 + 大小写归一）
-- §B2 → 新增 `hooks/stop/lib/l3-section.sh`；`l3-api.sh` / `l3-done.sh` / `l3-prompt.sh` 接线
-  （段尾落 `<!-- /L3-SECTION -->`；删除侧按标记精确切分，历史工件走原标题法兼容）
-- §B3 → `max_artifact_chars` → `max_artifact_bytes`（单位=字节），旧键/旧 env 兼容读取 +
-  DEPRECATED 提示；README ×2 / 配置模板 / `l3.env.example` 写明 CJK ÷3
-- §B4 → 阶段 7 产物清单改全量（去 `head -30`）；`INTEGRATION.md` 改"存在才列"，
-  必备清单保留严格 MISSING 语义
-- §B5 → 新增 `sync-hooks.sh`（唯一源 → 6 副本内容镜像，含 `--check`）+ Makefile
-  `hooks-sync` / `check-hooks-sync`（后者纳入 `make check` 门禁）
-- 新增回归 `test/test_l3_review_defects_2026_09.bats`（28 例，B1×8 / B2×6 / B3×6 / B4×4 / B5×4）
+## What（做什么）
 
-## 3 · 验收
+对报告 5 条缺陷**先重新实测与过滤，再修复**：
 
-| 项 | 结果 |
-|---|---|
-| 全量 bats | **854 / 854，0 fail**（基线 826，净增 28） |
-| `make check`（test + lint + check-validate + check-test-sync + check-hooks-sync） | ✅ 五门全绿 |
-| shellcheck（8 个改动/新增脚本，error 级） | ✅ 0 error |
-| 打包完整性 `--validate` | ✅ 312 文件，漏配 0 / 源缺失 0 |
-| hooks 副本漂移 | ✅ 6/6 漂移 0 |
-| `test/` ↔ `flow-kit-bundle/test/` 双源 | ✅ 一致 |
+| ID | 缺陷 | 复测判定 |
+|----|------|---------|
+| B1 | `fk_extract_l2_verdict` 抽错 verdict | ✅ 成立（另量化出 18 处历史提取错误） |
+| B2 | L3 段重写按标题截断、无结束标记 | ✅ 成立（原报告标注"未触发"，本次实际触发） |
+| B3 | `max_artifact_chars` 名"字符"实"字节" | ✅ 成立 |
+| B4 | 阶段 7 产物清单截断 + 硬编码 `INTEGRATION.md` | ✅ 成立 |
+| B5 | 安装树不同步 | ✅ 成立 |
+| ➕ | 防漂移断言只覆盖单文件（报告未列） | 新增并一并修复 |
 
-逐条验证方式见本目录 `REVIEW.md`。
+**过滤结论：0 条失效、0 条误报、5 条全部成立、1 条新增。**
 
-## 4 · 声明：为什么没有七件套
+## 影响面
 
-本次是**对一份外部缺陷报告的直接响应**，没有走 flow-kit 的 0→7 阶段 pipeline，
-因此本目录**不产出** `REQUIREMENT.md` / `DESIGN.md` / `TASK.md` / `TEST.md`，
-也没有 L2 盲审 / L3 外部模型审查记录与 `.done` 锚点。
+- [x] 影响 `REQUIREMENT.md` —— 本 change 的 AC 直接来自报告 5 条（见 1-requirement）
+- [x] 影响 `DESIGN.md` / 引入新 ADR —— 见下方「架构层影响声明」；本 change 不新增 ADR，
+      但对 ADR-010 的实现载体做了**增量扩展**
+- [x] 影响现有 AC —— 无（不改动其它 change 的 AC）
+- [ ] 影响数据模型 / 迁移 —— 无
+- [x] 影响外部 API 兼容性 —— **项目级配置键改名**（`max_artifact_chars` →
+      `max_artifact_bytes`），**保留旧键兼容读取**；环境变量同理
+- [x] 仅修复 bug，无范围变化
 
-理由：为一份已经完成、已验证的缺陷修复倒推补齐七件套与审查记录，属于**事后补账**，
-会让归档看起来比实际过程更完备。宁可留白 + 显式声明。
+## 架构层影响声明（0-change 步骤 0.4 判定）
 
-若需要走完整 pipeline（含 L2+L3 独立审查）重做一遍本 change，请另立 change-id。
+**判定：非架构级**（不新增/拆分项目级模块，不引入不可逆决策，不触发容量边界）。
+按「bug 修复」处理，不先跑 `A-architect`。但因为触及以下既有 ADR / 跨模块契约，
+在此显式声明，供 2-design § 0.5 逐条对齐：
 
-## 5 · 已知遗留（有意不动）
+| 触及对象 | 本次影响 | 性质 |
+|---|---|---|
+| **ADR-010**（`_l3_check_rerun` 内容标记 + artifact hash 载体） | 沿用其正则 `^## L3 (盲审\|重审)` 与 `L3_artifact_hash` 行；**新增**段尾显式标记 `<!-- /L3-SECTION -->` 作为段边界载体 | **强化**（同属"内容标记优于 mtime"的决策方向），不推翻 |
+| **ARCHITECTURE §4.1**（`.done` KVP 契约，`L2_verdict=pass\|fail\|skipped`） | §B1 修复使提取结果**恒为**该值域（此前会产出 `PASS` 等非法值）；`.done` 键名与格式不变 | **对齐**（消除实现与契约的偏离） |
+| **ARCHITECTURE §4.3**（Hook 模块编号约定） | 新增 `hooks/stop/lib/l3-section.sh` 属 lib 层拆分，不新增模块编号 | 无影响 |
+| **ADR-025**（L3 前轮反馈注入） | §B2 附带修复 `_l3_extract_prior_findings` 的段切换为围栏感知，使载荷含行首 `## ` 时前轮发现不再丢失 | **强化** |
+| 项目级配置契约（`independent_review.max_artifact_*`） | 键改名 + 旧键兼容 + DEPRECATED 提示 | 兼容性变更，已留退路 |
 
-1. **12 份历史 `.done` 的 `L2_verdict` 与新提取结果不一致** —— 那些值是 §B1 缺陷的产物。
-   未回溯修改：PreToolUse 守卫本就禁止主 agent 改 `.done`，且新 change 起自洽。
-2. **`.claude/hooks/pre-tool-use/gate-checks-review.sh` 缺可执行位** —— 修复前就存在
-   （git 记录即为 644，同目录其余 7 个文件为 755）。`sync-hooks.sh` 只做只读提示，
-   不改权限；跑 `install.sh` 可修。
-3. **§B1 的语义取舍已按 L2 独立性契约定案** —— 取"审查员原文结论"而非主 agent 修复后的
-   复述（依据 `flow-kit/prompts/independent/L2-blind-review.md:142`）。该值在任何地方
-   都不被要求等于 `pass`，故只影响审计记录的准确性，不影响放行判定。
+> 若认为以上任一项应按架构级处理、需先跑 `A-architect` 重审 ADR，请在 2-design 前提出。
 
-## 6 · 未覆盖
+## 范围排除（这次不做）
 
-- 报告 §8 已声明不覆盖的范围未重新审查：L2 派发/子 agent 生命周期、gate 与 transition
+- **不回溯修改历史 `.done`**：12 份归档 `.done` 的 `L2_verdict` 是 §B1 缺陷的产物，与新提取
+  结果不一致。PreToolUse 守卫本就禁止主 agent 改 `.done`，且新 change 起自洽。
+- **不重新审查报告 §8 已声明不覆盖的范围**：L2 派发/子 agent 生命周期、gate 与 transition
   逻辑、`31-auto-advance.sh`、看板、安装器与打包脚本。
-- `l3-prompt.sh` 的 `head -8`（前轮发现配额）/ `head -3`（ADR 取样）经核查是**刻意配额**
-  且有专门断言，未改动。
+- **不改 `l3-prompt.sh` 的 `head -8` / `head -3`**：经核查是刻意配额（前轮发现摘要 ≤600B、
+  ADR 取样 3 份）且有专门断言，不是漏检。
+- **不追加"按字符截断"能力**：§B3 选择改名而非改语义，理由见 2-design（按字符裁会让 CJK
+  工件请求体最多膨胀 3 倍，重新引入超限风险）。
+
+## 验收线（粗粒度，不是 AC）
+
+1. 报告 §B1 的自包含复现从 `PASS` 变为 `fail`；`fk_extract_l2_verdict` 在全部归档工件上
+   只产出 `pass`/`fail`/空值，不再产出非法大小写。
+2. L3 段经任意轮次重写后，工件中 L3 段恒为 1 个、无旧段残留、围栏配平。
+3. 项目配置 `max_artifact_bytes` 生效且单位语义与文档一致；旧键仍可用并给出迁移提示。
+4. 阶段 7 的 L3 prompt 在 40+ 条目目录下不漏任何文件名，且不再凭空输出
+   `INTEGRATION.md === MISSING`。
+5. 六个 hooks 副本内容一致；漂移可被 `make check` 拦下。
+6. 全量 bats 0 fail，`make check` 五门全绿。
+
+## 风险与未知
+
+| 风险 | 处置 |
+|---|---|
+| §B1 取值语义（审查员原文 vs 主 agent 修复后复述）可能与使用方预期不符 | 依据 `L2-blind-review.md:142`「主 agent 无权修改你的原文判断」定案；该值在任何调用点都**不被要求等于 pass**，只影响审计记录准确性。已在 1-requirement 记为待确认项 |
+| 旧键 `max_artifact_chars` 用户长期不迁移 | 保留兼容读取 + 每次运行打印 DEPRECATED 提示；文档三处写明 |
+| §B2 标记可能被模型载荷意外包含 | 标记为 HTML 注释 + 固定字符串，载荷出现概率极低；即使出现也只影响该轮去重，下一次写入自愈 |
+| 新增 `l3-section.sh` 触碰 `l3-api.sh ≤250 行` 结构门槛 | 已实测 `l3-api.sh` 收敛到 249 行并保留门槛（见 3-task / 5-test 的 metric 断言） |
+
+---
+
+> 后续 AC 与设计细节进入 `REQUIREMENT.md` / `DESIGN.md`，本文件不再扩展。
+
+## 执行时序声明（诚实记录）
+
+本 change 的实际时序与标准 pipeline 不同，特此声明以免归档误导：
+
+- **2026-09-18 上午**：先完成了复测、修复（等价阶段 4 实施）、回归测试与提交（commit `61c4bf8`）。
+- **2026-09-18 下午**：应要求补跑完整 pipeline，**倒推补齐** 0/1/2/3/5/6/7 各阶段产物，
+  并在各门禁阶段执行真实的 L2 盲审 + L3 外部模型审查。
+
+即本目录中 1/2/3 阶段文档**写于实现之后**。文档内容依据实际已发生的决策如实记录
+（含被否决的方案与理由），但读者不应据此认为实现遵循了"先设计后编码"的顺序。

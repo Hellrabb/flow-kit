@@ -51,42 +51,53 @@ _l2v() {
 # §B1 · fk_extract_l2_verdict
 # ══════════════════════════════════════════════════════════════════════════
 
-@test "AC2: 活语料零非枚举 + 每份空值可归因（数值预算按基线语料口径）" {
-  # 2026-09-18 依阶段 3 的 L2 盲审 critical 重修：语料是**活的** —— 本 change 自己的
-  # 审查文件（INDEPENDENT-REVIEW-3/5/6…）每新增一份没有 L2 段结论的工件，空值就 +1。
-  # 故把两件事分开断言：
-  #   ① 活语料不变量：零非枚举 + **每份空值都在归因清单里**（清单由 corpus-count.sh --attribution 机械再生）；
-  #   ② 数值预算「空值 ≤8」：只对**基线语料**（commit 61c4bf8 时点存在的工件）成立 —— 这才是
-  #      AC-2 原始测量口径；对活语料套用固定数字会让门禁随轮次自然变红（假失败）。
+@test "AC2: 活语料零非枚举 + 每份空值可归因（清单现场再生，不用陈旧快照）" {
+  # 2026-09-18 依阶段 3/5 的 L2 盲审 critical 两次重修：语料是**活的** —— 每次 L3 写入都会新增
+  # 一份审查件，任何**提交进仓库的快照**都会立刻过期（实测：19:55 的清单在 19:57 IR-7 生成后就红了）。
+  # 故本用例的判据改为「**再生器 + 不变量**」，而不是「比对某个固定文件」：
+  #   ① 现场再生归因清单到临时文件 → 其行数必须等于活语料空值数（再生器覆盖性，可失败：
+  #      本用例曾因 rel 路径归一化 bug 得到 0 行）；
+  #   ② 活语料零非枚举（AC-2 的实质不变量）；
+  #   ③ 数值预算「≤8」只对**基线语料**（commit 61c4bf8 时点）成立 —— 原文口径。
+  # 提交前纪律（写进 TEST.md/UAT.md）：`bash corpus-count.sh --attribution` 再生仓库内那份清单；
+  # 本用例不比对它，避免"测试改工作区"与"快照过期即红"两种坏味道。
   local attr="$FK_ROOT/.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
   [ -f "$attr" ] || { echo "缺 AC-2 交付物: $attr"; false; }
   grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; }
+  local tmp_attr; tmp_attr="$TEST_TMP/attr-regen.md"
+  run bash -c "cd '$FK_ROOT' && bash corpus-count.sh --attribution '$tmp_attr'"
+  [ "$status" -eq 0 ]
+  local rows; rows=$(grep -c '^| [0-9]' "$tmp_attr" || true)
   local report
   report=$(bash -c '
     source "$1" 2>/dev/null
     base_list=$(git -C "$3" ls-tree -r --name-only 61c4bf8 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
-    n=0; empty=0; base_empty=0; nonenum=0; unattributed=""
+    n=0; empty=0; base_empty=0; nonenum=0
     while IFS= read -r f; do
       n=$((n+1))
-      rel="${f##*/.specs/}"; rel="${rel#.specs/}"   # 绝对/相对两种 find 形态统一
+      rel="${f##*/.specs/}"; rel="${rel#.specs/}"
       v=$(fk_extract_l2_verdict "$f" 2>/dev/null) || true
       case "$v" in
         "") empty=$((empty+1))
-            printf "%s\n" "$base_list" | grep -qxF "$rel" && base_empty=$((base_empty+1))
-            grep -qF "$rel" "$2" 2>/dev/null || unattributed="${unattributed}${rel} " ;;
+            printf "%s\n" "$base_list" | grep -qxF "$rel" && base_empty=$((base_empty+1)) ;;
         pass|fail) ;;
         *) nonenum=$((nonenum+1)) ;;
       esac
     done < <(find "$3/.specs" -name "INDEPENDENT-REVIEW-*.md" | sort)
-    printf "n=%s empty=%s base_empty=%s nonenum=%s unattributed=[%s]" "$n" "$empty" "$base_empty" "$nonenum" "$unattributed"
+    printf "n=%s empty=%s base_empty=%s nonenum=%s" "$n" "$empty" "$base_empty" "$nonenum"
   ' _ "$L2_LIB" "$attr" "$FK_ROOT")
-  echo "$report"
-  [[ "$report" == *"nonenum=0"* ]]        # ① 活语料：零非枚举
-  [[ "$report" == *"unattributed=[]"* ]]  # ① 活语料：每份空值都被清单覆盖
-  local be; be=$(echo "$report" | sed -n 's/.*base_empty=\([0-9]*\).*/\1/p')
-  [ -n "$be" ] && [ "$be" -le 8 ]         # ② 数值预算：基线语料 ≤8（AC-2 原始口径）
+  echo "$report rows=$rows"
+  # ① 再生器覆盖性：清单行数 == 活语料空值数
+  # 逐字段取值：不能用 `.*empty=\([0-9]*\)` —— 贪婪匹配会命中 base_empty=（曾因此误判 empty=8）
+  local e; e=$(printf '%s\n' "$report" | tr ' ' '\n' | sed -n 's/^empty=//p')
+  [ -n "$e" ] && [ "$e" -eq "$rows" ] || { echo "再生清单未覆盖全部空值（empty=$e rows=$rows）"; false; }
+  # ② 零非枚举
+  [[ "$report" == *"nonenum=0"* ]]
+  # ③ 基线语料 ≤8
+  local be; be=$(printf '%s\n' "$report" | tr ' ' '\n' | sed -n 's/^base_empty=//p')
+  [ -n "$be" ] && [ "$be" -le 8 ]
   # 语料非空（防"找不到文件"式的恒真通过）
-  local n; n=$(echo "$report" | sed -n 's/.*n=\([0-9]*\).*/\1/p')
+  local n; n=$(printf '%s\n' "$report" | tr ' ' '\n' | sed -n 's/^n=//p')
   [ -n "$n" ] && [ "$n" -ge 200 ]
 }
 

@@ -6,7 +6,7 @@
   `INDEPENDENT-REVIEW-3.md`（阶段 3）、`INDEPENDENT-REVIEW-5.md`（阶段 5）、`INDEPENDENT-REVIEW-6.md`（本阶段）、
   `INDEPENDENT-REVIEW-7.md`（阶段 7）——每份由 L2 盲审（全新上下文子 agent）+ L3（真实外部 API）双轨产出。
 - **severity gating（ADR-017）**：🔴 Critical 阻塞 toll-gate；🟡 Important 进入 fix loop；
-  🟢 Minor 只登记 `MINOR-DEFERRED.md`（M1–M38）不进 fix loop。
+  🟢 Minor 只登记 `MINOR-DEFERRED.md`（**M1–M42**）不进 fix loop。
 
 ---
 
@@ -122,10 +122,18 @@
 
 | 维度 | 结论 |
 | --- | --- |
-| **Spec 合规** | ✅ AC-1–AC-12 全部实现且有回归（86 例缺陷套件 + 912 例全量全绿） |
+| **Spec 合规** | ✅ AC-1–AC-12 全部实现且有回归（缺陷套件 **98 ok / 0 not ok**；全量 **924 ok / 0 not ok**，均为 2026-09-18 现算，数字随用例增长漂移，只断言 `not_ok=0`） |
 | **代码质量** | 🟡 1 项 Important 未闭合（R1 转义/还原方向耦合 → M38）；3 项 🟢/🟡 已收敛或声明例外 |
-| **Critical** | **0**（历史 critical 全部落地为代码 + 回归：M32/M34/M36/M37、D13、写入侧 fail-closed） |
-| **Minor** | 38 项登记 `MINOR-DEFERRED.md`（M1–M38），按 ADR-017 不进 fix loop |
-| **门禁** | `make check` 五门全绿；`npx bats test/` 912 ok / 0 not ok；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13 |
+| **Critical（历史项）** | 已落地为代码 + 回归：M32/M34/M36/M37、D13、写入侧 fail-closed、AC-2 活语料判据 |
+| **Minor** | 42 项登记 `MINOR-DEFERRED.md`（M1–M42），按 ADR-017 不进 fix loop |
+| **门禁** | `make check` 五门；`npx bats test/` 924 ok / 0 not ok；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13（以收尾实测为准，见 PROGRESS.md） |
 | **遗留** | M38（哨兵化转义）、M7/M8（历史兼容路径）、M17（外部写盘通道的兜底依赖 Stop 侧自检） |
-| **Toll-gate 6→7** | 建议放行：无 🔴 Critical；🟡 R1 有明确 Remedy 与影响面上界，且已登记 |
+| **Toll-gate 6→7** | ⛔ **暂不放行（pending）** —— 依 ADR-017，须先满足：① 阶段 2 的最新 L3 为 `fail`（2 critical：文档口径自相矛盾【已按 49be722 统一】、转义/还原歧义 M38），处置与重审未完成；② 阶段 3/5/6/7 的 L2 均为 `fail`（已逐条响应，见各 `INDEPENDENT-REVIEW-N.md`），其 L3 轮次**尚未运行**。 |
+
+### 诚实性声明（本报告的自查）
+
+- 本节的"Critical 0"**仅指历史 critical 已落地**，不代表当前各阶段门禁已通过；阶段 2 的三轮 L3 结论
+  分别是 19:04 / 19:15 / 19:26 / 19:43 的 `fail`，最后一次的 2 条 critical 中「文档口径矛盾」已由
+  commit `49be722` + 本次 DESIGN 统一（§D11 最终形态）闭合，「转义/还原歧义」仍为 **M38**（Tech-debt）。
+- 阶段 6/7 的 L2 盲审结论（`L2-ROUND-P6/P7.json`）指出的数字与路径问题已在本轮修正；
+  其 L3 轮次与结论未产出前，本报告不宣称通过。

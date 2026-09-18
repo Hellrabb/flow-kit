@@ -19,7 +19,13 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 2
 
 MODE="count"
-[ "${1:-}" = "--attribution" ] && MODE="attribution"
+ATTR_OUT=".specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
+case "${1:-}" in
+  --attribution)
+    MODE="attribution"
+    # 可选第二参数 = 输出路径（测试用它再生到临时文件，避免"测试改工作区"）
+    [ -n "${2:-}" ] && ATTR_OUT="$2" ;;
+esac
 
 awk_prog='NR<n && $0 !~ /^[[:space:]]*$/ {last=$0} END{print last}'
 
@@ -64,7 +70,7 @@ nonenum=$(printf '%s\n' "$verdicts" | sed -n 's/^RESULT [0-9]* \([0-9]*\)$/\1/p'
 empty=${empty:-0}; nonenum=${nonenum:-0}
 
 if [ "$MODE" = "attribution" ]; then
-  out=".specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
+  out="$ATTR_OUT"
   base_list=$(git ls-tree -r --name-only 61c4bf8 2>/dev/null | grep -E '\.specs/.*INDEPENDENT-REVIEW-.*\.md$' | sed 's#^\.specs/##' | sort)
   # 保留既有的逐文件归因（旧实现取值 / 旧值来源段）——它们来自**旧实现实跑**，不可重算，
   # 再生时只能从上一版清单继承；新增文件才标注"本期新增"。
