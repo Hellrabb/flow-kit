@@ -128,7 +128,7 @@
 | **Minor** | 42 项登记 `MINOR-DEFERRED.md`（M1–M42），按 ADR-017 不进 fix loop |
 | **门禁（2026-09-18 21:0x 实测）** | `make check` 五门全绿；`npx bats test/` **926 ok / 0 not ok**；`./sync-hooks.sh --check` 漂移 0；`bash verify-claims.sh` 13/13 |
 | **遗留** | M38（哨兵化转义）、M7/M8（历史兼容路径）、M17（外部写盘通道的兜底依赖 Stop 侧自检） |
-| **Toll-gate 6→7**（21:0x 复核） | ⛔ **暂不放行（pending）** —— 阶段 5 / 7 的 L3 = pass（阶段 5 已写 `.done`）；阶段 2 = fail（1C：伪标记可绕过 → **已收紧守卫**，待重审）、阶段 3 = fail（4C：TASK 依赖语义 → 已补说明，待重审）、阶段 6 = fail（1C：解码对历史文本非单射 → 登记 M43，待响应） —— 依 ADR-017，须先满足：① 阶段 2 的最新 L3 为 `fail`（2 critical：文档口径自相矛盾【已按 49be722 统一】、转义/还原歧义 M38），处置与重审未完成；② 阶段 3/5/6/7 的 L2 均为 `fail`（已逐条响应，见各 `INDEPENDENT-REVIEW-N.md`），其 L3 轮次**尚未运行**。 |
+| **Toll-gate 6→7**（21:5x 复核） | ⛔ **暂不放行（pending）** —— 阶段 1/5/7 = pass（锚点齐）；**阶段 2 = fail、阶段 3 = fail、阶段 6 = fail**。三者的 critical 已逐条处置：① 阶段 2/6 同源的「判据表述矛盾」→ DESIGN 全量统一（`grep -c '其后再无' DESIGN.md` = 0）；② 阶段 2 的「转义未落签名」→ 贴入示例补签名行 + D13 配套；③ 阶段 3 的依赖图 → M45 重排（波次 + `verify_depends_on` + 命令层过滤）。对应轮次见 `INDEPENDENT-REVIEW-{2,3,6}.md` 末段；未 pass 前不放行。 |
 
 ### 诚实性声明（本报告的自查）
 

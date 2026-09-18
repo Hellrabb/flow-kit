@@ -534,6 +534,12 @@ _l3_build_prompt 7 <artifacts_dir> <max_bytes>
 | 19:26 major③ | R7 缓解未覆盖贴入路径 | **Fixed in**：R7 增第 ⑤ 条（贴入路径由守卫 + 写后自检承担，与转义互补） |
 | 19:26 minor①② | M8 例外 / R8 残余面措辞 | **Not-applicable / Fixed in**：M8 已登记为唯一获准例外；R8 措辞已区分「段边界伪造面」与「散文结论面」 |
 | （自查，源自 19:26） | 裸标题 + 伪 Verdict 落在 L2 层会被取为 L2 结论 | **Tech-debt:** 散文提取通道的固有属性（非边界伪造），登记 **M39**；v2 = 结构化结论行由 hook 写 |
+| 21:20/21:34 critical | 守卫判据「其后再无结束标记」与「不看标记」两种表述并存 | **Fixed in:** 全量清除旧措辞（`grep -c '其后再无' DESIGN.md` = 0），判据只保留一处权威表述（本节「最终形态」） |
+| 21:20/21:34 major | 结构损坏未撤销既有凭证 | **Fixed in:** `29-independent-review.sh` 在确认损坏时调 `l3_invalidate_done`（21:2x）；`_l3_write_done` 亦拒绝新凭证（`B10-R8`） |
+| 21:34 major | Write 整文件重写含合法 L3 段会被拦 | **Tech-debt:** 内容层无法证明来源的必然代价，新增风险 **R13** + M44 |
+| 21:34 major | 连续多个行首反斜杠的编码语义未定义 | **Tech-debt:** M44（v2：整串加倍或不可打印前缀） |
+| 21:43 critical | 贴入方按 D11 建议转义但未落签名 → 门控解码不生效 | **Fixed in:** `L2-blind-review.md` 贴入示例补签名行 + 本节 D13 配套说明 |
+| 21:37 critical×5（阶段 3） | TASK.md 依赖图/verify/done 不自洽 | **Fixed in:** M45 —— 波次重排（T02→W2、T12→W3）、新增 `verify_depends_on` 字段、T01 verify 命令层过滤、T04/T05/T12 verify 覆盖各自 done 的组、T06/T09 行级边界 |
 | — | （自查）`verify-claims.sh` check 5 曾是恒真断言、`sync-hooks.sh --check` 曾非只读 | **Fixed in:** 注入真裸正则验证（检出 1 处）、`--check` 改为只读并在 `regen_l2_agent` 前分流 |
 
 ---

@@ -11,11 +11,13 @@
 ## 波次划分
 
 ```
-Wave 1 (parallel): T01[P] T02[P] T03[P] T04[P] T06[P]        （互不依赖）
-Wave 2 (parallel): T05[P] T07[P] T11[P] T12[P]               （T05←T01,T02；T07←T01；T11←T01,T02；T12←T05）
-Wave 3:            T08  T13                                   （T08←T01..T07,T11,T12；T13←T06）
-Wave 4:            T09                                        （←T08）
-Wave 5:            T10                                        （←T01..T09,T11,T12,T13）
+Wave 1 (parallel): T01[P] T03[P] T04[P] T06[P]               （互不依赖）
+Wave 2 (parallel): T02[P] T07[P]                              （T02←T01；T07←T01）
+Wave 3 (parallel): T05[P] T11[P] T13[P]                       （T05←T01,T02；T11←T01,T02；T13←T06）
+Wave 4:            T12                                        （←T05,T11）
+Wave 5:            T08                                        （←T01..T07,T11,T12）
+Wave 6:            T09                                        （←T08）
+Wave 7:            T10                                        （←T01..T09,T11,T12,T13）
 ```
 
 > 同 wave = 可并行；跨 wave = 必须顺序执行。
@@ -27,6 +29,17 @@ Wave 5:            T10                                        （←T01..T09,T11
 > 若要在新项目里按同一张表真实推进，需要把 T08 拆成「骨架（Wave 1，与 T01 同波次创建文件）+
 > 补齐（Wave 3）」两步 —— 已在 T08 的 action 中注明。
 >
+> **verify 的防空跑写法（M40 的收敛修法，2026-09-18 起全表统一）**：
+> `bats -f <组>-` 在 0 匹配时输出 `1..0` 且 rc=0 —— 必须**三查**：① bats 自身退出码；
+> ② TAP 计划行 `1..N` 的 N ≥ 期望下限；③ 输出不得含 `not ok`（组过滤下 rc 已能反映，但显式更稳）。
+> 复现 M40：`npx bats test/test_l3_review_defects_2026_09.bats -f "ZZZ-NOPE"` → `1..0`，rc=0。
+
+> **复验模型（M45 的修法，取代早先的 `verify_depends_on`）**：本 change 的回溯复验命令都跑 T08 的套件产物，
+> 但**构造依赖**与**复验依赖**是两种关系 —— 前者用 `depends_on`（波次执行用），后者用新增的
+> `verify_phase="final"`（**复验时点**：全部波次完成后一次性执行）。三者分开声明后：
+> ① 波次图只表达**构造依赖**（无环）；② `verify` 是**收敛后的复验命令**，不对波次执行构成门禁；
+> ③ 因此「verify 引用 T08 产物」与「T08 依赖各实现任务」不再构成环。
+>
 > **T01 的 verify 只跑本任务可判定的用例**：B2 组含 R8/R14/R15/R16（写侧接线，属 T05），
 > 故 T01 的验收范围显式限定为 `B2-R1..R4 / R6 / R7 / R9..R13 / R17..R19`（见该任务 verify 内注释）。
 > **不变量（依阶段 3 的 L2 盲审 major：原表把 T09/T10 同列一个 [P] 波次，却又有 T10←T09 依赖）**：
@@ -35,15 +48,16 @@ Wave 5:            T10                                        （←T01..T09,T11
 
 | 波次 | 任务 | depends_on | 与前序波次一致？ |
 | --- | --- | --- | --- |
-| 1 | T01 T02 T03 T04 T06 | — | ✅ |
-| 2 | T05 | T01,T02 | ✅ |
+| 1 | T01 T03 T04 T06 | — | ✅ |
+| 2 | T02 | T01 | ✅ |
+| 3 | T05 | T01,T02 | ✅ |
 | 2 | T07 | T01 | ✅ |
-| 2 | T11 | T01,T02 | ✅ |
-| 2 | T12 | T05 | ✅ |
-| 3 | T08 | T01..T07,T11,T12 | ✅ |
+| 3 | T11 | T01,T02 | ✅ |
+| 4 | T12 | T05,T11 | ✅（与 T11 都写 `l3-review.sh`，故串行） |
+| 5 | T08 | T01..T07,T11,T12 | ✅ |
 | 3 | T13 | T06 | ✅ |
-| 4 | T09 | T08 | ✅ |
-| 5 | T10 | T01..T09,T11,T12,T13 | ✅ |
+| 6 | T09 | T08 | ✅ |
+| 7 | T10 | T01..T09,T11,T12,T13 | ✅ |
 
 ---
 
@@ -69,14 +83,18 @@ Wave 5:            T10                                        （←T01..T09,T11
     _l3_strip_sections。沿用既有 local 函数风格与 `shellcheck shell=bash` 头注；不引入新依赖（见 D6/D7）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B2-"
-    # B2 组含跨任务用例（R8/R14/R15/R16 断言写侧接线，属 T05）；本任务验收以下列为准：
-    # B2-R1..R4 / R6 / R7 / R9..R13 / R17..R19（l3-section.sh 自身可判定）
+    # 命令层过滤（M45 的 ③）：逐个跑本任务可判定的用例，不跑 T05 的写侧接线用例
+    for c in B2-R1 B2-R2 B2-R3 B2-R4 B2-R6 B2-R7 B2-R9 B2-R10 B2-R11 B2-R12 B2-R13 B2-R17 B2-R18 B2-R19; do
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "$c" --formatter tap) || exit 1   # ① bats 退出码
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1                                          # ③ 无失败行
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1                          # ② 计划行下限
+    done
   </verify>
   <done>
     L3 段边界只有一个实现；本任务范围内的 B2 用例全绿（跨任务断言归 T05 验收）。
   </done>
   <depends_on></depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T02" parallel="true" status="done" model-tier="standard">
@@ -99,12 +117,16 @@ Wave 5:            T10                                        （←T01..T09,T11
     的降级排除。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B1-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B1-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=20)?0:1}' || exit 1
   </verify>
   <done>
     B1 组全绿；语料全量复算零非枚举（AC-2 的用例「AC2: 语料全量复算」）。对应 AC-1/AC-2/AC-3。
   </done>
-  <depends_on></depends_on>
+  <depends_on>T01</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T03" parallel="true" status="done" model-tier="standard">
@@ -132,12 +154,16 @@ Wave 5:            T10                                        （←T01..T09,T11
     （禁动偏差已登记 M10）。项目级 `.flow-kit/stop-hook.json` 的 cap 提到 200000（见 T10 的说明）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B3-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B3-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=6)?0:1}' || exit 1
   </verify>
   <done>
     B3 组全绿（含 `B3-R5` 四处载体三要素断言、`B3-R5b` 第五处载体、`B3-R7/R8` 截断告警）。对应 AC-6/AC-7。
   </done>
   <depends_on></depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T04" parallel="true" status="done" model-tier="standard">
@@ -156,12 +182,19 @@ Wave 5:            T10                                        （←T01..T09,T11
     参数名 max_chars → max_bytes，并在截断时向 stderr 告警（含丢弃比例）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B4-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B4-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=4)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B7-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=4)?0:1}' || exit 1
   </verify>
   <done>
     B4 组与 B7 组全绿：41 条目目录零遗漏、不再凭空产出 INTEGRATION.md === MISSING。对应 AC-8/AC-9。
   </done>
   <depends_on></depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T05" parallel="true" status="done" model-tier="standard">
@@ -183,12 +216,34 @@ Wave 5:            T10                                        （←T01..T09,T11
     清理临时文件 + exit 1），不留未转义的半截文件；固化指令写约束新增第 4 条（贴入路径亦须转义）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R8"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R5" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R8" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R9" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R10" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R14" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R15" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B2-R16" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=1)?0:1}' || exit 1
   </verify>
   <done>
     转义是契约（B2-R5/R8/R9/R10/R14/R15/R16 全绿）；载荷无法伪造段起点、围栏或标记。
   </done>
   <depends_on>T01,T02</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T06" parallel="true" status="done" model-tier="standard">
@@ -204,6 +259,7 @@ Wave 5:            T10                                        （←T01..T09,T11
     Makefile
   </write_files>
   <action>
+    Makefile 行级边界：**只动** `hooks-sync` / `check-hooks-sync` 两个 target（`verify-claims` 归 T09）。
     新增 sync-hooks.sh：把源镜像到 7 个 DEST_ROOTS（含此前完全未覆盖的 `~/.config/opencode/hooks`
     与 dist/dsh 运行时树），覆盖四类树（hooks / prompts / 复合 agent / 平台级 agent 落点）；
     `--check` 必须**只读**（不得在检查模式下重放 agent 拷贝段）；`--list` 供复验工具动态枚举载体。
@@ -240,6 +296,7 @@ Wave 5:            T10                                        （←T01..T09,T11
     重审触发判据与写侧同源；结构门槛不回退（`l3-api.sh` 249/250）。
   </done>
   <depends_on>T01</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T08" parallel="false" status="done" model-tier="standard">
@@ -266,7 +323,7 @@ Wave 5:            T10                                        （←T01..T09,T11
     AC-2 的活语料不变量 = 零非枚举 + 每份空值可归因（清单由 `bash corpus-count.sh --attribution` 再生，
     数值预算 ≤8 只对**基线语料**成立）。对应 AC-2/AC-11/AC-12。
   </done>
-  <depends_on>T01,T02,T03,T04,T05,T06,T07</depends_on>
+  <depends_on>T01,T02,T03,T04,T05,T06,T07,T11,T12</depends_on>
 </task>
 
 <task id="T09" parallel="true" status="done" model-tier="standard">
@@ -327,7 +384,7 @@ Wave 5:            T10                                        （←T01..T09,T11
     项目级沉淀齐全且**可证伪**：cap=200000（`.flow-kit/stop-hook.json` 被 `.gitignore:64` 忽略，
     故 diff 不可见 → 用 `jq -e` 断言替代）、ADR-026 在库、CONTEXT 术语与 CHANGELOG 条目更新。
   </done>
-  <depends_on>T01,T02,T03,T04,T05,T06,T07,T08,T09</depends_on>
+  <depends_on>T01,T02,T03,T04,T05,T06,T07,T08,T09,T11,T12,T13</depends_on>
 </task>
 
 <task id="T11" parallel="true" status="done" model-tier="standard">
@@ -345,12 +402,16 @@ Wave 5:            T10                                        （←T01..T09,T11
     timeout 分支**刻意不撤销**（超时不携带"当前状态不通过"的信息）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B6-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B6-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=5)?0:1}' || exit 1
   </verify>
   <done>
     B6 组 6/6；实测已阻止"截断版 pass 的锚点"在新一轮 fail 后继续放行。对应 M32。
   </done>
   <depends_on>T01,T02</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T12" parallel="true" status="done" model-tier="standard">
@@ -376,12 +437,19 @@ Wave 5:            T10                                        （←T01..T09,T11
     ③ 确定损坏 → `write_review_structure_correction`（compliance 优先）+ `module_output error`（非阻塞）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B9-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B9-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=6)?0:1}' || exit 1
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B10-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=6)?0:1}' || exit 1
   </verify>
   <done>
     B9 组（12 例）与 B10 组（7 例）全绿；裸标题=放行且**证明无害**、`---`+标题+无标记=拒绝。对应 M36/M37/D14。
   </done>
-  <depends_on>T05</depends_on>
+  <depends_on>T05,T11</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 
 <task id="T13" parallel="false" status="done" model-tier="standard">
@@ -397,12 +465,16 @@ Wave 5:            T10                                        （←T01..T09,T11
     顺带修参数解析只看 `$1` 的 bug（`--check --strict-orphans` 的第二个参数曾被静默忽略）。
   </action>
   <verify>
-    npx bats test/test_l3_review_defects_2026_09.bats -f "B5-"
+    set -o pipefail
+      out=$(npx bats test/test_l3_review_defects_2026_09.bats -f "B5-" --formatter tap) || exit 1
+      printf '%s\n' "$out" | grep -q '^not ok' && exit 1
+      printf '%s\n' "$out" | awk '/^1\.\./{exit ($2>=4)?0:1}' || exit 1
   </verify>
   <done>
     B5 组 5/5；`--check` 在真实树仍为漂移 0。对应阶段 2 的 L3 19:15 major②。
   </done>
   <depends_on>T06</depends_on>
+  <verify_phase>final（全部波次完成后统一复验；见下「复验模型」）</verify_phase>
 </task>
 ```
 
