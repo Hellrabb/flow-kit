@@ -1,9 +1,10 @@
 # 归档清单 · l3-review-defects-2026-09
-# 生成时间: 2026-09-19T23:06:03+08:00
-# HEAD: 6319ba5 test(flow-kit): M41 两条改为真跑变异体 + M50 跨环境真机取证 + 3 处 GNU 专属写法加回退
-# 工作区未提交: 17 项
+# 生成时间: 2026-09-19T23:06:15+08:00
+# HEAD: 4ab7da1 test(flow-kit): M41 闭合（5/5 真跑变异体）+ 阶段 7 提示词两处系统性缺陷修复 + 归档再同步
+# 工作区未提交: 0 项
 
-## 文件（26 项）
+## 文件（27 项）
+ARCHIVE-MANIFEST.txt                               3723 B  sha256:fb3eba8ad7bc6709
 CHANGE.md                                          7478 B  sha256:ef20ea84339d31b0
 DESIGN.md                                         63572 B  sha256:407b5e3b863fb25f
 DEV-SUMMARY.md                                    10806 B  sha256:39ab33de385d4b60
