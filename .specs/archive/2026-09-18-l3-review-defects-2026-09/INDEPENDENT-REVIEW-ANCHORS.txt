@@ -1,5 +1,6 @@
-# 独立审查锚点清单（由 l3_review_run 写出）
-# 生成时间: 2026-09-19T13:37:37+08:00
+# 独立审查锚点清单（由审查子系统 l3_review_run → _l3_write_done 写出）
+# 生成时间: 2026-09-19T23:05:42+08:00
+# 说明：锚点本身是**运行时状态**（留在 change 目录，不进归档）；此处记录其完整内容作为门禁证据。
 
 ## .independent-review-1.done
     phase=1
@@ -34,7 +35,7 @@
     written_by=pre-tool-use-gate
     L2_verdict=pass
     L3_verdict=pass
-    L3_summary=测试工件对 AC 全量映射、行为级断言为主且如实标注仅接线断言、性能/安全/兼容/可观测性均有可复算证据，UAT 命令明确且工件内可复跑，未发现 mock 屏蔽真实失败或回归缺失。
+    L3_summary=测试矩阵覆盖全部 AC 且含真实行为断言、变异体与回归保护，无 critical 缺陷，但存在覆盖计数、登记与 UAT 可移植性等需修正的一致性问题。
     artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md
 
 ## .independent-review-6.done
@@ -43,7 +44,7 @@
     written_by=pre-tool-use-gate
     L2_verdict=pass
     L3_verdict=pass
-    L3_summary=代码修复整体收敛，fail-closed、委托解码、锚点撤销等安全门禁已落地且回归覆盖增强；但存在 l2-detect.sh 错误处理使用 exit、TEST.md 计数不一致、TASK.md 依赖图残留等 major 问题，无 critical 故判 pass。
+    L3_summary=新增 B12-R3/R4/R5 真跑变异体测试方向正确且能覆盖原接线断言的行为承重性，但 TEST.md 覆盖计数自相矛盾、矩阵 B10 计数未同步、UAT 硬编码绝对路径 3 处 major 需修正；无 critical。
     artifacts=REVIEW.md,TASK.md,TEST.md,INDEPENDENT-REVIEW-6.md
 
 ## .independent-review-7.done
@@ -52,6 +53,6 @@
     written_by=pre-tool-use-gate
     L2_verdict=pass
     L3_verdict=pass
-    L3_summary=必备归档六件与 CHANGELOG 均齐备，但独立审查完成锚点缺失两处，且设计决策编号范围表述不一致。
+    L3_summary=归档必备件（CHANGE/REQUIREMENT/DESIGN/TASK/DEV-SUMMARY/TEST/REVIEW）与项目级 CHANGELOG 均在位且内容充实，INDEPENDENT-REVIEW-7 等本阶段审查记录缺失属预期，未发现可证伪的缺陷。
     artifacts=REVIEW.md,TEST.md,TASK.md,DESIGN.md,REQUIREMENT.md,CHANGE.md,INDEPENDENT-REVIEW-7.md
 

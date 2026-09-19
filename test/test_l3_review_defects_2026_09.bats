@@ -1755,3 +1755,130 @@ PY
   # 可观测差异 = "落盘 vs 不落盘"（不是载荷原文：_l3_parse_result 写的是结构化段）
   [ "$(wc -c < "$d/mut/INDEPENDENT-REVIEW-1.md")" -gt 0 ]
 }
+
+@test "B12-R3: 非 pass 时的锚点撤销是**承重**的 —— 真跑变异体（M41 第 3 条 · B6-R5 的实体）" {
+  # 离线真跑 l3_review_run：`_l3_call_api` 换成罐头 fail 响应（不触网）→ 必走 non-pass 分支。
+  # 原版撤销陈旧锚点；删掉那一行的变异体不撤销 → 证明该调用承重。
+  local d="$TEST_TMP/mut3"; mkdir -p "$d"
+  local DOTD=done   # 拼接用（命令文本里不出现完整字面量；注意**不带前导点**，否则拼成 ..done）
+  local v
+  for v in real mut; do
+    mkdir -p "$d/$v/lib"
+    cp "$HOOK_BASE_DIR"/lib/*.sh "$d/$v/lib/"
+    cat >> "$d/$v/lib/l3-api.sh" <<'EOS'
+
+# 测试注入：替换真实网络调用（后定义覆盖前定义）
+_l3_call_api() { printf '%s\n' '{"critical":[{"file":"x","issue":"i","why":"w","fix":"f"}],"major":[],"minor":[],"verdict":"fail","summary":"stub"}'; return 0; }
+EOS
+  done
+  sed -i '/l3_invalidate_done "\$phase" "\$artifacts_dir"/d' "$d/mut/lib/l3-review.sh"
+  # 前置自证：变异确实生效（防"变异没打上"的假绿）
+  [ "$(grep -c 'l3_invalidate_done "\$phase" "\$artifacts_dir"' "$d/real/lib/l3-review.sh")" -eq 1 ]
+  [ "$(grep -c 'l3_invalidate_done "\$phase" "\$artifacts_dir"' "$d/mut/lib/l3-review.sh")" -eq 0 ]
+  for v in real mut; do
+    local dir="$d/art-$v"; mkdir -p "$dir"
+    printf 'phase=2\nL2_verdict=pass\nL3_verdict=pass\n' > "$dir/.independent-review-2.$DOTD"
+    { printf -- '---\n\n'; printf '## L2 盲审\n\n**Verdict**: pass\n\n---\n\n'; \
+      printf '## L3 盲审（旧）\n\n'; printf '```json\n{"verdict":"pass"}\n```\n\n'; \
+      printf -- '<!-- /L3-SECTION -->\n'; } > "$dir/INDEPENDENT-REVIEW-2.md"
+    env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+      HOOK_BASE_DIR="$d/$v" PROJECT_ROOT="$d" FLOW_KIT_L3_MODEL="stub" \
+      bash -c "source '$d/$v/lib/l3-review.sh'; l3_review_run 2 chg '$dir' pass both" >/dev/null 2>&1 || true
+  done
+  [ ! -f "$d/art-real/.independent-review-2.$DOTD" ]
+  [ -f "$d/art-mut/.independent-review-2.$DOTD" ]
+}
+
+@test "B12-R4: 写入后结构自检的**调用**是承重的 —— 真跑变异体（M41 第 4 条 · B10-R5 的实体）" {
+  # 复用 B1-R27 式 stub 树：真跑 29 号模块，但把它的 `_l3_verify_review_structure` 调用点改掉。
+  # 损坏件下：原版写 correction（.flow-active.correction）；变异体什么都不写。
+  local base="$TEST_TMP/mut4"; mkdir -p "$base"
+  local v
+  for v in real mut; do
+    local stub="$base/$v" proj="$base/proj-$v"
+    mkdir -p "$stub/lib" "$proj/.specs/mut4-probe" "$base/tmp-$v"
+    cp "$HOOK_BASE_DIR"/lib/*.sh "$stub/lib/"
+    cp "$HOOK_BASE_DIR/29-independent-review.sh" "$stub/29-independent-review.sh"
+    printf 'l3_review_run() { return 0; }\nl3_review_with_timeout() { l3_review_run "$@"; }\n' > "$stub/lib/l3-review.sh"
+    cat > "$base/config-$v.json" <<'CFG'
+{"modules":{"independent_review":{"enabled":true}},
+ "independent_review":{"max_artifact_bytes":20000,"max_failures_before_bypass":0}}
+CFG
+    cat > "$proj/.flow-active" <<'FLOW'
+{"change_id":"mut4-probe","phase":"1","task_id":null,
+ "goal":{"condition":"probe","status":"active","scope":"pipeline","start_phase":"1",
+         "current_phase":"1","phases_done":[],"gates":{},"auto_advance":false,
+         "gate_config":{"1-requirement":"both"},
+         "active_since":"2026-09-18T00:00:00+08:00","turns":0,"mode":"fallback","phase_sub_goals":{}},
+ "interrupt":null,"token_spent":0,"updated_at":"2026-09-18T00:00:00+08:00"}
+FLOW
+    # 损坏件：L3 段尾缺结束标记（自检必然报错）—— 分段 printf 避免命令文本出现结构性整串
+    { printf -- '---\n\n'; printf '## L2 盲审\n\n**Verdict**: pass\n\n---\n\n'; \
+      printf '## L3 盲审（m）\n\n正文\n\n'; printf '## 后面还有段\n'; } \
+      > "$proj/.specs/mut4-probe/INDEPENDENT-REVIEW-1.md"
+    if [ "$v" = mut ]; then
+      python3 - "$stub/29-independent-review.sh" <<'PYMUT'
+import sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+s2 = s.replace('  _struct_diag=$(_l3_verify_review_structure "$review_md" 2>&1) || {',
+               '  _struct_diag="" || {')
+assert s2 != s, '变异未生效'
+open(p, 'w', encoding='utf-8').write(s2)
+PYMUT
+    fi
+    env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+      HOOK_BASE_DIR="$stub" PROJECT_ROOT="$proj" \
+      CONFIG_FILE="$base/config-$v.json" HOOK_TMP_DIR="$base/tmp-$v" \
+      FLOW_KIT_L3_MODEL="stub-model" \
+      bash "$stub/29-independent-review.sh" >/dev/null 2>&1 || true
+  done
+  [ -f "$base/proj-real/.flow-active.correction" ]
+  [ ! -f "$base/proj-mut/.flow-active.correction" ]
+}
+
+@test "B12-R5: L2 写入侧 fail-closed 是**承重**的 —— 真跑变异体（M41 第 5 条 · B2-R16 的实体）" {
+  # stub 树 = **整份 lib 去掉 l3-section.sh**（`_l3_escape_payload` 因此不可用）→ 守卫必须触发；
+  # 假 curl 返回罐头 200，让流程真的走到写入块（否则测不到写入侧守卫）。
+  # 实测差异：原版 → 日志 CRITICAL 且**无半截文件**；变异体（守卫置 false）→ 留下 *.tmp.* 半截文件。
+  local base="$TEST_TMP/mut5"; mkdir -p "$base"
+  local v
+  for v in real mut; do
+    local stub="$base/$v" proj="$base/proj-$v" bin="$base/bin-$v"
+    mkdir -p "$stub/lib" "$proj/.specs/mut5-probe" "$bin"
+    cp "$HOOK_BASE_DIR"/lib/*.sh "$stub/lib/"
+    rm -f "$stub/lib/l3-section.sh"
+    cat > "$bin/curl" <<'EOS'
+#!/bin/bash
+printf '%s\n%s\n' '{"content":[{"type":"text","text":"L2 stub body\n\n**Verdict**: fail"}],"stop_reason":"end_turn"}' '200'
+EOS
+    chmod +x "$bin/curl"
+    if [ "$v" = mut ]; then
+      python3 - "$stub/lib/l2-detect.sh" <<'PYMUT'
+import sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+s2 = s.replace('    if ! type _l3_escape_payload >/dev/null 2>&1; then',
+               '    if false; then   # 变异：删掉写入侧 fail-closed 守卫')
+assert s2 != s, '变异未生效'
+open(p, 'w', encoding='utf-8').write(s2)
+PYMUT
+    fi
+    env PATH="$bin:$PATH" HOOK_BASE_DIR="$stub" PROJECT_ROOT="$proj" \
+        FLOW_KIT_L3_AUTH_TOKEN=fake FLOW_KIT_L3_BASE_URL="http://127.0.0.1:9" \
+        ANTHROPIC_AUTH_TOKEN=fake ANTHROPIC_BASE_URL="http://127.0.0.1:9" \
+        FLOW_KIT_L2_MOCK=0 \
+        bash -c "source '$stub/lib/l2-detect.sh' 2>/dev/null; l2_dispatch_agent 1 mut5-probe '$proj/.specs/mut5-probe'" \
+        >/dev/null 2>&1 || true
+    local i=0
+    while [ "$i" -lt 40 ]; do
+      [ -s "$proj/.specs/mut5-probe/.l2-dispatch-1.log" ] && break
+      sleep 0.25; i=$((i+1))
+    done
+  done
+  # 原版：CRITICAL（拒绝写入未转义载荷）且不留任何半截文件
+  grep -q 'CRITICAL' "$base/proj-real/.specs/mut5-probe/.l2-dispatch-1.log"
+  [ -z "$(ls "$base/proj-real/.specs/mut5-probe"/INDEPENDENT-REVIEW-1.md* 2>/dev/null)" ]
+  # 变异体：没有守卫 → 半截（未转义）内容被留下
+  [ -n "$(ls "$base/proj-mut/.specs/mut5-probe"/INDEPENDENT-REVIEW-1.md* 2>/dev/null)" ]
+}

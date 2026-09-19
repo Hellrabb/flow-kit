@@ -438,6 +438,13 @@ _l3_build_prompt() {
       for _req in CHANGE.md REQUIREMENT.md DESIGN.md TASK.md TEST.md REVIEW.md; do
         if [ -f "${artifacts_dir}/${_req}" ]; then
           artifact="${artifact}\n\n=== ${_req} ===\n$(_l3_utf8_head_bytes 3000 "${artifacts_dir}/${_req}" 2>/dev/null || true)"
+          # 必备件同样是 3000B **预览**预算 → 必须留痕（22:52 轮 L3 把"预览截断"读成
+          # "工件正文被截断"并据此判 major；与补充产物的留痕同因同治）
+          local _rsz
+          _rsz=$(wc -c < "${artifacts_dir}/${_req}" 2>/dev/null || echo 0); _rsz=${_rsz// /}
+          if [ "${_rsz:-0}" -gt 3000 ]; then
+            artifact="${artifact}\n……（本件 ${_rsz}B 超过**必备件预览预算** 3000B，此处只示前 3000B；\n完整正文见 ${artifacts_dir}/${_req}。本条是**提示词预算**产物，不构成工件缺陷。）"
+          fi
         else
           artifact="${artifact}\n\n=== ${_req} === MISSING"
         fi
@@ -452,7 +459,7 @@ _l3_build_prompt() {
       artifact+="$(_l3_extra_deliverables "$artifacts_dir")"
       unset _req
       artifact=$(echo -e "$artifact" | _l3_utf8_head_stream "$max_bytes")
-      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n注意：以「产物目录（全量）」清单为准（不再按行数截断）。除必备 6 件外的 *.md（UAT.md / MINOR-DEFERRED.md / L2-EMPTY-ATTRIBUTION.md 等）是补充产物：**未出现不构成缺陷**，一旦给出正文则须纳入审查（不得再说「未提供」）。\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？"
+      checklist="归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY（如已生成）/TEST/REVIEW）？\n注意：以「产物目录（全量）」清单为准（不再按行数截断）。除必备 6 件外的 *.md（UAT.md / MINOR-DEFERRED.md / L2-EMPTY-ATTRIBUTION.md 等）是补充产物：**未出现不构成缺陷**，一旦给出正文则须纳入审查（不得再说「未提供」）。\n项目级 .specs/CHANGELOG.md 是否更新（CHANGELOG 不入归档目录，勿因归档目录缺失报错）？archive 是否完整？\n**两点本阶段特有、必须先读**：① 本阶段的独立审查记录「INDEPENDENT-REVIEW-7.md」与其完成锚点由**审查子系统在本次审查之后**写入（锚点只在通过时产生）→ 其缺失/为空属**预期**，不得据此判缺陷；② 各必备件正文此处按 **3000B 预览预算**裁剪，凡标注「超过必备件预览预算」的即为提示词裁剪，不构成工件缺陷（完整正文在仓库中）。"
       ;;
   esac
   [ -n "$artifact" ] || { echo "[l3-review] no artifact for phase $phase" >&2; return 3; }

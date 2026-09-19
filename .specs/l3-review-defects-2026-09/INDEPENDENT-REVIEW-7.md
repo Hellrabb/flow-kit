@@ -63,36 +63,41 @@
 
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-19 06:35）
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-19 22:54）
 
-> 自动生成于 2026-09-19 06:35。由 l3-review.sh 写入。
+> 自动生成于 2026-09-19 22:54。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
 {
   "critical": [],
-  "major": [
-    {
-      "file": "产物目录（全量）",
-      "issue": "审查完成锚点不完整：目录中存在 `INDEPENDENT-REVIEW-5.md` 与 `INDEPENDENT-REVIEW-7.md`，且 REVIEW.md 将其列为独立审查记录，但缺少对应的 `.independent-review-5.done` 与 `.independent-review-7.done`（仅有 1/2/3/6 的锚点）。",
-      "why": "CHANGELOG 收尾轮写明审查状态以 `.specs/<id>/.independent-review-*` 现状为准，REVIEW.md 也称每份记录由 L2+L3 双轨产出；缺失两个 done 锚点使阶段 5 与阶段 7 的审查完成状态无法按项目自述方式复验，归档审查记录不完整。",
-      "fix": "补齐 `.independent-review-5.done` 与 `.independent-review-7.done`（内容与对应 INDEPENDENT-REVIEW-*.md 的最终 verdict/hash 一致），或在 REVIEW.md/CHANGELOG 中明确这两份记录不产生锚点的原因并保持格式统一。"
-    }
-  ],
+  "major": [],
   "minor": [
     {
-      "file": "DEV-SUMMARY.md",
-      "issue": "头部写 DESIGN.md（D1–D13），而 TEST.md 头部写 DESIGN.md（D1–D14），设计决策编号范围不一致。",
-      "why": "同一归档内对 DESIGN 决策编号的引用范围互相矛盾，读者无法确定设计文档当前是否含 D14。",
-      "fix": "核对 DESIGN.md 实际最后一个决策编号，统一 DEV-SUMMARY.md 与 TEST.md 中的 D 范围。"
+      "file": "REVIEW.md",
+      "issue": "AC 覆盖表在预览中于 AC-10 行处截断，AC-11/AC-12 的结论行未展示。",
+      "why": "说明书要求审查 REVIEW.md 的 AC 覆盖表完整展示；虽然正文标注超过必备件预览预算，但历史前次审查曾将同类截断列为 major。不过按本次审查规则，「超过必备件预览预算」为提示词裁剪，不构成缺陷，故降级为提示性 minor，建议抽查完整文件确认。",
+      "fix": "在完整仓库中检查 REVIEW.md AC-10~AC-12 行是否均有明确结论（✅/❌），并确认 toll-gate 行存在。"
+    },
+    {
+      "file": "TASK.md",
+      "issue": "任务表在「verify 的防空跑写法」处截断，T01~T13 的状态/验证命令/依赖关系未完整呈现。",
+      "why": "预览预算导致截断，按规则不构成缺陷；但为确认任务表完整，需在仓库中抽查后半部分。",
+      "fix": "在完整仓库中核对 TASK.md 各任务 status 均为 done、verify 命令可复跑，且 depends_on 含 T08 的写法一致。"
+    },
+    {
+      "file": "TEST.md",
+      "issue": "测试矩阵在 AC-8/AC-9 行后截断，AC-10~AC-12 及第 2~5 轮测试内容未展示。",
+      "why": "预览预算截断，不构成缺陷；但需确认完整文件中 AC 覆盖表无缺行、五行金字塔完整。",
+      "fix": "在完整仓库中查看 TEST.md 后续 AC 行及第 2~5 轮章节是否存在并有结果。"
     }
   ],
   "verdict": "pass",
-  "summary": "必备归档六件与 CHANGELOG 均齐备，但独立审查完成锚点缺失两处，且设计决策编号范围表述不一致。"
+  "summary": "归档必备件（CHANGE/REQUIREMENT/DESIGN/TASK/DEV-SUMMARY/TEST/REVIEW）与项目级 CHANGELOG 均在位且内容充实，INDEPENDENT-REVIEW-7 等本阶段审查记录缺失属预期，未发现可证伪的缺陷。"
 }
 ```
 
-L3_artifact_hash: 5b268701881dc4f84ae3f827fb7ab826d0bb2bc7cb425112e5c1b3d2108a18ef
+L3_artifact_hash: ed57be6ca25623c13acd2a11426775392be00226aeaf51a29cfffee44d8d4a1c
 
 <!-- /L3-SECTION -->

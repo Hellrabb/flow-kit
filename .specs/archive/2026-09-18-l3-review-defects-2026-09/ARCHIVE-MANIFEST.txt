@@ -1,0 +1,47 @@
+# 归档清单 · l3-review-defects-2026-09
+# 生成时间: 2026-09-19T23:06:03+08:00
+# HEAD: 6319ba5 test(flow-kit): M41 两条改为真跑变异体 + M50 跨环境真机取证 + 3 处 GNU 专属写法加回退
+# 工作区未提交: 17 项
+
+## 文件（26 项）
+CHANGE.md                                          7478 B  sha256:ef20ea84339d31b0
+DESIGN.md                                         63572 B  sha256:407b5e3b863fb25f
+DEV-SUMMARY.md                                    10806 B  sha256:39ab33de385d4b60
+INDEPENDENT-REVIEW-1.md                          163913 B  sha256:aaa8ffff0c0a5559
+INDEPENDENT-REVIEW-2.md                          234441 B  sha256:4449386393d3b731
+INDEPENDENT-REVIEW-3.md                           22598 B  sha256:30bcbfc8ee5eb69b
+INDEPENDENT-REVIEW-5.md                           11180 B  sha256:a54f30e5d695ef8d
+INDEPENDENT-REVIEW-6.md                            9840 B  sha256:8f0c054f65218d97
+INDEPENDENT-REVIEW-7.md                            4992 B  sha256:d75c059268c6efec
+INDEPENDENT-REVIEW-ANCHORS.txt                     3149 B  sha256:131380055791cc79
+L2-EMPTY-ATTRIBUTION.md                            1774 B  sha256:05ca7fc7e45bea6a
+L2-ROUND-P3.json                                  16233 B  sha256:0acb57bc6d9629a3
+L2-ROUND-P5.json                                   4973 B  sha256:7535c80cdfc00d8e
+L2-ROUND-P6.json                                   1895 B  sha256:8ac55d866711cb6e
+L2-ROUND-P7.json                                   1297 B  sha256:e5fc560c8e4e7bb5
+L2-ROUND8-DESIGN.json                             10809 B  sha256:0e4e5ff2ee2040f6
+L3-review-defects-2026-09-17.md                   13671 B  sha256:1d78d2674316c2f7
+L3-review-defects-2026-09-18-retest.md            18159 B  sha256:311b7bde72809cfb
+MINOR-DEFERRED.md                                 24090 B  sha256:fd106f8a6820c49f
+PROGRESS.md                                       30342 B  sha256:cd3df5a7db94cbdf
+REQUIREMENT.md                                    21767 B  sha256:3543bc77e64db536
+REVIEW.md                                         19842 B  sha256:ed57be6ca25623c1
+TASK.md                                           43842 B  sha256:1f79d56fbe084501
+TEST.md                                           24221 B  sha256:fcf690ebdb72e408
+UAT.md                                             7483 B  sha256:310146ea4c9ac321
+probe-cross-env.sh                                 5637 B  sha256:f206b6795627d2fa
+
+## 门禁状态（写入本清单时）
+锚点 6/6：阶段 1/2/3/5/6/7，均由审查子系统写出（written_by=pre-tool-use-gate，L2+L3 双 pass）；`.flow-active.goal.gates` 的 0→1 … 6→7 全部 passed。
+make check rc=0 · 全量 bats 950 ok / 0 not ok · 缺陷套件 124 ok / 0 not ok · verify-claims 13/13 · hooks 漂移 0 · 双源一致 · 语料 corpus-count = 234 108 139 139 8 0
+
+## 有意不存在（不是缺失）
+- `INDEPENDENT-REVIEW-4.md` 与阶段 4 的锚点：`gate_config` 只含 1/2/3/5/6/7 六键，阶段 4（开发）不设独立审查。
+- `INTEGRATION.md`：本项目阶段 7 的验收产物是 `UAT.md`（§B4 的修复语义即"存在才列"，不硬编码该文件名）。
+- 运行时锚点文件（`INDEPENDENT-REVIEW-N` + `.done` 后缀）：留在 change 目录；完整内容见 `INDEPENDENT-REVIEW-ANCHORS.txt`。
+
+## 归档范围说明
+- 含七件套（CHANGE/REQUIREMENT/DESIGN/TASK/DEV-SUMMARY/TEST/REVIEW）+ UAT/PROGRESS/MINOR-DEFERRED/L2-EMPTY-ATTRIBUTION
+- 含全部独立审查记录 INDEPENDENT-REVIEW-{1,2,3,5,6,7}.md 与 L2 轮次 JSON
+- 含本 change 的两份源报告（L3-review-defects-2026-09-17.md / -18-retest.md）与跨环境探针 probe-cross-env.sh
+- 含锚点清单 INDEPENDENT-REVIEW-ANCHORS.txt（门禁证据）与本清单
