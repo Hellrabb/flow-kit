@@ -1,5 +1,5 @@
-# 独立审查锚点清单（由 l3_review_run 写出，复制自 .specs/l3-review-defects-2026-09/）
-# 生成时间: 2026-09-19T07:11:08+08:00
+# 独立审查锚点清单（由 l3_review_run 写出）
+# 生成时间: 2026-09-19T13:37:37+08:00
 
 ## .independent-review-1.done
     phase=1
@@ -34,7 +34,7 @@
     written_by=pre-tool-use-gate
     L2_verdict=pass
     L3_verdict=pass
-    L3_summary=测试矩阵已明确区分行为断言与接线断言，12 条 AC 均有行为覆盖，UAT 关键守卫命令已在工件内补全且可复现，未发现 mock 屏蔽真实失败；主要不足是 5 处安全分支仍缺真实失败触发测试及 AC-2 断言未完全自动化。
+    L3_summary=测试工件对 AC 全量映射、行为级断言为主且如实标注仅接线断言、性能/安全/兼容/可观测性均有可复算证据，UAT 命令明确且工件内可复跑，未发现 mock 屏蔽真实失败或回归缺失。
     artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md
 
 ## .independent-review-6.done

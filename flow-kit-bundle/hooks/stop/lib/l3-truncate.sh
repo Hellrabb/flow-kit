@@ -54,7 +54,7 @@ _l3_check_rerun() {
     6|7) artifact_file="${artifacts_dir}/REVIEW.md" ;;
   esac
   local current_hash=""
-  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && current_hash=$(sha256sum "$artifact_file" 2>/dev/null | awk '{print $1}')
+  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && current_hash=$( { sha256sum "$artifact_file" 2>/dev/null || shasum -a 256 "$artifact_file" 2>/dev/null; } | awk '{print $1}')
 
   # ④ 判定：当前 sha ≠ 记录 hash → 重审；否则 skip（touch 不触发，hash 捕内容变更）
   if [ "$current_hash" != "$recorded_hash" ]; then

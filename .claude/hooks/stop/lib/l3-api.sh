@@ -180,7 +180,7 @@ _l3_parse_result() {
     6|7) artifact_file="${artifacts_dir}/REVIEW.md" ;;
   esac
   local artifact_hash=""
-  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && artifact_hash=$(sha256sum "$artifact_file" 2>/dev/null | awk '{print $1}')
+  [ -n "$artifact_file" ] && [ -f "$artifact_file" ] && artifact_hash=$( { sha256sum "$artifact_file" 2>/dev/null || shasum -a 256 "$artifact_file" 2>/dev/null; } | awk '{print $1}')
   # 写入方 #1 fail-closed（L3 major ②）：转义入口缺失则拒绝落盘，不留半截段（与 l2-detect 侧同义）。
   type _l3_escape_payload >/dev/null 2>&1 || { echo "[l3-review] CRITICAL: _l3_escape_payload 不可用 —— _l3_parse_result 拒绝写入未转义载荷（fail-closed · ADR-026）" >&2; return 3; }
   {

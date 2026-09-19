@@ -293,7 +293,8 @@ _l3_extra_deliverables() {
         CHANGE.md|REQUIREMENT.md|DESIGN.md|TASK.md|TEST.md|REVIEW.md) continue ;;
         INDEPENDENT-REVIEW-*.md) continue ;;
       esac
-      printf '%s\t%s\n' "$(stat -c%s "$_f" 2>/dev/null || echo 0)" "$_b"
+      # 可移植体积：GNU `stat -c%s` → BSD/macOS `stat -f%z` → 兜底 `wc -c`（M50）
+      printf '%s\t%s\n' "$(stat -c%s "$_f" 2>/dev/null || stat -f%z "$_f" 2>/dev/null || wc -c < "$_f" 2>/dev/null || echo 0)" "$_b"
     done | sort -n -k1,1 -k2,2 | cut -f2
   } | while IFS= read -r _b; do
     [ -n "$_b" ] || continue
