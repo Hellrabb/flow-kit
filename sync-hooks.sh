@@ -182,18 +182,40 @@ for root in "${DEST_ROOTS[@]}"; do
       [ "$MODE" = "sync" ] && cp "$src_f" "$dst_f"
     fi
     # 权限位：本工具**只管内容**（B5 的缺陷是内容漂移）。可执行位归 install_hooks.sh
-    # 的契约管理（它只对 stop/<module>.sh、session-start/*.sh、pre-tool-use/*.sh 做
-    # chmod +x）。此处只做**只读提示**，不改动副本权限 —— 免得同步顺手改出一堆
+    # 的契约管理。此处只做**只读提示**，不改动副本权限 —— 免得同步顺手改出一堆
     # 与本次修复无关的 mode 变更，把 diff 搅浑。
-    case "$rel" in
-      stop/lib/*) ;;
-      stop/*.sh|session-start/*.sh|pre-tool-use/*.sh)
-        if [ -f "$dst_f" ] && [ ! -x "$dst_f" ]; then
-          nonexec=$((nonexec + 1))
-          [ "$MODE" = "list" ] && printf '     ⚠️  不可执行（跑 install.sh 修）：%s\n' "$root/$rel"
-        fi
-        ;;
-    esac
+    #
+    # ── 判据收窄为「仅真入口」（health-fix-2026-09 · T03 / DESIGN D4）──
+    # **理由**：原按目录判定会把只被 source 的库也要求 -x，产出 5 处假告警、把 warn 训练成噪声
+    # 原判据 `stop/*.sh|session-start/*.sh|pre-tool-use/*.sh` 按**目录**判定，
+    # 把 pre-tool-use/ 下 4 个「只被 source、从不被直接执行」的库也要求 -x
+    # （gate-helpers / gate-helpers-types / gate-checks-basic / gate-checks-review）。
+    # 实测这 4 个库零直接调用点（全仓 grep `bash <file>` / `./<file>` 均无命中），
+    # 且 install_hooks.sh 会对所有部署副本统一 chmod +x → 源侧无 exec 位**零功能影响**。
+    # 原判据长期产出 5 处假告警（.claude/hooks 1 + dist vendor 4），会把这条 warn
+    # 训练成噪声 —— 真入口丢 exec 位时反而没人看。
+    # 判据现在表达真实契约：**只有真入口需要 exec 位**。
+    #
+    # ⚠️ 真入口白名单维护：**新增 pre-tool-use 入口必须登记此处**（DESIGN R4/R6 的缓解）。
+    # pre-tool-use/ 下当前 3 个真入口（被 settings.json / hook-bridge 直接 bash 调用）：
+    PTU_ENTRIES="pre-tool-use/independent-review-gate.sh pre-tool-use/auto-checkpoint.sh pre-tool-use/runtime-edit-guard.sh"
+    is_real_entry() {
+      # ⚠️ bash glob 的 `*` **会跨 `/`** —— 故必须先排除 stop/lib/，否则
+      # `stop/*.sh` 会把 stop/lib/common.sh 也匹配成入口（实测：该顺序错误导致
+      # 108 处误报，全部被当成"入口"）。目录层级必须显式区分。
+      case "$1" in
+        */*/*) return 1 ;;                            # 三层以上（stop/lib/*、*/*/*）一律是库
+        stop/*.sh|session-start/*.sh|pre-commit/*.sh) return 0 ;;
+      esac
+      case " $PTU_ENTRIES " in *" $1 "*) return 0 ;; esac
+      return 1
+    }
+    if [ -f "$dst_f" ] && [ ! -x "$dst_f" ] && is_real_entry "$rel"; then
+      nonexec=$((nonexec + 1))
+      # 指名：**所有模式**都打印具体路径 —— 原实现只在 MODE=list 打印，
+      # `--check` 只给聚合计数，维护者拿到"有 N 个入口缺 exec 位"却无法定位（T03 的核心缺口）。
+      printf '     ⚠️  不可执行（跑 install.sh 修）：%s\n' "$root/$rel"
+    fi
   done
 
   # ── prompts 树镜像（<pkgroot>/flow-kit/prompts）──

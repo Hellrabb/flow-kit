@@ -12,15 +12,35 @@ test:
 
 # ── lint: shellcheck 静态分析（仅 error 级别）──
 # 检测改为 recipe 内 command -v（原 $(shell which) 在 RTK proxy 等环境下不稳定，会误报 not installed）
-# 覆盖补 pre-tool-use/（原漏扫 independent-review-gate.sh）
+# 文件域（health-fix-2026-09 · T02）—— **理由**：原为手写 glob，漏掉 7 个生产脚本
+#   （install.sh / pre-commit.sh / check-gate-sync.sh / 4×regression-demos/*/check.sh）。
+#   改为 `find` 全量枚举，排除集见下方 SCAN_EXCLUDES（该列表是**契约**，
+#   定义在 REQUIREMENT AC-4b；AC-4c 会检测「静默扩张排除项」）。
+#   **为什么用 find 而不是补 glob**：补 glob 是打补丁，下次再加目录仍会漏 —— 判据过窄的复发模式。
+# 门禁语义（ADR-010 · DESIGN D8）：**保持 error 级**，扩面只让 warning 可见，不升级为 fail。
+#   理由：warning 池含 21 处 SC1090（shellcheck 无法跟踪动态 source）等 known-acceptable，
+#   升级会让门禁长期红 → 被绕过 → 可信度归零，比没有更糟。
+# SCANNED_FILES 出口（REQUIREMENT AC-4 输出契约）：正常运行固定输出一行
+#   `SCANNED_FILES: <n>` + 逐行 `./` 前缀路径 + 空行结束。验收脚本只解析该出口，
+#   不复制枚举逻辑（否则等于把实现当判据）。**不得**改成 `--list-files` 形式
+#   —— 那会被 make 当作 target 名，不是合法调用。
+SCAN_EXCLUDES = -not -path './.git/*' -not -path '*/node_modules/*' \
+                -not -path '*/brooks-lint/*' -not -path '*/brooks-tools/*' \
+                -not -path '*/dist/*' -not -path '*/.omo/*' \
+                -not -path '*/.claude/*' -not -path '*/.specs/*' -not -path '*/test/*'
+
 lint:
 	@echo "🔍 make lint: shellcheck (error level only)..."
-	@if ! command -v shellcheck >/dev/null 2>&1; then \
+	@SCAN_TMP=$$(mktemp); find . -name '*.sh' $(SCAN_EXCLUDES) | sort > $$SCAN_TMP; \
+	printf 'SCANNED_FILES: %s\n' "$$(wc -l < $$SCAN_TMP)"; \
+	cat $$SCAN_TMP; echo ""; \
+	if ! command -v shellcheck >/dev/null 2>&1; then \
 		echo "⚠️  WARNING: shellcheck not installed. Run: sudo apt-get install -y shellcheck"; \
 		echo "   Skipping lint (non-blocking)."; \
+		rm -f $$SCAN_TMP; \
 	else \
 		ERR=0; \
-		for f in *.sh flow-kit-bundle/lib/*.sh flow-kit-bundle/hooks/stop/*.sh flow-kit-bundle/hooks/stop/lib/*.sh flow-kit-bundle/hooks/session-start/*.sh flow-kit-bundle/hooks/pre-tool-use/*.sh; do \
+		while IFS= read -r f; do \
 			[ -f "$$f" ] || continue; \
 			OUT=$$(shellcheck -e SC1091 "$$f" 2>&1) || true; \
 			ERRS=$$(echo "$$OUT" | grep -ci "error" || true); \
@@ -29,7 +49,8 @@ lint:
 				echo "$$OUT" | grep -i "error"; \
 				ERR=1; \
 			fi; \
-		done; \
+		done < $$SCAN_TMP; \
+		rm -f $$SCAN_TMP; \
 		if [ "$$ERR" -eq 0 ]; then \
 			echo "✅ shellcheck: no errors found"; \
 		else \
@@ -81,11 +102,23 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync
+check: test lint check-validate check-test-sync check-hooks-sync check-dist
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
 	@echo "╚════════════════════════════════════════════════════╝"
+
+# ── check-dist: 打包件新鲜度门禁（health-fix-2026-09 · F1/D2/D3）──
+# **理由**：dist/ 被 .gitignore 忽略 → git 对它失明；否则改了源忘了重建无人发现
+# 为什么存在：dist/ 被 .gitignore 忽略 → **git 对它结构性失明**，改了源忘了重建
+#   不会被任何既有门禁发现。2026-09-20 即因此发出一份把「字节」写成「字符」的 README
+#   （用户按 60000 "字符" 配置，实得 60000 字节 ≈ 2 万汉字，与预期差 3 倍）。
+# 为什么放在 package-dsh-plugin.sh 里而不是新建脚本：比对映射必须与打包步骤**同源**，
+#   另写一份会漂移（DESIGN D2 / R2 风险）。本 target 只是薄壳。
+# 只读契约：`--check` 不重建、不改工作区、不调 node/npm（NFR 性能 ≤2s，实测 13ms 量级）。
+check-dist:
+	@echo "📦 make check-dist: 打包件新鲜度检查 ..."
+	@bash package-dsh-plugin.sh --check
 
 # ── dup: jscpd 重复率扫描（独立 · 不进 check · jscpd 未装 graceful skip · TD-010）──
 dup:

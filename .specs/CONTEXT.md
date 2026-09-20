@@ -83,6 +83,11 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | l2_model / l3_model | `.flow-active.goal` 的新增可选字段，持久化 L2/L3 审查模型名（优先级 3）。通过 `/flow model l2=<m> l3=<m>` 设置 |
 | model resolution priority chain | L2/L3 模型名的解析策略（2026-09-03 起五级，显式永远压过默认）：1. ANTHROPIC_* env（CC 原生）→ 2. FLOW_KIT_L{2,3}_MODEL env（临时覆盖）→ 3. .flow-active.goal.l{2,3}_model（持久化显式）→ 4. FLOW_KIT_L{2,3}_DEFAULT_MODEL env（站点默认）→ 5. .flow-active.goal.l{2,3}_default_model（站点默认持久化，`/flow model l2-default=/l3-default=` 写入）→ 6. 空字符串（优雅降级）。每级非空即停 |
 | graceful degradation (model) | fk_resolve_model 返回空字符串时的降级策略：不崩溃（不用 `:?` 终止），输出配置提示 + 写 `.flow-active.correction`（type=l*-model-missing），SessionStart 收割展示 banner |
+| 门禁盲区（gate blind spot） | **检查器判据比真实契约更宽或更窄**，导致"改动已完成、CI 全绿、门禁却没看见"的状态。危害不是漏检本身，而是制造**假安全感**。2026-09-20 一次巡检暴露三处：dist 无新鲜度检查（判据缺失）、`make lint` 文件域漏 4 个脚本（判据过窄）、exec 判据按目录判定（判据过宽）。修法一律是**修判据**，不是修被测对象 |
+| 判据过宽 vs 过窄 | 过窄 = 有东西该扫没扫（`make lint` 漏 `install.sh`）；过宽 = 有东西不该报却报（exec 位对"只被 source 的库"也要求）。**过宽同样有害**：长期存在会训练人忽略该告警，真问题来时报了也没人看 |
+| 真入口（real entry） | hook 目录下**被直接执行**的脚本（要求 exec 位），区别于**只被 `source`** 的库（不要求 exec 位）。`pre-tool-use/` 下 3 入口（`independent-review-gate` / `auto-checkpoint` / `runtime-edit-guard`）vs 4 库（`gate-helpers` / `gate-helpers-types` / `gate-checks-basic` / `gate-checks-review`）。判据应按此契约而非按目录 |
+| AC 预检（AC pre-check） | 写 REQUIREMENT 时就**先跑一次**该 AC 的验证命令，确认它**当前失败**，从而证明这条 AC 有证明力。若修复前就通过，说明它"测试了不存在的东西"（本仓 TD-016 教训）。预检结果记入 REQUIREMENT.md，还原动作必须保证工作区干净 |
+| 新鲜度门禁（freshness gate） | 判定**派生产物是否落后于其源**的检查（本仓将新增 `check-dist`）。与一致性门禁的区别：一致性门禁比"两份内容是否相同"，新鲜度门禁回答"该重新生成的是否已重新生成"。适用于任何 `dist/`-style 生成物 |
 | brooks-tools | brooks-lint 依赖的 4 个外部 npm 工具的统称：depcheck（未使用依赖检测）、jscpd（代码重复检测）、knip（未使用文件/导出检测）、ts-prune（未使用 TS 导出检测）。以扁平 node_modules 自包含目录形式打包，离线安装到 `~/.claude/tools/brooks-lint/` |
 | npm pack | npm 原生命令，将包及其依赖打包为 .tgz。本项目中用于从 pnpm 全局安装中提取工具的完整依赖树，绕过 pnpm 虚拟存储的符号链接复杂性 |
 | shim（工具适配层）| 薄 wrapper 脚本，将 `~/.claude/tools/brooks-lint/` 下的真实可执行文件映射到 PATH 可见位置（`~/.local/bin/`），使 depcheck/jscpd/knip/ts-prune 可直接调用 |
@@ -265,6 +270,7 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 
 ## 已锁决策
 
+- `[2026-09-20]` **门禁只保证"看不见的变可见"，不改变红绿语义** — `make lint` 扩面扫全部生产脚本后，**error 级门禁语义保持不变（仍只拦 error）**，warning 池（含 21 处 SC1090 动态 source 等 known-acceptable）不升级为 fail。理由：把 known-acceptable 升级为 fail 会让门禁长期红 → 被绕过 → 可信度归零，比没有更糟（承接 TD-023 既定判定）。来自 `health-fix-2026-09` 阶段 1
 - `[2026-09-20]` **dist 打包件新鲜度** — 改了 `dsh-flow-kit/README.md`、`dsh-flow-kit/lib/`、或 `flow-kit-bundle/`（hooks/prompts/skills/config）任一内容后，**必须重跑 `package-dsh-plugin.sh` 重建 `dist/`**。理由：`dist/` 被 gitignore（git 看不见它陈旧），`sync-hooks --check` 只比 hooks 不比包顶层文档，`make check` 也不覆盖 —— 2026-09-20 巡检因此漏判一次：dist 的 README 落后源码 7 天，把工件上限的「字符」写成「字节」（用户按旧文档配 60000 预期 6 万汉字、实得 2 万汉字，差 3 倍）。安装为 `file:` 实体拷贝（非 symlink），dist 变更**不自动生效**，需重装 profile。来自 `M-health 2026-09-20 全量扫描`
 - `[2026-09-03]` L2/L3 模型解析链加入站点级默认 tier——L3: `ANTHROPIC_DEFAULT_HAIKU_MODEL > FLOW_KIT_L3_MODEL > goal.l3_model > FLOW_KIT_L3_DEFAULT_MODEL > goal.l3_default_model`（L2 对称）。语义：显式永远压过默认；默认模型不改变无凭证跳过语义（凭证由 fk_resolve_api_credentials 独立判定）。不设硬编码模型名——用户 CC/opencode 均为自定义网关，模型目录站点相关。配置面：`/flow model l3-default=<m>` 持久化或 export env。来自 `l3-default-model`（mini change）
 - `[2026-06-05]` 入场扫描完成 — 该项目为 flow-kit 分发包仓库，非传统软件项目。无源代码、无框架、无数据库。来自 `I-intel-scan`

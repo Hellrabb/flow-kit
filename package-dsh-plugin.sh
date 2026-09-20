@@ -16,8 +16,102 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/dsh-flow-kit"
 BUNDLE_DIR="$SCRIPT_DIR/flow-kit-bundle"
 DIST_DIR="$SCRIPT_DIR/dist"
-VERSION="$(node -p "require('$SRC_DIR/package.json').version" 2>/dev/null || echo 0.1.0)"
 PKG_DIR="$DIST_DIR/dsh-flow-kit"
+
+# ── 参数分流（必须在下面 `node -p` 之前）─────────────────────────────
+# 为什么在这里：`--check` 是**只读新鲜度检查**，必须满足 NFR「不调用 npm/node」且
+# **零副作用**（不重建、不改工作区）。若放在 `VERSION="$(node -p ...)"` 之后就一定会
+# 调 node；若放任意位置之后又漏了提前 return，就会退化成"检查时重建被检查对象"。
+# 未知参数一律 fail-closed —— 静默忽略未知选项会让 `--check` 这类"只读"契约
+# 变成"照常重建并 exit 0"的假成功 —— **这就是 health-fix-2026-09 设 T01 的理由**。
+usage_check() {
+  cat >&2 <<'USAGE'
+用法: package-dsh-plugin.sh [--check]
+
+  无参数    打包 dsh-flow-kit 到 dist/（重建，有副作用）
+  --check   只读新鲜度检查：比对 dist 与源是否一致；**不重建、不改工作区、不调 node/npm**
+            退出码 0 = 一致；1 = 陈旧/反向残留（逐条指名文件）；0 = dist 不存在（提示后放行）
+USAGE
+}
+
+# 比对映射：与下面第 1-5 步的 cp 一一对应（**单一事实源** —— 打包改了映射，这里必须同步）
+check_dist() {
+  if [ ! -d "$PKG_DIR" ]; then
+    echo "⚠️  dist 不存在（$PKG_DIR）—— 请先运行: bash package-dsh-plugin.sh" >&2
+    return 0   # 优雅降级：与 make dup 对 jscpd 缺失的处理同款
+  fi
+
+  local fail=0 rel src dst
+  # 逐对 (源目录:dist子目录) —— 与下面第 1-5 步的 cp 一一对应（**单一事实源**）
+  local pairs=(
+    "$SRC_DIR/lib:$PKG_DIR/lib"                          # 第 1 步：插件代码
+    "$BUNDLE_DIR/skills:$PKG_DIR/skills"                 # 第 2 步：运行内容（原样提升）
+    "$BUNDLE_DIR/flow-kit:$PKG_DIR/flow-kit"
+    "$BUNDLE_DIR/hooks:$PKG_DIR/hooks"
+    "$BUNDLE_DIR/brooks-lint:$PKG_DIR/brooks-lint"
+    "$BUNDLE_DIR:$PKG_DIR/vendor/flow-kit-bundle"        # 第 4 步：零丢失整棵 bundle
+  )
+  # 包顶层单文件映射
+  local files=(
+    "$SRC_DIR/package.json:$PKG_DIR/package.json"
+    "$SRC_DIR/cordis.patch.yml:$PKG_DIR/cordis.patch.yml"
+    "$SRC_DIR/README.md:$PKG_DIR/README.md"
+    "$SRC_DIR/DESIGN.md:$PKG_DIR/DESIGN.md"
+    "$BUNDLE_DIR/FLOW-KIT-用户指南.md:$PKG_DIR/docs/FLOW-KIT-用户指南.md"
+    "$BUNDLE_DIR/OPENCODE-INSTALL.md:$PKG_DIR/docs/OPENCODE-INSTALL.md"
+    "$SCRIPT_DIR/flow-kit-ecosystem-guide.md:$PKG_DIR/docs/flow-kit-ecosystem-guide.md"
+  )
+
+  # 只在**内容**层面比较 —— 故意不比 mode：
+  # 打包第 5 步会有意 `chmod +x`，源与 dist 的权限位本就不等；比 mode 会制造永久假红。
+  for rel in "${pairs[@]}"; do
+    src="${rel%%:*}"; dst="${rel##*:}"
+    [ -d "$src" ] || continue
+    while IFS= read -r -d '' f; do
+      rel="${f#"$src"/}"
+      if [ ! -f "$dst/$rel" ]; then
+        echo "❌ 缺失: $dst/$rel（源: $src/$rel）" >&2; fail=1
+      elif ! cmp -s "$f" "$dst/$rel"; then
+        echo "❌ 陈旧: $dst/$rel（内容与 $src/$rel 不一致 → 请重建 dist）" >&2; fail=1
+      fi
+    done < <(find "$src" -type f -print0)
+    # 反向残留：dist 有、源已无
+    while IFS= read -r -d '' f; do
+      rel="${f#"$dst"/}"
+      if [ ! -e "$src/$rel" ]; then
+        echo "❌ 反向残留: $dst/$rel（源已无 $src/$rel）" >&2; fail=1
+      fi
+    done < <(find "$dst" -type f -not -name '.DS_Store' -print0)
+  done
+
+  for rel in "${files[@]}"; do
+    src="${rel%%:*}"; dst="${rel##*:}"
+    [ -f "$src" ] || continue
+    if [ ! -f "$dst" ]; then
+      echo "❌ 缺失: $dst（源: $src）" >&2; fail=1
+    elif ! cmp -s "$src" "$dst"; then
+      echo "❌ 陈旧: $dst（内容与 $src 不一致 → 请重建 dist）" >&2; fail=1
+    fi
+  done
+
+  if [ "$fail" -eq 0 ]; then
+    echo "✅ check-dist: dist 与源一致"
+    return 0
+  fi
+  echo "" >&2
+  echo "→ 修复: bash package-dsh-plugin.sh" >&2
+  echo "  注意顺序: 若改过 test/，先 make test-sync，再重建 dist" >&2
+  return 1
+}
+
+case "${1:-}" in
+  --check) check_dist; exit $? ;;
+  "")      ;;                                   # 正常打包路径
+  -h|--help) usage_check; exit 0 ;;
+  *)       echo "❌ 未知参数: $1" >&2; usage_check; exit 2 ;;
+esac
+
+VERSION="$(node -p "require('$SRC_DIR/package.json').version" 2>/dev/null || echo 0.1.0)"
 
 echo "==> packaging dsh-flow-kit v$VERSION"
 
