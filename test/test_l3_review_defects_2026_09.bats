@@ -66,8 +66,17 @@ _l2v() {
   #   ③ 数值预算「≤8」只对**基线语料**（commit 61c4bf8 时点）成立 —— 原文口径。
   # 提交前纪律（写进 TEST.md/UAT.md）：`bash corpus-count.sh --attribution` 再生仓库内那份清单；
   # 本用例不比对它，避免"测试改工作区"与"快照过期即红"两种坏味道。
-  local attr="$FK_ROOT/.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"
-  [ -f "$attr" ] || { echo "缺 AC-2 交付物: $attr"; false; }
+  local attr="" _cand
+  # 交付物定位（2026-09-20 修）：本 change 归档收口后 live 目录会被移除，原硬编码
+  # `.specs/<id>/L2-EMPTY-ATTRIBUTION.md` 会当场变红（archived 才是它的最终归宿）。
+  # 判据改为「live 优先 → archive 回退」：两者都没有 = 真丢失，显式失败，不静默跳过。
+  for _cand in \
+    "$FK_ROOT/.specs/l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md" \
+    "$FK_ROOT/.specs/archive/2026-09-18-l3-review-defects-2026-09/L2-EMPTY-ATTRIBUTION.md"; do
+    [ -f "$_cand" ] && { attr="$_cand"; break; }
+  done
+  [ -n "$attr" ] || { echo "缺 AC-2 交付物（live 与 archive 均无）"; false; }
+  unset _cand
   grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; }
   local tmp_attr; tmp_attr="$TEST_TMP/attr-regen.md"
   run --separate-stderr bash -c "cd '$FK_ROOT' && bash corpus-count.sh --attribution '$tmp_attr'"
