@@ -17,9 +17,19 @@
 
 ## M-health 巡检观察（监控级 · 不阻塞）
 
-> 最后更新: 2026-09-06（全量扫描 · 94/100 · 相对 2026-09-01 97/100 ↓3）
+> 最后更新: 2026-09-20（全量扫描 · 97/100 · 相对 2026-09-06 94/100 ↑3）
 > 格式：日期 | 严重度 | 位置 | 观察 | 建议操作
 
+<!-- 2026-09-20 ↓ -->
+| 2026-09-20 | 🟢 | `Makefile` / 巡检流程（M-health 步骤 2.6） | **bats 文件不能直接过 `bash -n`**：218 个 `.bats` 裸跑 `bash -n` **全部**报「未预期的记号 }」——那是 bats 自身的 `@test "名" {` 语法，不是语法错误。若照抄 `.sh` 的门禁写法，会得到 218/218 假阳性，真错误会被噪声淹没、门禁形同失效 | 语法门禁对 bats 先预处理再检查：`sed 's/^@test \(.*\) {/test_fn() {/' "$f" > /tmp/_b.bash && bash -n /tmp/_b.bash`（本次实测 218/218 全过 ✅）。可考虑固化为 `make check-syntax` target |
+| 2026-09-20 | 🟢 | `flow-kit-bundle/prompts/*.md` ↔ `flow-kit-bundle/skills/*/SKILL.md` | **同内容双载体、无同步门禁**（已登记 TD-025）：两处手工双写同一套流程规则，本仓对 test/、hooks/、l3-prompt 都有机器一致性门禁，唯独 prompts↔skills 没有。jscpd 已量化出 10 组 ≥30 行大块重复（最大 196L），体量分化可见（6-review 351 vs 228 · 4-dev 352 vs 544）→ 确属各自演化 | 补 `make check-skills-sync` 或显式声明「允许差异」并给判定边界；改动任一阶段 prompt 时**必须同步考虑 skills/ 对应 SKILL.md** |
+| 2026-09-20 | 🟢 | `sync-hooks.sh:243`（`3ce3ef7` 引入） | shellcheck 报 SC2221/SC2222「模式恒覆盖/永不匹配」——**复核为假阳性**：外层 `for _d in stop stop/lib pre-tool-use pre-commit` 已限定 `_rel` 取值域，4 条 case 臂均可命中。教训：shellcheck 对「case 模式集 ⊇ 变量实际取值域」不做流分析，此类告警需人工复核而非直接改代码 | 加 `# shellcheck disable=SC2221,SC2222` + 一行理由注释（或改写 `stop*.sh\|pre-tool-use/*.sh\|pre-commit/*.sh`），避免 warning 池长期携带已知假阳性、钝化后续判断 |
+| 2026-09-20 | 🟢 | `Makefile:22-23`（`make lint` 文件域）· `sync-hooks.sh` exec 判据 | 两处检查器「判据过宽/过窄」类问题：① `make lint` 用 `for f in *.sh flow-kit-bundle/{lib,hooks/*}/*.sh` 枚举，**4 个生产脚本漏在门外**（`flow-kit-bundle/install.sh`、`hooks/pre-commit/pre-commit.sh`、`flow-kit/reference/check-gate-sync.sh`、`flow-kit/regression-demos/*/check.sh`）——实测其中 **5 处 warning**（`install.sh` SC2034×2 + `check-gate-sync.sh` SC2034×2 + regression-demo SC1090×1）从未被门禁看过；② `sync-hooks.sh` 按**目录**判定 exec-bit，把 `pre-tool-use/` 下 4 个「只被 source 的库」误报为「缺可执行位」（实测这些文件零直接调用点，且 `install_hooks.sh:135-141` 对所有部署副本统一 chmod +x → 纯装饰性） | ① 把 `make lint` 枚举改为 `find`（或直接补这 4 个路径）；② 把 exec 判据收窄为「仅真入口」（`independent-review-gate` / `auto-checkpoint` / `runtime-edit-guard` / stop 主模块 / session-start / pre-commit）。判据过宽或过窄都会让门禁失真 |
+<!-- 2026-09-20 ↑ -->
+<!-- 2026-09-20b ↓ -->
+| 2026-09-20b | 🟡 | `dist/dsh-flow-kit/README.md`（打包件）· `package-dsh-plugin.sh` | **打包产物无"新鲜度门禁"**：`make check` 五门全绿、`sync-hooks --check` 漂移 0、巡检也判"无需更新"，但 dist 里**发给用户的 README 已落后源码 7 天**——`61c4bf8`（09-18）把工件上限从「字符」改为「字节」，dist 仍是 09-11 构建，于是发出去的文档仍写 `max_artifact_chars` + 「20000 字符」。用户按旧文档配 60000 期待"6 万字符"，实得 60000 **字节** ≈ 2 万汉字，**差 3 倍**。根源：① `dist/` 被 gitignore，git 看不见它陈旧；② `sync-hooks` 只比 hooks 不比文档；③ 巡检用 `diff -rq` 只比了运行时目录，漏了包顶层文档。**同批还捞出 6 个 vendored 测试陈旧 + 1 新增缺失（含 2 处已修的硬编码绝对路径）** | ① 加 `make check-dist`（或 `package-dsh-plugin.sh --check`）：比 `dist/` 与源，**有差异即 fail**，纳入 `make check`；② 巡检/归档清单把「打包件新鲜度」列为必检项（不能只比 hooks）；③ 改了 `dsh-flow-kit/README.md`、`lib/`、或 `flow-kit-bundle/` 任一内容后**必须重建 dist** |
+| 2026-09-20b | 🟢 | `package-dsh-plugin.sh:135-138` | `chmod +x "$PKG_DIR"/hooks/pre-tool-use/*.sh` 只作用于包顶层，**对第 4 步拷进 `vendor/flow-kit-bundle/` 的那份不生效** → 重建后 vendor 的 4 个 pre-tool-use 源库由 755 回落 644，`check-hooks-sync` 的 exec advisory 从 1 涨到 5。零功能影响（这些文件只被 `source`；vendor 是冻结审计副本，插件 JS 对 `vendor` 引用数=0；真正运行的 `dist/dsh-flow-kit/hooks` 与已安装副本 0 个非可执行入口） | 若要 vendor 权限严格镜像源 bundle，在打包脚本第 4 步后对 `$PKG_DIR/vendor` 施同一套 chmod；否则可忽略 |
+<!-- 2026-09-20b ↑ -->
 <!-- 2026-09-06 ↓ -->
 | 2026-09-06 | 🟡 | `test/test_l3_pipeline_fix.bats:440-441` | 全量跑偶发 1 fail（F-1 · T04 AC-1 · status 141 SIGPIPE）：`printf | grep -qF` 下 grep 命中即退 → writer SIGPIPE 141；首轮全量 1 not-ok，复跑 803/803 绿、单文件 41/41 绿 → 满负荷偶发 flaky（TD-024 已登记） | 断言改 `[[ "$out" == *marker* ]]` 或 `grep -F … >/dev/null`（去 -q）；下次 health-fix 顺手修 |
 | 2026-09-06 | 🟢 | `.specs/{l3-prompt-loop-fix,correction-hygiene-state-guard}/` | 归档移位后残留 ignored PROGRESS.md ×2（09-01 同类已清，本次同类复发 ×2）——归档流程无「源目录清理」步骤 | 归档动作补源目录清空检查；或下个 change 顺手删 2 目录 |

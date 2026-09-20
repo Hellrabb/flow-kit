@@ -30,6 +30,8 @@ Thumbs.db
 *.tmp
 *.log
 *.pptx.bak
+# M-health 巡检原始扫描产物（jscpd/shellcheck/bats 报告，供复算与趋势对比；原始数据不入库）
+.specs/health/tmp/
 
 # === 辅助工具脚本（含本地路径，不入库） ===
 tools/
