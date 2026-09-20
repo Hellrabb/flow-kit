@@ -199,12 +199,23 @@ _changed=$( { git diff --name-only HEAD 2>/dev/null; git diff --cached --name-on
   | grep -E '\.(sh|bats)$|Makefile$' | grep -vE '^\.specs/' | sort -u )
 _D_P05="$(resolve_spec_artifact DESIGN.md)"
 _missing=""
+_n_changed=0
 for f in $_changed; do
+  [ -n "$f" ] || continue
+  _n_changed=$((_n_changed + 1))
   base="$(basename "$f")"
   [ -n "$_D_P05" ] && grep -qF "$base" "$_D_P05" || _missing="$_missing $base"
 done
-if [ -z "$_missing" ]; then pass "被改的 $(echo "$_changed" | wc -l) 个脚本/bats 均在 §0.5.1 出现"
-else fail "§0.5.1 未列:${_missing}"; fi
+# 计数修正（2026-09-20 · L2 盲审阶段 5 R7）：原用 `echo "$_changed" | wc -l` ——
+# 空串经 echo 会产出**一个换行**，`wc -l` 得 **1**，于是 0 个被改文件被报成「被改的 1 个」。
+# 空集时的正确语义是「无可核对项（跳过）」，而不是"1 个都合规"——后者是**空集恒真**的假绿。
+if [ "$_n_changed" -eq 0 ]; then
+  pass "§0.5.1 覆盖：本 change 当前无可核对的工作区改动（0 项，跳过）"
+elif [ -z "$_missing" ]; then
+  pass "被改的 ${_n_changed} 个脚本/bats 均在 §0.5.1 出现"
+else
+  fail "§0.5.1 未列:${_missing}"
+fi
 
 # ── 10. 门禁 ──
 # 门数从 Makefile 的 `check:` 依赖**动态推导**（2026-09-20 修 · L2 盲审 R3）：
@@ -213,10 +224,39 @@ else fail "§0.5.1 未列:${_missing}"; fi
 # 本脚本的原则是「计数现场复算（不抄快照）」，故此处的门数同样现场数出来。
 hdr "10. 门禁"
 if make check >/dev/null 2>&1; then
-  _n_gates=$(sed -n 's/^check: *//p' Makefile 2>/dev/null | tr ' ' '\n' | grep -c .)
+  _n_gates=$(awk '/^check:/{inp=1;line=$0; if($0 ~ /\\$/) next; inp=0; next} inp{line=line" "$0; if($0 ~ /\\$/) next; inp=0} END{sub(/^check:[ \t]*/,"",line); gsub(/\\/," ",line); sub(/#.*/,"",line); n=split(line,a,/[ \t]+/); c=0; for(i=1;i<=n;i++) if(a[i]!="" && a[i] !~ /^\$/) c++; print c}' Makefile)
   pass "make check ${_n_gates} 门全绿"
 else
   fail "make check 未通过"
+fi
+
+# ── 10d. 关键门禁**在不在**（health-fix-2026-09 · L2 阶段6 R2-c 补 · L3 阶段6 major 改为**行为断言**）──
+# 为什么需要：§10 只断言"门数现场复算" → 属**动态跟随**，摘掉任一现有门它照样绿
+# （实测：从 check: 删掉 check-dist 后 §10 输出"5 门全绿"、rc=0）。
+# ⚠️ 为什么**不能**用纯字符串 grep（L3 阶段6 major 实测抓出）：Makefile 注释里同样含
+# `SCANNED_FILES` / `--check` 字样。实测把 `printf 'SCANNED_FILES: …'` **实现行删掉、
+# 只留注释**后，纯 grep 版仍报 14✅/0❌ —— 那是**假绿**，守护目的落空。
+# 故本节一律用**行为断言**（真跑命令看输出/退出码），不 grep 源码文本。
+hdr "10d. 关键门禁存在性 + 本 change 交付物存续（行为断言）"
+_chk=""
+# ① check-dist：必须真被 check: 依赖引用（`make -n` 展开实际依赖，不看注释）
+make -n check 2>/dev/null | grep 'check-dist' >/dev/null || _chk="$_chk check-dist未挂进check:"
+# ② check-dist target 定义（函数式定义行，排除注释）
+grep -qE '^check-dist:' Makefile || _chk="$_chk check-dist-target缺失"
+# ③ SCANNED_FILES 出口：必须真出现在 `make lint` 的**输出**里
+# ⚠️ 用 `>/dev/null` 而非 `-q`：本脚本 `set -o pipefail`，而 `grep -q` 命中即退会给
+#    writer（make lint）发 SIGPIPE → 管道返回 141 → **即使命中也被判失败**。
+#    这正是本仓 TD-024/F-1 记录过的 SIGPIPE 模式（L-024），新代码不得复现。
+make lint 2>/dev/null | grep -E '^SCANNED_FILES: [0-9]+' >/dev/null || _chk="$_chk SCANNED_FILES出口未生效"
+# ④ 真入口判据：函数定义行（`name() {` 形式，非注释提及）
+grep -qE '^[[:space:]]*is_real_entry\(\)' sync-hooks.sh || _chk="$_chk 真入口判据缺失"
+grep -qE '^[[:space:]]*PTU_ENTRIES=' sync-hooks.sh || _chk="$_chk 真入口白名单缺失"
+# ⑤ --check 模式：真跑一次（行为，非 grep）
+bash package-dsh-plugin.sh --check >/dev/null 2>&1 || _chk="$_chk --check模式失效"
+if [ -z "$_chk" ]; then
+  pass "本 change 的 4 项交付物均在位（check-dist 挂载/target · SCANNED_FILES · 真入口判据+白名单 · --check）"
+else
+  fail "本 change 交付物缺失:${_chk}"
 fi
 
 printf '\n══════════════════════════════════════\n'

@@ -18,7 +18,8 @@ test:
 #   定义在 REQUIREMENT AC-4b；AC-4c 会检测「静默扩张排除项」）。
 #   **为什么用 find 而不是补 glob**：补 glob 是打补丁，下次再加目录仍会漏 —— 判据过窄的复发模式。
 # 门禁语义（ADR-010 · DESIGN D8）：**保持 error 级**，扩面只让 warning 可见，不升级为 fail。
-#   理由：warning 池含 21 处 SC1090（shellcheck 无法跟踪动态 source）等 known-acceptable，
+#   理由：warning 池含 **22 处** SC1090（shellcheck 无法跟踪动态 `source`；本 change 扩面前为 21 处，
+#   扩面 +1 属新增扫描文件的既有告警暴露，非新引入）等 known-acceptable，
 #   升级会让门禁长期红 → 被绕过 → 可信度归零，比没有更糟。
 # SCANNED_FILES 出口（REQUIREMENT AC-4 输出契约）：正常运行固定输出一行
 #   `SCANNED_FILES: <n>` + 逐行 `./` 前缀路径 + 空行结束。验收脚本只解析该出口，
@@ -115,7 +116,10 @@ check: test lint check-validate check-test-sync check-hooks-sync check-dist
 #   （用户按 60000 "字符" 配置，实得 60000 字节 ≈ 2 万汉字，与预期差 3 倍）。
 # 为什么放在 package-dsh-plugin.sh 里而不是新建脚本：比对映射必须与打包步骤**同源**，
 #   另写一份会漂移（DESIGN D2 / R2 风险）。本 target 只是薄壳。
-# 只读契约：`--check` 不重建、不改工作区、不调 node/npm（NFR 性能 ≤2s，实测 13ms 量级）。
+# 只读契约：`--check` 不重建、不改工作区、不调 node/npm。
+# NFR 性能 ≤2s —— **实测 0.61s**（中位数 ×3，逐文件 cmp 遍历 534 文件）。
+#   注：设计期曾据 4 条 `diff -rq` 估为 13ms，**低估了逐文件遍历开销**（差 47×）；
+#   以实测 0.61s 为准（见 TEST.md §2 第 2 轮）。
 check-dist:
 	@echo "📦 make check-dist: 打包件新鲜度检查 ..."
 	@bash package-dsh-plugin.sh --check

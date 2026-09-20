@@ -74,7 +74,10 @@ check_dist() {
       elif ! cmp -s "$f" "$dst/$rel"; then
         echo "❌ 陈旧: $dst/$rel（内容与 $src/$rel 不一致 → 请重建 dist）" >&2; fail=1
       fi
-    done < <(find "$src" -type f -print0)
+    # 过滤 .DS_Store：打包第 5 步会 `find … -delete` 删掉它，故它不是"应存在于 dist"的产物。
+    # 若不过滤 → 源里有个 .DS_Store 就报"缺失"，而提示的"重建 dist"永远修不好它
+    # （重建又会删掉）→ **永久假红**（L2 阶段6 R2-b 实测）。下方反向 find 早已过滤，此处与之对齐。
+    done < <(find "$src" -type f -not -name '.DS_Store' -print0)
     # 反向残留：dist 有、源已无
     while IFS= read -r -d '' f; do
       rel="${f#"$dst"/}"
@@ -86,7 +89,15 @@ check_dist() {
 
   for rel in "${files[@]}"; do
     src="${rel%%:*}"; dst="${rel##*:}"
-    [ -f "$src" ] || continue
+    if [ ! -f "$src" ]; then
+      # 反向残留（L2 阶段6 R2-a 补）：源侧已删，但 dist 侧仍留有旧副本 → **必须报**。
+      # 原实现此处是 `[ -f "$src" ] || continue` —— 整条跳过，于是删掉源文件后
+      # dist 仍带旧副本而门禁报"✅ 一致"（实测：rm dsh-flow-kit/DESIGN.md → rc=0）。
+      # 那正是本 change 要堵的"dist 陈旧假绿"（旧文档随插件发给用户）。
+      # 注意：`|| true` 之类的"源缺失"提示已由下面建 dist 的逻辑覆盖，此处只查残留。
+      [ -f "$dst" ] && { echo "❌ 反向残留: $dst（源已无 $src → 请重建 dist）" >&2; fail=1; }
+      continue
+    fi
     if [ ! -f "$dst" ]; then
       echo "❌ 缺失: $dst（源: $src）" >&2; fail=1
     elif ! cmp -s "$src" "$dst"; then
