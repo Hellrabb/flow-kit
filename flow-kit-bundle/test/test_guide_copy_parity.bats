@@ -4,7 +4,7 @@
 # 起因（user-guide-sync-2026-09b · 漂移审计 §0）：
 #   《FLOW-KIT-用户指南.md》共有 4 份仓内载体（仓库根 / flow-kit-bundle/ /
 #   dist/dsh-flow-kit/docs/ / dist/dsh-flow-kit/vendor/flow-kit-bundle/），
-#   但 **root ↔ bundle 这条边没有任何门禁**：2026-09-21 提交 5583e2a 声称同步了指南，
+#   但 **root ↔ bundle 这条边没有任何门禁**：2026-09-21 提交 817c0b1 声称同步了指南，
 #   实际只改了 bundle 副本 → 四份 md5 分裂为 2 个值，而 `make check` 全绿。
 #   （bundle → dist 两条边已由 `package-dsh-plugin.sh --check`（check-dist）逐文件 cmp 守护。）
 #
@@ -65,7 +65,7 @@ guide_parity_report() { # <repo-root>
   done
   [ "${#present[@]}" -ge 2 ] || return 0
   # 基准恒取 **bundle 底稿**（唯一维护源）：根副本漂移时给出的修复命令方向才正确
-  # （5583e2a 的漂移形态正是"只改 bundle、根副本落后"）
+  # （817c0b1 的漂移形态正是"只改 bundle、根副本落后"）
   local ref="$root/$COPIES[1]"
   [ -f "$ref" ] || ref="${present[0]}"
   for f in "${present[@]}"; do

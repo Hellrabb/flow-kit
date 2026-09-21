@@ -88,7 +88,7 @@
       "warning": 3,
       "suggestion": 3
     },
-    "scope": "git diff 6e8468e^..HEAD — 5 个生产/工具文件 (Makefile / package-dsh-plugin.sh / sync-hooks.sh / verify-claims.sh / flow-kit-bundle/lib/install_hooks.sh) · 443 行 · health-fix-2026-09 归档后终态复核",
+    "scope": "git diff 693fd5c^..HEAD — 5 个生产/工具文件 (Makefile / package-dsh-plugin.sh / sync-hooks.sh / verify-claims.sh / flow-kit-bundle/lib/install_hooks.sh) · 443 行 · health-fix-2026-09 归档后终态复核",
     "note": "本会话直接加载 brooks-review 技能（非内置回退）。0🔴/3🟡/3🟢 = 82。3🟡：①§8/§9/§10c 的工件解析在无 .flow-active 时静默回退到 l3-review-defects-2026-09（实测 resolve_spec_artifact 返回该 change 的 DESIGN.md，PASS 文案不指名）；②新门禁零 bats 覆盖 + §10d ②④ 为源码文本判据（实测死定义可过），与本节自述行为断言原则矛盾；③check_dist 映射两份编码、目录分支 `[ -d \"$src\" ] || continue` 静默跳过，与打包侧 fail-closed 语义相反。报告：.specs/health/2026-09-21-BROOKS-REVIEW.md。注：上轮 brooks-review（REVIEW.md §第五轮，2026-09-21）未入 history，故本模式无趋势线。"
   }
 ]

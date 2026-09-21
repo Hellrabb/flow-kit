@@ -12,7 +12,7 @@
 # 为什么需要 --attribution（2026-09-18 依阶段 3 的 L2 盲审 critical）：
 #   语料是**活的** —— 本 change 自己的审查文件（INDEPENDENT-REVIEW-3/5/6…）会不断新增，
 #   每新增一份没有 L2 段结论的工件，空值数就 +1。故「空值 ≤8」只能是**基线语料**
-#   （commit 61c4bf8 时点）的口径；对活语料的不变量是「**每份空值都在归因清单里**」，
+#   （commit 4bc151d 时点）的口径；对活语料的不变量是「**每份空值都在归因清单里**」，
 #   而清单必须能机械再生，不能靠人手抄（否则 AC-2 的验证会随轮次变红）。
 
 set -uo pipefail
@@ -71,7 +71,7 @@ empty=${empty:-0}; nonenum=${nonenum:-0}
 
 if [ "$MODE" = "attribution" ]; then
   out="$ATTR_OUT"
-  base_list=$(git ls-tree -r --name-only 61c4bf8 2>/dev/null | grep -E '\.specs/.*INDEPENDENT-REVIEW-.*\.md$' | sed 's#^\.specs/##' | sort)
+  base_list=$(git ls-tree -r --name-only 4bc151d 2>/dev/null | grep -E '\.specs/.*INDEPENDENT-REVIEW-.*\.md$' | sed 's#^\.specs/##' | sort)
   # 保留既有的逐文件归因（旧实现取值 / 旧值来源段）——它们来自**旧实现实跑**，不可重算，
   # 再生时只能从上一版清单继承；新增文件才标注"本期新增"。
   prev_map=""

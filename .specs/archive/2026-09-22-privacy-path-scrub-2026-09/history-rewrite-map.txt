@@ -1,0 +1,44 @@
+# history-rewrite-map.txt — privacy-path-scrub-2026-09
+# 说明：只重写 origin/develop..develop（未推送区间）。已推送历史保持原样。
+# 映射方式：按提交标题匹配（标题未被重写改动）；同一标题多提交时按出现顺序。
+# 区间提交数：old=38 new=38
+
+OLD                                        NEW                                        SUBJECT
+f28a43115f3917a9747f16f98d7951f559695172   58205d2cc996c8e7786c595f8065e02e7feaa16d   chore(privacy-path-scrub-2026-09): 前向脱敏 —— 本机绝对路径归一 + 停止跟踪 pyc/bak
+2fa21df3ef15f66e1e380fb084e184a1e213d48c   ab1fa8f84eeb8dd079da3d72595f2fa7c471f53e   docs(user-guide-sync-2026-09b): 用户指南 + 用户指南 PPT 同步至 2026-09-21 现状
+81786b9266f061f454b8131ea0b803cec4107a2f   fb6f44305205c69db3712d2b8590aa2a5f4f3477   feat(install): 补 dsh 插件刷新入口 make dsh-sync + install.sh 用户级口径对齐
+27ab400a4d201bbdd245398ff6ea6fe7b2690060   cbf383ba7b477d6b529e51f2b314532871fe2835   refactor(install): 清掉项目级 hooks 安装，安装面统一用户级（DEST_ROOTS 7 → 6）
+5583e2af163f9682794e968eba065a5ab8a952ff   817c0b1a900c7c5cdf0cd74b04187e2531aa7179   feat(config): 配置统一为用户级（不再读写项目级 stop-hook.json）+ 解析链回落插件模板
+ef696e554694ac00907fb0044b0a159db74b9185   7e56dea3da39200e5874d3b9aff3bccb52c69285   chore(l3): 解析链/兜底默认值同步为 80000 + 修正写死旧默认的 bats 断言
+e0e1c8936b8ee8614fd8ea55288194b593621759   130a82e3fbf8251b5ea00e00abf1b1e33b0473b8   chore(l3): 工件上限默认值 20000 → 80000 字节 + 文档同步（brooks-review-fix-2026-09 follow-up）
+8316e4a3fbb9cb5bfc9cd006522b8f590ed6f2e9   da50c13b74821330224e6e03b8801d71d43056b8   fix(gates): 修掉门禁守卫自身的三处假绿（brooks-review 2026-09-21）+ 补行为级回归
+7a6a450d56cae54733a16723ffe7ab1ac8ccd544   5081b50a3217f0a040f1f6dcc4fd96ea120d4d7b   fix(adr): 修正 ADR 编号冲突 —— 010 已被占用，重编号为 027
+505282f9cc5057a29f826b973229b0d5be928174   3833175ad28cdf859ef9128c2aa3e4dae8c4d17f   docs(archive): 归档 health-fix-2026-09 —— 阶段 7 门禁全过（L2 fail→全处置 · L3 pass）
+dbb9ca70c3db500263de3507ec6fad07882a45bf   f2c645b15ffc069ed3803b707b9ad0fadee14bbd   chore(health-fix-2026-09): 归档前收尾 —— REVIEW-7 响应段 + 归档清单
+bf656403ca166a9e7857bb91f16c484219d8e324   3d91d9b7e0fed9b2f44e416906c2f3ce9bd5b137   fix(health-fix-2026-09): 阶段 7 L2 抓到的 Critical（ac7 断言漂移）+ 补跑 brooks-review
+5870ecb2d2d0c4511b38c9b93219c21593900a79   841bf336046b0105958640d006ce895bf72b750a   fix(health-fix-2026-09): 阶段 6/7 —— 审查发现的 4 个真 bug 修复 + 诚实性更正 + CHANGELOG
+6e8468e9f05389b12ed402bc6c971a0fddddf47e   693fd5c98636d75f9bec56b3711de667bdd27c12   fix(health-fix-2026-09): T01-T06 堵住三个门禁盲区实现
+ac47f85a40797710b01816cbfe4c2a9e8ee82244   033c72dda3bcd77de74ae5f1c666ee02e6ae3de9   docs(lessons): 归档收口打断 live 路径测试的教训 + corpus-count.sh 默认真空登记
+e5fca588fa867cfd0047632da6e1d4baf1fcae96   f6be29c73642b54a70791366dd435a8071cc4a39   docs(archive): 收口 l3-review-defects-2026-09 + 修归档收口暴露的测试硬编码
+c97cc766e242b14770eb785fbc7bc352a86991bb   b1046ad1715595a4691634cf217d1249473728ef   docs(health): M-health 2026-09-20 全量扫描报告（97/100 ↑3）+ 门禁盲区登记
+4ccad4da4f93fe6d601b38e114c77333aeae09d7   685553ccdc18e64a9962e53d1360c9c93e60c32c   docs(archive): 归档清单刷新（HEAD/门禁/锚点 6/6 现状；工作区已 clean）
+4ab7da104072fa82f78914cf7ffe4a20529b7040   535bbea543668905690efc9bc90a3b94902c5814   test(flow-kit): M41 闭合（5/5 真跑变异体）+ 阶段 7 提示词两处系统性缺陷修复 + 归档再同步
+6319ba5aa57c617aebd593ba50a8fece7ac71ae1   d282800844978024a99dd2ab166a0c73e507045f   test(flow-kit): M41 两条改为真跑变异体 + M50 跨环境真机取证 + 3 处 GNU 专属写法加回退
+327d80757936510871f7dc95d5ac4f8a6e62e1fd   bdd69505c3d728d547c10925abd9ba580f3d6772   fix(flow-kit): verify-claims 的 clause4 断言同步新契约（手工贴入整体禁止）+ 归档再同步
+916fec815bad5fee955e3f661615eef1d424ea98   37753490a3c0380192c23e8ad3c72d4048a9ea85   fix(flow-kit): L3 审查链收尾 —— 六阶段 L2+L3 全 pass + ARG_MAX/截断/守卫三族修复
+b0c2088bb981375550230ed6457c85ccca723c92   36d155b9a95a3e17225f05329b71d50bb211bb5c   fix(flow-kit): 守卫双形态判据 + Edit 组合合成 + M44 编码半闭合 + B8-R8 混合文件回归
+f8e6e3d769bf66c5d437b08dd9751ae0c1eb26f0   9e57b7116a6a2f9246eca7a892cf891d028aab75   fix(flow-kit): 守卫对'解码后形态'再判一次（阶段2 L3 23:23 critical）+ DESIGN 补记
+f4aceffb192352d39ccbae4cc6feb5815009ba2b   6525abbc7f6768c9eb1bfeaafa483e43b710af83   fix(flow-kit): 签名门控升级为段级解码（M47①）+ 自检第④条判据 + B8-R3/R4 重写
+aa83f85caf213598f310a9d1878eb72fe7ea6c20   86b5fa1b577afc85635c301e1ccc7f4312bc61d0   fix(flow-kit): R12 改为风险表行（编号连续 R1..R13）→ verify-claims 13/13
+8da98c1261ee68bccd890754d43beb4f069a8ff6   59a5da6552558a4e23fbe0a11c4e59b15069f3c2   chore(flow-kit): 阶段2/3/6 继续迭代至 22:2x（仍未 pass，如实存档 + M46/M47）
+e874f4078550320a5865f5c742c7a3bc7e17a4d6   19c23b3724d957e4a1ba5ccf66af635f109d6b6e   fix(flow-kit): M43 签名门控解码 + 损坏即拒/撤凭证 + 判据表述统一（阶段2/3/6 仍未 pass，如实存档）
+a4f98e8f09815c4e8c76ec7b7e0c16023e795c18   70fc74994f2ba4e4952a5d2fcfcfa8f6e6cbac20   fix(flow-kit): 测试 ID 去重（bats 拒绝重复名）+ 阶段7 L3 pass + 门禁复核
+3be710094d90fbad6fd3387c174e3d88c1102823   586e145094cd8183493f1144e9afa650bfc76b8d   fix(flow-kit): M38 闭合（单射编码）+ L3 载荷守卫收紧 + 各阶段 L2 段落位
+5fb9892735c96f330e87d8fb37b43447e751f3ef   6cb718eb4a08c123fa2b10fac18a59adeb060012   chore(flow-kit): 阶段3→7 补档 —— 七件套 + L2/L3 记录 + AC-2 判据治本
+9d380211a99204e20988c141670393f0dcda3321   dbc1c274e13362c971157716a16542bf75eee70b   chore(flow-kit): 阶段 3/5/6/7 的 L3 审查记录（真实外部模型，.done 待 L2 完成）
+49be72210ce8d350ebd35933ad722c5f16c281b8   8d7d0479bef3d9f8a2e749a298e578c60c79d4cb   fix(flow-kit): 守卫判据与读侧段起点同源（阶段2 L3 19:41 critical①）
+e67e08b906dc44c85d4b5ef5087d0097f3f0e238   15f53b4021f246092c8fe25e7844eb610e29fea0   fix(flow-kit): 消除 B9-R9/R10 重复用例 ID 与 D11 措辞矛盾（阶段2 L3 19:36 critical）
+3ce3ef70341cbc26101cba38faa9db88f4cd1b1a   03d6f69c9696788ba65d24b5f66224ebf055591c   fix(flow-kit): 关闭 L3 载荷守卫的裸标题绕过口（阶段2 L3 19:26 critical）+ B9-R9/R10
+7610d2d65796f2dd5f68eec102ae2d5cb2d32748   7f0503b9a0bba27f02ac48b8ab7ee4e023a5747e   fix(flow-kit): Bash 通道纳入 L3 载荷守卫（M37）+ B9-R7/R8
+8be21b4e7e9348c0c60dc45aeeb9be3b22d13b00   bdc6e66bc51aa2adfb2d40fadeb7a3256b785c13   chore(flow-kit): L3 审查链补档 —— 阶段1 L3 pass、阶段2 三轮迭代与残余移交
+61c4bf8340c58736af18e9449567affc2a148ca2   4bc151d10ff1f2b917adb5cef7322dfc9b377c40   fix(l3-review): 复测并修复 L3 审查链报告 5 条缺陷 + 副本漂移门禁
