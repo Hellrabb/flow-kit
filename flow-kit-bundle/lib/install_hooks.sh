@@ -132,6 +132,16 @@ install_hooks() {
 
   # PreToolUse hooks + lib 子库（独立 review gate · 硬拦截 commit/PR/阶段切换）
   # 部署 pre-tool-use/ 下所有 .sh 文件（主 hook + 拆分后的 gate-helpers*.sh 子库）
+  #
+  # ⚠️ 契约说明（health-fix-2026-09 · brooks-review R2/R6 交叉引用 · 2026-09-21）：
+  # 下面第 7 行对本目录**所有** .sh 一律 `chmod +x`，而"真入口"只有 3 个
+  # （independent-review-gate / auto-checkpoint / runtime-edit-guard）—— 其余 4 个是
+  # **只被 source 的库**（gate-helpers / gate-helpers-types / gate-checks-basic / gate-checks-review）。
+  # 本处**有意**不区分：对库多给一个 exec 位是**无害冗余**（库只被 source，不需要 exec），
+  # 而部署期一律可执行能避免"入口忘了 chmod 就跑不起来"的故障。
+  # **真入口契约的单一事实源** = `sync-hooks.sh` 的 `PTU_ENTRIES` 白名单（exec 判据据它收窄）。
+  # ⇒ **新增 pre-tool-use 入口时，必须登记 `sync-hooks.sh::PTU_ENTRIES`**，否则该入口的
+  #    exec 位将不受 `check-hooks-sync` 守护（DESIGN §5 R4 的"清单漂移"风险）。
   mkdir -p "$hook_dst/pre-tool-use"
   while IFS= read -r ptu_script; do
     local ptu_base

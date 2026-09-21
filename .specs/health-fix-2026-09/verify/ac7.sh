@@ -32,7 +32,15 @@ grep -qE '漂移 0' $TMPD/ac7_hooks.log || fails="$fails 漂移非0"
 
 # ⑥ verify-claims：13 ✅ / 0 ❌ ＋ F6 的两处修复必须生效
 bash verify-claims.sh >$TMPD/ac7_vc.log 2>&1 || fails="$fails verify-claims非零退出"
-grep -qE '复验结果: ✅ 13  ❌ 0' $TMPD/ac7_vc.log || fails="$fails verify-claims计数≠13/0"
+# 抗漂移判据（L3 阶段7 R1 修）：**不写死精确计数** —— 写死会在新增断言时必然失配
+# （实测：阶段 6 新增 §10d 使计数 13→14，而此处仍写 13 → 夹具必红，且使 CHANGELOG 的
+#  "11 个夹具全 PASS" 成为假陈述）。改断：❌ 必须为 0，且 ✅ 不少于下限 13。
+vc=$(grep -oE '复验结果: ✅ [0-9]+  ❌ [0-9]+' $TMPD/ac7_vc.log | tail -1)
+[ -n "$vc" ] || fails="$fails verify-claims无复验结果行"
+vc_ok=$(printf '%s' "$vc" | grep -oE '✅ [0-9]+' | grep -oE '[0-9]+')
+vc_fail=$(printf '%s' "$vc" | grep -oE '❌ [0-9]+' | grep -oE '[0-9]+')
+[ "${vc_fail:-1}" -eq 0 ] || fails="$fails verify-claims有失败项($vc)"
+[ "${vc_ok:-0}" -ge 13 ] || fails="$fails verify-claims通过数${vc_ok}<13"
 # F6(a)：三处硬编码已改为解析器 → 不应再因归档路径失败
 grep -qE '§0.5.1 未列' $TMPD/ac7_vc.log && fails="$fails F6(a)未生效(仍有§0.5.1失败)"
 # F6(b)：门数须动态推导（F1 加门后应为 6，且不得再出现写死的"五门"）

@@ -86,7 +86,7 @@ R1 ✅（`SCAN_EXCLUDES` 具名、recipe 单职责）· R2 ✅（仅 Makefile）
 $ bash verify-claims.sh   → rc=0
   ✅ 被改的 4 个脚本/bats 均在 §0.5.1 出现
   ✅ make check 6 门全绿          ← 门数动态跟随 T02 新增的 check-dist
-  复验结果: ✅ 13  ❌ 0
+  复验结果: ✅ 13  ❌ 0        ← 该时点（阶段4）真实输出；阶段6 新增 §10d 后为 14，见 TEST.md
 ```
 
 ---

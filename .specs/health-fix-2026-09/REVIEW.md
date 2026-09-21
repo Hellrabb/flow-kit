@@ -247,3 +247,97 @@ graph TD
 - [x] 每条发现有严重度标签
 - [x] **0 🔴 → 无需生成 fix 任务**（🟡 已给处置建议并标注需人工确认）
 - [x] **报告内未改任何代码**（R3.3 遵守）
+
+---
+
+## 第五轮 · brooks-lint 专用工具复核（`/brooks-review` · 2026-09-21）
+
+> **补跑原因**：阶段 6 的本报告 2.2 节曾误称"未装 brooks-lint → 走内置回退"（该断言不实，工具与技能载体均在），
+> L2 阶段 6 以 🟡 R1-a 抓出，L2 阶段 7 以 🟡 R3 指出"阶段 6 明确要求进 7-integration 前补跑 brooks-review 未执行"。
+> 本轮**实际调用 `brooks-review` 技能**（非回退）复核同一 diff。**Mode: PR Review**。
+
+**Scope**: `git diff 6e8468e~1 5870ecb` —— 4 个生产文件（`Makefile` / `package-dsh-plugin.sh` / `sync-hooks.sh` / `verify-claims.sh`），
+**592 行**（>300 → 全流程；>500 → 按指南须把 PR 规模本身记为 Change Propagation 信号，见 R2-b）。
+**Config**: 无 `.brooks-lint.yaml` → 默认（全风险、无 ignore）。
+**跳过文件**：`.specs/health-fix-2026-09/verify/ac*.sh`（11 个夹具）—— 属**验证脚手架**非产品代码，
+但其中 ac4/ac4c/ac4b 的判据与 `Makefile::SCAN_EXCLUDES` 存在**契约级重复**，已在 R3-b 单列。
+
+### 与内置回退的差异（本轮的核心价值）
+
+内置回退（本报告 2.1）给 R3/R4/R5 **全 0**；L2 阶段 6 即指出这**很可能是漏判**。本轮专用工具复核印证：
+**新发现 3 条内置回退完全漏掉的问题**（R2-b / R3-b / R6-a），其中 R6-a 是结构性设计问题。
+
+### 发现
+
+#### 🟡 R2 · Change Propagation：PR 规模本身即信号（指南 explicit rule）
+
+**Symptom**：`git diff 6e8468e~1 5870ecb -- '*.sh' Makefile` = **592 行 / 4 个生产文件 + 11 个夹具**（>500 行阈值）。指南规定：>500 行的 PR 本身就应记为 Change Propagation 信号 —— *"A change that cannot be reviewed in one pass suggests tangled responsibilities."*
+**Source**：Fowler · *Refactoring* · Shotgun Surgery / *Pragmatic Programmer* · "不要在一个变更里做太多事"。
+**Consequence**：本 change 名为"堵三个门禁盲区"，但实际 diff 还包含 F6 解耦（verify-claims 的两层语义修正）与 11 个验证夹具 —— 三件事挤在一个变更里。下次若只关心 F6，会被迫一起审查门禁改造。
+**Remedy**：**接受并记录**（不拆）。理由：F6 与 F1 **强耦合**（`verify-claims.sh:165` 硬编码"make check 五门"断言，F1 加门后必然变假 → 不修 F6 则 F1 无法交付），拆开会产生"必须同时合并"的两个 change，反而增加协调成本。已在 R8 登记该耦合。
+
+#### 🟡 R6 · Domain Model Distortion：通用工具被写入**变更专属**的硬编码断言
+
+**Symptom**：`verify-claims.sh` 自称「对**响应段里的可验证声明**做机械复验」（`:2`），是一个**通用**校验工具。
+但本 change 在 `:240-257` 新增 **§10d**，把 `health-fix-2026-09` **这一变更的交付物**逐条硬编码进去：
+`check-dist` / `SCANNED_FILES` / `is_real_entry` / `PTU_ENTRIES` / `--check` 模式。
+叠加既有的 §8/§9（`:140/:154` 仍 pin `l3-review-defects-2026-09` 的 DESIGN 与 MINOR-DEFERRED），
+该脚本现在**同时绑定两个历史 change 的具体交付物**。
+**Source**：Evans · *DDD* · Ch.2 Ubiquitous Language / Ch.4 分层（通用组件不应知晓具体业务变更）；
+Fowler · *Refactoring* · Divergent Change（一个模块因多种无关原因被修改）。
+**Consequence**：**每来一个 change 就往上加一段** —— 该文件会单调累积各变更的专属断言，
+最终无人敢删（不知道哪段还"有用"）。它已从"通用工具"退化为"历次变更的断言垃圾场"。
+更实际的近忧：`§10d` 断言的是**本 change 的交付物**，归档后这些断言**继续存在但失去语境**；
+若后续 change 重构了 `check-dist` 的实现（例如换 target 名），`§10d` 会**无故变红**，而当时的人不知道为什么。
+**Remedy**：**二选一** ——
+**(a) 把变更专属断言移出通用工具**：`§10d` 的内容本质是"本 change 的交付物清单"，应落在
+`.specs/<id>/verify/` 的夹具里（本 change 已有该目录与 ac1..ac9）。移到夹具后，归档即随之冻结，
+通用工具保持通用。
+**(b) 若保留在 verify-claims.sh**：必须加**生命周期注释**说明"§10d 由 health-fix-2026-09 添加，
+归档后可在下次改本文件时评估移除"，并**在归档清单里显式登记**该残留。
+**本轮处置：暂无**（属 🟡，需人工裁定 (a) 或 (b)；见文末"需人工确认"）。
+
+#### 🟢 R3 · Knowledge Duplication：排除契约被表达在三处
+
+**Symptom**：`SCAN_EXCLUDES` 的 9 条排除模式同时存在于 ① `Makefile:28-31`（实现）② `REQUIREMENT.md` AC-4b 表格（契约）
+③ `verify/ac4.sh` / `ac4c.sh` 的 `find` 参数（夹具）。本 change 已用 `ac4b.sh` 的**结构性比对**缓解
+（只读契约的组件名，不复制字面值），但 ac4/ac4c 仍各写一份完整模式串。
+**Source**：Hunt & Thomas · *Pragmatic Programmer* · DRY；Fowler · *Refactoring* · Duplicated Code。
+**Consequence**：契约一旦增删排除项，三处需同步；本 change 已实测过这类漂移的代价（L-093 记录的同族问题：改一处忘同步其派生表述，本 change 内已发生 4 次）。
+**Remedy**：`ac4/ac4c` 改为**从 `SCAN_EXCLUDES` 动态提取**（`sed -n '/^SCAN_EXCLUDES/,/^$/p' Makefile | grep -oE ...`）——
+与 `ac4b.sh` 同样的单一来源策略。**本轮未改**：属 🟢，且 `ac4c` 的独立重算正是其"检测静默扩张"能力的基础
+（若改从 Makefile 读取，就与实现同源，反而**丧失**该项检测力 —— 这是本条 Remedy 的**边界**，需权衡）。
+**建议保留现状**并在 AC-4c 注明该权衡。
+
+#### 🟢 R1 · Cognitive Overload：`check_dist()` 68 行
+
+**Symptom**：`package-dsh-plugin.sh::check_dist()` **68 行**（含 5 个整行注释块），承担"映射遍历 + 正向比对 + 反向残留 + 顶层文件比对 + 失败聚合 + 提示输出"六事。
+**Source**：McConnell · *Code Complete* · Ch.7；Ousterhout · *Philosophy of Software Design* · Ch.3。
+**Consequence**：可读性尚可（有分段注释），但新增第三类判据时会继续膨胀。
+**Remedy**：**暂不改**（同阶段 6 判定）。理由：注释占 5 个整行块、解释"为何不比 mode / 为何与打包同源"等**设计意图**，删注释换拆分会损失可追溯性；六步共享同一 `fail` 聚合变量，强拆引入参数传递开销。
+
+### Quick Test Check（Step 7）
+
+| 项 | 结果 |
+|---|---|
+| 测试是否存在并覆盖改动 | ✅ 11 个 AC 夹具 + bats 950（pre-commit 实跑） |
+| 断言的**双向性** | ✅ 每条新门禁均实测"注入→变红→还原→恢复绿" |
+| 是否用 mock 屏蔽真实失败 | ✅ 无 mock；夹具跑真实命令 |
+| 夹具自身的可证伪性 | ⚠️ **ac7 曾被本轮 L2 抓出断言写死 13 而实际 14**（必红）→ 已改为抗漂移判据（❌=0 且 ✅≥13） |
+
+### 总结（brooks-review 口径）
+
+本轮专用工具复核新增 3 条内置回退漏掉的发现，其中 **R6 为结构性** —— 它指出本 change 在"堵门禁盲区"的同时，
+**给一个通用工具加了一段变更专属断言**，属"用新债还旧债"的雏形。
+
+**无 🔴 Critical** → 不阻塞归档。但 **R6 需人工裁定**（见下）。
+
+---
+
+## 需人工确认（合并阶段 6/7 两轮审查）
+
+| # | 事项 | 我的建议 | 需你定 |
+|---|---|---|---|
+| 1 | **R6**（本轮 brooks）：§10d 属变更专属断言，放在通用工具 `verify-claims.sh` 里会随变更累积 | 倾向 **(a) 移出到 `.specs/<id>/verify/ac10.sh`** —— 归档即冻结，通用工具保持通用 | 选 (a) 移出 / (b) 保留 + 加生命周期注释并在归档清单登记 |
+| 2 | **阶段6 🟡**（契约分歧）：`install_hooks.sh:140` 对 `pre-tool-use/*.sh` 全部 chmod，而 `PTU_ENTRIES` 只列 3 个真入口 | 加交叉引用注释明确"单一事实源是 `PTU_ENTRIES`"，并入归档提交 | 是否需要 |
+| 3 | **阶段6 R1-a**：REVIEW.md 误称未装 brooks-lint 已更正，但"6 维诊断可信度受限"影响当时的 2.1 结论 | 本轮已用真工具补跑（见上），**2.1 的内置回退结论应以本轮为准** | 是否接受"以第五轮替代 2.1 结论" |

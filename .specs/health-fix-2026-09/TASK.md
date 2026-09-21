@@ -269,7 +269,10 @@ Wave 4:             T07                       —— 全量回归取证（depend
     bash verify-claims.sh >/tmp/t05.log 2>&1 || { echo "FAIL: verify-claims 非零退出"; tail -5 /tmp/t05.log; exit 1; }
     # 计数从实际输出提取（L3 三轮 C2：不硬编码）
     got=$(grep -oE '复验结果: ✅ [0-9]+  ❌ [0-9]+' /tmp/t05.log | tail -1)
-    [ "$got" = "复验结果: ✅ 13  ❌ 0" ] || { echo "FAIL: 计数为「$got」≠「✅ 13  ❌ 0」"; exit 1; }
+    # 抗漂移（L3 阶段7 R1）：不写死精确计数，断 ❌=0 且 ✅≥13
+    vc_f=$(printf '%s' "$got" | grep -oE '❌ [0-9]+' | grep -oE '[0-9]+'); vc_o=$(printf '%s' "$got" | grep -oE '✅ [0-9]+' | grep -oE '[0-9]+')
+    [ "${vc_f:-1}" -eq 0 ] || { echo "FAIL: verify-claims 有失败项「$got」"; exit 1; }
+    [ "${vc_o:-0}" -ge 13 ] || { echo "FAIL: 通过数 ${vc_o}<13"; exit 1; }
     # 门数须动态跟随（T02 加门后为 6），且不得残留写死的"五门"
     # 加固（L3 三轮 major3）：取 check: 目标后解析其依赖（忽略注释/空行），并容忍续行
     # 从 Makefile 的 check: 目标解析依赖数（含续行/注释/变量引用；遇配方行即停）
@@ -279,7 +282,7 @@ Wave 4:             T07                       —— 全量回归取证（depend
     echo "T05 OK（门数=${gates} 动态跟随）"
   </verify>
   <done>
-    exit 0 且「复验结果: ✅ 13 ❌ 0」；第 10 项显示 `make check 6 门全绿`；无「五门」字样 → AC-7 ⑥ 就位
+    exit 0 且 ❌=0、✅≥13（**抗漂移**下限，不写死精确值）；第 10 项显示 `make check 6 门全绿`；无「五门」 → AC-7 ⑥ 就位
   </done>
   <depends_on>T02</depends_on>
 </task>
@@ -339,7 +342,9 @@ Wave 4:             T07                       —— 全量回归取证（depend
     make check >/tmp/t07_check.log 2>&1 || { echo "FAIL: make check 非零退出"; tail -20 /tmp/t07_check.log; exit 1; }
     bash verify-claims.sh >/tmp/t07_vc.log 2>&1 || { echo "FAIL: verify-claims 非零退出"; exit 1; }
     got=$(grep -oE '复验结果: ✅ [0-9]+  ❌ [0-9]+' /tmp/t07_vc.log | tail -1)
-    [ "$got" = "复验结果: ✅ 13  ❌ 0" ] || { echo "FAIL: 计数「$got」"; exit 1; }
+    vc_f=$(printf '%s' "$got" | grep -oE '❌ [0-9]+' | grep -oE '[0-9]+'); vc_o=$(printf '%s' "$got" | grep -oE '✅ [0-9]+' | grep -oE '[0-9]+')
+    [ "${vc_f:-1}" -eq 0 ] || { echo "FAIL: 有失败项「$got」"; exit 1; }
+    [ "${vc_o:-0}" -ge 13 ] || { echo "FAIL: 通过数 ${vc_o}<13"; exit 1; }
     # ── AC-7 六项（L3 三轮 C4 补：原 verify 只跑 make check，未逐项断言）──
     npx --yes bats@1.13.0 test/ >/tmp/t07_bats.log 2>&1 || true
     [ "$(grep -cE '^ok ' /tmp/t07_bats.log || true)" -eq 950 ] || { echo "FAIL: bats ok≠950"; exit 1; }

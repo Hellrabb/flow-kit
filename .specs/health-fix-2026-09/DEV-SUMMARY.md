@@ -15,7 +15,7 @@
 | T02 | `Makefile`：lint find 全量枚举 + `SCANNED_FILES` + `check-dist` 挂载 | 66 文件覆盖 7 个漏扫 · 契约 66=66 · 6 门 | ✅ |
 | T03 | `sync-hooks.sh`：exec 判据收窄为真入口 + 逐条指名 | AC-5 计数 0 · AC-6 四类真入口均指名 | ✅ |
 | T04 | 9 个验证夹具落盘（原样提取自 REQUIREMENT） | 9/9 语法 + **9/9 实跑 PASS** | ✅ |
-| T05 | `verify-claims.sh` F6 深层修复（活跃 change 解析 + 工作区基线） | rc=0 · 13✅/0❌ · 门数动态跟随 | ✅ |
+| T05 | `verify-claims.sh` F6 深层修复（活跃 change 解析 + 工作区基线） | rc=0 · ❌0 ✅≥13 · 门数动态跟随（阶段6后总数 14） | ✅ |
 | T06 | 三载体理由注释（`health-fix-2026-09` 锚点 + 理由关键词） | 3/3 锚点 + 3/3 语义 | ✅ |
 | T07 | 全量回归取证（本文件） | 见下 | ✅ |
 
@@ -32,7 +32,7 @@
 | ③ | `make check-validate`：漏配 0 / 源缺失 0 | ✅ |
 | ④ | `make check-test-sync`：双源一致 | ✅ |
 | ⑤ | `make check-hooks-sync`：漂移 0 | ✅ |
-| ⑥ | `make verify-claims`：13 ✅ / 0 ❌ | rc=0 · 13/0 ✅ |
+| ⑥ | `make verify-claims`：❌=0 且 ✅≥13 | rc=0 · **14✅/0❌** ✅（阶段6 §10d 后 +1） |
 | 附 | `make check-dist`（本 change 新增第 6 门） | dist 与源一致 ✅ |
 
 **`make check` 整体**：`rc=0` · **全部通过（6 门）** · 实测耗时 **4m12s**
