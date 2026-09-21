@@ -837,8 +837,8 @@ EOF
   grep -qE '÷3|÷ 3' "$H29"
 }
 
-@test "B3-R4: l3-review.sh 解析链 新名 > 旧名 > 历史直调 > 20000" {
-  grep -q 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-20000}}}' \
+@test "B3-R4: l3-review.sh 解析链 新名 > 旧名 > 历史直调 > 80000（末级默认 2026-09-21 由 20000 调大）" {
+  grep -q 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-80000}}}' \
     "$L3_REVIEW_LIB"
 }
 

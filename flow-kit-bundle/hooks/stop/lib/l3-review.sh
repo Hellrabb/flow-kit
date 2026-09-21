@@ -52,10 +52,10 @@ l3_review_run() {
   # ① 调用方从 stop-hook.json 导出的 FLOW_KIT_L3_MAX_ARTIFACT_BYTES（规范名）
   # ② 旧名 FLOW_KIT_L3_MAX_ARTIFACT_CHARS（29 号 2026-09-11 前导出的名字）
   # ③ 历史直调/手工 export 的 L3_MAX_ARTIFACT_CHARS
-  # ④ 20000 兜底
+  # ④ 80000 兜底（2026-09-21 由 20000 调大：实测阶段 6 提示词 74610 B，20000 会丢 73% 工件）
   # 单位恒为**字节**（实现是 head -c）——§B3：旧名 max_artifact_chars 会让人按字符估算，
   # 中文工件 60000 "chars" 实际只装 ~2 万汉字，导致"章节缺失"假阳性。改名 + 文档写明单位。
-  local max_bytes="${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}}"
+  local max_bytes="${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-80000}}}"
   # 熔断阈值（P0-1 修复 · 2026-09-11）：0 = 关闭熔断（旧行为）
   local max_fail_count="${FLOW_KIT_L3_MAX_FAILURES_BEFORE_BYPASS:-0}"
 
@@ -64,7 +64,7 @@ l3_review_run() {
   [ -n "$change_id" ] || { echo "[l3-review] missing change_id" >&2; return 3; }
   [ -d "$artifacts_dir" ] || { echo "[l3-review] artifacts_dir not found: $artifacts_dir" >&2; return 3; }
   [[ "$l2_verdict" =~ ^(pass|fail|skipped)$ ]] || { echo "[l3-review] invalid L2_verdict: $l2_verdict" >&2; return 3; }
-  [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=20000
+  [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=80000
   [[ "$max_fail_count" =~ ^[0-9]+$ ]] || max_fail_count=0
 
   # ── 熔断（P0-1 修复 · 2026-09-11）────────────────────────────────────────

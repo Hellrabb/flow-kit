@@ -70,7 +70,7 @@ _make_big_requirement() {
   [ "${#out}" -gt 20000 ]
 }
 
-@test "A2: 未设 env 时回落 20000（既有默认不变 · 向后兼容）" {
+@test "A2: 显式小 cap（20000）仍生效（截断可控 · 与默认值无关）" {
   _make_big_requirement 1200
   local out
   out=$(bash -c "source '$L3_LIB' 2>/dev/null
@@ -90,18 +90,19 @@ _make_big_requirement() {
   [ "$status" -eq 0 ]
 }
 
-@test "A5: 非法 artifact cap 值回落 20000（sanitize 不炸）" {
+@test "A5: 非法 artifact cap 值回落 80000（sanitize 不炸）" {
   local out
   out=$(FLOW_KIT_L3_MAX_ARTIFACT_BYTES="abc" bash -c "source '$L3_LIB' 2>/dev/null
-    max_bytes=\"\${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-20000}}}\"
-    [[ \"\$max_bytes\" =~ ^[1-9][0-9]*\$ ]] || max_bytes=20000
+    max_bytes=\"\${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-\${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-\${L3_MAX_ARTIFACT_CHARS:-80000}}}\"
+    [[ \"\$max_bytes\" =~ ^[1-9][0-9]*\$ ]] || max_bytes=80000
     echo \"\$max_bytes\"" 2>/dev/null)
-  [ "$out" = "20000" ]
+  [ "$out" = "80000" ]
 }
 
 @test "A6: 旧名（CHARS）与历史直调路径仍在解析链中（B3 向后兼容）" {
-  # 解析链字面量：BYTES > FLOW_KIT_L3_MAX_ARTIFACT_CHARS > L3_MAX_ARTIFACT_CHARS > 20000
-  run grep -qF 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-20000}}' "$L3_LIB"
+  # 解析链字面量：BYTES > FLOW_KIT_L3_MAX_ARTIFACT_CHARS > L3_MAX_ARTIFACT_CHARS > 80000
+  # （末级默认 2026-09-21 由 20000 调大为 80000，理由见 stop-hook.json 注释与 CHANGELOG）
+  run grep -qF 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-${FLOW_KIT_L3_MAX_ARTIFACT_CHARS:-${L3_MAX_ARTIFACT_CHARS:-80000}}' "$L3_LIB"
   [ "$status" -eq 0 ]
 }
 

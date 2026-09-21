@@ -118,7 +118,7 @@ if [ -z "$max_bytes" ]; then
     echo "[independent-review] DEPRECATED: independent_review.max_artifact_chars 已改名 max_artifact_bytes（单位=字节，语义未变）。CJK 工件请按 ÷3 估算汉字数。" >&2
   fi
 fi
-[[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=20000
+[[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=80000   # 兜底与 config 模板默认一致（2026-09-21 由 20000 调大）
 max_fail=$(config_get '.independent_review.max_failures_before_bypass' "3")
 [[ "$max_fail" =~ ^[0-9]+$ ]] || max_fail=3
 # Model: 三级优先级链（l2-l3-model-config ADR-012, supersedes ADR-006）

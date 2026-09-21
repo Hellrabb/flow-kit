@@ -68,7 +68,7 @@ _l3_check_rerun() {
 # ─── smart_truncate (moved from l3-api.sh · td072-lib-split-2026-08) ───
 smart_truncate() {
   local text="$1"
-  local max_chars="${2:-20000}"
+  local max_chars="${2:-20000}"   # ⚠️ 这不是 L3 工件上限（那个默认 80000，见 l3-review.sh 解析链 / stop-hook.json）；本参数只在调用方省略尺寸时兜底，当前无此类调用点
   local original_size=${#text}
 
   # 不需要截断
