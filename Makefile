@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist dsh-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -122,6 +122,25 @@ check: test lint check-validate check-test-sync check-hooks-sync check-dist
 check-dist:
 	@echo "📦 make check-dist: 打包件新鲜度检查 ..."
 	@bash package-dsh-plugin.sh --check
+
+# ── dsh-sync: 把 dist 插件同步到已安装的 dsh profile（插件代码 + 文档 + vendor + 测试）──
+# 为什么需要：`sync-hooks.sh` 只镜像 `hooks/**`（+ prompts 树），插件的 **lib/*.js**、`docs/`、
+#   `vendor/`、`test/` 都不在其中 → 会静默漂移（2026-09-21 实测漂移 17 处，其中
+#   `hook-bridge.js` 旧版仍会物化**项目级** stop-hook.json，属于行为级不一致）。
+# 安全前提（已实测）：安装目录内容 = dist 内容（无额外文件）→ 可用 `rsync -a --delete`。
+# ⚠️ 走 pnpm 的 `dsh plugin --profile <p> add file:.../dist/dsh-flow-kit` 会覆盖本目录，
+#    之后重跑本 target 即可。
+DSH_PROFILE ?= web
+DSH_PLUGIN_DIR = $(HOME)/.dsh/profiles/$(DSH_PROFILE)/node_modules/dsh-flow-kit
+
+dsh-sync: check-dist
+	@echo "🔄 make dsh-sync: dist/dsh-flow-kit → $(DSH_PLUGIN_DIR) ..."
+	@if [ ! -d "$(DSH_PLUGIN_DIR)" ]; then \
+		echo "⚠️  未安装 dsh 插件（$(DSH_PLUGIN_DIR) 不存在）→ 跳过（exit 0）"; \
+	else \
+		rsync -a --delete "$(CURDIR)/dist/dsh-flow-kit/" "$(DSH_PLUGIN_DIR)/" && \
+		echo "✅ 已同步（$(DSH_PROFILE) profile）· pnpm 重装后请重跑本 target"; \
+	fi
 
 # ── dup: jscpd 重复率扫描（独立 · 不进 check · jscpd 未装 graceful skip · TD-010）──
 dup:

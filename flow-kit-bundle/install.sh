@@ -62,9 +62,14 @@ usage() {
   --global              全局安装（核心 + skills + brooks-lint + 可选用户级 hooks）
   --update              智能更新（版本比对 · bundle 版本 > 已装版本才执行）
   --reinstall           彻底重装（先清理 → 再全新 --global）
-  --project <path>      安装到指定项目（hooks + settings + .specs 模板）
+  --project <path>      安装到指定项目（hooks + settings + .specs 模板；**配置仍走用户级**）
   --user                安装 hooks 到用户目录（所有项目共用）
   --hooks-only          仅安装 hooks（需配合 --project）
+
+配置位置（2026-09-21 起统一）:
+  stop-hook.json **只有用户级一份**：~/.claude/stop-hook.json（claude）·
+  ~/.config/opencode/stop-hook.json（opencode）· ~/.dsh/stop-hook.json（dsh）。
+  项目级副本不再生成、也不被读取（`--project` 只装 hooks/settings/.specs）。
 
 跳过项:
   --no-hooks            跳过 stop hook 安装
@@ -327,7 +332,7 @@ echo "║"
 echo "║  下一步:"
 if [ "$PLATFORM" = "claude" ]; then
   echo "║  1. 检查 ${PROJECT_DIR_NAME}/settings.local.json（hook 已自动接线）"
-  echo "║  2. 根据需要调整 stop-hook.json 中的模块开关"
+  echo "║  2. 按需调整**用户级** stop-hook.json（~/.claude/stop-hook.json）的模块开关"
   echo "║  3. 在项目目录运行 /flow-go 初始化"
 else
   echo "║  1. 检查 ~/.config/opencode/skills/flow-* （skills 已安装）"
