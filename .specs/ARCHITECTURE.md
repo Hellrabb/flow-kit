@@ -3,7 +3,7 @@
 - **维护者**：`prompts/A-architect.md`（首次 / 重构）+ `prompts/A-evolve.md`（增量同步 ADR）
 - **首次创建**：2026-07-08
 - **最近修订**：2026-07-08（A-architect 首跑）
-- **当前 ADR 编号最大值**：ADR-009
+- **当前 ADR 编号最大值**：**ADR-027**（2026-09-21 更正；此前声明 ADR-009 已过期 —— 该过期声明曾导致 health-fix-2026-09 误编出重复的 010）
 
 > **本文件 vs CONTEXT.md vs DESIGN.md 的边界**：
 > - `CONTEXT.md`（**rules 层**）：技术栈版本、域语言、既有抽象索引、禁动清单、默认偏好——AI 实施时**每个 change 都加载**，当前 430 行

@@ -3,7 +3,7 @@
 - **last_intel_scan**: `2026-06-17`
 - **last_evolve_at**: `2026-07-08`（完整 · 两轮，扫 29/29 个 change）
 - **last_architect_at**: `2026-07-08`（首跑 · 9 ADR + 模块清单 + 跨模块契约）
-- **last_change_archived**: `health-fix-2026-09`（2026-09-21 · 门禁判据修复型 · pipeline 0→7 `gate_config=all` · 阶段 1/3/5 各经 L2+L3（**三次熔断 bypass**，透明留痕）· 阶段 6 L2 **pass** + L3 **pass** · bats 950 ok/0 not ok/1 skip · `make check` **6 门全绿**（新增 check-dist）· `verify-claims` 14✅/0❌ · 11 个 AC 夹具实跑全 PASS · LESSONS L-090~L-100 · ADR-010 新增）
+- **last_change_archived**: `health-fix-2026-09`（2026-09-21 · 门禁判据修复型 · pipeline 0→7 `gate_config=all` · 阶段 1/3/5 各经 L2+L3（**三次熔断 bypass**，透明留痕）· 阶段 6 L2 **pass** + L3 **pass** · bats 950 ok/0 not ok/1 skip · `make check` **6 门全绿**（新增 check-dist）· `verify-claims` 14✅/0❌ · 11 个 AC 夹具实跑全 PASS · LESSONS L-090~L-100 · **ADR-027** 新增（原误编 010，与既有 010 冲突，已重编号））
 - **last_change_archived_prev**: `l3-review-defects-2026-09`（2026-09-18 · 缺陷修复型 · **未走 pipeline**（直接响应外部缺陷报告）· 报告 5 条复测全成立 + 新增 1 条 · 854 bats 0 fail · make check 五门全绿 · 6 副本漂移 0 · 无 L2/L3 独立审查记录）
 - **last_change_archived_prev2**: `l3-prompt-loop-fix`（2026-09-05 · 缺陷修复型 · pipeline 0→7 gate_config=both · L2×6+L3×6 全 pass · 803 bats 0 fail · 五副本 md5 唯一 · LESSONS L-085~088）
 - **last_evolve_promoted**:
