@@ -1,0 +1,40 @@
+# 归档清单 · health-fix-2026-09
+# 生成时间: 2026-09-21T12:24:51+08:00
+# HEAD: bf65640 fix(health-fix-2026-09): 阶段 7 L2 抓到的 Critical（ac7 断言漂移）+ 补
+# 工作区未提交: 2 项
+
+## 文件（34 项）
+ARCHIVE-MANIFEST.txt                                      229 B  sha256:3bd3256210ef6d3d
+CHANGE.md                                                8241 B  sha256:82c946e44dd55198
+DESIGN.md                                               24586 B  sha256:94c73a687a6f12da
+DEV-SUMMARY.md                                           5765 B  sha256:e8559110484eb909
+.goal-snapshot.json                                       211 B  sha256:b237bd9476d7320e
+.independent-review-1.done                                262 B  sha256:859f63db39606413
+INDEPENDENT-REVIEW-1.md                                 46901 B  sha256:8ee9b4a769e21ac8
+.independent-review-3.done                                262 B  sha256:d98b3ca91c1bdfd6
+INDEPENDENT-REVIEW-3.md                                 50697 B  sha256:a6376554af41eec4
+.independent-review-5.done                                262 B  sha256:e50017c6ee449d0d
+INDEPENDENT-REVIEW-5.md                                 43497 B  sha256:f84ccad30ae8c5ea
+.independent-review-6.done                                393 B  sha256:b09ab3effbc787cf
+INDEPENDENT-REVIEW-6.md                                 47286 B  sha256:fc3aaf793b7f902e
+.independent-review-7.done                                484 B  sha256:9136c8bcad676944
+INDEPENDENT-REVIEW-7.md                                 12339 B  sha256:04255ab9eaaf4737
+MINOR-DEFERRED.md                                        3100 B  sha256:6f6fb83ad58f1c0c
+PROGRESS.md                                              1541 B  sha256:8413ebb6067ddebd
+REQUIREMENT.md                                          40113 B  sha256:06dfb8af9ec28530
+REVIEW.md                                               23269 B  sha256:dc8bc79fc09d68d2
+T01-SUMMARY.md                                           4773 B  sha256:c20c1b55db1bc28e
+T02-T03-T05-SUMMARY.md                                   6459 B  sha256:8701a90330a6905d
+TASK.md                                                 24764 B  sha256:c151b79498f3e1d0
+TEST.md                                                 15474 B  sha256:7a7344c9be616f88
+verify/ac1.sh                                            1098 B  sha256:74f48dbdfac322ee
+verify/ac2.sh                                             796 B  sha256:41aca0d7e6ba56ab
+verify/ac3.sh                                             981 B  sha256:6161e9f76a3e669b
+verify/ac4b.sh                                           3068 B  sha256:c4b2600c56aaece2
+verify/ac4c.sh                                           1456 B  sha256:ac3dfe024dc1b1bd
+verify/ac4.sh                                            2098 B  sha256:7cf57f069593fdb8
+verify/ac5.sh                                             664 B  sha256:b5d797dbc3e887f6
+verify/ac6.sh                                            1548 B  sha256:60c8d7753d850f58
+verify/ac7.sh                                            2902 B  sha256:2323c13cdc803a91
+verify/ac8.sh                                            2040 B  sha256:0bd279199d80ef8b
+verify/ac9.sh                                             684 B  sha256:b797ef83189b78f8
