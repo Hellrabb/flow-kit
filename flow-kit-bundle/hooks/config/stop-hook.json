@@ -123,8 +123,8 @@
   "independent_review": {
     "phases": [],
     "model": "deepseek-v4-flash",
-    "_comment_max_artifact_bytes": "L3 工件截断上限，单位=字节（实现是 head -c）。CJK 工件按 ÷3 估算汉字数：60000 字节 ≈ 2 万汉字。旧键 max_artifact_chars 仍可读（同按字节解释）但已废弃，会打印迁移提示。",
-    "max_artifact_bytes": 20000,
+    "_comment_max_artifact_bytes": "L3 工件截断上限，单位=字节（实现是 head -c）。CJK 工件按 ÷3 估算汉字数：80000 字节 ≈ 2.7 万汉字（约 3 万 token 量级）。**2026-09-21 由 20000 调大到 80000**（brooks-review-fix-2026-09 复核 L3 时实测：阶段 6 提示词 74610 B，20000 上限丢弃 73% 工件 → L3 据残缺工件误判「新门禁零 bats 覆盖」）。大工件项目仍应显式提高，否则 L3 只看前缀、反复报「NFR 缺失 / 锚点表被截断」假阳性。旧键 max_artifact_chars 仍可读（同按字节解释）但已废弃，会打印迁移提示。",
+    "max_artifact_bytes": 80000,
     "max_failures_before_bypass": 3
   },
   "pre_tool_use_gates": {
