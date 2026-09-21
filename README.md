@@ -22,7 +22,7 @@ flow-kit/
 │   │   ├── install_brooks.sh        # brooks-lint 安装 + 动态版本号
 │   │   └── install_hooks.sh         # hooks 安装 + specs 模板
 │   └── install.sh                   # 安装主脚本（调度 lib/）
-├── test/                            # bats-core 测试（72 tests）
+├── test/                            # bats-core 测试套件（test/*.bats · npx bats test/）
 │   ├── test_common.bats             # common.sh 函数测试
 │   └── test_install.bats            # install.sh 参数解析测试
 ├── .specs/                          # 项目规格
@@ -93,10 +93,29 @@ flow-kit/
 # 打包新 bundle
 bash package-flow-kit.sh
 
-# 安装到目标项目
+# 安装到目标项目（install.sh 必须显式指定作用域）
 tar xzf flow-kit-bundle.tar.gz
-cd flow-kit-bundle && bash install.sh /path/to/target-project
+cd flow-kit-bundle
+bash install.sh --global                 # 核心引擎 + skills + brooks-lint + brooks-tools（默认不含 hooks）
+bash install.sh --global --user          # 同上 + 用户级 hooks（推荐，一次安装所有项目共用）
+bash install.sh --project <目标项目路径>  # 项目级：hooks + settings + .specs 模板（配置仍走用户级）
 ```
+
+> ⚠️ `install.sh` 不接「裸路径」参数——`bash install.sh /path/to/project` 会报「必须指定 --global 或 --project」。hooks 与配置作用域详见 [FLOW-KIT-用户指南.md](./FLOW-KIT-用户指南.md) §2。
+
+## dsh 插件（DeepSeek Harness）
+
+dsh 用户通过插件获得同一套 flow-* 技能与 `/flow` 命令：
+
+```bash
+bash package-dsh-plugin.sh                       # 产物 = dist/dsh-flow-kit + dist/dsh-flow-kit-<ver>.tgz
+dsh plugin --profile <profile 名> add file:<仓库路径>/dist/dsh-flow-kit
+
+# 改了 flow-kit 源码后刷新已装插件（dist → 已装 profile）：
+make dsh-sync                                    # 默认 profile=web；DSH_PROFILE=<名> make dsh-sync 覆盖
+```
+
+> 为什么不能只靠 `sync-hooks.sh`：它只镜像 `hooks/**`，插件的 `lib/*.js`、`docs/`、`vendor/`、`test/` 会静默漂移。`make dsh-sync` 用 `rsync -a --delete` 全量同步；走 `pnpm install` / `dsh plugin add` 重装会覆盖插件目录，**重装后需再跑一次** `make dsh-sync`。细节见 [`dsh-flow-kit/README.md`](./dsh-flow-kit/README.md)。
 
 ## L3 外部审查凭证（必配，否则 L3 门禁死锁）
 

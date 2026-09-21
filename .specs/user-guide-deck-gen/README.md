@@ -1,6 +1,6 @@
 # user-guide-deck-gen — flow-kit-用户指南.pptx 生成器
 
-> 建立于 user-guide-sync-2026-09（2026-09-03）。本目录 tracked 入库，跨 change 维护。
+> 建立于 user-guide-sync-2026-09（2026-09-03）；最近同步 2026-09-21（user-guide-sync-2026-09b，deck 20 → 24 页）。本目录 tracked 入库，跨 change 维护。
 
 ## 重跑命令
 
@@ -25,8 +25,13 @@ python3 .specs/user-guide-deck-gen/deck_checks.py      # 成品断言（页数/�
 | table | 表格页 | title / subtitle / header[] / rows[][]（首行如为数据行则不加表头：见 header 用法）|
 
 配色/字体继承 theme.py（深蓝 1F3A5F / 中蓝 2E86AB / 宋体 + Times New Roman · 16:9 12191695×6858000 EMU）。
-日期统一写 `2026-09-03 | github.com/hellrabb/flow-kit` 封面行与内容页无需重复。
+日期统一写 `2026-09-21 | github.com/hellrabbit/flow-kit` 封面行与内容页无需重复。
+（2026-09-21 扩页未新增版式：4 张新专页全部复用 `band`，故上表不变。）
 
 ## 禁词（与 FLOW-KIT-用户指南.md 同清单）
 
-20260713 / 17 个模块 / 三级优先级链 / 三级链 —— deck_checks.py 会拦截。
+20260713 / 17 个模块 / 三级优先级链 / 三级链 / 仅 Claude Code / 仅为 Claude Code / 只为 Claude Code /
+`.specs/lessons/` / 项目级 stop-hook.json / 三轮审查 / 20000 字节 / 归档（ARCHIVE）
+—— deck_checks.py 会同时拦截成品 pptx 与 slides.json 源；后 5 条为本轮新增（历史上真实出现过的串）。
+
+页数断言 `EXPECT_PAGES = 24`；关键页按**标题**寻址（`by_title`），禁止硬编码下标。

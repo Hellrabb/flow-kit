@@ -624,3 +624,23 @@ flow-kit 分发包仓库。将 flow-kit 完整生态（核心引擎 + 15 个阶�
 | l2-missing 退场（l2-missing retirement） | 29 号新增行为：确认 IR 文件已含 `## L2 盲审` 段（或 gate 非 both）时清除 l2-missing flag，对齐 `write_model_missing_clear` 既有范式（L3 的 model-missing 有退场机制，L2 的 l2-missing 原无设计内清除路径）。来自 correction-hygiene-state-guard |
 | correction 去重（dedup） | `_fai_append_violation` 增加同 `check`+`field` 只保留最新一条 + state-integrity 类容量上限 10 条 FIFO。作用域仅限 state-integrity 类，compliance 类（28 号）不参与（ADR-013 compliance-priority）。来自 correction-hygiene-state-guard |
 <!-- correction-hygiene-state-guard 追加 ↑ -->
+<!-- user-guide-sync-2026-09b 追加 ↓ -->
+| 指南副本一致性（guide copy parity） | `FLOW-KIT-用户指南.md` 共 **4 份载体**：仓库根 / `flow-kit-bundle/` / `dist/dsh-flow-kit/docs/` / `dist/dsh-flow-kit/vendor/flow-kit-bundle/`。定义上四份必须**逐字节一致**（md5 唯一）。2026-09-21 实测：根副本与其余三份分叉 2 行（提交 `5583e2a` 声称同步实际只改 bundle 一份），且 `Makefile` / `verify-claims.sh` 无任何守护 → 本 change 补机械断言。来自 user-guide-sync-2026-09b 漂移审计 §0 |
+| 漂移清单（drift inventory） | 文档同步型 change 的事实基线：逐条「指南原文 + 行号 / 现状真相 + `文件:行号` 证据 / 建议改法 / 严重度」。本轮 43 条（14🔴/23🟡/6🟢）+ 12 条候选新增，产物在 `/tmp/guide-drift-report.md`（一次性输入，不入库）。来自 user-guide-sync-2026-09b 阶段 1 |
+| 用户级配置单一源（user-level single config source） | 2026-09-21 起 stop-hook 配置**只有用户级一份**：claude `~/.claude/stop-hook.json`、opencode `~/.config/opencode/stop-hook.json`、dsh `~/.dsh/stop-hook.json`；解析链 = `STOP_HOOK_CONFIG` env > 用户级 > 插件模板 `hooks/config/stop-hook.json`。项目目录内 `.flow-kit/`（dsh）/`.claude/`（claude）**只放状态**（`stop-hook-state.json` / 报告 / `.flow-active`），不再生成也不再读取配置。来自 commits 5583e2a / 27ab400 |
+| 单轮合并审查（single-pass merged review） | 阶段 6 现行形态：spec 合规（A）+ 代码质量 6 维（B）+ UI 视觉（C）在**同一次 pass** 内三维度并行判定；仅当 `verdict=fail` 且有 🔴 Critical 时追加**跨模型 spot-check**（ADR-014）。「三轮审查」为 2026-08-03 前的旧口径（`b7b6048`）。来自 `6-review.md:1,205-215,303-305` |
+| 工件上限（max_artifact_bytes） | `independent_review.max_artifact_bytes`，**单位＝字节**（实现 `head -c`），缺省 **80000**（2026-09-21 由 20000 调大；CJK ÷3 ≈ 2.7 万汉字）。旧键 `max_artifact_chars` 可读但打 DEPRECATED；解析链 `FLOW_KIT_L3_MAX_ARTIFACT_BYTES` > `FLOW_KIT_L3_MAX_ARTIFACT_CHARS` > `L3_MAX_ARTIFACT_CHARS` > 80000。调大不改变截断告警语义。来自 brooks-review-fix-2026-09 |
+| L3 熔断 bypass（circuit-breaker bypass） | L3 连续 fail 达 `max_failures_before_bypass`（默认 3，`0`=关闭）→ **自动**写 `.done`（`written_by=l3-bypass`、`L3_verdict=skipped`）+ 在 IR 文件追加「## L3 重审（bypass）」审计段 → pipeline 继续（不伪装 pass）。计数落 `.specs/<id>/.l3-attempts-<phase>`（删除即重试）。主 agent **手动 touch `.done` 会被 path-guard deny**。来自 `l3-review.sh:62-86` / `l3-done.sh:155-200` |
+| L3 凭证死锁（credential-missing deadlock） | L3 调用的凭证由 `fk_resolve_api_credentials` 三 Path 链解析（claude：`ANTHROPIC_AUTH_TOKEN`(+`ANTHROPIC_BASE_URL`) > Path3 > `ANTHROPIC_API_KEY`；opencode/dsh：`FLOW_KIT_L3_AUTH_TOKEN`+`FLOW_KIT_L3_BASE_URL` 优先），rc=1 无凭证 / rc=2 Path3 不完整。**凭证缺失 → hook 不写 `.done` → PreToolUse 守卫又禁止主 agent 自产 → commit / 阶段推进全部阻塞**（README 口径：必配）。来自 `common.sh:282-330` / `l3-api.sh:17-47` |
+| 指南版本日期口径（guide version date） | 指南文首版本行、分节「最后同步日期」、deck 封面日期行三处必须为**同一日期**（本轮 = `2026-09-21`）。历史上曾出现文首 `2026-09-03` 与分节 `2026-07-13` 自相矛盾（漂移报告 D43）。来自 user-guide-sync-2026-09b AC-1 |
+<!-- user-guide-sync-2026-09b 追加 ↑ -->
+
+<!-- user-guide-sync-2026-09b 已锁决策 ↓ -->
+| 决策 | 内容 |
+|---|---|
+| 同步底稿 = bundle 副本 | `flow-kit-bundle/FLOW-KIT-用户指南.md` 较新（含 2026-09-21 配置用户级措辞）→ 本轮以它为底稿修订，再向根与 dist 两份对齐；四份 md5 必须唯一 |
+| README 允许连改 | 核对 `README.md` / `dsh-flow-kit/README.md` 后发现过时口径**直接修正入库**（用户 2026-09-21 拍板），不留到下个 change |
+| deck 扩页 | `flow-kit-用户指南.pptx` 由 20 页基线**大幅扩页（净增 ≥4）**，新增「安装面 / L3 审查链 / 质量门禁」专页（用户 2026-09-21 拍板）；生成器 + `deck_checks.py` 同步 |
+| 副本一致性守护 | 新增一条**可失败**的机械断言（bats 用例，位置见 DESIGN），四份副本 md5 不一致即 rc≠0；须经「注入→变红→还原→复绿」实测，非恒绿 |
+| 纯文档边界 | 不改运行时实现（`hooks/**`、`dsh-flow-kit/lib/**`、`skills/**`、`prompts/**` 的 diff 必须为 0）；新增测试文件属允许范围 |
+<!-- user-guide-sync-2026-09b 已锁决策 ↑ -->

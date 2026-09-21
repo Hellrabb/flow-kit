@@ -71,3 +71,8 @@ __pycache__/
 
 # L3 凭证模板（唯一允许提交的 .env* 文件；真实凭证在 ~/.config/flow-kit/l3.env）
 !.claude/l3.env.example
+
+# 凭证文件（隐私加固 · user-guide-sync-2026-09b 追加）：任何 l3.env / *.env 绝不入库
+.claude/l3.env
+l3.env
+*.env

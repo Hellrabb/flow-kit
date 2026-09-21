@@ -1,0 +1,37 @@
+# 归档清单 · user-guide-sync-2026-09b
+# 生成时间: 2026-09-22T01:05:40+08:00
+# HEAD: 1f60154 docs(user-guide-sync-2026-09b): 用户指南 + 用户指南 PPT 同步�
+# 工作区未提交项: 2
+
+## 文件（31 项）
+bats-full.log                                       76364 B  sha256:6def8c9bfe27efa7
+CHANGE.md                                            6623 B  sha256:0ebb4d1d7276883c
+check-appendix-superset.py                           3343 B  sha256:776a8df78b52a2d6
+DESIGN.md                                           24278 B  sha256:afbcd62502cf8482
+DEV-SUMMARY.md                                      13246 B  sha256:651c97d6b53ce922
+.goal-snapshot.json                                   211 B  sha256:23c031a02d1dedd5
+.independent-review-1.done                            378 B  sha256:00b24e8adda072f2
+INDEPENDENT-REVIEW-1.md                            117983 B  sha256:64e51836463e8bc9
+.independent-review-2.done                            400 B  sha256:0bc578457f926ef8
+INDEPENDENT-REVIEW-2.md                             80005 B  sha256:a5b79d2e61d8cc56
+.independent-review-3.done                            268 B  sha256:394f9096036955cb
+INDEPENDENT-REVIEW-3.md                            164897 B  sha256:3cb502c817ac84fd
+.independent-review-5.done                            268 B  sha256:ce4183273423c91f
+INDEPENDENT-REVIEW-5.md                            111077 B  sha256:3af11f56476b0330
+.independent-review-6.done                            363 B  sha256:431ab99fa713bab6
+INDEPENDENT-REVIEW-6.md                             29069 B  sha256:d0bef3bd84bd67dd
+.independent-review-7.done                            268 B  sha256:762beea3a7a9c7da
+INDEPENDENT-REVIEW-7.md                             27742 B  sha256:6e180c7a85090ecc
+make-check.log                                       4875 B  sha256:60d0a91f0fafd3ea
+make-manifest.sh                                     1852 B  sha256:dccc9407054156af
+MINOR-DEFERRED.md                                   11094 B  sha256:3c16a471537b302e
+PROGRESS.md                                           674 B  sha256:00860b513ea5a12a
+REQUIREMENT.md                                      31538 B  sha256:1e0d6289ed439e2e
+REVIEW.md                                            8437 B  sha256:42a8958485979d00
+run-l3.sh                                            2292 B  sha256:da56b95ffd1e8713
+sync-counters.sh                                     3569 B  sha256:1fe2549f2ee3ce36
+TASK.md                                             38911 B  sha256:fa8689a98f0f6062
+TEST.md                                             32666 B  sha256:7cd5b1342df15b64
+UAT.md                                               3647 B  sha256:7080a6f43ac2be6d
+verify-ac.sh                                        13696 B  sha256:70d84549226e62cb
+verify-boundary.sh                                   5461 B  sha256:49c28621fb0bf81b

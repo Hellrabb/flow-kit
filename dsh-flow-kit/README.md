@@ -101,9 +101,14 @@ bash package-dsh-plugin.sh
 # 3) 校验 vendor 零丢失
 diff -rq flow-kit-bundle dist/dsh-flow-kit/vendor/flow-kit-bundle
 
-# 4) 重装 profile（file: 依赖需 pnpm install 刷新副本；dsh 重启后生效）
+# 4) 刷新已安装的插件目录（推荐入口：全量 rsync，含 lib/ · docs/ · vendor/ · test/）
+#    只跑 sync-hooks.sh 会漏掉 lib/*.js 与 docs/（2026-09-21 实测漂移 17 处）
+make dsh-sync                      # 默认 profile=web；DSH_PROFILE=<名> make dsh-sync 覆盖
+#    若走 pnpm/plugin add 重装（会覆盖插件目录），重装后必须再跑一次 make dsh-sync
 cd ~/.dsh/profiles/<profile> && pnpm install
 
 # 5) 验证挂载
 dsh --profile <profile> --dump-config | grep -A 7 flow-kit
 ```
+
+> `make dsh-sync` 与 `package-dsh-plugin.sh --check`（`make check-dist`）配套：前者把 dist 推到已装目录，后者只读校验 dist 与源码逐文件一致。

@@ -58,7 +58,7 @@ def build(slides, out_path):
 def smoke():
     slides = [
         {"layout": "cover", "title": "Flow-Kit 用户指南（smoke）", "subtitle": "占位副题",
-         "taglines": ["tagline 1", "tagline 2"], "date": "2026-09-03 | github.com/hellrabb/flow-kit"},
+         "taglines": ["tagline 1", "tagline 2"], "date": "2026-09-21 | github.com/hellrabbit/flow-kit"},
         {"layout": "band", "title": "版式冒烟", "subtitle": "band layout",
          "bullets": [{"t": "正文层级 1", "size": 16}, {"t": "子要点", "lvl": 1, "c": "accent"},
                      {"t": "强调要点", "bold": True, "c": "danger"}]},
@@ -80,7 +80,7 @@ def main():
         raise SystemExit(f"missing {SLIDES} —— slides.json 尚未编写（T07 产物）")
     with open(SLIDES, encoding="utf-8") as fh:
         slides = json.load(fh)
-    assert isinstance(slides, list) and len(slides) >= 19, "slides.json 应为 >=19 页的 list"
+    assert isinstance(slides, list) and len(slides) >= 24, "slides.json 应为 >=24 页的 list（2026-09-21 扩页后）"
     out = OUT
     if "--out" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--out") + 1])
