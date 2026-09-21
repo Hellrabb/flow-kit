@@ -51,8 +51,9 @@ done
 [ -d "$SRC" ] || { echo "ERROR: 源目录不存在: $SRC" >&2; exit 2; }
 
 # ── 副本清单（按 install_hooks.sh 的实际安装位置）──
+# 2026-09-21：**移除仓库级 `$SCRIPT_DIR/.claude/hooks`** —— 安装面统一到用户级（claude 用户级
+# `~/.claude/hooks`、dsh 插件包、opencode 用户级），项目级 hooks 安装不再维护（配置与载体都收归用户级）。
 DEST_ROOTS=(
-  "$SCRIPT_DIR/.claude/hooks"                                                  # 仓库级 claude 安装
   "$HOME/.claude/hooks"                                                        # 用户级 claude 安装
   "$SCRIPT_DIR/dist/dsh-flow-kit/hooks"                                        # dsh 插件包顶层
   "$SCRIPT_DIR/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks"                 # dsh 插件包内 bundle 副本

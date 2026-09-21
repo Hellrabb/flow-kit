@@ -545,14 +545,14 @@ _build_phase7_tree() {
 
 # ══ T06 (l3-prompt-loop-fix): AC-6 四副本一致性硬断言 ══
 
-@test "T06: AC-6 l3-prompt.sh four in-repo copies share one md5" {
+@test "T06: AC-6 l3-prompt.sh in-repo copies share one md5（3 份：源 + 插件包 ×2）" {
   local d
   d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
   while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
     d=$(dirname "$d")
   done
+  # 2026-09-21：仓库级 .claude/hooks 已移除（安装面统一到用户级）→ 仓内副本 4 → 3
   [ "$(md5sum "$d/flow-kit-bundle/hooks/stop/lib/l3-prompt.sh" \
-              "$d/.claude/hooks/stop/lib/l3-prompt.sh" \
               "$d/dist/dsh-flow-kit/hooks/stop/lib/l3-prompt.sh" \
               "$d/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks/stop/lib/l3-prompt.sh" \
         | awk '{print $1}' | sort -u | wc -l)" -eq 1 ]
