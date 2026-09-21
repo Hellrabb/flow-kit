@@ -10,8 +10,11 @@
 #   根因不是手滑，是**复验不可复算**。本脚本把复验变成机械动作：
 #   载体**动态枚举**（不写死路径/数量），计数**现场复算**（不抄快照）。
 #
-# 用法: bash verify-claims.sh   → 逐项 PASS/FAIL；任一 FAIL 非零退出
+# 用法: bash verify-claims.sh [<change-id>] [<base-ref>]
+#         <change-id>  要核对其工件的 change（缺省读 .flow-active 的 change_id）
+#         <base-ref>   §10c 的可选对比基线（如该 change 的起始提交）；缺省只核工作区改动
 #       make verify-claims
+#       → 逐项 PASS/FAIL；任一 FAIL 非零退出；无法核对项计 ⏭ SKIP（不影响退出码）
 
 set -uo pipefail
 
@@ -20,11 +23,32 @@ cd "$SCRIPT_DIR" || exit 2
 
 PASS=0
 FAIL=0
+SKIP=0
 pass() { printf '  ✅ %s\n' "$1"; PASS=$((PASS + 1)); }
 fail() { printf '  ❌ %s\n' "$1"; FAIL=$((FAIL + 1)); }
+skip() { printf '  ⏭  %s\n' "$1"; SKIP=$((SKIP + 1)); }
 hdr()  { printf '\n── %s ──\n' "$1"; }
 
-# ── 工件定位：**当前活跃 change** 优先 → 归档回退（2026-09-20 修 · 两轮）──
+# ── 核对对象（该核哪个 change）─────────────────────────────────────────
+# 显式参数 > .flow-active。**没有隐式第三方回退**：核不到的项一律 SKIP/FAIL，不换对象。
+CHANGE_ID="${1:-}"
+BASE_REF="${2:-}"
+if [ -n "$CHANGE_ID" ]; then
+  TARGET_ID="$CHANGE_ID"
+else
+  TARGET_ID=""
+  if [ -f .flow-active ] && command -v jq >/dev/null 2>&1; then
+    TARGET_ID="$(jq -r '.change_id // empty' .flow-active 2>/dev/null || true)"
+  fi
+fi
+# <base-ref> 必须可解析 —— fail-closed。否则 `git diff <坏 ref> HEAD` 静默给空集，
+# §10c 会退化成"只核工作区"并照样 ✅（**静默换基线**，与本 change 修掉的"静默换工件"同族）。
+if [ -n "$BASE_REF" ] && ! git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null 2>&1; then
+  printf '❌ <base-ref> 不是可解析的提交: %s（禁止静默退化为只核工作区）\n' "$BASE_REF" >&2
+  exit 2
+fi
+
+# ── 工件定位：**指定的 change** 优先 → 该 id 的归档回退（2026-09-20 修两轮 · 2026-09-21 第三轮）──
 # 第一轮（L2 盲审 R3）：§8 / §9 / §10c 把 `.specs/l3-review-defects-2026-09/` 写死，
 #   该 change 归档后三处引用落空 → 脚本变红。当时只做了「live → archive 回退」。
 # 第二轮（health-fix-2026-09 的 T05 实测暴露）：**回退掩盖了更深的语义错误** ——
@@ -33,8 +57,12 @@ hdr()  { printf '\n── %s ──\n' "$1"; }
 #   于是它拿**任何新 change** 的 diff 去比一个**历史 change** 的设计文档 ——
 #   **结构上永远不可能通过**（除那个历史 change 自己）。
 #   这不是路径问题，是"**用哪个 change 的工件**"这件事被写死了。
-# 现据 `.flow-active` 的 change_id 解析（活跃 change 优先 → 该 id 的归档回退）；
-# 无活跃 change 时退回旧的固定 id（保持对历史 change 的可复算性）。
+# 第三轮（brooks-review 2026-09-21 · 🟡 Coverage Illusion）：第二轮只修了"活跃 change 优先"，
+#   **隐式历史回退仍在** —— 无 `.flow-active`（或无用 jq）时静默改核 l3-review-defects，
+#   并输出不含 change id 的 ✅。实测：`resolve_spec_artifact DESIGN.md` 返回
+#   `.specs/archive/2026-09-18-l3-review-defects-2026-09/DESIGN.md`（rc=0），
+#   而当时被审的 change 是 health-fix-2026-09。现**删除隐式回退**：三态解析（见下），
+#   核不到的项一律 SKIP（未指定 change）或 FAIL（指定了却找不到），绝不换对象。
 _resolve_artifact_for() {   # <change_id> <name>
   local cid="$1" name="$2" d
   [ -n "$cid" ] && [ -f ".specs/$cid/$name" ] && { printf '%s' ".specs/$cid/$name"; return 0; }
@@ -45,20 +73,28 @@ _resolve_artifact_for() {   # <change_id> <name>
   fi
   return 1
 }
-_active_change_id() {
-  [ -f .flow-active ] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
-  jq -r '.change_id // empty' .flow-active 2>/dev/null
-}
+# 解析三态：0 = 已解析（路径打到 stdout）；1 = 未指定 change；2 = 指定了但找不到。
 resolve_spec_artifact() {
-  local name="$1" cid
-  cid="$(_active_change_id || true)"
-  if [ -n "$cid" ] && _resolve_artifact_for "$cid" "$name"; then return 0; fi
-  # 回退：历史固定 id（无活跃 change 时仍可复算旧 change 的结论）
-  [ -f ".specs/l3-review-defects-2026-09/$name" ] && { printf '%s' ".specs/l3-review-defects-2026-09/$name"; return 0; }
-  for d in .specs/archive/*l3-review-defects-2026-09/; do
-    [ -f "${d%/}/$name" ] && { printf '%s' "${d%/}/$name"; return 0; }
-  done
+  local name="$1"
+  if [ -n "$TARGET_ID" ]; then
+    _resolve_artifact_for "$TARGET_ID" "$name" && return 0
+    return 2
+  fi
+  return 1
+}
+# §8 / §9 / §10c 的统一入口：成功 → SPEC_PATH=<路径>；否则打印 SKIP/FAIL 并返回非零。
+# 为什么要有：三处都要"解析 + 三态处置 + 文案指名 change"，散着写就会各写一套。
+SPEC_PATH=""
+spec_target() {   # <name> <label>
+  local name="$1" label="$2" p
+  p="$(resolve_spec_artifact "$name")"
+  SPEC_PATH=""
+  if [ -n "$p" ]; then SPEC_PATH="$p"; return 0; fi
+  if [ -z "$TARGET_ID" ]; then
+    skip "$label：未指定 change（无 <change-id> 参数，且 .flow-active 不可用）→ 本项未核对"
+  else
+    fail "$label：change '${TARGET_ID}' 的 $name 未找到（live 与 archive 均无）"
+  fi
   return 1
 }
 
@@ -158,26 +194,30 @@ fi
 
 # ── 8. DESIGN 结构自洽：§5 编号连续、§2.x 有序、引用不悬空 ──
 hdr "8. DESIGN 结构自洽"
-D="$(resolve_spec_artifact DESIGN.md)"
+if spec_target DESIGN.md "§8 DESIGN 结构自洽"; then
+D="$SPEC_PATH"
 _risk=$(grep -oE '^\| \*\*R[0-9]+\*\*' "$D" | grep -oE '[0-9]+' | tr '\n' ' ')
 _exp=$(seq 1 "$(echo "$_risk" | wc -w)" | tr '\n' ' ')
 _ord=$(grep -oE '^### 2\.[0-9]+' "$D" | grep -oE '[0-9]+$' | tr '\n' ' ')
 _ref24=$(grep -c '§ 2\.4' "$D")
 _has24=$(grep -c '^### 2\.4' "$D")
 if [ "$_risk" = "$_exp" ] && [ "$_ord" = "$(seq 1 "$(echo "$_ord" | wc -w)" | tr '\n' ' ')" ] && { [ "$_ref24" -eq 0 ] || [ "$_has24" -ge 1 ]; }; then
-  pass "§5 编号 R: ${_risk}|§2.x: ${_ord}|§2.4 引用自洽"
+  pass "§5 编号 R: ${_risk}|§2.x: ${_ord}|§2.4 引用自洽（核的是 $D）"
 else
-  fail "§5 R: ${_risk}（应 ${_exp}）|§2.x: ${_ord}|§2.4 引用=${_ref24} 定义=${_has24}"
+  fail "§5 R: ${_risk}（应 ${_exp}）|§2.x: ${_ord}|§2.4 引用=${_ref24} 定义=${_has24}（$D）"
+fi
 fi
 
 # ── 9. MINOR-DEFERRED 的 M 编号唯一且连续 ──
 hdr "9. MINOR-DEFERRED 编号"
-M="$(resolve_spec_artifact MINOR-DEFERRED.md)"
+if spec_target MINOR-DEFERRED.md "§9 MINOR-DEFERRED 编号"; then
+M="$SPEC_PATH"
 _ms=$(grep -oE '^\| M[0-9]+' "$M" | grep -oE '[0-9]+' | sort -n | tr '\n' ' ')
 _mc=$(echo "$_ms" | wc -w)
 _uniq=$(echo "$_ms" | tr ' ' '\n' | grep -c . )
 _mexp=$(seq 1 "$_mc" | tr '\n' ' ')
-if [ "$_ms" = "$_mexp" ]; then pass "M 编号连续 1..${_mc}"; else fail "M 编号=${_ms}（应 ${_mexp}）"; fi
+if [ "$_ms" = "$_mexp" ]; then pass "M 编号连续 1..${_mc}（核的是 $M）"; else fail "M 编号=${_ms}（应 ${_mexp}）（$M）"; fi
+fi
 
 # ── 10b. 复发性声明（前三轮反复被 L2 点名，纳入机械检查） ──
 hdr "10b. 复发性声明"
@@ -187,34 +227,45 @@ _n223=$(grep -rn '223 份' flow-kit-bundle/hooks/ test/ 2>/dev/null | wc -l)
 [ "$_n223" -eq 0 ] && pass "陈旧计数 223 份 残留=0" || fail "223 份 残留=${_n223}（应 0）"
 
 # ── 10c. DESIGN §0.5.1 覆盖全部被改文件（六审 R4 的机械版）──
-# ── 10c. DESIGN §0.5.1 覆盖全部被改文件（六审 R4 的机械版）──
 # 2026-09-20 修（health-fix-2026-09 · T05 实测暴露）：原 `git diff --name-only 19b3463 HEAD`
 # 把 **19b3463 这个固定 sha** 当作对比基线 —— 它是 `l3-review-defects-2026-09` 的起点，
 # 于是对**任何新 change** 都会把上个 change 的全部被改文件一并算进来，再拿它们去比
 # **本 change 的** DESIGN §0.5.1 → 必然报"未列"。与路径硬编码**同源：对比基线也被写死了**。
-# 现改为「本 change 的**工作区改动**」（未提交 diff + staged + untracked 的已跟踪后缀），
-# 这正是 §0.5.1 的本意（本 change 触碰了哪些文件）。开发期语义：提交前跑本脚本即覆盖全部改动。
+# 现改为「本 change 的改动」= 可选 `<base-ref>` 起的提交区间 + 工作区改动（见下）。
+# 2026-09-21（brooks-review · 🟡/🟢）：①`_changed` 去掉重复的三条 git 命令 ——
+#   `git diff --name-only HEAD` 本身已含 staged+unstaged 的已跟踪改动；未跟踪文件用
+#   `git ls-files --others` 显式取（原 `git status --short | awk '{print $2}'` 对
+#   `R  old -> new` 行会拿到**旧名**，改名场景结论与事实不符）。
+#   ②空集时输出 ⏭ SKIP 而非 ✅（"0 项"不是"核过了"）。
 hdr "10c. §0.5.1 覆盖被改文件"
-_changed=$( { git diff --name-only HEAD 2>/dev/null; git diff --cached --name-only 2>/dev/null; git status --short 2>/dev/null | awk '{print $2}'; } \
-  | grep -E '\.(sh|bats)$|Makefile$' | grep -vE '^\.specs/' | sort -u )
-_D_P05="$(resolve_spec_artifact DESIGN.md)"
+if spec_target DESIGN.md "§10c §0.5.1 覆盖被改文件"; then
+_D_P05="$SPEC_PATH"
+_changed=$(
+  {
+    [ -n "$BASE_REF" ] && git diff --name-only "$BASE_REF" HEAD 2>/dev/null
+    git diff --name-only HEAD 2>/dev/null
+    git ls-files --others --exclude-standard 2>/dev/null
+  } | grep -E '\.(sh|bats)$|Makefile$' | grep -vE '^\.specs/' | sort -u
+)
 _missing=""
 _n_changed=0
 for f in $_changed; do
   [ -n "$f" ] || continue
   _n_changed=$((_n_changed + 1))
   base="$(basename "$f")"
-  [ -n "$_D_P05" ] && grep -qF "$base" "$_D_P05" || _missing="$_missing $base"
+  grep -qF "$base" "$_D_P05" || _missing="$_missing $base"
 done
 # 计数修正（2026-09-20 · L2 盲审阶段 5 R7）：原用 `echo "$_changed" | wc -l` ——
 # 空串经 echo 会产出**一个换行**，`wc -l` 得 **1**，于是 0 个被改文件被报成「被改的 1 个」。
-# 空集时的正确语义是「无可核对项（跳过）」，而不是"1 个都合规"——后者是**空集恒真**的假绿。
+# 空集时的正确语义是「无可核对项」——既不是"1 个都合规"，也不是"核过了"：
+# 故由 ✅ 改为 ⏭ SKIP，并把核对范围写进文案（brooks-review 2026-09-21）。
 if [ "$_n_changed" -eq 0 ]; then
-  pass "§0.5.1 覆盖：本 change 当前无可核对的工作区改动（0 项，跳过）"
+  skip "§0.5.1 覆盖：无可核对改动（工作区 clean${BASE_REF:+，且已含 <base-ref>=$BASE_REF 区间}）→ 本项未核对"
 elif [ -z "$_missing" ]; then
-  pass "被改的 ${_n_changed} 个脚本/bats 均在 §0.5.1 出现"
+  pass "被改的 ${_n_changed} 个脚本/bats 均在 §0.5.1 出现（核的是 $_D_P05）"
 else
-  fail "§0.5.1 未列:${_missing}"
+  fail "§0.5.1 未列:${_missing}（核的是 $_D_P05）"
+fi
 fi
 
 # ── 10. 门禁 ──
@@ -253,26 +304,31 @@ fi
 hdr "10d. 关键门禁存在性 + 本 change 交付物存续（行为断言）"
 _chk=""
 # ① check-dist：必须真被 check: 依赖引用（`make -n` 展开实际依赖，不看注释）
+#    这一条同时覆盖了"target 定义存在"——target 未定义时 make -n 直接报错、grep 必失配，
+#    故原 ② 的 `grep -qE '^check-dist:' Makefile` 已删除（同一事实写两遍，且是文本判据）。
 make -n check 2>/dev/null | grep 'check-dist' >/dev/null || _chk="$_chk check-dist未挂进check:"
-# ② check-dist target 定义（函数式定义行，排除注释）
-grep -qE '^check-dist:' Makefile || _chk="$_chk check-dist-target缺失"
-# ③ SCANNED_FILES 出口：必须真出现在 `make lint` 的**输出**里
+# ② SCANNED_FILES 出口：必须真出现在 `make lint` 的**输出**里
 # ⚠️ 用 `>/dev/null` 而非 `-q`：本脚本 `set -o pipefail`，而 `grep -q` 命中即退会给
 #    writer（make lint）发 SIGPIPE → 管道返回 141 → **即使命中也被判失败**。
 #    这正是本仓 TD-024/F-1 记录过的 SIGPIPE 模式（L-024），新代码不得复现。
 make lint 2>/dev/null | grep -E '^SCANNED_FILES: [0-9]+' >/dev/null || _chk="$_chk SCANNED_FILES出口未生效"
-# ④ 真入口判据：函数定义行（`name() {` 形式，非注释提及）
-grep -qE '^[[:space:]]*is_real_entry\(\)' sync-hooks.sh || _chk="$_chk 真入口判据缺失"
-grep -qE '^[[:space:]]*PTU_ENTRIES=' sync-hooks.sh || _chk="$_chk 真入口白名单缺失"
-# ⑤ --check 模式：真跑一次（行为，非 grep）
+# ③ 真入口判据：**行为断言** —— 走 sync-hooks.sh 的判据自检出口（无副作用），
+#    直调判据本体看分类结果。原实现是 `grep -qE '^[[:space:]]*is_real_entry\(\)' sync-hooks.sh`
+#    —— 那是**源码文本判据**：实测"只有定义、无任何调用点"的文件同样判通过（假绿），
+#    且与本段自述的"一律行为断言"相矛盾（brooks-review 2026-09-21 · 🟡2）。
+bash sync-hooks.sh --entry-class pre-tool-use/gate-helpers.sh >/dev/null 2>&1 \
+  && _chk="$_chk 库被误判为真入口"
+bash sync-hooks.sh --entry-class pre-tool-use/independent-review-gate.sh >/dev/null 2>&1 \
+  || _chk="$_chk 真入口被判为非入口"
+# ④ --check 模式：真跑一次（行为，非 grep）
 bash package-dsh-plugin.sh --check >/dev/null 2>&1 || _chk="$_chk --check模式失效"
 if [ -z "$_chk" ]; then
-  pass "本 change 的 4 项交付物均在位（check-dist 挂载/target · SCANNED_FILES · 真入口判据+白名单 · --check）"
+  pass "本 change 的 4 项交付物均在位（check-dist 挂载 · SCANNED_FILES 出口 · 真入口判据(行为) · --check 模式）"
 else
   fail "本 change 交付物缺失:${_chk}"
 fi
 
 printf '\n══════════════════════════════════════\n'
-printf '  复验结果: ✅ %d  ❌ %d\n' "$PASS" "$FAIL"
+printf '  复验结果: ✅ %d  ❌ %d  ⏭ %d\n' "$PASS" "$FAIL" "$SKIP"
 printf '══════════════════════════════════════\n'
 [ "$FAIL" -eq 0 ]

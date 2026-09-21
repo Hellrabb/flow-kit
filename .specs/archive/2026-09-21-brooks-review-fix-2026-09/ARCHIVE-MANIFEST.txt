@@ -1,0 +1,20 @@
+# 归档清单 · brooks-review-fix-2026-09
+# 生成时间: 2026-09-21T17:33:37+08:00
+# HEAD: 7a6a450 fix(adr): 修正 ADR 编号冲突 —— 010 已被占用，
+# 工作区未提交项: 13
+
+## 文件（14 项）
+CHANGE.md                                          7192 B  sha256:7f9634e90d85467e
+DESIGN.md                                         13037 B  sha256:1180b0298f5570e0
+DEV-SUMMARY.md                                     4349 B  sha256:e022381b0fe4bdad
+.goal-snapshot.json                                  85 B  sha256:fc6b4cb267a3f324
+.independent-review-6.done                          374 B  sha256:659186f9eaa3b7b0
+INDEPENDENT-REVIEW-6.md                           12122 B  sha256:d01fcc09a546010a
+MINOR-DEFERRED.md                                  1973 B  sha256:9d8abae3485b547f
+PROGRESS.md                                         331 B  sha256:fb96cfa805c53cf4
+REQUIREMENT.md                                    10335 B  sha256:a24c81fbf4d3293f
+REVIEW.md                                         20996 B  sha256:6e9e95aaa5da5dc7
+SUMMARY.md                                         5827 B  sha256:5cc036bd15b5d969
+TASK.md                                           11655 B  sha256:1f478e6b0673fdda
+TEST.md                                           10729 B  sha256:355912bb41f18030
+UAT.md                                             1874 B  sha256:e55f45c9eea88bb1

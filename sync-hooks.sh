@@ -30,13 +30,20 @@ SRC="$SCRIPT_DIR/flow-kit-bundle/hooks"
 
 MODE="sync"
 STRICT_ORPHANS=0
+ENTRY_CLASS=""
 # 逐参数解析（原实现只看 $1，`--check --strict-orphans` 的第二个参数会被静默忽略 —— B5-R5 抓到）
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) MODE="check" ;;
     --list)  MODE="list" ;;
     --strict-orphans) STRICT_ORPHANS=1 ;;
-    *) echo "用法: $0 [--check|--list] [--strict-orphans]" >&2; exit 2 ;;
+    --entry-class)
+      # 判据自检出口（brooks-review 2026-09-21 · 🟡2 的修复）：**无副作用**地打印某个相对路径的
+      # 分类，供 verify-claims §10d 与 bats 做行为断言（取代原来的"grep 源码文本"判据）。
+      ENTRY_CLASS="${2:-}"
+      [ -n "$ENTRY_CLASS" ] || { echo "用法: $0 --entry-class <相对路径>" >&2; exit 2; }
+      shift ;;
+    *) echo "用法: $0 [--check|--list] [--strict-orphans] [--entry-class <rel>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -53,6 +60,47 @@ DEST_ROOTS=(
   "$HOME/.dsh/profiles/web/node_modules/dsh-flow-kit/vendor/flow-kit-bundle/hooks"
   "$HOME/.config/opencode/hooks"                                               # opencode 平台安装
 )
+
+# ── 「真入口」判据（**单一事实源** · health-fix-2026-09 T03 / DESIGN D4）──
+# 契约：exec 位判据只管**真入口**（被 settings.json / hook-bridge 直接 bash 调用的脚本）。
+#   原判据按**目录**判定（`stop/*.sh|session-start/*.sh|pre-tool-use/*.sh`），把 pre-tool-use/
+#   下 4 个「只被 source、从不被直接执行」的库（gate-helpers / gate-helpers-types /
+#   gate-checks-basic / gate-checks-review）也要求 -x → 长期产出 5 处假告警
+#   （.claude/hooks 1 + dist vendor 4），把这条 warn 训练成噪声；真入口丢 exec 位时反而没人看。
+#   实测这 4 个库零直接调用点（全仓 grep `bash <file>` / `./<file>` 均无命中），且
+#   install_hooks.sh 会对所有部署副本统一 chmod +x → 源侧无 exec 位**零功能影响**。
+# ⚠️ 两个易错点：
+#   ① bash glob 的 `*` **会跨 `/`** —— 必须先排除三层路径（stop/lib/*），否则
+#      `stop/*.sh` 会把 stop/lib/common.sh 也匹配成入口（实测该顺序错误致 108 处误报）。
+#   ② **新增 pre-tool-use 入口必须登记 PTU_ENTRIES**，否则该入口的 exec 位不受
+#      check-hooks-sync 守护（DESIGN R4/R6 的"清单漂移"缓解）。
+PTU_ENTRIES="pre-tool-use/independent-review-gate.sh pre-tool-use/auto-checkpoint.sh pre-tool-use/runtime-edit-guard.sh"
+is_real_entry() {
+  case "$1" in
+    */*/*) return 1 ;;                            # 三层以上（stop/lib/*、*/*/*）一律是库
+    stop/*.sh|session-start/*.sh|pre-commit/*.sh) return 0 ;;
+  esac
+  case " $PTU_ENTRIES " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# 判据自检出口（无副作用）：exit 0 = 真入口，1 = 库 / 非入口。
+# 为什么要有：判据此前只能在循环体里被间接使用，测试只能 grep 源码文本 —— 存在"定义了但
+# 没人调用"仍判通过的假绿（brooks-review 2026-09-21 · 🟡2）。
+if [ -n "$ENTRY_CLASS" ]; then
+  # 前缀白名单：拼错路径（如 `stop/common.sh`）不得被静默判成"库" —— 那会把探针的
+  # 失败伪装成结论（review 2026-09-21 · 🟢）。未知前缀一律用法错误 rc=2。
+  case "$ENTRY_CLASS" in
+    stop/*|session-start/*|pre-commit/*|pre-tool-use/*) ;;
+    *)
+      printf '❌ --entry-class: 无法识别的相对路径 %s（期望 stop/ · session-start/ · pre-commit/ · pre-tool-use/ 前缀）\n' "$ENTRY_CLASS" >&2
+      exit 2 ;;
+  esac
+  if is_real_entry "$ENTRY_CLASS"; then
+    printf 'entry: %s\n' "$ENTRY_CLASS"; exit 0
+  fi
+  printf 'library: %s\n' "$ENTRY_CLASS"; exit 1
+fi
 
 # ── 待镜像的相对路径 ──
 # stop 模块**与 install_hooks.sh 同源**（common.sh::HOOK_MODULE_NAMES），而不是目录通配：
@@ -182,34 +230,9 @@ for root in "${DEST_ROOTS[@]}"; do
       [ "$MODE" = "sync" ] && cp "$src_f" "$dst_f"
     fi
     # 权限位：本工具**只管内容**（B5 的缺陷是内容漂移）。可执行位归 install_hooks.sh
-    # 的契约管理。此处只做**只读提示**，不改动副本权限 —— 免得同步顺手改出一堆
+    # 的契约管理；此处只做**只读提示**，不改动副本权限 —— 免得同步顺手改出一堆
     # 与本次修复无关的 mode 变更，把 diff 搅浑。
-    #
-    # ── 判据收窄为「仅真入口」（health-fix-2026-09 · T03 / DESIGN D4）──
-    # **理由**：原按目录判定会把只被 source 的库也要求 -x，产出 5 处假告警、把 warn 训练成噪声
-    # 原判据 `stop/*.sh|session-start/*.sh|pre-tool-use/*.sh` 按**目录**判定，
-    # 把 pre-tool-use/ 下 4 个「只被 source、从不被直接执行」的库也要求 -x
-    # （gate-helpers / gate-helpers-types / gate-checks-basic / gate-checks-review）。
-    # 实测这 4 个库零直接调用点（全仓 grep `bash <file>` / `./<file>` 均无命中），
-    # 且 install_hooks.sh 会对所有部署副本统一 chmod +x → 源侧无 exec 位**零功能影响**。
-    # 原判据长期产出 5 处假告警（.claude/hooks 1 + dist vendor 4），会把这条 warn
-    # 训练成噪声 —— 真入口丢 exec 位时反而没人看。
-    # 判据现在表达真实契约：**只有真入口需要 exec 位**。
-    #
-    # ⚠️ 真入口白名单维护：**新增 pre-tool-use 入口必须登记此处**（DESIGN R4/R6 的缓解）。
-    # pre-tool-use/ 下当前 3 个真入口（被 settings.json / hook-bridge 直接 bash 调用）：
-    PTU_ENTRIES="pre-tool-use/independent-review-gate.sh pre-tool-use/auto-checkpoint.sh pre-tool-use/runtime-edit-guard.sh"
-    is_real_entry() {
-      # ⚠️ bash glob 的 `*` **会跨 `/`** —— 故必须先排除 stop/lib/，否则
-      # `stop/*.sh` 会把 stop/lib/common.sh 也匹配成入口（实测：该顺序错误导致
-      # 108 处误报，全部被当成"入口"）。目录层级必须显式区分。
-      case "$1" in
-        */*/*) return 1 ;;                            # 三层以上（stop/lib/*、*/*/*）一律是库
-        stop/*.sh|session-start/*.sh|pre-commit/*.sh) return 0 ;;
-      esac
-      case " $PTU_ENTRIES " in *" $1 "*) return 0 ;; esac
-      return 1
-    }
+    # 判据 = 文件作用域的 is_real_entry()（见本文件「「真入口」判据」段，含白名单维护提示）。
     if [ -f "$dst_f" ] && [ ! -x "$dst_f" ] && is_real_entry "$rel"; then
       nonexec=$((nonexec + 1))
       # 指名：**所有模式**都打印具体路径 —— 原实现只在 MODE=list 打印，

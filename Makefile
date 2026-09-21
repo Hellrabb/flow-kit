@@ -110,7 +110,6 @@ check: test lint check-validate check-test-sync check-hooks-sync check-dist
 	@echo "╚════════════════════════════════════════════════════╝"
 
 # ── check-dist: 打包件新鲜度门禁（health-fix-2026-09 · F1/D2/D3）──
-# **理由**：dist/ 被 .gitignore 忽略 → git 对它失明；否则改了源忘了重建无人发现
 # 为什么存在：dist/ 被 .gitignore 忽略 → **git 对它结构性失明**，改了源忘了重建
 #   不会被任何既有门禁发现。2026-09-20 即因此发出一份把「字节」写成「字符」的 README
 #   （用户按 60000 "字符" 配置，实得 60000 字节 ≈ 2 万汉字，与预期差 3 倍）。
