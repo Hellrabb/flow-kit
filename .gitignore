@@ -76,3 +76,4 @@ __pycache__/
 .claude/l3.env
 l3.env
 *.env
+*.bak

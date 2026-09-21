@@ -4,7 +4,7 @@ import os,sys,json; sys.path.insert(0,os.path.dirname(os.path.abspath(__file__))
 from pptx import Presentation,util
 import theme; from masters import LAYOUTS; from utils import render_diagrams as RD
 
-ROOT='~/unisoc/flow-kit'
+ROOT=os.path.expanduser('~/unisoc/flow-kit')
 OUT=os.path.join(ROOT,'flow-kit-技术设计.pptx')
 C=theme.HEX_COLORS;B=theme.SIZE_BODY;S=theme.SIZE_SMALL
 D={'d0':'d0_three_layer_arch.png','d1':'d1_go_routing.png','d2':'d2_pipeline.png',

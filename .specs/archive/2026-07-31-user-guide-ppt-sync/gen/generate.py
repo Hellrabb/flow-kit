@@ -3,7 +3,7 @@ sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from pptx import Presentation; import theme
 from masters import LAYOUTS; from utils import render_diagrams as RD
 
-OUT='~/unisoc/flow-kit/flow-kit-技术设计.pptx'
+OUT=os.path.expanduser('~/unisoc/flow-kit/flow-kit-技术设计.pptx')
 I=['d0_three_layer_arch.png','d1_go_routing.png','d2_pipeline.png',
    'd4_three_layer_gate.png','d5_goal_sequence.png',
    'd6_fk_resolve_model.png','d7_adr_evolution.png']
