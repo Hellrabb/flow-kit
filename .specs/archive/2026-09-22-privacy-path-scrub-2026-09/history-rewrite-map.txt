@@ -1,7 +1,7 @@
-# history-rewrite-map.txt — privacy-path-scrub-2026-09
-# 说明：只重写 origin/develop..develop（未推送区间）。已推送历史保持原样。
-# 映射方式：按提交标题匹配（标题未被重写改动）；同一标题多提交时按出现顺序。
-# 区间提交数：old=38 new=38
+# history-rewrite-map.txt — privacy-path-scrub-2026-09（最终态）
+# 范围：origin/develop..develop（未推送区间）。已推送历史保持原样。
+# 两轮重写：① 文本 /home/<user> 归一；② 清理中间提交树内的自指字面量。
+# 区间提交数：old=38 new=40
 
 OLD                                        NEW                                        SUBJECT
 f28a43115f3917a9747f16f98d7951f559695172   58205d2cc996c8e7786c595f8065e02e7feaa16d   chore(privacy-path-scrub-2026-09): 前向脱敏 —— 本机绝对路径归一 + 停止跟踪 pyc/bak
