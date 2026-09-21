@@ -7,6 +7,10 @@ setup() {
   PROJECT_ROOT="$TEST_TMP"
   export PROJECT_ROOT
   mkdir -p "${PROJECT_ROOT}/.claude"
+  # 配置自 2026-09-21 起统一为**用户级**（不再读项目级）→ 本测试用 env 显式指定夹具配置，
+  # 既保持 hermetic（不依赖宿主 ~/.claude/stop-hook.json），也避免误读真实用户配置。
+  CONFIG_FILE="${PROJECT_ROOT}/.claude/stop-hook.json"
+  export CONFIG_FILE
 
   # 位置无关：向上查找含 flow-kit-bundle/hooks 的目录
   # （双源 test/ 与 flow-kit-bundle/test/ 同一份代码都正确 · L-025 同源路径问题根治）

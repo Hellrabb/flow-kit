@@ -195,16 +195,28 @@ EOF
   [[ "$CONFIG_FILE" == "$fakehome/.claude/stop-hook.json" ]]
 }
 
-@test "init_paths prefers project-level stop-hook.json over user-scope" {
+@test "init_paths ignores project-level stop-hook.json (用户级统一 · 2026-09-21)" {
   skip_if_no_jq
   local proj="$TEST_TMPDIR/proj"
   local fakehome="$TEST_TMPDIR/home"
   mkdir -p "$proj/.claude" "$fakehome/.claude"
   echo '{ "modules": {} }' > "$proj/.claude/stop-hook.json"
   echo '{ "modules": {} }' > "$fakehome/.claude/stop-hook.json"
-  # 项目级存在 → 不回退，优先用项目级
+  # 项目级存在也**不再读取** → 一律用用户级（多项目副本漂移是本 change 的动因）
   CONFIG_FILE="" CWD="$proj" HOME="$fakehome" init_paths
-  [[ "$CONFIG_FILE" == "$proj/.claude/stop-hook.json" ]]
+  [[ "$CONFIG_FILE" == "$fakehome/.claude/stop-hook.json" ]]
+}
+
+@test "init_paths falls back to plugin template when user-level config missing (全新机器)" {
+  skip_if_no_jq
+  local proj="$TEST_TMPDIR/proj"
+  local fakehome="$TEST_TMPDIR/home"
+  local fakehooks="$TEST_TMPDIR/hooks"
+  mkdir -p "$proj" "$fakehome/.claude" "$fakehooks/config"
+  echo '{ "modules": {} }' > "$fakehooks/config/stop-hook.json"
+  # 用户级不存在 → 回落插件模板（保证全新机器有可用默认，而不是 module_enabled 恒 false）
+  CONFIG_FILE="" CWD="$proj" HOME="$fakehome" HOOK_BASE_DIR="$fakehooks" init_paths
+  [[ "$CONFIG_FILE" == "$fakehooks/config/stop-hook.json" ]]
 }
 
 # ══ fk_estimate_tokens + fk_perf_timing 测试（l3-pipeline-fix-2026-07） ══

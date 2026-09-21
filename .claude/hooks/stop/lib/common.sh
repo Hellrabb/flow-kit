@@ -121,12 +121,21 @@ init_paths() {
   config_dir="${FLOW_KIT_CONFIG_DIR:-$(fk_runtime_config_dir)}"
   runtime_home="$(fk_runtime_home_dir)"
 
-  # Derive CONFIG_FILE: env override > project-level > user-scope fallback
-  # (gate-integrity dogfood: 项目级缺失时回退 user-scope，否则全局 enabled=true 未被读 → module_enabled 恒 false)
+  # Derive CONFIG_FILE（2026-09-21 统一为**用户级**）：
+  #   STOP_HOOK_CONFIG env > 用户级 ${runtime_home}/stop-hook.json > 插件模板 <hooks>/config/stop-hook.json
+  # **不再读取项目级** <project>/<config_dir>/stop-hook.json —— 多项目各持一份副本必然漂移
+  # （同一台机器上曾同时存在 cap=20000 / 60000 / 120000 / 200000 四套值），且 install_hooks.sh 与
+  # dsh 插件的 hook-bridge 都会主动物化项目级副本，等于把"配置"复制成 N 份。
+  # 注：`stop-hook-state.json` / `stop-hook-trend.json` 等**状态**文件仍是项目级（那是运行状态，不是配置）。
   if [[ -z "${CONFIG_FILE:-}" ]]; then
-    CONFIG_FILE="${STOP_HOOK_CONFIG:-${PROJECT_ROOT}/${config_dir}/stop-hook.json}"
-    if [[ ! -f "$CONFIG_FILE" && -f "${runtime_home}/stop-hook.json" ]]; then
+    if [[ -n "${STOP_HOOK_CONFIG:-}" ]]; then
+      CONFIG_FILE="${STOP_HOOK_CONFIG}"
+    elif [[ -f "${runtime_home}/stop-hook.json" ]]; then
       CONFIG_FILE="${runtime_home}/stop-hook.json"
+    elif [[ -n "${HOOK_BASE_DIR:-}" && -f "${HOOK_BASE_DIR}/config/stop-hook.json" ]]; then
+      CONFIG_FILE="${HOOK_BASE_DIR}/config/stop-hook.json"   # 插件模板：全新机器尚无用户级配置时的可用默认
+    else
+      CONFIG_FILE="${runtime_home}/stop-hook.json"           # 不存在也无妨：config_get 回落调用方默认值
     fi
   fi
 

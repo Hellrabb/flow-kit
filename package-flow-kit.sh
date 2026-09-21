@@ -263,8 +263,9 @@ cat > "$STAGING/README.md" << 'READEOF'
 > claude code 的「Path1 短路 Path3」是刻意保留的零回归语义：想在同一台机器上给 L3 用独立端点，
 > 就得让 claude 会话里没有 `ANTHROPIC_AUTH_TOKEN`（dsh/opencode 不受影响，Path3 本来就优先）。
 
-**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**）不在环境变量里配 —— 由项目级
-`<项目>/.flow-kit/stop-hook.json`（dsh）或 `<项目>/.claude/stop-hook.json`（claude/opencode）读取，
+**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**）不在环境变量里配 —— 由**用户级**
+`~/.claude/stop-hook.json`（claude）· `~/.config/opencode/stop-hook.json`（opencode）· `~/.dsh/stop-hook.json`（dsh）读取
+（2026-09-21 起配置统一为用户级，项目级副本不再生成/读取），
 缺省 **80000** 字节（2026-09-21 由 20000 调大：实测阶段 6 的 L3 提示词 74610 B，20000 上限会丢弃 73% 工件，使 L3 据残缺工件误判）。大工件项目务必再提高，否则 L3 只看前缀、反复报「NFR 缺失 / 锚点表被截断」假阳性。
 CJK 工件按 ÷3 估算（80000 字节 ≈ 2.7 万汉字）；旧键 max_artifact_chars 仍可读但已废弃。
 ## 更新 / 重装

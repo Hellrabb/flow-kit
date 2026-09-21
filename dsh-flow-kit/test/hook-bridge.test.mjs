@@ -89,15 +89,22 @@ test("PreToolUse gate allows an ordinary bash command", async () => {
   }
 });
 
-test("dsh runtime materializes .flow-kit/stop-hook.json (not .claude)", async () => {
+test("dsh runtime materializes the USER-level config (~/.dsh/stop-hook.json) and NOT a project copy", async () => {
   const root = await tempProject();
+  const fakeHome = await mkdtemp(join(tmpdir(), "dsh-flow-kit-home-"));
+  const savedHome = process.env.HOME;
+  process.env.HOME = fakeHome;
   try {
     const fake = stubCtx();
     const bridge = new HookBridge({ ctx: fake, packageRoot: BUNDLE_ROOT, config: {} });
-    await bridge.ensureProjectConfig(root);
-    await access(join(root, ".flow-kit", "stop-hook.json"));
+    await bridge.ensureUserConfig();
+    await access(join(fakeHome, ".dsh", "stop-hook.json"));
+    // 反向断言（本 change 的要点）：项目级副本**不再**被物化
+    await assert.rejects(access(join(root, ".flow-kit", "stop-hook.json")));
   } finally {
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
     await rm(root, { recursive: true, force: true });
+    await rm(fakeHome, { recursive: true, force: true });
   }
 });
 
@@ -143,7 +150,8 @@ test("Stop chain runs end-to-end on agent idle (00-gate → state file + report)
       },
     };
     await bridge.runStopChain(agent);
-    await access(join(root, ".flow-kit", "stop-hook.json"));
+    // 配置走用户级（不再物化项目级副本）；项目级仍写**状态**文件
+    await assert.rejects(access(join(root, ".flow-kit", "stop-hook.json")));
     await access(join(root, ".flow-kit", "stop-hook-state.json"));
     const state = JSON.parse(await readFile(join(root, ".flow-kit", "stop-hook-state.json"), "utf8"));
     assert.ok(state.stop_count >= 1, "00-gate incremented stop_count");
@@ -154,10 +162,15 @@ test("Stop chain runs end-to-end on agent idle (00-gate → state file + report)
 
 test("SessionStart hook stdout is injected once as a dsh prompt banner", async () => {
   const root = await tempProject();
+  const fakeHome = await mkdtemp(join(tmpdir(), "dsh-flow-kit-home-"));
+  const savedHome = process.env.HOME;
+  process.env.HOME = fakeHome;   // 配置走用户级（2026-09-21 统一）：夹具必须落在 $HOME/.dsh
   try {
+    const { mkdir } = await import("node:fs/promises");
     const configDir = join(root, ".flow-kit");
-    await import("node:fs/promises").then(async ({ mkdir }) => mkdir(configDir, { recursive: true }));
-    await writeFile(join(configDir, "stop-hook.json"), JSON.stringify({
+    await mkdir(configDir, { recursive: true });
+    await mkdir(join(fakeHome, ".dsh"), { recursive: true });
+    await writeFile(join(fakeHome, ".dsh", "stop-hook.json"), JSON.stringify({
       session_start: { remind_unreviewed: true },
       output: { report_file: ".flow-kit/stop-hook-report.md", suggestions_file: ".flow-kit/stop-hook-suggestions.md" },
       thresholds: { report_max_age_days: 3 },
@@ -189,6 +202,8 @@ test("SessionStart hook stdout is injected once as a dsh prompt banner", async (
     // Consumed after first read — no repeated injection on every step.
     assert.equal(promptContext.text({ agent: { session: { id: "banner-session" } } }), "");
   } finally {
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
     await rm(root, { recursive: true, force: true });
+    await rm(fakeHome, { recursive: true, force: true });
   }
 });

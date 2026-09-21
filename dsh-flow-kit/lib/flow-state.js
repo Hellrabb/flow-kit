@@ -380,13 +380,14 @@ export async function runFlowCommand(rawInput, agent) {
         if (!state) return { kind: "error", text: "🩺 没有 .flow-active。先 /flow start。" };
         const lines = ["🩺 flow-kit 诊断报告"];
         lines.push(`✅ .flow-active: 有效 (phase ${state.phase}, change=${state.change_id ?? "none"})`);
-        const hookConfig = join(root, ".flow-kit", "stop-hook.json");
+        // 配置自 2026-09-21 起统一为**用户级**（~/.dsh/stop-hook.json）；项目级副本不再读取。
+        const hookConfig = join(process.env.HOME || process.env.USERPROFILE || "", ".dsh", "stop-hook.json");
         try {
           await access(hookConfig);
           const cfg = JSON.parse(await readFile(hookConfig, "utf8"));
-          lines.push(cfg.modules?.workflow?.enabled === true ? "✅ Stop Hook workflow: 已启用" : "⚠️ Stop Hook workflow: 未启用 (.flow-kit/stop-hook.json)");
+          lines.push(cfg.modules?.workflow?.enabled === true ? "✅ Stop Hook workflow: 已启用" : "⚠️ Stop Hook workflow: 未启用 (~/.dsh/stop-hook.json)");
         } catch {
-          lines.push("⚠️ Stop Hook 配置: .flow-kit/stop-hook.json 缺失（dsh 插件内置 hook bridge 仍可运行）");
+          lines.push("⚠️ Stop Hook 配置: ~/.dsh/stop-hook.json 缺失（dsh 插件内置 hook bridge 仍可运行，并将物化用户级默认值）");
         }
         // correction 卫生（correction-hygiene-state-guard · ADR-024）：报告
         // .flow-active.correction 类型与待办规模；去重/FIFO 治理由 33 号 hook 负责。

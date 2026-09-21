@@ -178,8 +178,15 @@ install_hooks() {
     fi
   fi
 
-  # 配置文件（项目级 stop-hook.json 开关）
-  install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"
+  # 配置文件（**仅用户级** · 2026-09-21 统一）
+  # 项目级副本自 2026-09-21 起既不生成也不被读取：多项目各持一份会漂移
+  # （实测同机曾并存 cap=20000/60000/120000/200000 四套值）。用户级路径 =
+  # <用户 runtime 目录>/stop-hook.json（~/.claude · ~/.config/opencode · ~/.dsh）。
+  if [ "$scope" = "user" ]; then
+    install_file "$SCRIPT_DIR/hooks/config/stop-hook.json" "${project}/${PROJECT_DIR_NAME}/stop-hook.json"
+  else
+    echo "   ℹ️  配置：走用户级 $(dirname "$USER_HOOKS_DIR")/stop-hook.json（项目级副本不再生成/读取）"
+  fi
 
   # ═══ 自动写入 hook 接线 ═══
   local settings_target

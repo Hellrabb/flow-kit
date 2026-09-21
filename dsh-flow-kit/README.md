@@ -35,8 +35,8 @@ dsh plugin --profile web add file:/path/to/dist/dsh-flow-kit
 dsh plugin --profile web add dsh-flow-kit
 ```
 
-首次在项目里运行时，插件会把默认 `stop-hook.json` 落盘到
-`<项目>/.flow-kit/stop-hook.json`（不写 `.claude`）。
+首次在用户机器上运行时，插件会把默认 `stop-hook.json` 落盘到**用户级**
+`~/.dsh/stop-hook.json`（不再写项目级 `<项目>/.flow-kit/stop-hook.json` —— 2026-09-21 统一）。
 
 ## 配置
 
@@ -74,8 +74,8 @@ export FLOW_KIT_L2_DEFAULT_MODEL=<模型名>
 > [`.claude/l3.env.example`](../.claude/l3.env.example)。**L3 凭证缺失会导致门禁死锁**：
 > hook 不写 `.done`，而 PreToolUse 守卫禁止主 agent 自产 → commit / 阶段推进全部阻塞。
 
-**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**，缺省 **80000**）**不在环境变量里配**：由项目级
-`<项目>/.flow-kit/stop-hook.json` 的 `independent_review.max_artifact_bytes` 决定，
+**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**，缺省 **80000**）**不在环境变量里配**：由**用户级**
+`~/.dsh/stop-hook.json` 的 `independent_review.max_artifact_bytes` 决定（2026-09-21 起配置统一为用户级，
 代码自动导出给 L3。大工件项目（如 27KB REQUIREMENT.md）务必再提高，否则 L3 只看前缀、
 反复报「NFR 缺失 / 锚点表被截断」假阳性。
 （2026-09-21 由 20000 调大：实测阶段 6 的 L3 提示词 74610 B，20000 上限丢弃 73% 工件 → L3 据残缺工件误判。）

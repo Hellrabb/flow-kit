@@ -325,7 +325,7 @@ export class HookBridge {
       };
       // Synchronous: the banner must be visible to the first system-prompt
       // assembly, which happens immediately after agent/created.
-      this.ensureProjectConfigSync(cwd);
+      this.ensureUserConfigSync();
       const banners = [];
       for (const script of scripts) {
         const result = runHookSync(script, eventJson, {
@@ -356,7 +356,7 @@ export class HookBridge {
   async runStopChain(agent) {
     const stopGate = join(this.hooks, "stop", "00-gate.sh");
     const cwd = sessionCwd(agent);
-    await this.ensureProjectConfig(cwd);
+    await this.ensureUserConfig();
 
     // dsh has no Claude transcript file — synthesize a compatible JSONL so the
     // full transcript-parsing stop chain (01..99, L2/L3 included) runs.
@@ -386,26 +386,35 @@ export class HookBridge {
     }
   }
 
-  /** Synchronous config materialization for SessionStart (see runHookSync). */
-  ensureProjectConfigSync(cwd) {
-    const targetDir = join(cwd, ".flow-kit");
-    const targetFile = join(targetDir, "stop-hook.json");
-    const source = join(this.hooks, "config", "stop-hook.json");
-    if (existsSync(targetFile)) return targetFile;
-    try {
-      mkdirSync(targetDir, { recursive: true });
-      copyFileSync(source, targetFile);
-    } catch (error) {
-      this.ctx.logger?.warn?.(`flow-kit could not materialize .flow-kit/stop-hook.json: ${error.message}`);
-    }
-    return null;
+  /**
+   * 用户级配置路径（dsh：$HOME/.dsh/stop-hook.json）。
+   * 2026-09-21 统一为用户级：不再物化项目级 <cwd>/.flow-kit/stop-hook.json —— 多项目各持一份
+   * 必然漂移（实测同机并存 cap=20000/60000/120000/200000 四套值），且会盖住用户级配置。
+   * 与 shell 侧 `common.sh::init_paths()` 的链一致：env STOP_HOOK_CONFIG > 用户级 > 插件模板。
+   */
+  userConfigPath() {
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    return home ? join(home, ".dsh", "stop-hook.json") : null;
   }
 
-  /** Materialize the dsh-runtime config dir (.flow-kit/) from package defaults. */
-  async ensureProjectConfig(cwd) {
-    const targetDir = join(cwd, ".flow-kit");
-    const targetFile = join(targetDir, "stop-hook.json");
-    const source = join(this.hooks, "config", "stop-hook.json");
+  /** Synchronous config materialization for SessionStart（见 runHookSync）· 用户级。 */
+  ensureUserConfigSync() {
+    const targetFile = this.userConfigPath();
+    if (!targetFile || existsSync(targetFile)) return targetFile;
+    try {
+      mkdirSync(dirname(targetFile), { recursive: true });
+      copyFileSync(join(this.hooks, "config", "stop-hook.json"), targetFile);
+    } catch (error) {
+      this.ctx.logger?.warn?.(`flow-kit could not materialize ${targetFile}: ${error.message}`);
+      return null;
+    }
+    return targetFile;
+  }
+
+  /** Materialize the **user-level** config (dsh: ~/.dsh/stop-hook.json) from package defaults. */
+  async ensureUserConfig() {
+    const targetFile = this.userConfigPath();
+    if (!targetFile) return null;
     try {
       await access(targetFile);
       return targetFile;
@@ -413,11 +422,11 @@ export class HookBridge {
       // fall through — copy the packaged default
     }
     try {
-      await mkdir(targetDir, { recursive: true });
-      await copyFile(source, targetFile);
+      await mkdir(dirname(targetFile), { recursive: true });
+      await copyFile(join(this.hooks, "config", "stop-hook.json"), targetFile);
       return targetFile;
     } catch (error) {
-      this.ctx.logger?.warn?.(`flow-kit could not materialize .flow-kit/stop-hook.json: ${error.message}`);
+      this.ctx.logger?.warn?.(`flow-kit could not materialize ${targetFile}: ${error.message}`);
       return null;
     }
   }

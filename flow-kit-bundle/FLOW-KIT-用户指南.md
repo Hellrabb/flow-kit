@@ -1207,8 +1207,9 @@ Step 1 需求澄清 → Step 2 母版选择 → Step 3 内容填充 → Step 4 �
 /flow gate-config 6-review=independent
 /flow gate-config 2-design=off
 
-# 方式 C: 非 pipeline 项目（项目级默认）
-# 编辑 .claude/stop-hook.json → "independent_review": {"phases": ["6-review"]}
+# 方式 C: 非 pipeline 项目（用户级默认）
+# 编辑用户级 stop-hook.json（~/.claude · ~/.config/opencode · ~/.dsh，2026-09-21 起配置统一为用户级）
+#   → "independent_review": {"phases": ["6-review"]}
 ```
 
 > 开启后进入该阶段 → AI 自动派 L2 盲审子 agent → Stop hook 自动跑 L3（外部模型）→ SessionStart 注入报告摘要 → 确认后写 done → 才能切阶段/commit。

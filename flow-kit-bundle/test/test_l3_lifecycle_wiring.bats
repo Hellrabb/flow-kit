@@ -237,24 +237,28 @@ _make_big_requirement() {
 }
 
 # ══════════════════════════════════════════════════════════════════════════
-# E. 配置优先级链 + 文档契约（2026-09-11 · ③④ 收尾）
-#    锁住"项目级 .flow-kit/stop-hook.json 优先、缺省回退 20000"这一实测行为，
+# E. 配置优先级链 + 文档契约（2026-09-11 · ③④ 收尾；2026-09-21 改用户级）
+#    锁住"**用户级** <runtime_home>/stop-hook.json 为准、项目级副本被忽略、缺省回退插件模板"，
 #    以及 l3.env 模板/README 记录的变量名必须真实存在（防文档漂移）。
 # ══════════════════════════════════════════════════════════════════════════
 
-@test "E1: 项目级 .flow-kit/stop-hook.json 优先（dsh 运行时）" {
+@test "E1: 用户级 stop-hook.json 为准，项目级副本被忽略（dsh 运行时）" {
   local proj="${TEST_TMP}/proj"
-  mkdir -p "${proj}/.flow-kit"
+  local fakehome="${TEST_TMP}/home"
+  mkdir -p "${proj}/.flow-kit" "${fakehome}/.dsh"
+  # 项目级：故意给不同的值 —— 改后**必须被忽略**
   printf '{"independent_review":{"max_artifact_bytes":60000,"max_failures_before_bypass":7}}\n' \
     > "${proj}/.flow-kit/stop-hook.json"
+  printf '{"independent_review":{"max_artifact_bytes":200000,"max_failures_before_bypass":3}}\n' \
+    > "${fakehome}/.dsh/stop-hook.json"
   local out
-  out=$(FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="$proj" bash -c "
+  out=$(HOME="$fakehome" FLOW_KIT_RUNTIME=dsh FLOW_KIT_PROJECT_DIR="$proj" bash -c "
     source '$HOOK_BASE_DIR/lib/common.sh' 2>/dev/null
     init_paths 2>/dev/null
     echo \"\$CONFIG_FILE|\$(config_get '.independent_review.max_artifact_bytes' 20000)|\$(config_get '.independent_review.max_failures_before_bypass' 3)\"" 2>/dev/null)
-  [ "${out%%|*}" = "${proj}/.flow-kit/stop-hook.json" ]
-  [[ "$out" == *"|60000|"* ]]
-  [[ "$out" == *"|7" ]]
+  [ "${out%%|*}" = "${fakehome}/.dsh/stop-hook.json" ]
+  [[ "$out" == *"|200000|"* ]]
+  [[ "$out" == *"|3" ]]
 }
 
 @test "E2: 项目无 sidecar 且用户级缺省时回退代码默认 20000（环境隔离）" {

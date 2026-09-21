@@ -118,8 +118,9 @@ sudo systemctl daemon-reload && sudo systemctl restart dsh-web
 
 claude / opencode 路径：在 `~/.bashrc` 里 `set -a; . ~/.config/flow-kit/l3.env; set +a`。
 
-**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**）不在环境变量里配 —— 它由项目级
-`<项目>/.flow-kit/stop-hook.json`（dsh）或 `<项目>/.claude/stop-hook.json`（claude）读取，
+**工件截断上限**（`max_artifact_bytes`，**单位 = 字节**）不在环境变量里配 —— 它由**用户级**
+`~/.claude/stop-hook.json`（claude）· `~/.config/opencode/stop-hook.json`（opencode）· `~/.dsh/stop-hook.json`（dsh）
+读取（2026-09-21 起配置统一为用户级，项目级副本不再生成/读取），
 缺省 **80000** 字节（2026-09-21 由 20000 调大：实测阶段 6 的 L3 提示词 74610 B，20000 上限会丢弃 73% 工件，
 使 L3 据残缺工件误判）。**大工件项目务必再提高**，否则 L3 只看前缀、反复报「NFR 缺失 / 锚点表被截断」假阳性。
 
