@@ -1,14 +1,16 @@
 # 归档清单 · privacy-path-scrub-2026-09
-# 生成时间: 2026-09-22T02:19:00+08:00
-# HEAD: 58205d2 chore(privacy-path-scrub-2026-09): 前向脱敏 —— 本机绝对路�
-# 工作区未提交项: 5
+# 生成时间: 2026-09-22T09:31:34+08:00
+# HEAD: 3430525 fix(privacy-path-scrub-2026-09): 第二轮重写后的哈希引用回填
+# 工作区未提交项: 11
 
-## 文件（8 项）
+## 文件（10 项）
 CHANGE.md                                            3765 B  sha256:be5b1cb0262112b0
 DESIGN.md                                            4776 B  sha256:30dfcb8889174462
-history-rewrite-map.txt                              7334 B  sha256:59c2216de2486c44
-IMPACTED-REFS.md                                     2629 B  sha256:45a1dbff19893622
-make-manifest.sh                                     1854 B  sha256:001bb8e22cef0f8e
+HISTORY-REWRITE-FULL-MAP.txt                        54364 B  sha256:ed828461ea7468c9
+HISTORY-REWRITE-FULL.md                              9767 B  sha256:8fab9326d6971c7a
+history-rewrite-map.txt                              7750 B  sha256:0e05b455ae675d58
+IMPACTED-REFS.md                                     2981 B  sha256:b39d7a10052db376
+make-manifest.sh                                     1853 B  sha256:51cca7602dfb4864
 REQUIREMENT.md                                       3895 B  sha256:28073d227b270bc8
 TASK.md                                              4806 B  sha256:22828e853572dd83
-UAT.md                                               1323 B  sha256:d43dcb5ddc2758a1
+UAT.md                                               1315 B  sha256:4a5e260552099d0b

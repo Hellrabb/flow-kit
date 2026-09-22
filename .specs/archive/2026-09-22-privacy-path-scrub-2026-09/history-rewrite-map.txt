@@ -2,6 +2,11 @@
 # 范围：origin/develop..develop（未推送区间）。已推送历史保持原样。
 # 两轮重写：① 文本 /home/<user> 归一；② 清理中间提交树内的自指字面量。
 # 区间提交数：old=38 new=40
+#
+# ⚠️ 已被 HISTORY-REWRITE-FULL.md / HISTORY-REWRITE-FULL-MAP.txt **取代**：
+#   本表记录的是「仅未推送窗口」那一轮（2026-09-22 早些时候）的映射，其 NEW 列哈希在随后的
+#   **全历史重写**中再次全部失效（例：本表 NEW 列的 4bc151d → be138c0、817c0b1 → ef1397b、
+#   693fd5c → a001dc9）。保留本表是为忠实记录当时那次操作，不做回填。
 
 OLD                                        NEW                                        SUBJECT
 f28a43115f3917a9747f16f98d7951f559695172   58205d2cc996c8e7786c595f8065e02e7feaa16d   chore(privacy-path-scrub-2026-09): 前向脱敏 —— 本机绝对路径归一 + 停止跟踪 pyc/bak

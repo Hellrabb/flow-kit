@@ -63,7 +63,7 @@ _l2v() {
   #   ① 现场再生归因清单到临时文件 → 其行数必须等于活语料空值数（再生器覆盖性，可失败：
   #      本用例曾因 rel 路径归一化 bug 得到 0 行）；
   #   ② 活语料零非枚举（AC-2 的实质不变量）；
-  #   ③ 数值预算「≤8」只对**基线语料**（commit 4bc151d 时点）成立 —— 原文口径。
+  #   ③ 数值预算「≤8」只对**基线语料**（commit be138c0 时点）成立 —— 原文口径。
   # 提交前纪律（写进 TEST.md/UAT.md）：`bash corpus-count.sh --attribution` 再生仓库内那份清单；
   # 本用例不比对它，避免"测试改工作区"与"快照过期即红"两种坏味道。
   local attr="" _cand
@@ -85,7 +85,7 @@ _l2v() {
   local report
   report=$(bash -c '
     source "$1" 2>/dev/null
-    base_list=$(git -C "$3" ls-tree -r --name-only 4bc151d 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
+    base_list=$(git -C "$3" ls-tree -r --name-only be138c0 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
     n=0; empty=0; base_empty=0; nonenum=0
     while IFS= read -r f; do
       n=$((n+1))

@@ -1,0 +1,342 @@
+# HISTORY-REWRITE-FULL-MAP.txt — develop 全历史重写 旧→新 提交映射
+#
+# 生成方式：filter-branch 后按「提交顺序 + 主题」逐位置对齐（difflib 序列比对），
+#   非按哈希猜测；配对 330 条 + 折叠 1 条 = 旧 331 条；信息被改写 2 条（脱敏导致主题变化）。
+# 列：新哈希<TAB>旧哈希<TAB>新主题（旧主题中含被脱敏字面量者一律不落盘，避免二次自指）
+# 折叠提交（重写后净效应为零，被 --prune-empty 移除）：
+#   5f02fb6  chore(privacy-path-scrub-2026-09): 本 change 自身文档改用 /home/<user> 占位（消除自指命中）
+# 关键引用修复（旧 → 新）：
+#   4bc151d → be138c0
+#   817c0b1 → ef1397b
+#   693fd5c → a001dc9
+#
+3430525e8eb1fadd2f6eccbf7564a965c84587c0	ca42e0043a9f56b4b30d79a728fd99b351c23609	fix(privacy-path-scrub-2026-09): 第二轮重写后的哈希引用回填 + 映射重算
+5aeee89c6f370e8fde0b9f36c4cfc210740975b0	e71f99a55b9a79b9fd7bb5f01fec1225fe7fb093	fix(privacy-path-scrub-2026-09): 修历史重写打断的哈希引用 + dist 同步
+976ba5c60c2c6510c7e96f5ae443ca98b3f66030	58205d2cc996c8e7786c595f8065e02e7feaa16d	chore(privacy-path-scrub-2026-09): 前向脱敏 —— 本机绝对路径归一 + 停止跟踪 pyc/bak
+7166d0764c8e3fc239bfb2d7fbe269d210a02efc	ab1fa8f84eeb8dd079da3d72595f2fa7c471f53e	docs(user-guide-sync-2026-09b): 用户指南 + 用户指南 PPT 同步至 2026-09-21 现状
+cc60f2011ce82da8129c27f6cd9e2a5b1df505f5	fb6f44305205c69db3712d2b8590aa2a5f4f3477	feat(install): 补 dsh 插件刷新入口 make dsh-sync + install.sh 用户级口径对齐
+3e4be394492b085e4e88b7c3dee42c2e60957d1d	cbf383ba7b477d6b529e51f2b314532871fe2835	refactor(install): 清掉项目级 hooks 安装，安装面统一用户级（DEST_ROOTS 7 → 6）
+ef1397b27ebdb57ee2dfa7c617cd3e89f16e07fe	817c0b1a900c7c5cdf0cd74b04187e2531aa7179	feat(config): 配置统一为用户级（不再读写项目级 stop-hook.json）+ 解析链回落插件模板
+c12a942d4ac2b25a16ac56d5234408f4deab02fd	7e56dea3da39200e5874d3b9aff3bccb52c69285	chore(l3): 解析链/兜底默认值同步为 80000 + 修正写死旧默认的 bats 断言
+a69e398751b4db7e3cc43190703f8d3671efa3c0	130a82e3fbf8251b5ea00e00abf1b1e33b0473b8	chore(l3): 工件上限默认值 20000 → 80000 字节 + 文档同步（brooks-review-fix-2026-09 follow-up）
+7506e01be7c41d672e5e3163df18ad95ce6c6aa1	da50c13b74821330224e6e03b8801d71d43056b8	fix(gates): 修掉门禁守卫自身的三处假绿（brooks-review 2026-09-21）+ 补行为级回归
+fa43c46380614a6f8290074ba1f5aae2c0f83795	5081b50a3217f0a040f1f6dcc4fd96ea120d4d7b	fix(adr): 修正 ADR 编号冲突 —— 010 已被占用，重编号为 027
+2fcd7e180c39f103d979d85e5bf870573912a161	3833175ad28cdf859ef9128c2aa3e4dae8c4d17f	docs(archive): 归档 health-fix-2026-09 —— 阶段 7 门禁全过（L2 fail→全处置 · L3 pass）
+5fdd193921f55a466d5fb9205837b95a0f47cad7	f2c645b15ffc069ed3803b707b9ad0fadee14bbd	chore(health-fix-2026-09): 归档前收尾 —— REVIEW-7 响应段 + 归档清单
+86affd01023ce82e3bb25f53b81bc7244a3a22ea	3d91d9b7e0fed9b2f44e416906c2f3ce9bd5b137	fix(health-fix-2026-09): 阶段 7 L2 抓到的 Critical（ac7 断言漂移）+ 补跑 brooks-review
+28853c2985b00d67b24ce276b9db390f70d2d33a	841bf336046b0105958640d006ce895bf72b750a	fix(health-fix-2026-09): 阶段 6/7 —— 审查发现的 4 个真 bug 修复 + 诚实性更正 + CHANGELOG
+a001dc9f5c69f66073d1beb84260057d7d732667	693fd5c98636d75f9bec56b3711de667bdd27c12	fix(health-fix-2026-09): T01-T06 堵住三个门禁盲区实现
+a337b71cdd4e019537cb11749e0799197ff6a935	033c72dda3bcd77de74ae5f1c666ee02e6ae3de9	docs(lessons): 归档收口打断 live 路径测试的教训 + corpus-count.sh 默认真空登记
+b4b6cf2df8eeca800360b90e5fd0def5df363f3c	f6be29c73642b54a70791366dd435a8071cc4a39	docs(archive): 收口 l3-review-defects-2026-09 + 修归档收口暴露的测试硬编码
+e91fee604214e0d57984c65f794abfde9bb26f63	b1046ad1715595a4691634cf217d1249473728ef	docs(health): M-health 2026-09-20 全量扫描报告（97/100 ↑3）+ 门禁盲区登记
+9dc68e1fb27eb2b5f8da4d48065ad135b382bb97	685553ccdc18e64a9962e53d1360c9c93e60c32c	docs(archive): 归档清单刷新（HEAD/门禁/锚点 6/6 现状；工作区已 clean）
+36252c258c29d20056dad1c527f7784e8c88854f	535bbea543668905690efc9bc90a3b94902c5814	test(flow-kit): M41 闭合（5/5 真跑变异体）+ 阶段 7 提示词两处系统性缺陷修复 + 归档再同步
+b907658a98b817bea1fb1f44fcdfddae0737be28	d282800844978024a99dd2ab166a0c73e507045f	test(flow-kit): M41 两条改为真跑变异体 + M50 跨环境真机取证 + 3 处 GNU 专属写法加回退
+a1c35ad904dd6fbc497811ea3cc498f76a1b039b	bdd69505c3d728d547c10925abd9ba580f3d6772	fix(flow-kit): verify-claims 的 clause4 断言同步新契约（手工贴入整体禁止）+ 归档再同步
+00188911219b97d713911016c8baf601491d3f72	37753490a3c0380192c23e8ad3c72d4048a9ea85	fix(flow-kit): L3 审查链收尾 —— 六阶段 L2+L3 全 pass + ARG_MAX/截断/守卫三族修复
+9030f592ad919555990698b908b49b3263edba37	36d155b9a95a3e17225f05329b71d50bb211bb5c	fix(flow-kit): 守卫双形态判据 + Edit 组合合成 + M44 编码半闭合 + B8-R8 混合文件回归
+58488ac2adfe742123cbd35cc37b7fcc58e30b18	9e57b7116a6a2f9246eca7a892cf891d028aab75	fix(flow-kit): 守卫对'解码后形态'再判一次（阶段2 L3 23:23 critical）+ DESIGN 补记
+39dbc6ab31b8b088f8968ffbb4a48c2bc76525fd	6525abbc7f6768c9eb1bfeaafa483e43b710af83	fix(flow-kit): 签名门控升级为段级解码（M47①）+ 自检第④条判据 + B8-R3/R4 重写
+f4734b801847b8dbdbf2214d6d3b8b037c4785f9	86b5fa1b577afc85635c301e1ccc7f4312bc61d0	fix(flow-kit): R12 改为风险表行（编号连续 R1..R13）→ verify-claims 13/13
+079acd84e8194e8611ec7e2a7c1501b2e9500e82	59a5da6552558a4e23fbe0a11c4e59b15069f3c2	chore(flow-kit): 阶段2/3/6 继续迭代至 22:2x（仍未 pass，如实存档 + M46/M47）
+906ebc416c07989d7997bdf0c4c6578497aee1d1	19c23b3724d957e4a1ba5ccf66af635f109d6b6e	fix(flow-kit): M43 签名门控解码 + 损坏即拒/撤凭证 + 判据表述统一（阶段2/3/6 仍未 pass，如实存档）
+086377b7024656f88e578461273fb58e2480897b	70fc74994f2ba4e4952a5d2fcfcfa8f6e6cbac20	fix(flow-kit): 测试 ID 去重（bats 拒绝重复名）+ 阶段7 L3 pass + 门禁复核
+7397ac76c0ea7df42bb9dfa49d4e42002995ec0b	586e145094cd8183493f1144e9afa650bfc76b8d	fix(flow-kit): M38 闭合（单射编码）+ L3 载荷守卫收紧 + 各阶段 L2 段落位
+2e4eedf86027a0e1a2c0ad3ab9a16f43f9a9e121	6cb718eb4a08c123fa2b10fac18a59adeb060012	chore(flow-kit): 阶段3→7 补档 —— 七件套 + L2/L3 记录 + AC-2 判据治本
+46f64ba52f793e5782bbb9d11c17536f9d804724	dbc1c274e13362c971157716a16542bf75eee70b	chore(flow-kit): 阶段 3/5/6/7 的 L3 审查记录（真实外部模型，.done 待 L2 完成）
+015947cc064dc53897042ff16f8e6f67b7e8d256	8d7d0479bef3d9f8a2e749a298e578c60c79d4cb	fix(flow-kit): 守卫判据与读侧段起点同源（阶段2 L3 19:41 critical①）
+73d4ee34c8f8dcf5cd896fe2a4a1393e04336d0b	15f53b4021f246092c8fe25e7844eb610e29fea0	fix(flow-kit): 消除 B9-R9/R10 重复用例 ID 与 D11 措辞矛盾（阶段2 L3 19:36 critical）
+a091494f571b2ff7a1cdcae3e854a62d92032e03	03d6f69c9696788ba65d24b5f66224ebf055591c	fix(flow-kit): 关闭 L3 载荷守卫的裸标题绕过口（阶段2 L3 19:26 critical）+ B9-R9/R10
+b238f31f9471bc0394fd751b0e46b96867aef6ac	7f0503b9a0bba27f02ac48b8ab7ee4e023a5747e	fix(flow-kit): Bash 通道纳入 L3 载荷守卫（M37）+ B9-R7/R8
+3241987163b878ab9121f0396e580169db80fd50	bdc6e66bc51aa2adfb2d40fadeb7a3256b785c13	chore(flow-kit): L3 审查链补档 —— 阶段1 L3 pass、阶段2 三轮迭代与残余移交
+be138c09aa3e64213f4df86a907a2311e48c3ab2	4bc151d10ff1f2b917adb5cef7322dfc9b377c40	fix(l3-review): 复测并修复 L3 审查链报告 5 条缺陷 + 副本漂移门禁
+336891a8c6a328d1a358a3998e8fa984ae06475e	19b3463982449b6f976d1a8d4f3ed0f07e9e1e0a	fix(package): 全量包纳入 L3 凭证模板 + 修收尾横幅引号 + 清测试绝对路径
+5833cd4192f622b1d979d404a3e302db105899b9	a710b5a83b4be8e97d228230a239e6732a0af84a	chore(flow-kit): 清理用户级/项目级 sidecar 副本 + 测试改为环境隔离
+2a386f069c518997efd68af017ba3f6a733aa35f	fe3a833cc9fa1e26383dfb89f663335f2e3b31e2	docs(l3-credentials): 补 l3.env 模板与部署文档 + 工件上限配置说明 + 锁住配置优先级
+015f12639bdfb45b0076c75ea2b6075fe57ae0a5	68f0ff6b0c169c0d6ff88732d5e0ba6a736ead3b	fix(l3-lifecycle): 接通 artifact cap + 实现真熔断 + 四副本漂移清零
+e40b1ff557013cafe86a9f1235cdf5b77b5b6ef0	6ab0b4f21fda6ba5330aafb18df220d4aba0b84c	fix(test): 套件 env 隔离 — 宿主站点级 FLOW_KIT_* 泄漏致默认值断言假失败
+03e6e4f409232855a0e0c24f3963b392240cd7a0	a133e26c82d28eec59710eac7ec8e4a7415a874a	fix(health): F-1 flaky 根治（grep -q 40 处去提前退出）+ l3-prompt SC2034 清理 + 归档残留目录清理
+25d707e02ae4075f9718dfdf6ec58684b454c55c	f4895849b649551c2cd448dac453132b4b646437	chore(health): 2026-09-06 full sweep 报告 + TD-024/LESSONS 观察登记
+4c3619fdadf2c8e161fec88c686b285d5a6d49f1	2e71978c6268f4c06aff3f74e06d5d50a8e85c30	chore(l3-prompt-loop-fix): 归档移位 archive/2026-09-05-l3-prompt-loop-fix（R100 rename）
+f0a39b77af4a18f1bd7e17fe7d951f01e9bfa103	7f2719b4b17c5724cac8ee676ccfbb4b7c14b162	docs(l3-prompt-loop-fix): 阶段产物归档前提交（七件套 + SUMMARY×6 + UAT + IR-7 双层 pass）
+5605abee6bccc2b24bd4e4240093124d54ebe934	2e9e7617c33b0093ff00cdfe5562e7fcc3751099	docs(l3-prompt-loop-fix): ADR-025 + 术语/CHANGELOG/LESSONS/STATE 同步
+ad011c42075e31bbaf46b2d9ea5993f071a2bfc3	65f6322ffc0ac6c172deeb18cd296135de2988fb	fix(l3-prompt-loop-fix): T05/T06 review fixes
+288d2aa76effeb63431691e599b39c43d9bf0557	5a2e542111d07c81be6d167249509b1bfc23986a	chore(l3-prompt-loop-fix): T06 四副本同步 + 漂移存档 + AC-6 md5 硬断言
+1e181c6f97e6b5433cb561af8e7a6c8d349588d4	2420a5a61196df8b4b30b2b47071786c307d9344	test(l3-prompt-loop-fix): T05 AC-4/AC-7 端到端 + AC-1 组合层顺序固化
+b6344cc362e1f56de85cb54a11c0cfb61e1356e2	12146a8116ca40b609c926c8acdb4327088f18f2	feat(l3-prompt-loop-fix): T04 build_prompt 反馈优先重排 + D5/D6/D7
+ffa8158d7862c20d46b4c718f9fd21c09405e3d3	b7e6cf95f7acb107c9d6e0eb7f5cdc2281d843af	feat(l3-prompt-loop-fix): T03 _l3_inject_context 四象限注入矩阵
+46795d74946a9b9e333d4e85b2877f2635b1c828	3b700307eccb95121f5508c7bf86a3879f67ba02	feat(l3-prompt-loop-fix): T02 前轮发现提取器 _l3_extract_prior_findings
+bad99a12d71aa8c0f4001ff85b5b4f904ac5b098	ae931634007fbb9f7cf81aaaf0068ecbb191a89a	feat(l3-prompt-loop-fix): T01 add UTF-8 safe byte-cap helpers
+1e79673e64a45d5738131f8a8e7a53917a7c08a1	07eaf089623f7639251cf6142c7004cd35c82ad1	docs(user-guide-sync-2026-09): triage 落地（2026-09-04 用户拍板）— M2 措辞吸收/M17 性能参考化/M19 渲染 PNG 入 render-preview
+ec709ae3fa2c567b12d1308a3d3629e03f3f1620	0e425a8eed688e5b8823f11eaf6935f61acc6e3e	docs(user-guide-sync-2026-09): IR-7 L3 归档态终审 pass（.done）— 阶段 7 门禁闭环
+8b60c4e1482241c78239e8f137ea4d8f0b44c190	dd5a39ffe79d3121a5afba864f910cb68153b3e8	docs(user-guide-sync-2026-09): IR-7 L3 闭环 — TEST/REVIEW 矩阵回填 + INTEGRATION 证据附录（CHANGELOG 原文/git log/目录清单）
+24db0e29926ccffd22c57fcc37652d7c74638b5d	1e392973426d475a18ccc4563524ea523ad5dfe0	docs(user-guide-sync-2026-09): 归档产物 — archive/2026-09-03-user-guide-sync-2026-09 + STATE/CHANGELOG/LESSONS/SUMMARY
+67a5682e799c711cf6b7a8f467b44c99499182d8	3c9b2dba39f6b09a5976a84e1a303eae3c22dda5	docs(user-guide-sync-2026-09): 阶段6 门禁闭环 + INTEGRATION.md 起草（验收汇总/UAT/LESSONS/归档动作）
+f69b3a003416921ceec050cf25d232d238e6763a	9d04dfe6902778b526e43d901d5f3ef0e6c4397e	docs(user-guide-sync-2026-09): 阶段6 REVIEW — REVIEW.md 双轮汇总 + L2 门禁闭环 + M19 登记 + pyc 清理
+4e6f957e01e9091cf36b2bc6b03b05cb736ffba2	881c9746ba25ea84c20a8d1495b85a739b2c68e8	docs(user-guide-sync-2026-09): 阶段5 TEST L3 修复 — 跨阶段验收标注/pipefail/MD-DECK 同步断言/PNG 命名统一
+3d3a4e96dabb7f4c5544708d18359c906f4f69be	2cfd895a192bf724eae4eb4112f4d377e2a3eb15	docs(user-guide-sync-2026-09): 阶段5 TEST L2 修复闭环 — A3e 限定解析/注解断言/slides.json 禁词扫描/计数滚动措辞
+574c306a2db4f9e6d492324ba80064f1e5b43da0	09f8b8fc229c7f88ced37a0c7836b30743fe0bcd	docs(user-guide-sync-2026-09): 阶段5 TEST — TEST.md 断言矩阵（A1-A7 实跑记录）+ 指南措辞对齐
+9138719d513c6b5db1c1c2237c96d970ebe08a3b	318a759bb7a205e380b96cb8ff9d4cf1e0276bb1	docs(user-guide-sync-2026-09): 阶段4 DEV — 用户指南 deck 重建 20 页（slides.json 生成器 + deck_checks 断言 + 渲染验证）
+315fecc74fca84edd927d8e8c4ef3c673a97f260	4c2a56c201de2dae8e685b316f0b6e24eceeec65	docs(user-guide-sync-2026-09): 阶段4 DEV — 用户指南同步 2026-09（dsh 插件安装/五级链/doctor/Stop Hook 12 模块口径/门禁）+ bundle 副本
+6429e6eabfe31309fb6aa93ef20aff59a706c3e6	d25c820228b0434df4585f7af1a88c3f946805de	chore(user-guide-sync-2026-09): 移除误入库 pycache + gitignore 补 __pycache__/pyc 规则
+6669e4d3bb4e46c53cf7f5d3cecbfc64a962d339	4dfc59888ce5cb24578e2b8a6ed883856f97197b	docs(user-guide-sync-2026-09): 规划链门禁闭环 — L2/L3 审查 findings 吸收（REQUIREMENT 断言内联/DESIGN 风险分类/TASK verify 加固）+ deck 生成器骨架入库
+32e2c7995be1b86e994c614fb722b79846c9556d	7fa4b26db8bab156d2a886c5c989be493b785115	docs(user-guide-sync-2026-09): 阶段 2 设计（增量映射/五级链口径/deck 生成器方案/风险）
+b2949f36119fb711818ccd9ad4581d86de53acbe	b4035efa7a6e8b624fb4eaac9f4292ab4d9d8120	docs(user-guide-sync-2026-09): 阶段 0-1 提案与需求（GWT AC ×9 + v1/v2/out + CONTEXT 术语）
+a1c5901325dfc307ac0b63c395075b4db874fbc3	78ec779aad0a02ed5ea76222239c2c246c31e3f1	docs(dsh-flow-kit-sync-2026-09): 归档产物 — archive/2026-09-03-dsh-flow-kit-sync-2026-09 + STATE
+cd5f53726ebb262320e69d42865dc0360df5dc12	d81bc98da812e85717bd725ba788e416938064df	docs(dsh-flow-kit-sync-2026-09): gate_config=all 全阶段补审 — 阶段 1/2/3/5/6 L2+L3 闭环
+98a208e50cca72a02b2ea665d03111d1276e3272	0981bd70e70a995a388a7f618039439b7f096379	docs(dsh-flow-kit-sync-2026-09): 补审闭环 — L2 盲审 R1 修复 + 归档六件套 + L3 重审 pass
+e9bda5f1736e08279f02b5f2308e7af6082ff2d7	868f362187a7cc4b2c817284ec600e88ca851c14	feat(dsh-flow-kit-sync-2026-09): 插件同步 flow-kit 更新（correction 卫生/状态守卫/install dsh 分支/模型五级链）+ doctor correction 报告 + v0.2.0
+71f83bd9c03fbffbe86d64b82bff54da75adbbbc	2999024edc9a564dbfa6193aac65597a701a665a	feat(model): L2/L3 站点级默认模型 tier（五级解析链）
+75492396902077a4877cc28ed2565e51d3e652a5	47c68ef15bf3ce7a83c5c556e194ee5a3cfcfa51	fix(lint): TD-023 shellcheck warning 清零 64→28
+67e98473b136a3e63329cd57fc07722e4a014f1e	5cc45028d87c79c7c868126680680bb24ec144eb	chore(health): 2026-09-01 full sweep 报告 + TD-023/L-081 登记 + 清理孤儿目录与 junk 文件
+a5b9fe89c590e574a622402d3b4372f8612bdadb	2511e15dcf081d1470739ab7bdbd86d67c2e9a5e	docs(correction-hygiene-state-guard): 归档产物 + CHANGELOG/STATE/LESSONS/CONTEXT + ADR-024
+d5e83f4c66b485e08b7cb5abbe182aae1ecec861	9a8109857b003b3a7879b756a453228a381508b9	fix(correction-hygiene-state-guard): correction 卫生 + 外来状态守卫
+d3e1285a87e530457a1143db9e0f8eb11c651839	76261dc1eac42e29a4df64507b69795a996b3acf	feat(dsh-flow-kit-install-path): install.sh/paths.sh 增加 dsh 平台分支
+de7da4e69ffd16a94b410be41879d4db5646975f	b7a54cbdc578326a58e250b35f8c4bb555ee5eb6	fix(dsh-flow-kit-session-banner): SessionStart stdout 注入 dsh 首轮 prompt
+82f539ca23a00fa1373e6c5711617a54efc3b8b9	7017ff7cbeef88bbc8d2cc2abd7b16ee70dff6d7	feat(dsh-flow-kit-l2-review): dsh 原生 L2 盲审子代理派发
+6cb772418495863e902916eaae8102f9d1592cf5	f45bec5e6f79e754af3b885e30d606425d708e0a	feat(dsh-flow-kit-plugin): flow-kit dsh 插件化，hooks 与 claude_code 解耦
+cf119ad0606c1f5cdc0cdbba23c1e614773a8190	61d93212929607a3a11402244aba19f2a04eb0e7	feat(l2l3-cross-platform): dual-platform L2/L3 model review compatibility
+378c6cedfb19a20c992d1e903996fc4693b1e9c8	46b33f530e2a45910e9d2697ab30665610a6df33	fix(archive): STATE.md last_change_archived 更新为 pre-commit-user-scope
+eccc662b2be25c9aede981ac82243a6d62f7c28a	565dda5569dd4b80d1930e6366af5363b94d46f5	fix(archive): pre-commit-user-scope 工作目录清理 + STATE.md 更新
+4b359886c7e8b6a30ee2772c95a4d442730910e1	f68cab36413652c66ca399ba5c8ce167e1c88a4c	chore(archive): pre-commit-user-scope 归档 + CHANGELOG + STATE.md
+af800bacdcc7bba9ca79c82ef59ac383bad71508	b8cda56627c5a0de7c2d70f0934534b6d9f995d1	fix(install): deploy_pre_commit guard 后移修复 user scope 源文件安装
+66e3f516c84b780acac6a058c5941a78dd82eed0	43077088d9b6a4b58b0ad068400066ff4094a3c4	chore(specs): archive 8 orphan change dirs + reset flow state
+2315acb1797789fd7ba92f5320be6742d9990441	8850b014a49a4401dc82f00950fb7536f6015814	chore(archive): archive-commit-gate 归档 + CHANGELOG + STATE.md
+6fc59429cd564d07ae4a73ce79ba6bef8d9f6bdf	cfcf675e698d9da81fc013df7a89bd3049198b1c	fix(integration): 写侧共存 guard + MINOR-DEFERRED + REQUIREMENT verify + LESSONS L-075/076/077
+ab83bae6eccb10c52b75390f965a632e5545fa6e	963eec602a65f5cdb3f7c925a331b3fcae57b581	fix(review): violations 内容实现 + install_hooks fallback 补 34
+db026fbd409aace929f365c342493baac9d1fcfd	fcf783d44e543c61f6ef5a84d188d350f6869588	fix(test): T08-SUMMARY baseline 692/0 + UAT-2 标记 + INDEPENDENT-REVIEW-5 round2 响应
+bbc063501ca7656f18f33e56ce426e41e626f8f0	6793e5ec20008b054fd2adae150530c005113240	fix(install+resume): deploy_pre_commit 顶层定义 + flow-kit-resume local SC2168
+56745a73edce1298320f7d7dd0d0adc3b993ad19	65fc3cc82d59c7a81e48b158489175576c5e1e4a	test: archive-commit-gate regression suite + pre-commit PATH fix
+de1340db7ab07a7358462b106fde9e3e98c7dfb8	f9075bb0f447f63392daab3b4031f89371f78b68	docs(prompts): 7-integration step 5.1 archive commit + commit-protocol classification
+a99046ede4fc421ea6278aa4c0d490ae669dd368	97afa461239a1c200c6099b031d1316c605cbdb0	feat(install): pre-commit symlink deploy + module 34 registration + resume dispatch
+0ba3e1ef00c6fd9b80b942d8d436dd1e81462f3b	e743e197d2780417887b84aec8bfbffec0472372	feat(hooks): add 34-archive-commit-check Stop hook (D3)
+26a2735956ce36b7e6d0588e10e1c8858e4d4709	859cfb93e78bab99585d880bb2eba6fb43610246	feat(hooks): add pre-commit gate + archive-uncommitted correction type
+3075afd06e07a83495231fc1109fd4cf86a8deae	34ffdc256afa897ff21986934a128061957ea60b	chore(l2-l3-subagent-fix): LESSONS L-073/074 + CHANGELOG/CONTEXT/STATE 同步
+0ea0216e4eddb14393dee139509f4a278094c0e3	3e3bb83d63f9c079d41f1a7c01744bd9780b403d	docs(l2-l3-subagent-fix): 调查报告 + 证据链 + UAT 归档
+042d60d3a2feaf32d70a10ad07aa2119a297ccbf	88ab3dfc98f28a2b8622ba16a7c1da56d3dfd908	fix(l2-detect): 凭证缺失平台感知降级提示（l2-l3-subagent-fix 修复③）
+f4a4650cde24af16d4689d051461b223b6cb5914	c78c72616ce49e00ea96f3babf03f958a4c28e96	chore(archive): health-fix-2026-08 归档完成
+5906238b2a6a659d6313b9e51cade2820dbd39ef	60d33279fade2061151ee4dbf11f2294c93d9ac7	fix(test): API path test 跟进 l3-api.sh split (final-debt-cleanup-2026-08)
+633b36d826f614ae2e8231033c10c9c39551c9f0	1a2549fc61f8aec8e008d2abb5031d3a1fb1646b	fix(validate): 重写 EXPECTED 列表构建 + comm 替代 grep -qF
+ea749bbd0b09c41f65764e22df7770af84e6843b	d46d5f89ad403c148e4a504bd7d3092de0229536	fix(validate): add OPENCODE-INSTALL.md to KNOWN_SKIP
+0fb6010e0ee6c51fe714c1f1626c5e89616c20c0	0edf8eeafd98dcc59b4c6c54b304810a09de9ba8	fix(install): PreToolUse 部署改为目录循环 + 去重 runtime-edit-guard
+77a2ea767f2f8d6512c196b92f90081a18fc42d2	a2af22c02f5b101a81da8573ec806f66a455ef20	docs(health-fix-2026-08): retroactive L2 corrections for phases 3/5/7
+c3657bf5e0103341033e0c99b118b697073306b2	34ebcee604e92f445fa447c4f3522921c59cc5e4	docs(health): 2026-08-04 post-fix 巡检报告 · 89→99 恢复并超越 baseline
+52cfff2d328f675e1a0a071221fd121cd70edaa6	8e391e91223beb45a90a8985896cd48dbe005b1a	fix(install): paths.sh 自加载守卫修复 user-scope PROJECT_DIR_NAME 回归
+54881e689687a3172f2fcb69f7b8121fe9e83aa7	0c79f1ceda968b946f591e659aa2efc56ec50c12	feat(platform): claude/opencode 双平台兼容安装器
+3dc3c718b3f94301519f17f7b920475fc80c87b0	938c147c99e1a8ad79b44de6196b2f8712d575ae	docs(pptx): 技术设计 PPT 微调
+9cc7836bc2c5d912445956017e28d0b15ae47628	f1ecde5a56d6d3d3bcc5670c651e3a67261a154b	feat(debt): debt-audit-resolve-2026-08 round 2 — 4 项流程规范债务技术闭合
+3aee59ab09c61aade360a1e0c1dfe26101364673	123ca08f2793145257879de56e41fb6cd5bdc6c4	docs(debt): debt-audit-resolve-2026-08 — 8 项老债务审计闭合
+606e8d7771b8ec9ee01927cdf83118122cac04db	276c0ac7e993d309ab10a54340d2fb5e032803ca	test: test-coverage-gap-2026-08 — 闭合 TD-002 v2 deferred
+f1d7c9846170a5df780ff2d38493a10beb2bf278	1d302a782b3719458f3bc47ddf469f32656ff124	chore: archive td072-lib-split-2026-08 (pipeline complete)
+a30332915b5e7e62dd293876debfa842cb4f84bc	c5539a9ba55e799f6660483a920f3b1abcab6f24	feat: td072-lib-split-2026-08 — l3-api.sh + gate-helpers.sh 职责拆分
+17aff2463a843be4a1ad163f6b4d57e0f213ca3d	1b195ee2cc1870d28379bd1882ea4e78c1c7c468	chore: archive test-failures-fixup-2026-08 (pipeline complete)
+e4081af20a3e73a4cfad8e50a3a563f5a1dbb2b4	ce482c489c9b1b6bdd2d9d34444b8bf79cf993e2	feat: test-failures-fixup-2026-08 — 5 pre-existing bats fail 全部修复
+ccf5ab2eb7ed9fc5f37634badfc12bdf4d260568	5913728b2145ecd3b999345395c03d6eae1535d6	chore: archive final-debt-cleanup-2026-08 (move to archive/)
+ac219bce2c2fb21c6299b219c05a473e966ad952	b894154419adc1ade41717696e58a5b0047ad375	chore: archive final-debt-cleanup-2026-08 (pipeline complete)
+317e0b7dd24cf3990a5551c66330d81adbd7d87c	15065376df1c34670eb245ad411a9f826e45511d	feat: final-debt-cleanup-2026-08 — 10 项债务一次性清理
+eb1cd938035a948f08e3b1cdcb789cd3ad08ea0f	b14bf7f0844740186989a13cc104cd8175cad3a5	chore: archive cleanup-debt-batch-2026-08 (pipeline complete)
+f4aa2bb530c01a2ba75b4dde42daa9a17df85cea	b7b6048f736f5d7ba096ad4fee7bc587783b7996	feat: cleanup-debt-batch-2026-08 + archive prior 2 changes
+71c44f63751d56d60275245a5ef7e4a648771a7b	edddab82260e5f27869ca72bdbbf3dd6ba8f9b93	chore: gitignore PROGRESS.md + 更新用户指南/技术设计 PPT
+70843aebbcf707178966a97765b60bf1a5a1d58e	192cd7bda0b424ebecf5f1f75b8240b8ac66263e	docs: 用户指南增量更新 — /flow model 命令 + L2/L3 模型配置 (ADR-012/013)
+9437f572870760672143befe89244477bc7351c2	3f7a62ecf2c45070dba845421ea2098dc00547bf	chore: gitignore PROGRESS.md（flow-kit 运行时进度文件，不入库）
+b12e4a94dbb69a24f8ca0f41a8cb7f81c2fbb5d4	d7524334a4e687adc8949d2b4ef7e3c3d9eb2c58	chore: pre-push 安全加固 — gitignore 补漏 + hooks 同步
+166a48406a8788a04fe84d43cfc6c4c82857c567	70fdbb6607523ef4bd081614a3a4f980f553672b	chore: M-health 全量 Sweep 2026-07-25 — 98/100 稳定
+69ff26172ce186672b15fdb8964ee5f18efc7ffd	4d982f8b2c833bb598fd66cd65a51fc05d3bd97d	chore: 归档 l3-review-timeout-token → .specs/archive/
+4e027b4b2513471be34f5ded894b89ca831c9341	12ab03849d75139f6684125677f2e187e4a8442f	chore: 归档 gate-done-authorship → .specs/archive/
+764a6597539c17cee958c2aeb01f0704f51a617f	5b720ed209048238d06b1caf6604693a1662e292	fix(gate-done-authorship): 修复 gate .done 作者性安全缺口（方案 A）
+104c7ca82687b074f9ceef4fe8078d9a5d5e46a2	8518afe841b65c031c226ebd57dcc5c0abd4526d	fix(l3-review-timeout-token): L3 工具 max_tokens/timeout/thinking 可配置化
+fee5c0285bd0bae6d2aeddbad31afe486e8d01cc	c2b2a4a742a283e4b64ef30ca570336c33e0d390	fix(l3-review-timeout-token): L3 工具 max_tokens/timeout/thinking 可配置化
+3abdf406f80a0f12d190e23a1531443599eaae28	49c3d37492c6de72e1aa3c720af6012e23b48f9e	chore: 立项 gate-done-authorship change 种子 + gitignore .codegraph
+532bfefec38d69de0c96c257ab410da1489b553f	de733c3613fb262abc0810b1648d6062809fd628	feat(l2-l3-model-config): L2/L3 审查模型配置解耦 (ADR-012/013)
+16132a782d81f893312d07eb449d31e158c571c4	be99eec104f77e5d0c1dc7f8cc6c71e7d3341efb	fix(gate-review-fix): 修复 shellcheck SC2168 — 顶层 source 语句中误用 local
+801bea5db3ce05286e69b01256c6f138b0e5545e	6546ab1b9bc18cc30fc658c563d5881c535cb9a1	fix(gate-review-fix): Phase 2/3/5 L2复审通过 + 修复审查发现
+17c44270fdff224cd7c24d294dc50e8d808f5d19	2db8566109bee003e034944a76366b0907b83c81	fix(gate-review-fix): 修复 done-validation/l3-review 缺失 l2-detect source + 4 测试路径 bug
+fd2e688200195dd36d5ee8a38efcb05fbbe1232c	650efabc9bfaa2bc59e311d3d71fa7344730bf37	chore(gate-review-fix): CHANGELOG 条目 + 修复 test 双 flow-kit-bundle/ 路径 bug
+e3047c841ea13645be44eac4a545a63d8bbd2e39	189ca2a2c472b27e0a2aa2037ff46083c521cd2c	fix(gate-review): 修复 L2 盲审确认的 13 条 gate/review 缺陷
+b4a37213962716b343f6072d679cf6ebf4867f50	7c16267cc024a6416844aee2d711d78efe8ea8c2	docs(health): 全量 sweep 99/100 + 健康确认报告归档
+b425fe2ac632bf3673598ebac3aedde1834dc801	10db5a4146495b8ee00578de6075471cec7ed62d	fix(lessons): 技术债清单表格补表头行（L-031 等老旧条目格式统一）
+ef244129dfc76e3747869d993b2bb94eea5ca0d8	269d8a43f1be70e8e618d89b53dd7aa01882530f	chore(health-debt-cleanup): 7-integration L2 审查通过 + CHANGELOG 归档
+a887902111320299ae74f5432d04e419a9d17678	a774d243aeaa7cad059dfd289019d1fc302f2b72	feat(health-debt-cleanup): 消除 4 项健康巡检遗留技术债（92→~96）
+0b38115437ac489bd85281c0c3990385c190af28	97bcf855deb6b2c38fe87f116618b134937f6e81	chore(l2-l3-mock-fix): 归档 + pipeline 完成（0→7 全 gate）
+baf89489203761e4ed69d2111f3c611d3c2b7ea9	c3f754e93ac2ccabe4cfa400a06df71778f1c56a	docs(l2-l3-mock-fix): 7-integration gate 完成（L2+L3 pass）+ LESSONS/CHANGELOG
+0151a457ac328fa92a71acf9c2c017ec2950aad0	9fefc451c3380c4dc3c0754723e3d063e7061ca2	fix(l2-l3-mock-fix): 6-review L2 重审 RR3/RR4（heredoc bypass 诚实登记 + REVIEW 导航）
+e9b520ff768a443cb56a73f9614779149d328cfc	57b2669b3ca122d30b66b7762ceb56728f25bd04	fix(l2-l3-mock-fix): 6-review L2 R1/R2 修复（AC-H(e) 漏拦 + source fail-close）
+a4670379b83d5d6a3d2a9b946d5f2dbd5a8e75e2	85628fee1a2eade8214301f3561c2b1e52bc0cac	docs(l2-l3-mock-fix): 5-test gate 完成（L2+L3 pass）+ 部署同步
+06da1d61b269a1e846720723a02ee830bf722337	9eab30832ea40e54d4fec1d9cecb6bceb34cc9b2	docs(l2-l3-mock-fix): NFR 收尾 T07/T08 + T06 SUMMARY（phase 4 完成）
+e91de54508bec75592d1a6393f80f0949a63a7e7	7fb59e8eda8c46f50c0eba3b028f562a0b7e3d7e	feat(l2-l3-mock-fix): Wave 2 gate bug 修复 F/H/I/J/K + 全套真绿
+8de7a75b7446b7bdee27915f88699144fe3f5197	c00afb8face8b1bbff9c6470b7c2d9c008d3fafa	chore(archive): 归档 l2-l3-test-defect（诊断完成 phase 0-2）
+ddecd9a1a259f572bf68e973a3bf261f75e2c524	5be388f08b8372fa7482c0b48358735e9e173640	docs(l2-l3-test-defect): PROGRESS.md hook 同步
+01e844a9d79639985b1e1ff80ac3123f6de7b605	2e3f32883b91e5ac041585ec849d4eecc6ef2216	feat(l2-l3-test-defect): phase 2 DESIGN + BUG-F critical 修复（L3 幻觉仲裁推进）
+23765ce9b2ad1219cb6f1604576f4970a7cbc20d	fb7823586b503b774fbb9e28570343920ba1a40c	feat(l2-l3-test-defect): phase 1 完成 — L2+L3 双层审查通过 + G/L3-model/INT-6 修复
+1715ba9bd421eee3cb6f4b5ce90b033648465021	c613b30051abbb983f46d0b01e1d4be79a29cdc2	docs(l2-l3-test-defect): L2/L3 gate 机制诊断报告（7 bug A-G，A-E 已修）
+d08682c4eed0ab25210d03ecbd8b3479a463c9ad	1dca070e4d82d3c8dcab7825e392bc1c0cab330a	feat(l2-pretooluse-dispatch): L2 PreToolUse dispatch + L3 写入管道（含 l2-l3-test-defect 诊断 gate 修复 A-E）
+852949e8a97647fb7351861219a77e42279ba4ec	749ec36e83751879748dee2e1a19bed762a1b2e7	fix(package): 修复打包完整性漏配 5 项 + validate flaky
+57bf0b35936916621cf317b503e0880f912c0b94	9d6e30897743b4c9a3df4248e26771328f8cf4ab	docs(guide): 用户指南同步至 20260713 + 新增 ppt-diagram-pipeline 章节
+9ac6057fcb9d6d24fa83d1c204d61b2670f81736	22f534930f69abeef18a11f135a476d4c6cb70a7	docs(lessons): L-043 改hook后必须提醒重跑install.sh部署
+6386df0919081b803a20f73df9b6cc97cd868db2	74af3c36cd3c110a879de192a9ab937ba7117092	fix(security): .l3-bg-*.json gitignore排除 + jq $model改用--arg
+22e7f1604b3103ba1bfb60bcb10236e7070a2952	2dd3c3b1587d390a832c9f6eacddcb0b6c13d4b4	feat(l3-pipeline-fix-2026-07): L3管线5项限制修复 + Stop hook性能优化
+cb34474d57f2557ff8f98a8e7cf9c51f964de5aa	1d09001e5b7c1d8b4f532ac67f2ac829417b1f45	feat(health-fix-l3-2026-07): L3 审计子系统健康修复 — pipeline 0→7
+1b3981c9b7f7547a8f16787535e0fd740fadb7ef	9a4fe4d4f20cbe5d6db126b70f90a277e23f8b43	fix(sweep): 修复 2 个回归——L3 重审 header + test 双源同步
+f9466f0eda6028ffc6b7a9f975cfc6fb9fdffe6f	7fcc5bbaf01c3511ceda59c913c26702e0925cc7	feat(sweep-fix-2026-07-10): Full Sweep 统一清理 — 评分 65→≥80
+750a5a706a13272dc01a849d9c231251cc31cde0	bb720842864d1142216b7d70cf6b55215fc0d897	feat(checkpoint-polish): BW01 banner sourceable + BW02 CHANGELOG 统一 + BW03 test-sync
+93a0771aac8374bd74a9431bb1d4a60bbdc7c627	bc11b98357d3857d19e8f007cb003386bdb40776	feat(checkpoint): 自动 checkpoint PreToolUse hook — Write/Edit 前自动保存中断上下文
+0eb7582220730205fecb6fb5e3829c6ed647ff1c	9c39b5a62db8656cbf35c8d0c3a79a6f2df5364b	fix(l3-gate): 修 L3 gate 三连异常——重审 + .done 条件写入 + phase 同步
+3e8d63da64cd58eb2bf98badce948426b68baf12	e243340c45d1deb14b78a60d22786f49f8843ef9	feat(test-infra): TD-010 make dup + TD-002 stop 链 smoke（td-test-infra）
+00f0a2311eb93633ea49c7c691d9d5f6051fb56e	d67f32e0e61c713c9e67a75656d3227067bf2a96	fix(gate,test): TD-009/011/015/016 gate regex 治理 + 死代码清理 + 断言债裁定
+9a12af4dbc6aae1cdbdb2c6f87c6b0ded88b6813	8e80f1f3aa3966fcc0ae5ccb180cff9ba56025ef	fix(gate): TD-014 is_phase_write 对 jq phase-write 漏检（phase 可绕过 review）
+af7b542c9046caaec52ce471495a847441e2dfa7	21893c638e986b1ec322930a64a17768efa99f2d	docs(context): TD-012 标已解决+TD-011 降级🟡（表状态校准）
+f71e83ce9c76b9968d605bb5fed79b81a8f488c0	20fddd371ba14eccb0ee52b31075a119bef23049	fix(test-gate-integrity): 修 TD-013 多重假绿+HOOK_BASE_DIR+run+$status
+65140a012e35c432687b9d6ddd4a1a2ef59975d1	4e11bd07d43fa499b19fb718d5e8cde7f9a3ed1c	chore(gate-discovery): refactor-independent-review-gate 归档·4层gate bug 发现记录
+42550066a309818d6cf9f97b4c8531d18280cb7d	62548daa24fef64e5e910a0e7986f8862518e0d1	fix(test-setup-path-fix-2026-07): 修 18 文件测试 setup 路径·让 30+ 假绿测试真绿
+a4cf63bff86738bdeae8166d1ca26c89f363ae35	64002a004e82910434253af5d632c407634b40bb	chore(brooks-sweep): 2026-07-08 full sweep 诊断报告
+cd343523896ed35736ae942b72d8cf8c04e23a54	cc9bab005958a6e9faccc0489e581b668d64a1f2	fix(health-cleanup-2026-07-08): 修测试路径残留+点亮lint门禁+清CONTEXT空占位+清杂物
+162d13602484d714ad04acc4d4ee0a14550fdd2c	07f231c90744ebeb0d051ca8b5c4da9f2fa44e73	feat(99-report): 加 token 用量展示（本次 + 累计）
+6e814e82d60b807f04dff79ab15d3f537d6117f3	16f85a39e4c4d24061fc8593a4fa8ccb37581ca6	docs(lessons): L-026 架构统一后旧 wrapper 死代码清理教训
+e13b2a9b83b1e97e3d72a468bf95497b785f7a1d	45e83af0ddf5a9797282f6ceb9f8225bb9eddd37	chore(health): 归档 health-fix-2026-07-08（测试 169→0，健康分 84→96）
+874b89ad32570eb527ebf5ddc3be710cb2367aa0	31838873b757d929347880bec5fbdb8e72cb8ec9	fix(health-fix-2026-07-08): 测试路径双重前缀修复 169→0 + AC-4 smoke + 死代码清理
+26388a1dbe1202e3370b2c0e6c8cbaace9417354	ef4f4e40130d9f46495c5bc6a9001e8d84fb9ccf	chore: A-evolve（29 change 同步）+ A-architect（首跑建立 ARCHITECTURE.md）
+86e961f5ce79e7fdf3b38e4f1d51da7810e70a25	44f4632cea5f13fceaccea9a6343b91f1be2e1df	chore: 清理 l3-async-dispatch active 目录残留（已归档到 archive/）
+dd67d239bdeffdad3c055fe60eac6de4c05b0f8f	430a3f79708ebef1acffb70aa492bc23a52c446f	chore(l3-async-dispatch): 全量回归 + 产物更新 + 归档
+8fd8d07b580dfa1c418a734b96977fcf9398c392	4f7f81a1a393b5ceda575f3ab7e885fa60e71ee3	fix(l3-async-dispatch): 修复 L2-only 模式 L2 未完成时无派发提示的预现有 gap
+dabf50358a207f471f4c44477e63a22ce5b8f557	11ab3d66deca5255eed3f39fe153a5483cb38e82	feat(l3-async-dispatch): L3 独立审查异步化 — 移除 PreToolUse 30s 同步超时
+116c8a61aa8bdadb3502700a2a95548289d6d7ef	e2a8bf2e0042b3f21181101a89cf5b942dd5d01e	chore(health): 2026-07-07 健康巡检清理 — 归档12→0活跃change + test文件跟踪
+9a75cc79972f66db6f435e5219cd3b7900e465b7	c14173e2763d488b23133181e6868845e21691fe	feat(l3-comprehensive-fix): L2/L3 独立审查 4 项 bug 修复
+a3290f2b54556d7ea1aaa453bb008984409a399a	69a5711e62a952cc6cf60af7ea420099c3834d45	fix: 打包和安装脚本 lib 文件列表改用通配符防遗漏
+6ab7eeeb113673abc740fa7c1b49c930ca24f014	0734e0a7eb05fdce123ab2e46e691cd215f09700	feat(l2-l3-fix-compliance): prompt+hook 双层防线杜绝 L2/L3 review 文档敷衍
+6629000d999ef127a1ec0b3224c354e873601b31	c1c5f99dffb7056e9b3c3ae3edc035d9bfafccb0	chore(l3-feedback-visibility): fix L2 phase 7 review findings (R1-R4)
+b12ae48b5571b35c829790aa898f5ac72f29efb2	5dc8d8d986cd1fd9a67de10d73d8d4cf738b6436	feat(l3-feedback-visibility): L3 review feedback visibility — F1 PreToolUse L3_RESULT stdout + F2 SessionStart .done detection + F3 summary extraction
+a519c9db46730b6e4bb503f5a14433ef80672980	34c94e980d9eb2337414192e976feb167ab16b49	fix: L3 review findings — tier-aware done sections + L3 reports
+bd03f6490910517536b280fead4b97b38867bc9b	b5dc15dfb02130c4e1aef43263c24a3ad34771b1	chore: finalize PROGRESS and cleanup stale artifacts
+c1fe3aae3544a59a548d7f7751606132ddf341d5	d85b549e70b25b7301842be6b65c7bb47972838e	chore: add L2 independent review reports for all 6 phases (l2-l3-granular-gate)
+f2222b2537a92a854fe804cdbb29c65240de1cfa	db237279e5ef698553244efd1e765fdad2cf00be	fix: L2 review findings — tamper detection + fallback guard + walk recursion
+eb9e99919bdce8ef005aacf9b066c51754d8a221	40307eecd16d4ed1ba7a64c60846084379728085	chore: update CHANGELOG for l2-l3-granular-gate
+5ec8e11ab103a4111a7aa08d3198a1380b9ef523	1bd3d0a4c93914bc8f04848a9145e178d523192e	feat: L2/L3 独立审查开关拆分 — gate_config 支持 L2/L3/both 三值
+9b0704ac5fd8684ecfb9984a38a5579480fb3561	d9af527463aa8be91a7ea47c2a5f61c18aa0d85d	fix: add change_id kebab-case validation to prevent path traversal
+44435f912f1cc7083d9e1f2029a410eac73cebb1	51f6e29fce2bdfc04f1bf8efcb8dc7c236a156e0	chore: update CHANGELOG for health-fix-2026-07 (2nd)
+c218b2f823fc9c5bff5d162b8ecf7dcc3b227478	d03a1d7387173490d4c0f8dde3a3ffd196d215bd	fix: health-fix-2026-07 — 循环依赖 + jq重复 + 大文件拆分 (4项技术债)
+ef9fbe4bc44643e0150119eb229716cf4c2047de	b06922a53eb6c34b8bea1618de459a0b22070784	chore: cleanup stale .specs/l3-review-hardening dir
+4659b333791ca84aab786880467b06b5c5b3ee71	4433c201d44b689c626b09ec23a6611043a8de6d	chore: update test baseline 211→309 (29 new tests)
+195941f3528c2801190f104b3dc5edaf8bfd0103	b0fb2011c2a5fbe04437f8e564ba06b921e8fba5	fix: install 33-flow-active-integrity.sh + sync 00-gate/common to runtime
+647b5c5132bbc4440dd97ff11af2fb74ab85c9f6	0e75e72fc89680a9426f6add3703d67be63636b3	chore: archive flow-active-integrity + l3-review-hardening
+f656f49b99d15308e19d441066350d5b1a1960b0	291614439192b4c85450f0761cfec6676b379905	feat: flow-active-integrity + l3-review-hardening (2 changes)
+4177b2eb742a8d5cb7eb34d4e481a23da68ebe20	c0eb87dec53d4392db081de83c3d7091fb49ff48	fix(test): 修复 test/test_correction_file/test_flow_kit_resume/test_stop_report_reminder 路径 + 预设数
+970d58bc46dbe039444f4e7d50ad481a66c5ae41	a47fb63b0dcc908ebea85020fe9fb00a175b7c02	fix(pipeline-fallback-fix): 修复 14 个 bats 测试 + 命令注入 + user-scope 同步
+5f7c0bbf28283662ce17ffc09c93788c0295d599	da3f9d545526c9bd8559fb6afddefc9818ff4197	feat(pipeline-fallback-fix): 修复 DIAGNOSIS.md 全部 6 个发现 (P0×3 + P1×3 + P2×2)
+d69db566858ed9076a29de1a984bfc81400d6590	455b7fb61d24eeb5eada3c2c74157064cd0151af	fix(code-review-fixes): C1 tee行首绕过 + C2 sed-E-i绕过 + m1 注释过时
+0f0ffa813258b1e1c2700ac734791c60dc4982b9	45e5f76bac318879cacb10a284e706ef384ceefd	docs: 彻底移除 ~/flow-kit-bundle 回退路径，修复重复编号
+13352d8b99d5e754b10e664649f15e79e2f2f8ff	7e6299518d694a8d00e31af43353cc18b1573581	docs: ~/flow-kit-bundle → ~/flow-kit-export/flow-kit-full-*/ 路径迁移
+bdffd83eeb4e5798785161221dbef9cff899816a	e8244aa21d265c195e5a7b322656798d2f2a3cd7	fix(package): 补齐 Part H test/ 打包 + validate EXPECTED 放宽到全量 fixture
+311d0dee44a84f580c5d2a2a616894116b32c0fb	01cc2e23bdb0d1d5637c7a1186d2e32e1092661d	feat(independent-review): 补齐 3/5/7 prompt 独立审查段 + PRESET_MAP 全量补全
+790ef41ea13afeabd91e6efd252990d302660b23	8d18f847f2b5b399edf2c7925345357e2402fee4	fix(package): 修复 HOOK_COUNT 未初始化导致 set -u 下打包失败
+dcbf65bf69e79b266cc6795f71184aacfcd1aeaa	2572e2cac9893428cf047700573d6c40541f4592	docs(health): 基线更新 93→94 + L2/L3 修复后 specs 同步
+8511d5b50a8b7017f7b7ddbabe081b11046ade5f	d6c8e0c141b5e91bd9af8511cea3eb5b840a192b	fix(gate-integrity): 修复 L2/L3 code review 3C+5I 缺陷
+2312a5feb3c6464d04c044bc6ff51acbf4c3f5f4	74fef9e80edc5ffd8e48fa287c93a002f15b85c8	feat(gate-integrity): 加固 toll-gate 不可绕过性 + 扩展 L2 独立审查到 3/5/7
+e0b0d37ec37ed45f0bb1f319b057bef66af6e196	3c82c7496b05e2361a45d9b52f9dad52195870cf	feat(independent-review): env-var-first 模型配置 + API 直连 + gate-config 预设
+e46e4a047e5e7e2d2839a016f3a029e5aec80218	581c1d563b64c5eeb24ddfb9984fe7aebce0e560	docs(guide): 修正 GitHub 链接——用户名为 hellrabb，默认分支为 main
+bb4c5b1e8d6fd54765d0355cfb2435bf08bc6e3d	61e9113ed575865d06669b7335d2d2ed44e3698e	docs(guide): 补全 gate-config 示例——同时展示两种 key 类型的共存用法
+86c6729f49ada84c3ffeaea2e15b88942184c61f	a1b2ea8818dfc4f7a9aa4245e8d71a85a35df194	docs(guide): 修复用户指南 markdown 语法——删除多余的代码围栏
+78b9c2f963a6a2f6bf7cac87148d746f1b4058c1	f17c0c19ae20a34ce2516c82415a015fb6e96806	docs(guide): 修正 gate-config 文档——区分两类 key + 修复无效值
+afe94f225290e5b61876ca0a099e65fd9af4b350	5f3b67127666fb2a45a085559611ec8f0e73a752	docs(health): 基线更新 — Minor 测试骨架已修复，评分 91→92
+03c6e601c91790af36ee7bff704729551e147c8d	61e72d4e74a30dc0d6944b8343b062e77536f2cb	test(harden): SessionStart 测试从骨架升级为真实 hook 执行测试
+65f9b6d89b317deff8bd6459e8acf7ef2257fdf5	852a540266770521b2d9a859407f5537fd144b0b	chore(sweep-fix): 修复全量健康扫描 6 项技术债 (68→90+)
+fc1c78bf3790510f0f7cb192115b18332c588857	00fb19c2119430e0469a8edf1fc0d67410490c3d	docs(guide): 用户指南补独立 review 章节（L2+L3 hook 机制 + 工作流示例）
+6eba3eb9db28528cc208876581d9a919cb88ba2a	be0e8f68e14097517c619479f9b9fccf0cd4e9ae	chore(independent-review): 归档 change + 清理 project-scope hooks + package-flow-kit 补 28/29/pre-tool-use
+6774db52ebae2b3a2ea0dfb9d7ac7b10c4138f48	73b9edf162258e90bf1a6819191ebae271a7a610	feat(independent-review): L2 盲审 + L3 hook 强制独立 review（1/2/6 阶段，默认关闭）
+76d26ffc9a5489c9af4c69644c14f22bceb59e8d	daa110c454df83d9be03dd33887bbc4ea3d41f10	chore(specs): 清理 .specs/ 历史空壳 + 归档未归档 change
+06ce1d2da4341c9b128f2a46a94accdde1b1811c	288706b24afa1fd00c74790e1aeef040a7eb6b89	chore(integration): 归档 health-fix-2026-07 + 清理 robustness 空壳
+d64d61c0ba5b2b1826a108813c30719053117f1f	7ecf17ba10b6f825617c5b854c7b5d90be70977b	fix(package): 修复 package-flow-kit.sh 孤儿 fi + 加 bash -n 门禁
+7f289bba5366c8c526c99e0fdf4aabdd291d15aa	ba552ba5c5e84e24009308992d3f45f351603fc3	fix(config): 补全 stop-hook.json 缺失的 interactive_ui_check 模块条目
+51fe3881ff6cfeda52ff97f43471aeaeb5285249	a8a7927c9bd13236a6dd458962044d67c17f0425	fix(test): AC-3 不再假设仓库有已知 gap，改为临时注入假文件验证检测能力
+9e5dcda012cad8a9d59acf8708675a7b3d93c43b	720246e103bde9235f557d109725b36a242efa1c	fix(package): 修复 --validate 两处 bug
+3cf8579495f48050b430a324c80792547772db61	acfac8fcbc1f04029c056ef9149cb0cbf07b4db9	chore(health): 2026-06-30 健康巡检 — 89/100 ↑1
+8b78baea23ce02624c799ca24354042167b25d8b	3538436957f8dc577e3c8eddba2ed8ee2b2b9396	fix(weak-model-compliance): 修复 review 发现的 3 个 medium correctness bugs
+4201912f4804b46b6abe25af0bdc9ff358d35760	8252463a054bd7449b4f4dadc582581a3bc997b1	docs(用户指南): sync Stop Hook 模块表 — 13 模块 + 27/28 号新模块 + SessionStart 矫正注入说明
+9d9473124c647f3299e0705efcb3882013fdd7f3	62ee02e456c75a7f3ed8fd12b40481097320f009	feat(robustness-hook-hardening): Stop hook 28号模块 L1+L2+L3 弱模型合规事后验证 + 矫正注入
+ce0f2687b399b10b1bd43f2444e8f61c08beee7a	9dfdf3544b09e67a7b271d1539bd062f21e46922	feat(weak-model-interactive-ui): hook 脚本为主 + prompt 护栏为辅的交互式 UI 触发强化
+081156ba4874320cbb1593f693553011e976db93	2ed02c13152de524cc0c5229f2e7be9ed925dcf5	feat(lessons-cleanup+quality-baseline): 消除3条技术债 + 质量基础设施补强
+281daf47b842a0937eece34ada241520e7bd19ee	86621cb5b271484e6cb46568b15386148991a826	feat(weak-model-robustness): 提升 flow-kit 弱模型鲁棒性 (L1+L2+L3)
+aed4f4b947232edad36374a6a45dce552f52c611	8681bf7dda1da039dd600e1fb31f7632423003d5	docs(lessons): 扩展 L-013 涵盖两种归档遗漏模式
+988fad9238a6aea21d7e88b0ff60dbe8bbee281e	a18ffc04f40dca339dcfb9a604cc9c1fe15f7647	chore(archive): 归档 security-privacy-audit (审查完成 ✅ 可安全 Push)
+e973f861ec30604ab27bd63f55773bfcf6aa98fa	61de7908304576ebdd009a6d2e5c7624f2e1e1db	chore: gitignore .flow-active (运行时状态不入库)
+f665edab9708ff69ab11117232c628a293666519	21e3be09dbd39e19a1a6a72a1f62df0868241f4e	chore(review-stop): gitignore 第三方skill + 记 L-013 + stop fix-pcsc-gaps
+65b0a99f1a9a8f4a9a606c673f7df8e61b5f9596	a99066fcfda163acda8a2712653d0a06d21dfb82	chore(cleanup): 补全归档 PROGRESS + 清理工作区残留
+11564f03b3117bfc5729d7b0c8b3c5652539e20f	f8aa4f78c84df82cea55cdb9554dab4054b7de2b	docs(health): 2026-06-24 巡检 92分 + brooks-health 97分第二意见
+9a5aa3930d0c2cb2421d7566320613391ed3166c	b286c227ba8afca571c1dccbefa19eb0c866d731	fix(lessons-sync): 强制 LESSONS → CHANGELOG 同步，防遗漏
+e8119217238091f8a4688002dcae5dbecbdf8f3a	fc6edd4187e116e812e961a1c99457fb81c34153	fix(fix-pcsc-gaps): 补齐 PCSC 表两个缺失检查项
+92f19922cbbd0d6d4e60b4fbb5d2a354fa67d25c	c91f18289360e3f46bbe7169fb141ab3e38fe599	chore(security-privacy-audit): 安全与隐私泄露全面审查 — push 前最后防线
+647ef5209980ba321c6bbe1ba6a74db0b1197e1d	bc1b2dd1d970475d78d16e7005ec1564df541517	fix(fix-shim-bin-path): ts-prune 验证改用 --help 消除虚假 warning
+15c4e6ab85a85f91201bcf58d6203239791bb594	e7734d538d100509eb1f6ab859d275b62e11d366	chore(fix-shim-bin-path): 更新 CHANGELOG + 重打包 bundle
+ffb08069ea5498a01d1dd139bbba86d634d8c92a	c8199b76ba7eda6e4c4e157b439253f37392de1c	fix(fix-shim-bin-path): 安全加固 — 防止 package.json bin 字段注入
+3f07cc9122775a76e3314e660e8a59ef135a7b80	a778f10634a5a08cc32ad5df40268cb784783579	fix(fix-shim-bin-path): Part G 重写 — npm install 依赖 + jq 解析 bin 字段
+79e27e9145255eab23eee3ee65e35c4188c7b3d2	e095f879072068917bc4bfe20e9e26a068fa9e4a	chore(fix-shim-bin-path): 归档 + CHANGELOG/STATE 更新 + bundle 重打包
+0a7b159e571a8c7a0c39a7cdc5621ab5e6dc1fee	13328d43ce37ee62f051891ca074eabf251bd0c4	fix(fix-shim-bin-path): 修复 brooks-tools bin/ 下缺少可执行 wrapper 导致 shim 生成失败
+289ac6c5aa2835a4c32f933e581aa41b26b0cc1d	597c1ec21ca3055cf3c78fcd5c998596226b73a4	docs(docs-sync): 三文档同步更新 — 新增 brooks-tools/PCSC/PG/Rollback 内容，清理过时描述
+96b356244869ccee991ee5d8fd730e68505f0f48	30cef22728e16d1b2c9f5d3dcf1c3e7262b5cb1a	chore(bundle-packaging): 清理旧 .specs/bundle-packaging/ 目录（已归档到 archive/）
+2b4135a55ccaf5179b93271b0f4985b327a59982	75d079f9fff1a6ca98bd95a7d985a80b3253cbaa	chore(bundle-packaging): 归档 + Pipeline Goal 完成 0→1→2→3→4→5→6→7
+e10027c809b142d27407dff7ca0842f2b91e62e2	d8af05419459f24ab0c12e973e826eebd7571a51	review(bundle-packaging): 三轮审查通过 + phase 6→7 transition
+aabd3182989626e122549a10b92516d9ca06c390	8cb469840d46b9063ac748627089ff233b163494	test(bundle-packaging): TEST.md 5轮测试报告 + phase 5→6 transition
+9a992591127367d7290b4bb425d75bcb8aa45f0e	c588ca2f0a8871deaa2c1932f4312c62480fac7b	docs(bundle-packaging): T01-T05 SUMMARY 文件 + TASK 状态更新
+fcafa522e43bcd249be9144ae08015ec9db398e7	183489ec6cd896839d45a7ae9b67cf7b946aaafe	feat(bundle-packaging): T01-T05 brooks-lint npm工具离线打包
+59a18da478442ea92bf60c764b66ff80f3a1d172	3acaf387d68564b276b03fd25739cbab4f193b4d	docs(docs-update): 更新 FLOW-KIT-用户指南.md，新增 Goal 系统与 Pipeline 执行模型
+6cbff55dca470598b000fb68fb4143ced070bf73	13ff79892d722207e9d8ee7a6486eeaf608339ee	feat(fix-audit-findings): 修复 PCSC/PG 审计 9 项发现
+8933434346fcafdf068626ca98a9cf50bf96a0cc	e700ec863758fc446d7b4db87be956ed5493ef35	feat(pcsc-audit-v2): PCSC/PG 双层防护全面审计报告
+db8831a1c68df2f500e6065521e21d91ef39efbd	1bbac754e82f932ead614df0fc56165ba1821f1c	fix(pcsc): 补全 6 个阶段 PCSC 遗漏的检查项
+5eccc544eb2910af691c27f363a2101c61ca7115	1575ce578f9beb5b8873d747edc025aa512eacb6	feat(phase-skip-fix): 双层防护修复 pipeline toll-gate 阶段跳过漏洞
+6f7b776f223b966314fb0be630444c5741f87851	dcf24b1229020b3b58ee6698d1cf91d417a1bdc6	chore: 重新打包 + 同步 test 源到 bundle
+15ce747df9a7498cebd39da29694ce53b92662c8	560e3767e599e9db8c35497f057248f62b17733c	feat(pipeline-rollback): 智能回退方案C — 失败分类表 + 动态下界 + jq通用化
+dc67a40839b7abacc1cccc6502831a4e4c7b05e1	747460622edd03bb2c7f0dce682c4391c7c42b8c	chore: 重新打包 + 同步 test 源到 bundle
+3285dd88239e5d2bf8621468801f512be9bb5e93	0601dda1e99015945726087e2a01e42888316cd4	fix(health): 修复 M-health 2026-06-20 的 2 项 🟡 技术债
+21279c7cd1433dcd412490abed3be827414551c0	f85f9b5a985a98a244ec04748f37622681308390	chore: 重新打包 + 最终同步
+00f25b6d853920adf26f466a6c7bced61fa03ba5	2446d91c4027708ff9fd100453d5dee4f1dd031a	feat(goal-pipeline): extend pipeline goal to support --from <n> (0-7)
+756162fabbd46abca8a35b4e09fb790d9b4b4750	7a346da5e766018bbec787ed2ebf5143933ee9ec	chore: 重新打包 + 最终同步
+8535084d3bc58b19fc5c22976f4aeb0bdac7dc21	4b71dfd38ce895152e340c74afa7e5344ec24df9	fix(goal-auto-extract): GO.md 路由层强制 Goal 检测 (R1.9)
+83e3b832f66f0325c5995a4a166f87e7564f08e5	d4d46e65db8045469c3ee209bb9efe5797e972d1	chore: 最终同步 PROGRESS + .flow-active
+c5e9cb369ce67e8dde4001421772b7642d3153f2	45168af92b175432da8d8773d4c6da93f61adf36	fix(goal-auto-extract): 入场恢复段遗漏 Goal 检测
+19bf2463de630fae9eb12c8d8385c2c774ea74c2	c5e9084a0e3b50299d2f1f1ee247282af366dca9	chore: 清理 spec 文档中硬编码的 /home/<user> → ~
+3c1c0147b2ea96d27bec0614aa22938fcecf6025	e742340becf4f1497031cb2af774b277b33b593b	chore: 同步 PROGRESS 日志 + .flow-active 状态
+7f57b9f1f337b971d262b0db0f5746d4f99a6438	d87cd91aad312afccf32f648c57cea00c7b6ea0a	fix(fix-pipeline-rollback): 5-test + 7-integration 失败路径 pipeline rollback
+1730220116c66dc2c11f89148c36c4c43f4bbd32	94501fd8a40bc201df8d7d865ad0f8a4e3e62341	chore(goal-auto-extract): 归档 + 测试验证
+6bc5528e721f72db075ed18c41e4bdb049d7789a	2cfb72460d1a23282228bbce8138afebc7ab6c76	fix(goal-auto-extract): Goal 自动提取 — 单阶段 + Pipeline 双模式
+de52323bdd8cba7438a79864be195e294ceef328	9bcb75e318f2bb2ddc73c956270b138511dcd003	chore: 清理会话状态 + 归档残留
+ad713403b36a30689a6d88d0577d1e79068b7841	4e4b924ed38fd9397e888c3edffb361e431f2551	chore(pipeline-goal): 归档 — 全流程闭环
+6d725ae0b4e86e6b0c157ade3906a3c9ebc4ba06	3f9fa5db5e817a5d08d1f65a787ae58a5f699a49	review(pipeline-goal): 6-review — 双轮审查通过
+b680153823dda1ea3f2ccbe24f337bac6e80be8b	38d13c35e87310023caae3368b07e3dc062c2d56	test(pipeline-goal): 5-test — jq 表达式 + 协议一致性验证
+9bb9565a8621226034f4b5d18b54219ab1ad7937	290d54e97a73f44f6f3222a7581f66ab00b39c39	feat(pipeline-goal): T04-T06 Wave 2 prompts 改造 — 5-test/6-review/7-integration pipeline goal
+d12daa45830d0f02492d6f3ad8c9cf716296008e	b23048b350068cbe7ff7b30c10b9b4d045a6912b	feat(pipeline-goal): T03 4-dev.md pipeline goal 改造 — toll-gate 4→5 + auto_advance
+58c03df1035fb7a74194e59bfc26bed6227400ca	8f604e9b9a8023a16824237c5be6335323bcc8ac	feat(pipeline-goal): T02 GO.md 路由改造 — pipeline goal 注入 + 进度展示
+c93389ea3da35a610a07d5ec485759464d951412	aebed0d5fabb4261f2dc02866d830e9b0ce0a41c	feat(pipeline-goal): T01 /flow goal CLI 扩展 — --pipeline + --gate-config + pipeline 展示
+36e01676191b0eec2d56e93b98ab5e04a5df6791	d3e573e0851c81296980d1c8e109a323f4eb0390	chore(integrate-goal-command): 归档 — 全流程闭环
+810275181a239fe5f7ea2402be6a09b8db6c926d	7bd152f07688f82aaac30522275ef88b7e90ad81	chore(integrate-goal-command): 同步 bundle 维护源（resume hook + skill + GO + 4-dev）
+48db1581f58c26c149d90707c8362a6e6bbc7296	93d019b9163319380711e6f77596d8736fbf7597	feat(integrate-goal-command): 整合 CC /goal 到 flow-kit
+d45303eae4ceddc9048d733e18907bdbb5df46b3	c27a39b1a6c53b94047fd30af6a748dc2ab4959f	docs: 记录 L-012 — 结构变更后打包脚本未同步导致lib/缺失
+2e7e1bd96a1b5fbb800bc1175a38e76b48aa13d7	119ed43a5540ff61bbcc86f4bef8fb08639c7b92	fix(package): Part E 增加 lib/ 目录打包
+f54d0499f14f2808a0bafca14d559561ea583fa2	84a9e0f67b9de34c63e47e3efe51b9f7f063bf64	chore(debt-cleanup): 归档 — 3条技术债已修复 + L-004推迟
+1c1c6a6e1fcbb6c56ed422d00f82c99849cf88ff	482f08216a56cfa57dd33c04a88ac73f5f15c7da	fix(debt-cleanup): 修复剩余3条技术债 — STAGING guard + CONFIG_FILE覆盖 + jq bracket
+0e83aa8ac999a83cbf0e0ba15451cbaa2688eb7a	2e745b71fd5839c396066a653891ae2ce3ec94bd	feat(health-fix): 消除7项技术债 — bats测试 + hooks去重 + install拆分 + 常量 + fallback
+ee0d0f13b23c40794c423031e7f2df2ee8afc417	7b1ae91e01622f8c9b72e8596af7bf7cda44d044	fix(package): 用 SCRIPT_DIR 替换硬编码 /home/<user> 路径
+620bd37be2273f61273d918440912949f2086227	e1ea7b967566c26fde5e3bf274e9a51193da36dd	chore: refactor package-flow-kit.sh — sync sources from flow-kit-bundle/
+a5236ff659c67988f41b77d6ffd1c36590e5fbbd	3c09dcf9137532c3d78755f3c5f34b9e1221d994	fix(install): 修正 user scope Stop hook 写入目标为 ~/.claude/settings.json
+6bd2506ca57a3f79321544346d6bbf91969c3e49	183ad86aa724871d2f67a45cc56ddb32f614f5cb	fix(install): 自动写入 settings.local.json 替代手动合并 Stop hook 接线
+a50bc2f95a38ea8fd6cf0ecbf29086a7f0b40605	34f8818248f6ae4c7a3b1d553b8bc0414b9f7ca7	feat: install flow-kit stop hook chain and SessionStart scripts to project
+d97e71b28f0e9ec951cdf306ebc475ed07f15844	966bce6df30a9a8784fa8ef0e4b86a5d7f8073fa	docs: update user guide — 更新分支引用从 bundle 到 develop
+f3fc6f723482b573c74b37ab8b028c85b697b9a2	78d35a491828df44975e509e4d5ed179cf69ba08	chore: consolidate nested flow-kit-bundle repo into unified develop branch
+364a97799f59b2fb3db79e24a4626fe3b604ada9	47d80f69ddfd95a24123d11419b10ee372b5e679	fix(brooks-lint): SessionStart hook 空 commands 目录容错 + 安装后自动修补
+a065897aa22c0d685dcae83b456b3d12239c4ca2	6c4cf38af93e412ec6981abeb3b0013e0d262f5a	chore: consolidate CHANGELOG for brooks-lint full bundle fix
+1e0c84ec0ff1b513578028011f35595e1116ffa3	eb9db034c658ce495aaaac77feb4bdd4595d2c30	fix(bundle): remove F1 commands install to prevent duplicate skills
+455d436931f93447c0cd727d891a045e6a6ae855	a83fb5d52592eed29fb9116c62993794a68d7c82	fix(bundle): register brooks-lint-marketplace in known_marketplaces.json
+4092398fe0d38e9797ad864373d73b7ef4dab2b4	8ed207386f321a416ca1662b1b4c48f6b996467b	fix(bundle): --reinstall cleanup now covers cache/ + commands/ + installed_plugins.json
+83af469a25a65c9a5665e024a9003492b8da95dd	3a32ab42d78335fb192d8bdbb957388920bc1abf	fix(bundle): dual-install brooks-lint to both cache/ and marketplaces/
+111cac9982eadf5d2c0a4458de639f242d7d6523	bb9d4a7b641217a6b521cfb41760cfc8a482fbfc	fix(bundle): change brooks-lint installPath from marketplaces/ to cache/
+7c063b9cd2618b462e2916d99bed45adef6f64b3	83352af37deb707bee5ee1b6c1dd4b0cf5164518	fix(bundle): brooks-lint installed_plugins.json format mismatch with Claude Code v2
+ab21b43dbf632cf7e647d29f72e475ad19c3e6f5	e0082555a3ec2e01adffa12b5c9539d17af96503	feat: user-scope install — flow-kit core engine global shared via symlink
+c138a34143a798883f5d9a859f08f79826f7ca40	acc44da02b4e83e1b924f4d7a7bae5b3aa3cd16b	chore: reorganize archives + update CHANGELOG
+ef53722bcde9dc083d7787de1a011d77ff4a6f9f	a68c680871c2a960b00638a8365efe70db739b37	fix(hooks): support user-scope config in common.sh
+5142709eb67b55a23e98deff8fdadb1247843d57	f29433b839532bf0b53880ee0369acf9365872ab	fix(hooks): add --user scope support for user-level hooks
+d74521ed98d0d16fc6e8f1e2ad60ccb5899543c6	9b0451059b75041ec3b819ccba3d15fc4cfabf33	fix(install): add --update/--reinstall to bundle README
+088a171ed2ef1ea4f8980b673d70ae9d09e26413	db0a6cbf4f8c6a353c341d59aa386065b29f33ab	chore(install-update-reinstall): archive change
+21a2d634f8dd1df3febef2d723b789630c4095ff	2a9af1019fbbd3f0e05b78e50dacb509d157d6e3	feat(install-update-reinstall): add --update and --reinstall modes
+28f951dc941df90a0fab265686632a25f3b0378e	eb9f93856bf8753cea3a069f41c24aa625865b72	chore(offline-brooks-bundle): archive change
+dc4856ae539f7138587beb83d09d5ab6055837ca	ca0194bdf57c67c62f6ef26af0df23cea72c3c89	feat(offline-brooks-bundle): T01-T02 use rsync from local cache for brooks-lint packaging
+85222b2cfe6485bd5efd2e9629a9ad2bac7ca153	689b8ea9b69a21aaf1e6ea117e2b3b25f336be19	chore(init-git-repo): T05 archive change + add CHANGELOG
+3b77aa64b081584b84732659e03d967321752dff	d78619720a705bffb0df3a21ed311c3776887436	chore(init-git-repo): T02-T04 add README, tech debt baseline, and update project context
+6ec1dea02690b916ab2315acae9bd3bd9b197f8c	549b6a0e9df4047963a93ef9752a6fc80e94ab4a	chore: init git repository with flow-kit packaging scripts
