@@ -579,7 +579,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T08</depends_on>
 </task>
 
-<task id="T15" parallel="true" status="pending" model-tier="cheap">
+<task id="T15" parallel="true" status="done" model-tier="cheap">
   <name>AC-4 断言收紧：`test_check_gate_sync.bats` 由容忍 `exit 1` 改为断言 `exit 0`</name>
   <read_files>
     <`test/test_check_gate_sync.bats`（:30 `[ "$status" -ne 2 ]` · 显式容忍永久红）>

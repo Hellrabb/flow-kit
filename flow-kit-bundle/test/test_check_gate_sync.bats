@@ -3,10 +3,11 @@
 # T02 (gate-integrity): 语义 set-diff 校验 SKILL.md PRESET_MAP ↔ bats 镜像
 # 对应 G4 ADR · AC-4
 #
-# 注：check-gate-sync.sh 同时跑 toll-gate 校验（4-dev↔flow-dev）+ gate-config 校验。
-# toll-gate 段基线有 pre-existing PCSC 漂移（prompt=9 vs skill=8，非本测试引入），
-# 故测试聚焦 gate-config 段的输出文本断言（"预设名集合一致" / "gate-config 预设名集合不一致"），
-# 不依赖整脚本 exit 码（被 toll-gate 段污染）。
+# 注：check-gate-sync.sh 同时跑 PCSC 校验对（3/14）+ gate-config 校验。
+# 实测健康态（T15/AC-4 修复后）：整脚本 rc=0，汇总行「✅ 校验对 3/14 一致」，
+# gate-config 段「✅ 预设名集合一致 (17 个预设)」⇒ 本用例在健康态断言 exit 0
+# （旧注释声称 toll-gate 段有 pre-existing 漂移、故只断言 -ne 2，已失真）。
+# 断言收紧为 -eq 0 后：任何内容漂移（含 gate-config 预设名漂移）都会让门禁非 0 ⇒ 本用例必红。
 
 SCRIPT="flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
 SKILL="flow-kit-bundle/skills/flow/SKILL.md"
@@ -25,9 +26,9 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "T02: 基线 SKILL↔bats 预设名一致 → gate-config 段报告一致（9 预设）" {
+@test "T02: 基线 SKILL↔bats 预设名一致 → gate-config 段报告一致（17 预设）" {
   run bash "$SCRIPT"
-  [ "$status" -ne 2 ]                                  # 非脚本错误（exit 2）
+  [ "$status" -eq 0 ]                                  # 健康态必须 exit 0（AC-4 收紧）
   [[ "$output" == *"预设名集合一致 (17 个预设)"* ]]     # gate-config 段 MATCH
   [[ "$output" != *"gate-config 预设名集合不一致"* ]]  # 无 gate-config 漂移
 }
