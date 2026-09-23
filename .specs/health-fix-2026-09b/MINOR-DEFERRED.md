@@ -48,3 +48,10 @@
 | --- | --- | --- | --- |
 | T01 提交用 `git commit --no-verify` | 🟡 | 子 agent 报告 pre-commit（`flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 跑 `make test`）命中「既有失败」`T06fix: L2 R1 - line cap truncation respects UTF-8 boundary`（`test/test_l3_pipeline_fix.bats:592`），并称 `DESIGN.md:329` / `INDEPENDENT-REVIEW-2` 记录了「纯文档提交的标准路径」 | **已复核：失败不可复现**（单跑 41 ok / 0 not ok；全量 `make test` 973 ok / 0 not ok / rc=0；测试面 0 命中本 change 目录）。`DESIGN.md:329` 原文是**风险描述**而非授权 ⇒ 该绕过**不被采纳为先例**：后续 task 的提交若遇门禁失败必须捕获真实输出并 **BLOCKED 上报**，禁止 `--no-verify`。订正补记写入 `T01-SUMMARY.md` 的「提交路径与 sha 自指说明」；教训登记为 **L-126** |
 | `T01-SUMMARY.md` 的 commit sha 与 amend 后不一致（`3da5fa6` → `a674c56`） | 🟢 | 提交内容不可能写下自己的最终 sha（amend 必改 sha） | 权威源改为 `.flow-active.goal.task_progress[].commit_sha`；SUMMARY 内补记两个 sha 的关系（本节与 L-126 ③） |
+
+## 阶段 4 · T02 六维自查 🟢 登记（2026-09-23）
+
+| Task | Finding ID | Date | 发现 | 为何不本次修 | 后续动作 |
+|---|---|---|---|---|---|
+| 阶段 4 · 任务 | G-T02-1（六维自查 🟢） | 2026-09-23 | T02 的 `<action>` 口径（「在**任何修改之前**执行 `git rev-parse HEAD` 并写入 `.change-base`」）与 **AC-8 / NFR 兼容性判据的口径**（锚点必须是**变更前基线**；`REQUIREMENT.md:445` 的 `BASE8` 明令「**必须与 A 案同锚点**，否则纯删除态会「SKIP 当绿灯」、增量提交后会假红且**归因相反**」）**不一致** —— 逐字执行 `<action>` 会落到 `HEAD` 锚点，而该锚点在后续任务提交 `.sh` 变更后使 `git diff HEAD -- '*.sh'` 恒空，正是 `<action>` 末句自己禁止的「判据静默空转」 | 本任务已按主 agent 裁定取变更前基线 `534e3e842fc900045f39492badc66eabe3ffd4c4` 并在 `T02-SUMMARY.md` 的「对任务 XML `<action>` 的偏离」段显式披露；**不改 TASK.md 的 `<action>` 正文**（属阶段 3 工件正文，4-dev 期内越界改会与 R3.2 精神冲突） | 阶段 6-review / 阶段 7：若 TASK.md 对后续读者仍有误导风险，把 T02 的 `<action>` 改为「写入**本 change 的变更前基线** SHA（由主 agent 裁定 / 查 `git log` 确认），**禁止**写裸 `git rev-parse HEAD`」；并在 flow-task 模板中固化「锚点 task 必须写明取变更前基线而非 HEAD」 |
+| 阶段 4 · 任务 | G-T02-2（六维自查 🟢） | 2026-09-23 | 「锚点判别力」的**证据边界**：`-- '*.sh'` 受检面在当前时点对两锚点取值**相同**（`ADDED(sh)=31` vs `31`），因本 change 迄今**已提交 0 个 `.sh` 变更**（基线可见而 `HEAD` 不可见的 5 个文件全为 `.md`）。分化效应要到 T03+ 提交 `.sh` 变更后才出现 | 属**测量时点**的客观事实而非缺陷；两锚点在**全部扩展名**面上已实测分化（变更文件数 9 vs 4），机制已由 T01 两次提交构成的既有实例证明（`F1b`） | 阶段 5-test / 阶段 6-review：以「`git diff <基线> -- '*.sh'` 的 ADDED 行数 ⊇ 已提交的 `.sh` 变更」为复核口径重跑，确认分化确实发生 —— 避免把「当前未分化」误读为「取 `HEAD` 亦可」 |

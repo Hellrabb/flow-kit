@@ -79,7 +79,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending" model-tier="cheap">
+<task id="T02" parallel="true" status="done" model-tier="cheap">
   <name>`.change-base` 变更起点锚点落档（4-dev 首步 + 入库）</name>
   <read_files>
     <`.specs/health-fix-2026-09b/DESIGN.md`（§9.2 锚点渠道优先级；R1 风险列「落地顺序」）>
