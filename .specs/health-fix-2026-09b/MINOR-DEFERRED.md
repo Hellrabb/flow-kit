@@ -452,3 +452,27 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 - 主 agent 直跑 `npx bats test/`（**不能**用 `make test` 的输出计数——它只保留末 3 行 `ok`，见 L-140）：**ok 973 / not ok 0 / skip 0**，rc=0。
 - 机制：`STATE.md:48-49` 记旧基线「973 ok / 0 not ok / **1 skip**」，并指明该 skip = `test/test_lessons_cleanup.bats:137` 的 AC-4（永久 skip 且把失败说成正确）。本 change 的 **T10** 已将其收敛为唯一可机器验证分支：现 `:97` 的 AC-4 对**临时 bundle** 调 `validate_staging_coverage "$TEST_ROOT/flow-kit-bundle"`（`:144`）并断言 `status -eq 0`（`:147`），`:135-142` 留「去过期 skip」说明；该文件 `grep -E '\bskip\b'` 仅剩注释，TAP `# skip` = 0 ✓。
 - ⇒ 正确基线现为 **973 pass / 0 skip**（总数不变、覆盖提升）；`T25-SUMMARY.md:105` 仍引旧口径「973 ok / 0 not ok / 1 skip」（其 `:75` 又称实测无 skip）属**文档口径未同步**，非功能缺陷；`STATE.md:48` 的 `test_framework` 行须在收口（T29）同处订正。教训登记：**L-140**。
+
+## ✅ T20 复核记录（主 agent 独立复核 · 2026-09-23）
+
+交付 `148aa79bc05b11758072cddf430fffb1aedbf214`（`feat(health-fix-2026-09b): T20 AC-6③ pre-commit 仓库内源接入 check-path-privacy`），`fix_rounds=0`；**执行过程两次停住，均由主 agent 唤醒后收尾**（见 L-141）。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 3：`T20-SUMMARY.md` 145/0、`TASK.md` 1/1、`flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 7/1 ✓ |
+| 2 | 工作树 blob == HEAD | 3/3 ✓ |
+| 3 | 台账 | length 23；末条 `{T20, 148aa79…, fix_rounds:0, deferred:[], completed_at 23:05:49+08:00}`；`%cI` 23:05:36 ⇒ Δ=13s ✓ |
+| 4 | TASK.md 差异 | 恰 1 行属性（`:882` `status="pending"`→`"done"`）✓ |
+| 5 | 判据 | 重抽与 `/tmp/vblocks/v_T20.sh` **cmp OK**（3 行）；主 agent 独立实跑 rc=0（6 个镜像面逐面 ✅ + `✅ hooks 副本一致（漂移 0）`）✓ |
+| 6 | 门禁（主 agent 亲跑） | `make check-path-privacy` rc=0（`允许清单 0 条` / `命中合计 0 条` / `清单外命中 0 条`）；`npx bats test/` **rc=0，plan `1..973`，ok 973 / not ok 0 / `# skip` 0**（L-140 口径；skip 用 `^ok [0-9]+ .*# skip` 精确计数）✓ |
+| 7 | **判别力夹具（主 agent 重放）** | 伪 `make`（仅 PATH 前缀生效、真实 `$HOME`）：`check-path-privacy` 失败 ⇒ hook **rc=1** + stderr `[archive-commit-gate] path-privacy check failed, commit rejected`；全 0 桩 ⇒ **rc=0** ✓（子 agent 另附 **pre-T20 反例**：旧钩子在隐私门禁失败时 rc=0 放行 ⇒ 证明新增段有真牙）✓ |
+| 8 | hook 最终态 | 38 行（32→38）；`:26-30` `make test` 块 + `:32-36` `make check-path-privacy` 块，二者同构（`if ! make …; then echo … >&2; exit 1; fi`），**无** `\|\| true`；sha256 `728de9b3f377a61a138eb7c460b1bce5b1908d1d1029e9a16efb1d5b1f3f3dc4` ✓ |
+| 9 | 生效性 | `flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 与 `~/.claude/hooks/pre-commit/pre-commit.sh` **byte-identical**，`.git/hooks/pre-commit` 即该文件 symlink ⇒ 新门禁自 19:47:42 起对本仓生效（旁证：19:49:12 的 `3f2b6dc` 穿过它提交成功；T20 自己的提交亦跑了 `make test` + `make check-path-privacy` 并通过）✓ |
+| 10 | SUMMARY 自扫与抽检 | `/home/[a-z_][a-z0-9_-]*/` 命中 0（de-shape 为 `<repo>` / `$HOME` / `/home/<acct>/`）；抽检产物 before→after 与 sha256、门禁表、夹具三态（含 pre-T20 反例）、6 维自查、遗留「无」均如实 ✓ |
+| 11 | 冻结集 | `git status --short` 恰 5 个 `A `，无 `M`/`??` ✓ |
+| 12 | 结构不变量口径订正 | `<task id=`/`<verify>`/`</task>`/`<depends_on>`/`<action>` 各 29 ✓；**`status="done"` 的精确口径** = `grep -c '<task[^>]*status="done"'` = **23** == 台账 length ✓（裸 `grep -c 'status="done"'` = 24，多出的一处是 `TASK.md:1397` 的状态图例行 ⇒ 后续复核一律用前者） |
+
+### ℹ️ 已知接受 / 文档口径（不改功能、不 deferred）
+
+- 钩子保留既有的两条**快速跳过**路径（`:15-18` 无 `Makefile` ⇒ skip；`:21-24` 无 `npx` ⇒ skip）：二者先于 T20 存在，T20 的 action 明确要求「维持快速失败语义」，故本 task 不改；影响面 = 无 `npx` 的环境中隐私门禁不生效（与 `make test` 段同一取舍）。ADR-027①：已知可接受项不上调为 fail。
+- `T20` 任务块 `<done>` 写「AC-6①」（`TASK.md:905`），而本 task 实际交付 **AC-6③**（pre-commit 接入）；属阶段 3 起草时的标签笔误，判据与 SUMMARY 均按 ③ 执行与记述 ⇒ 记 🟢，留待 T29 收口时与 `STATE.md:48` 的计数口径一并订正。
