@@ -186,7 +186,10 @@ check-nfr-portability-internals:
 			done; \
 			for _nf in $$(git -c core.quotepath=false ls-files -o --exclude-standard 2>/dev/null | grep -E "\.sh$$" || true); do \
 				[ -e "$$_nf" ] || continue; \
-				_hits=$$(grep -nE "$$_pat" "$$_nf" 2>/dev/null | sed -E "s/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*//g" | grep -E "$$_pat" || true); \
+				_hits=$$(awk -v P="$$_pat" '\'' \
+					/^[[:space:]]*#/ { next } \
+					{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ P) printf "%d:%s\n", NR, $$0 } \
+				'\'' "$$_nf" 2>/dev/null || true); \
 				if [ -n "$$_hits" ]; then \
 					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
 						_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \
@@ -271,7 +274,10 @@ check-nfr-portability:
 			done; \
 			for _nf in $$(git -c core.quotepath=false ls-files -o --exclude-standard 2>/dev/null | grep -E "\.sh$$" || true); do \
 				[ -e "$$_nf" ] || continue; \
-				_hits=$$(grep -nE "$$_pat" "$$_nf" 2>/dev/null | sed -E "s/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*//g" | grep -E "$$_pat" || true); \
+				_hits=$$(awk -v P="$$_pat" '\'' \
+					/^[[:space:]]*#/ { next } \
+					{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ P) printf "%d:%s\n", NR, $$0 } \
+				'\'' "$$_nf" 2>/dev/null || true); \
 				if [ -n "$$_hits" ]; then \
 					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
 						_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \

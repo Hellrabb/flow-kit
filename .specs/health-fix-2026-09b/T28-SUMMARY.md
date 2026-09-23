@@ -509,3 +509,121 @@ T28 产物未被点名 ✅
 - **awk found 回传**：awk 变量 `found=1` 与 shell 变量不互通（首轮半成品的 bug）。修法：awk 在 `END` 块 `if (found) print "1" > TF`，shell 用 `[ -s "$_tf" ]` 判定临时文件非空 ⇒ `_found=1`。`TF` 是 awk `-v` 变量 = shell 的 `$_tf`（mktemp 路径），**无前导空格**（前导空格会让 awk `> TF` 因路径 `" /tmp/…"` 失败，首轮调试时实测命中）。
 - **awk FILENAME 不可用**：`git diff | awk` 的输入是管道 stdin，awk 的 `FILENAME` 内置变量为 `-`，不是真实文件路径。故以 `-v FN="$_f"` 传入真实路径。
 - **bash 3.2 兼容**：全程无 `mapfile`/关联数组；`_report_viol` 用 POSIX `for … in $(…)` + `while IFS= read -r` + `<<<` here-string（bash 3.2+ 支持）。
+
+---
+
+## 修复轮 2（2026-09-24）
+
+### 触发原因
+
+主 agent 复核发现：修复轮 1 的 untracked 分支不再剔除整行注释 ⇒ 注释里提到被禁原语即假红（口径回归）。
+
+复现：新建未跟踪 `.sh`，内容第 1 行 `# mapfile only in a comment`、第 2 行 `printf "ok\n"` ⇒ 修复轮 1 `make check-nfr-portability` 返回 rc=2（假红）。
+
+根因：修复轮 1 untracked 分支用 `grep -nE "$pat" "$nf" | sed … | grep -E "$pat"`，没有 `grep -vE '^[[:space:]]*#'` 剔除整行注释 ⇒ 注释行里提到 `mapfile` 即命中。旧口径（合并流 + `grep -vE '^\+?[[:space:]]*#'`）命中数 = 0；修复轮 1 untracked 分支命中数 = 1 ⇒ 修复轮 1 引入的回归。
+
+契约依据：T28 `<action>` 明写「注释行剔除（L-101 / L-128）：负向断言必须排除注释行，否则注释里提到该原语即假红。剥离口径全仓统一：`grep -vE '^\+?[[:space:]]*#'`」。
+
+### 修法
+
+仅改 untracked 分支：剔除整行注释**且保留真实行号**。不能用 `grep -v` 后再 `grep -n`（行号会变成过滤后流的序号，打坏刚修好的归因）。改用 `awk`：
+
+```bash
+_hits=$(awk -v P="$_pat" '
+    /^[[:space:]]*#/ { next }
+    { l=$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ P) printf "%d:%s\n", NR, $0 }
+' "$_nf" 2>/dev/null || true)
+```
+
+`NR` 是 awk 的真实行号（未因 `next` 跳过而偏移）⇒ 注释行被跳过但行号连续。其余一切（tracked 分支、检测集合、按成分删除、三态语义、`file:line: 内容` 归因、两处报告点共用同一函数、D8 F2 自排除边界、不新增 `.sh`）**保持不变**。
+
+### 证据
+
+**(a) 只含注释的未跟踪新文件（注释里含 `mapfile`）⇒ rc=0**：
+```
+$ printf '# mapfile only in a comment\nprintf "ok\\n"\n' > ./.zz-nfr-probe.sh
+$ make check-nfr-portability 2>&1 | head -3
+🔍 make check-nfr-portability: NFR 兼容性判据（bash 3.2/macOS 可移植 · 三态包装）...
+✅ NFR 兼容性判据通过：无新增 bash4-only / GNU-only 构造，语法检查通过
+rc=0
+$ rm -f ./.zz-nfr-probe.sh
+```
+rc=0、stdout 含 `✅` ✅（注释行被剔除，不假红）
+
+**(b) 注释与真违规混排（第 1 行注释含 `mapfile`、第 2 行空行、第 3 行 `mapfile -t x < <(:)`）⇒ 只报第 3 行**：
+```
+$ printf '# mapfile only in a comment\n\nmapfile -t x < <(:)\n' > ./.zz-nfr-probe.sh
+$ make check-nfr-portability 2>&1 | head -4
+🔍 make check-nfr-portability: NFR 兼容性判据（bash 3.2/macOS 可移植 · 三态包装）...
+.zz-nfr-probe.sh:3:mapfile -t x < <(:)
+🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：
+make: *** [Makefile:249：check-nfr-portability] 错误 1
+rc=2
+$ rm -f ./.zz-nfr-probe.sh
+```
+输出仅 `.zz-nfr-probe.sh:3:mapfile -t x < <(:)`，**不得**报第 1 行 ✅（awk `next` 跳过注释行，NR 连续 ⇒ 第 3 行真实行号）
+
+**(c) 已跟踪文件追加只含注释一行 ⇒ rc=0；追加真违规 ⇒ 报真实行号（L-142 三件套）**：
+```
+$ F=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
+$ BAK=/tmp/_cpp_bak && cp "$F" "$BAK" && trap 'cp "$BAK" "$F"; rm -f "$BAK"' EXIT
+
+$ echo "# mapfile just a comment" >> "$F"
+$ make check-nfr-portability 2>&1 | head -3
+🔍 …
+✅ NFR 兼容性判据通过：无新增 bash4-only / GNU-only 构造，语法检查通过
+rc=0
+$ cp "$BAK" "$F"
+
+$ echo "mapfile -t zz < <(:)" >> "$F"
+$ REAL_LN=$(wc -l < "$F")   # 393
+$ make check-nfr-portability 2>&1 | head -3
+🔍 …
+flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:393:mapfile -t zz < <(:)
+rc=2
+$ cp "$BAK" "$F" && cmp -s "$BAK" "$F" && echo "cmp OK"   # cmp OK
+$ rm -f "$BAK"; trap - EXIT
+```
+tracked 追加注释 rc=0 ✅；tracked 追加真违规报 `check-path-privacy.sh:393:` ✅；L-142 三件套（备份 + EXIT trap + `cmp -s` 逐字节复原）✅
+
+**(d) 修复轮 1 三态证据无回归**：
+- untracked 违规（1 行 `mapfile`）⇒ `.zz-nfr-probe.sh:1:mapfile -t x < <(:)` rc=2 ✅
+- 干净态 ⇒ rc=0，stdout 不含 `SKIP:` ✅
+- `FLOW_KIT_CHANGE_BASE=HEAD` ⇒ stdout 含 `SKIP: 相对 HEAD 无 .sh 新增（未验证，非通过）` rc=0 ✅
+
+**(e) 显式门禁（不依赖 git hook —— 本仓 `core.hooksPath` 空串、hook 不随提交触发）**：
+
+| 门禁 | rc | 备注 |
+|---|---|---|
+| `npx bats test/` | 0 ✅ | ok=973 not_ok=0 skip=0 |
+| `make lint` | 0 ✅ | |
+| `make check-test-sync` | 0 ✅ | |
+| `make check-hooks-sync` | 0 ✅ | |
+| `bash sync-hooks.sh --check` | 0 ✅ | |
+| `make check-path-privacy` | 0 ✅ | 清单 0 条 / 清单外命中 0 条 |
+| `make check-nfr-portability` | 0 ✅ | 本修复轮目标 |
+| `bash /tmp/vblocks/v_T02.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T11.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T17.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T18.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T19.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T20.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T21.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T22.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T23.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T25.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T26.sh` | 0 ✅ | |
+| `bash /tmp/vblocks/v_T28.sh` | 0 ✅ | |
+| `make check-validate` | 非 0 ⚠️ | 预期红（TD-048，T11 修复轮 2 收） |
+| `make check-dist` | 非 0 ⚠️ | 预期红（dist 未重建，T24 收） |
+
+### git add 后 check-path-privacy
+
+```
+$ git add Makefile .specs/health-fix-2026-09b/T28-SUMMARY.md
+$ make check-path-privacy 2>&1 | tail -3
+   清单外命中 0 条
+✅ 清单外命中 0 条（允许清单内残留只暴露不阻塞）
+rc=0
+```
+T28 产物未被点名 ✅
