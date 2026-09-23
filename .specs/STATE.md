@@ -45,8 +45,30 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 973 tests (963 pass + 1 skip 既有 test_lessons_cleanup.bats:137) / 0 fail · 8 in test_guide_copy_parity.bats（user-guide-sync-2026-09b 新增）`
+- **test_framework**: `bats-core 1.13.0 (npx) · 973 ok / 0 not ok / 1 skip（TAP plan 1..973；skip = 既有 test_lessons_cleanup.bats:137 AC-4，该 AC 被永久 skip 且把失败说成正确 → 见 TD/health 2026-09-22） · 8 in test_guide_copy_parity.bats（user-guide-sync-2026-09b 新增）`
+  > 数字订正（2026-09-22 全量巡检实测）：原记「973 tests (963 pass + 1 skip)」算术不成立（963+1=964≠973）。TAP 的 `ok` 行含 skip，故正确拆分为 **972 pass + 1 skip = 973**。
 - **ci_cd**: `未检测到`
+
+---
+
+## 活跃变更（2026-09-22 更新）
+
+- **当前活跃**：`health-fix-2026-09b`（phase 0 · 2026-09-22 开 · 阶段0 CHANGE 已出）
+  - **目标**：收口 4 个 🔴 —— PC1 `eval` RCE（已复现）/ PC2 `settings.json` 截断为 0 字节（已复现）/
+    P1 本地 `main` 泄漏重发路径 / AR2 prompt↔skill 坏门禁；另并入 P3 `chisel` 出厂泄漏、
+    P6 前向隐私门禁、TC3/TC4/TC5 四处假绿测试
+  - **依据**：`.specs/health/2026-09-22-FULL-SWEEP.md`（**首次五维**全量巡检 · 56/100 · 13🔴/34🟡/24🟢；
+    维度 = 隐私 + 生产 R1-R6 + 测试 T1-T6 + 架构单一源 + 门禁）
+  - **提案**：`.specs/health-fix-2026-09b/CHANGE.md`
+
+- **⏸️ 已 park**：`privacy-path-scrub-2026-09`（停于 phase 3 · 在 phase 3 停滞 3 个 session `task: none`）
+  - **已闭环（勿重做）**：tracked 文件 `/home/<redacted>` = **0**；`develop` / `origin/develop` / `origin/main`
+    全对象 = **0**；`origin/develop` 已强推为 `534e3e8`；三处安全网**按设计删除**
+    （`HISTORY-REWRITE-FULL.md:104` 要求 + `LESSONS` **L-110 ③** 给出理由）—— **非缺陷，勿重建**
+  - **未完成目标已转入** `health-fix-2026-09b`：P1（本地 main）/ P3（chisel）/ P6（前向门禁）
+  - ⚠️ **未决残留**：本地 `main` 仍使 8 个含 `/home/<redacted>` 的 blob **保持可达** →
+    `gc --prune` 无法回收 → 逐字执行 `HISTORY-REWRITE-FULL.md:120` 的权威验证命令（`--batch-all-objects`）
+    **实测返回 8，期望 0**。即该 change 自己声明的验收判据当前**不通过**
 
 ---
 
