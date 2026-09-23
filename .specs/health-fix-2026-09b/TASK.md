@@ -772,8 +772,15 @@ Wave 8 (收口 · 全量无退化)                  : T29
     # 主 agent 2026-09-23 补（L-121/L-123）：正例（目标真的调用脚本）＋ .PHONY 登记 ＋ 退出码二值
     make -n check-path-privacy | grep -q 'check-path-privacy\.sh' || { echo "🔴 干跑无脚本路径：目标未真正调用 check-path-privacy.sh"; exit 1; };
     grep -E '^\.PHONY:' Makefile | grep -qw 'check-path-privacy' || { echo "🔴 .PHONY 未登记 check-path-privacy（同名文件存在时 recipe 会被跳过 ⇒ 假绿）"; exit 1; };
-    _rc=0; make check-path-privacy >/dev/null 2>&1 || _rc=$?;
-    case "$_rc" in 0|1) ;; *) echo "🔴 退出码非二值（rc=$_rc；AC-6 要求 0/1，禁 SKIP/rc=3）"; exit 1;; esac
+    # 主 agent 2026-09-23 修正（GNU make 对任何失败 recipe 恒返回 rc=2 ⇒ 原判据不可满足）：
+    # 「二值退出」是**脚本**契约 ⇒ 直接调用脚本断言；make 侧只断言 0（成功）/ 2（recipe 失败），
+    # 并加**反掩蔽**判别：脚本失败时 make 不得返回 0（否则说明接线写了 `|| true`）。
+    _script=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    _rc=0; bash "$_script" >/dev/null 2>&1 || _rc=$?;
+    case "$_rc" in 0|1) ;; *) echo "🔴 脚本退出码非二值（rc=$_rc；AC-6 要求 0/1，禁 SKIP/rc=3）"; exit 1;; esac
+    _mk=0; make check-path-privacy >/dev/null 2>&1 || _mk=$?;
+    case "$_mk" in 0|2) ;; *) echo "🔴 make 目标退出码异常（rc=$_mk；GNU make 对 recipe 失败恒返回 2）"; exit 1;; esac
+    if [ "$_rc" -ne 0 ] && [ "$_mk" -eq 0 ]; then echo "🔴 脚本失败但 make 返回 0 ⇒ 接线掩盖了失败（禁 || true）"; exit 1; fi
   </verify>
   <done>AC-6①：`make -n check-path-privacy` 成功、`make -n check` 先决条件含 `check-path-privacy`（修复前实测：两者 `make -n check | grep` 均 rc=1）；`.PHONY` 已登记、干跑含脚本路径、退出码二值（仅 0/1）</done>
   <depends_on>T17</depends_on>

@@ -323,3 +323,12 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 | `CHECK_REV=<泄漏提交 sha>` | rc=1 |
 | `CHECK_REV=<干净提交 sha>` | rc=0 |
 | `CHECK_REV=zz-no-such-ref` | rc=1，自证行 `扫描面: zz-no-such-ref（未解析）`（fail-closed） |
+
+## 🔴 T18 判据缺陷 · 「make 退出码 = 脚本退出码」的错假设（L-135 · 2026-09-23 · 子 agent 上报 + 主 agent 复核）
+
+- 判据原文（主 agent 补强时写）：`_rc=0; make check-path-privacy >/dev/null 2>&1 || _rc=$?; case "$_rc" in 0|1)`。
+- 事实：GNU make 4.3 对**任何**失败 recipe 恒返回 **rc=2**（子 agent 五组实验：脚本 `exit 1/2/3/4/5` 经 make 一律 2；主 agent 复核 `make check-path-privacy` ⇒ 脚本 rc=1 / make rc=2）。
+  允许清单要到 T21 才落档 ⇒ 当前门禁必红 ⇒ 该断言**不可满足**，且**不存在**合法 Makefile 写法能让 make 返回 1（`|| true` 会把失败变 0，反而掩盖失败）。
+- **裁决（选项 A，主 agent）**：把判据拆到正确语义层 —— ① 直接 `bash <脚本>` 断言 **0|1**；② `make <目标>` 断言 **0|2**；
+  ③ 反掩蔽判别：脚本非 0 ⇒ make 不得为 0。已更新 `TASK.md` T18 `<verify>`（提交在 T18 交付前的 housekeeping 提交）。
+- 子 agent 行为正确：拒绝伪造绿、上报裁决、未提交 —— 符合 ADR-027②（不得把已知可接受项升级为 fail）与「判据不可满足时不造绿」。
