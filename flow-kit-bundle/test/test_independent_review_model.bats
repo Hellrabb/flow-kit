@@ -79,6 +79,10 @@ teardown() {
 # ── AC-9: token 不泄露到日志 ──────────────────────────────────────────
 
 @test "AC-9: AUTH_TOKEN only in assignment and curl header, not in echo/module_output" {
+  # 先断言被检文件存在——否则「文件缺失 ⇒ 反向断言恒真」（AC-7 假绿消除）
+  [ -f "$HOME/.claude/hooks/stop/29-independent-review.sh" ]
+  [ -f "$HOME/.claude/hooks/stop/30-ai-analyze.sh" ]
+
   # 29号脚本
   run bash -c "grep -n 'ANTHROPIC_AUTH_TOKEN' \"$HOME/.claude/hooks/stop/29-independent-review.sh\" | grep -v 'auth_token=' | grep -v 'Bearer' | grep -v '^[0-9]*: *#' "
   [ "$status" -ne 0 ]  # No matches outside assignment/header/comment
@@ -134,6 +138,8 @@ teardown() {
 # ── stop-hook.json 未被修改（D5 决策） ─────────────────────────────────
 
 @test "stop-hook.json still has plain model string (not env var placeholder)" {
+  # 先断言被检文件存在——否则「文件缺失 ⇒ 反向断言恒真」（AC-7 假绿消除）
+  [ -f "$HOME/.claude/stop-hook.json" ]
   model_val=$(jq -r '.ai.model' "$HOME/.claude/stop-hook.json")
   # Should be a plain string like "deepseek-v4-flash", not an env var ref like "${...}"
   run bash -c "echo '$model_val' | grep -c '^\\\$'"

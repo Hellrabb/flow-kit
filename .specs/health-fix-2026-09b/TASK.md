@@ -363,7 +363,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T10" parallel="true" status="pending" model-tier="standard">
+<task id="T10" parallel="true" status="done" model-tier="standard">
   <name>AC-7(b)：`test_independent_review_model.bats` 先断言文件存在 + `test_lessons_cleanup.bats` 去过期 skip</name>
   <read_files>
     <`test/test_independent_review_model.bats`（:81-89 / :136-141 反向断言，缺「先断言文件存在」）>

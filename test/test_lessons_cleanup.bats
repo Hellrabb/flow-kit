@@ -132,9 +132,19 @@ teardown() {
   # 但 validate 函数内是 local... 我们修改脚本在后面加 override
   # 实际上我们需要重写 BUNDLE_DIR。最简单：修改 validate 内的 BUNDLE_DIR 定义
 
-  # 暂时跳过——AC-4 验证思路：干净状态 validate exit 0
-  # 当前仓库有已知 gap，exit=1 是预期行为。这个测试已通过 AC-3 验证。
-  skip "AC-4 需要全量覆盖环境；当前仓库已知有 gap，exit=1 是正确的"
+  # ── AC-4 去过期 skip（health-fix-2026-09b T10 · AC-7）───────────────
+  # 原 skip 的注释称「当前仓库有已知 gap，exit=1 是预期行为」——该 gap 已在
+  # 此前修复，实测干净态 `bash package-flow-kit.sh --validate` exit=0
+  # （工具自报期望覆盖 308 / 实际 314 / 漏配 ERROR=0 / 源缺失 WARNING=0）。
+  # 故该 skip 属「过期 skip」，收敛为唯一可机器验证分支：对上面构造的临时
+  # 全量 bundle 跑 validate_staging_coverage 并断言 exit 0。
+  # 注：validate_staging_coverage 的 bundle_dir 缺省为 SUT 所在 bundle 根；
+  # 此处显式传临时 bundle 目录，避免依赖/触碰真实 flow-kit-bundle/。
+  source "$(pwd)/flow-kit-bundle/lib/validate_staging.sh"
+  run validate_staging_coverage "$TEST_ROOT/flow-kit-bundle"
+  echo "AC-4 validate exit=$status" >&3
+  echo "AC-4 validate tail: $output" >&3
+  [ "$status" -eq 0 ]
 }
 
 # ═══════════════════════════════════════════════════════════════════════════

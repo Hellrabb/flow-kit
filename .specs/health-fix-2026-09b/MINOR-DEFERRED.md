@@ -169,3 +169,22 @@
 > 反向对照脚本初版因 `TEST_TMPDIR` 为空（在 bash -c 内未继承 bats `setup()` 的导出）导致
 > `grep -vF ""` 过滤全部 ⇒ 注入态计数器恒 0 ⇒ 假红。已改为 `export TEST_TMPDIR=$(TMPDIR="$td2b" mktemp -d)`
 > 复刻 bats `setup()` 形态后恢复正常（干净=0 / 注入=1）。**定式**：凡断言依赖 `setup()` 导出的变量，做反向对照时必须显式按 `setup()` 的形态构造环境，不可假设裸上下文继承。
+
+## 🟢 T10（AC-7 后两条 · 反向断言补文件存在守卫 + AC-4 去过期 skip）· 已知接受项（2026-09-23）
+
+- **AC-4 测试段遗留死脚手架（🟢 可接受，本次不修）**：AC-4 测试段在 skip 掩盖时期即存在的 `local tmp_script`、`cp package-flow-kit.sh "$tmp_script"` 与那段「重写 BUNDLE_DIR override」的注释块，在 skip 移除、测试现在真跑后成为**轻微 dead code**（`tmp_script` 未使用、`cp` 无副作用）。它**不影响断言正确性**（`TEST_ROOT` 由 `teardown` 清理；未用变量不改变断言路径），也**非 T10 目标**（T10 只要求移除 skip 并断言 exit 0）。为避免 T10 越界、保持 diff 最小，**留待后续 cleanup task** 清理，故登记于此。
+
+> ### ⚙️ 工艺说明（非缺陷 · T10 verify 判据改写 ①）
+> 任务 §4 ① 授权改写：**不得对真实 `$HOME` 执行 verify 的 `mv`**（真实
+> `$HOME/.claude/hooks/stop/29-independent-review.sh` 是运行中 Stop hook/L3 门禁，移走期间被中断即全机门禁损坏）。
+> 实做：HOME 沙箱 `sbx=$(mktemp -d)` + 复制真实文件进沙箱 + `HOME=$sbx npx bats …` 驱动 +
+> 沙箱内 `rm` 副本验证红态 + `trap 'rm -rf "$sbx"' EXIT`。判据语义（文件缺失 ⇒ 反向断言必红，§4 实测
+> 12ok→2not-ok rc=1）完全保留。**定式**：凡 verify 涉及 `$HOME/.claude/hooks/stop/*` 运行中门禁文件，一律
+> 用 HOME 沙箱副本 + `rm`（非 `mv`）制造缺失态，不做任何对真实 HOME 的移走动作。
+
+> ### ⚙️ 工艺说明（非缺陷 · T10 verify 判据改写 ②）
+> 任务 §4 ② 授权改写：skip 检查不得用裸 `grep -q 'skip'` —— AC-4 段去 skip 后注释里含「原过期 skip
+> 已移除」字样，裸 grep 会读成残留 skip ⇒ 假红（L-125 同族）。改用**行级锚定** `sed` 抽取 AC-4 段 +
+> `grep -qE '^[[:space:]]*skip([[:space:]]|$)'`（只匹配真 `skip` 调用形态，不匹配注释文本），并保留
+> 一条 的 AC-4 存在性前置 `grep -q 'AC-4: …exit = 0'` 防 sed 无匹配静默通过。双态实测：注释含「原 skip」
+> 仍绿；注入真 `skip "临时注入"` 必红。
