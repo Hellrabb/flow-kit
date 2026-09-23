@@ -481,7 +481,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T13" parallel="true" status="pending" model-tier="standard">
+<task id="T13" parallel="true" status="done" model-tier="standard">
   <name>AC-6 前置（D10′①）：工件脱敏 —— 必须先于基线冻结</name>
   <read_files>
     <`.specs/health-fix-2026-09b/DESIGN.md`（D10′ 四步顺序 ①~④ 与排除表构成）>
@@ -491,11 +491,12 @@ Wave 7 (收口 · 全量无退化)                  : T29
     <`.specs/CONTEXT.md`（禁动清单；本 task 不改它）>
   </read_files>
   <write_files>
-    <`.specs/health-fix-2026-09b/DESIGN.md`（实测 2 处命中：D6 的 `/home/<acct>/test` 形态自造 fixture 字面）>
-    <`.specs/health-fix-2026-09b/REQUIREMENT.md`（实测 1 处同型）>
-    <`.specs/health/2026-09-22-FULL-SWEEP.md`（实测 3 处真实账号路径）>
-    <④ 运行时授权面（**条件写面** · 闭集）：**唯一权威定义** = 本 task 的 verify 段中 `$FACE` 正则所列 3 类（本 change 工件 5 份 / `.specs/health/*.md` / `.specs/adr/*.md`；此处不重复枚举，避免两处漂移）；仅当复扫另命中其中一类时才可写入。**不放宽到 §0.5.1 的全 change 写面**（那会使越界判定形同虚设 —— 阶段 3 L3 C2）；命中 ④ 之外（代码/测试/门禁本体，含禁动清单内）⇒ 停止并升级为新 task。>
-    <（本 task 的静态写面 = ① ② ③ 三条精确路径；④ 为条件写面声明，不是路径列表。）>
+    <`.specs/health-fix-2026-09b/DESIGN.md`（主 agent 2026-09-23 实测 **1** 行命中：`:215`）>
+    <`.specs/health-fix-2026-09b/REQUIREMENT.md`（实测 **0** 行命中 —— 仍留在写面内作条件写面）>
+    <`.specs/health/2026-09-22-FULL-SWEEP.md`（实测 3 行真实账号路径：`:126` / `:242` / `:255`）>
+    <③b `.specs/health-fix-2026-09b/T[0-9]+-SUMMARY.md`（实测 **10** 行真实账号路径：T04-SUMMARY 9（`:297` `:300`-`:305` `:314` `:316`）+ T11-SUMMARY 1（`:56`），均来自自本机粘贴的原始输出；**执行者自撰散文 ⇒ 就地脱敏、不豁免、不入排除表** —— 与 `INDEPENDENT-REVIEW-*.md` 的「协议禁改原文 ⇒ 逐条精确路径豁免」相反）>
+    <④ 运行时授权面（**条件写面** · 闭集）：**唯一权威定义** = 本 task 的 verify 段中 `$FACE` 正则所列 **4 类**（本 change 工件 5 份 / 各 task 的 `T*-SUMMARY.md` / `.specs/health/*.md` / `.specs/adr/*.md`；此处不重复枚举，避免两处漂移）；仅当复扫另命中其中一类时才可写入。**不放宽到 §0.5.1 的全 change 写面**（那会使越界判定形同虚设 —— 阶段 3 L3 C2）；命中 ④ 之外（代码/测试/门禁本体，含禁动清单内）⇒ 停止并升级为新 task。>
+    <（本 task 的静态写面 = ① ② ③ ③b 四条精确路径；④ 为条件写面声明，不是路径列表。）>
   </write_files>
   <action>
     ① 把工件与同批健康档中的**真实账号路径**替换为脱敏占位（`/home/<acct>/` 形态 —— 该形态**不**被 D10 的 PAT 命中）；
@@ -509,29 +510,40 @@ Wave 7 (收口 · 全量无退化)                  : T29
     仅当复扫另命中其中一类时才允许就地脱敏，并在 4-dev 日志留 `file:line` + 脱敏前后对照；残余命中落在面外（含禁动清单内）⇒ **停止并升级为新 task**。
     `.specs/health-fix-2026-09b/TASK.md` **在授权面内**（`$FACE` 第 1 类）：本 task 自身的 fixture 字面已在阶段 3 de-shape 为 `/home/<acct>/test` 形态，当前对 PAT 命中 **0 处**；若复扫再现命中 ⇒ 由本 task 就地 de-shape（语义中性），**不**把计划档排除出扫描面（排除会让冻结前的基线失去对计划档自身的覆盖 —— 阶段 3 L3 minor 的替代方案已评估并否决）。
     **审查档排除面与 T17 门禁的排除表同源（阶段 3 L3 M8）**：两者都是「逐条精确路径」，且 T17 的 verify 断言「`.specs/health-fix-2026-09b/` 下**实际存在**的每一份审查档都在门禁排除表内」（完备性），故后续阶段新增审查档时：门禁侧在 T17 变红并被显式追加、本 task 侧在复扫时同步追加（同一规则、两处判定），不会静默漂移。
+    ⑦ **SUMMARY 面与前向规则（2026-09-23 主 agent 追加）**：`T*-SUMMARY.md` 属**执行者自撰散文**，其中自本机粘贴的绝对路径（`/home/<真实账号>/…`、`/Users/…`）必须 de-shape 为 `<repo>` / `$HOME` / `/home/<acct>/` 形态；**只做路径字面替换，不得改动 rc、命令、输出文本与数字等证据本身**。同理，**本 task 之后的每个 task 在其 SUMMARY 定稿前就地 de-shape**（不积压到 T13）；前向规则以 **L-129** 形式写入 `.specs/LESSONS.md`，由各执行者按「必读 LESSONS」条款继承。
   </action>
   <verify>
     export LC_ALL=C; PAT='/home/[a-z_][a-z0-9_-]*/';
     git rev-parse --git-dir >/dev/null 2>&1 || { echo "🔴 非 git 仓库：扫描面依赖 git 索引，判据不可用（阶段 3 L3 minor）"; exit 1; };
-    # 分支 1 = 已 tracked；分支 2 = **刻意**补扫尚未 tracked 的**五份**工件（阶段 3 L3 M1：原只扫三份，
-    # 漏扫 TASK.md 会让它自身的 fixture 字面直到 `git add` 之后才暴露 ⇒ 返工或假绿）
-    # 与分支 1 可能命中同一行 ⇒ 故统一 `sort -u` 去重后再计数（阶段 3 L3 m2：避免同一行被计两次）
-    hits=$( { git -c core.quotepath=false ls-files -z | xargs -0 grep -nE "$PAT" 2>/dev/null;
-              grep -nE "$PAT" .specs/health-fix-2026-09b/DESIGN.md .specs/health-fix-2026-09b/REQUIREMENT.md .specs/health-fix-2026-09b/CHANGE.md .specs/health-fix-2026-09b/TASK.md .specs/health-fix-2026-09b/MINOR-DEFERRED.md 2>/dev/null; } \
+    # 分支 1 = 已 tracked；分支 2 = **刻意**补扫**未 tracked** 面（阶段 3 L3 M1 的「五份工件补扫」升级为通用形态）：
+    # 五份 change 工件与同批 `.specs/health/*.md`、本 change 新建的 `.specs/adr/*.md` 在本 task 运行时**尚未 `git add`**，
+    # 不进 `git ls-files` 分支 ⇒ 不补扫则静态写面 ③ 的脱敏与 ADR 面的命中**永远不可见**（L-122：判据必须触达缺陷现场；
+    # 主 agent 2026-09-23 实测：原形态对 FULL-SWEEP 的 3 处真实账号路径完全失明）。
+    # 空集必须显式处理：GNU xargs 在空输入下以无参形式调用 ⇒ `grep` 转去读 stdin（判据静默失效，L-121）。
+    # 与分支 1 可能命中同一行 ⇒ 统一 `sort -u` 去重后再计数（阶段 3 L3 m2）；`-H` 强制打印文件名（单文件时 grep 默认不打印文件名，会破坏下方按 file:line 的归因与排除表匹配）。
+    uf=$(git ls-files -o --exclude-standard);
+    if [ -n "$uf" ]; then u_hits=$(printf '%s\n' "$uf" | tr '\n' '\0' | xargs -0 grep -HnE "$PAT" 2>/dev/null); else u_hits=''; fi;
+    hits=$( { git -c core.quotepath=false ls-files -z | xargs -0 grep -HnE "$PAT" 2>/dev/null; printf '%s\n' "$u_hits"; } \
             | sort -u \
             | grep -vE '^(\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-(1|2|3)\.md):' \
             | grep -vE '/home/(user|ubuntu|\.\.\.)/' );
     n=$(printf '%s' "$hits" | grep -c .);
-    [ -z "$hits" ] || printf '%s\n' "$hits" | cut -c1-140;   # 可见性：逐条 file:line
-    [ "$n" -eq 0 ] || { echo "🔴 清单外命中=$n（脱敏未完成，禁止冻结基线）"; exit 1; }
-    # 就地脱敏面断言（阶段 3 L3 C2：**收窄**为「本 change 自身工件与台账」）——
-    # 原实现以 §0.5.1 的全 change 写面（含 Makefile / sync-hooks.sh / 9 个 bundle 脚本 / 全部 bats）为授权面，
-    # 等价于「T13 可改整个 change 的写面」⇒ 越界判定形同虚设。代码/测试/门禁本体的任何残余命中一律升级为新 task。
-    FACE='^(\.specs/health-fix-2026-09b/(DESIGN|REQUIREMENT|CHANGE|MINOR-DEFERRED|TASK)\.md|\.specs/health/[^/]+\.md|\.specs/adr/[^/]+\.md)$';
-    bad=$(printf '%s' "$hits" | cut -d: -f1 | sort -u | grep -vE "$FACE" | grep -v '^$' | tr '\n' ' ');
-    [ -z "$bad" ] || { echo "🔴 脱敏越界（非本 change 工件/台账 ⇒ **停止并升级为新 task**，不得就地修改）：$bad"; exit 1; }
+    if [ "$n" -ne 0 ]; then
+      printf '%s\n' "$hits" | cut -c1-140;   # 可见性：逐条 file:line
+      # 就地脱敏面断言（阶段 3 L3 C2：**收窄**为「本 change 自身工件与台账」）——
+      # 原实现以 §0.5.1 的全 change 写面（含 Makefile / sync-hooks.sh / 9 个 bundle 脚本 / 全部 bats）为授权面，
+      # 等价于「T13 可改整个 change 的写面」⇒ 越界判定形同虚设。代码/测试/门禁本体的任何残余命中一律升级为新 task。
+      # 2026-09-23 主 agent 补两处：① 原形态把 FACE 判定写在 `[ "$n" -eq 0 ] || exit 1` **之后** ⇒ 该断言**永不可达**（死判据，L-123）；
+      # ② `T*-SUMMARY.md` 未列入面 —— 而 T04/T11 的 SUMMARY 实测含 10 行真实账号路径（自本机粘贴的原始输出）。
+      # 定则：**审查档原文**因协议禁改 ⇒ 由 D10′② 逐条精确路径豁免；**SUMMARY 是执行者自撰散文** ⇒ 就地脱敏、不豁免、不入排除表。
+      FACE='^(\.specs/health-fix-2026-09b/(DESIGN|REQUIREMENT|CHANGE|MINOR-DEFERRED|TASK)\.md|\.specs/health-fix-2026-09b/T[0-9]+-SUMMARY\.md|\.specs/health/[^/]+\.md|\.specs/adr/[^/]+\.md)$';
+      bad=$(printf '%s\n' "$hits" | cut -d: -f1 | sort -u | grep -vE "$FACE" | grep -v '^$' | tr '\n' ' ');
+      [ -z "$bad" ] || { echo "🔴 脱敏越界（非本 change 工件/台账 ⇒ **停止并升级为新 task**，不得就地修改）：$bad"; exit 1; };
+      echo "🔴 清单外命中=$n（全部落在脱敏授权面内 ⇒ 就地脱敏后重跑本判据；禁止冻结基线）"; exit 1;
+    fi
+    echo "✅ 脱敏完成：授权面外命中 = 0（tracked + 未 tracked 两面均已扫描）"
   </verify>
-  <done>AC-6 前置：排除表口径下「清单外命中 = 0」（修复前实测 · 原始 PAT 命中：DESIGN 2 / REQUIREMENT 1 / FULL-SWEEP 3 / **TASK.md 2**（其自身对 fixture 字面的描述，属 ④ 授权面 —— 阶段 3 L3 M1 补扫后可见）/ MINOR-DEFERRED 0 / 审查档 40 = IR-1 22 + IR-2 18，按逐条精确路径豁免）—— 满足 D10′①「脱敏先于冻结」</done>
+  <done>AC-6 前置：排除表口径下「清单外命中 = 0」。**修复前基线（主 agent 2026-09-23 用本判据实测，共 14 行）**：`DESIGN.md` 1（`:215` 的 `/home/<acct>` 自造 fixture 字面）/ `T04-SUMMARY.md` 9（`:297` `:300`-`:305` `:314` `:316`）/ `T11-SUMMARY.md` 1（`:56`）/ `.specs/health/2026-09-22-FULL-SWEEP.md` 3（`:126` `:242` `:255`）；`REQUIREMENT` / `CHANGE` / `TASK` / `MINOR-DEFERRED` 各 0；审查档 40 = IR-1 22 + IR-2 18（按 D10′② 逐条精确路径豁免，协议禁改原文）。**未 tracked 面**（尚未 `git add` 的工件与同批健康档）由本 task 补扫后才可见 —— 原判据对该面完全失明（L-122 / L-129）。SUMMARY 的 10 行属下文 ⑦ 前向规则的存量债 ⇒ 就地脱敏、不豁免。满足 D10′①「脱敏先于冻结」</done>
   <depends_on>T01</depends_on>
 </task>
 

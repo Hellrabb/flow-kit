@@ -294,15 +294,15 @@ rc=0
 ### ③ 副本一致性（`bash sync-hooks.sh --check` · 漂移必须 0）
 
 ```text
-源: /home/<redacted>/unisoc/flow-kit/flow-kit-bundle/hooks
+源: <repo>/flow-kit-bundle/hooks
 镜像文件数: 47（stop 模块与 install_hooks.sh 同源计数）
 
-  ✅ /home/<redacted>/.claude/hooks
-  ✅ /home/<redacted>/unisoc/flow-kit/dist/dsh-flow-kit/hooks
-  ✅ /home/<redacted>/unisoc/flow-kit/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks
-  ✅ /home/<redacted>/.dsh/profiles/web/node_modules/dsh-flow-kit/hooks
-  ✅ /home/<redacted>/.dsh/profiles/web/node_modules/dsh-flow-kit/vendor/flow-kit-bundle/hooks
-  ✅ /home/<redacted>/.config/opencode/hooks
+  ✅ $HOME/.claude/hooks
+  ✅ <repo>/dist/dsh-flow-kit/hooks
+  ✅ <repo>/dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks
+  ✅ $HOME/.dsh/profiles/web/node_modules/dsh-flow-kit/hooks
+  ✅ $HOME/.dsh/profiles/web/node_modules/dsh-flow-kit/vendor/flow-kit-bundle/hooks
+  ✅ $HOME/.config/opencode/hooks
 
 ✅ hooks 副本一致（漂移 0）
 SYNC_RC=0
@@ -311,9 +311,9 @@ SYNC_RC=0
 **漂移 = 0** ⇒ 按任务 XML 第 3 条，**无需**运行 `./sync-hooks.sh`。6 个已安装镜像已带 TD-043 修复（独立复核）：
 
 ```text
-  /home/<redacted>/.claude/hooks/stop/lib/l3-prompt.sh                   1
+  $HOME/.claude/hooks/stop/lib/l3-prompt.sh                   1
   dist/dsh-flow-kit/hooks/stop/lib/l3-prompt.sh                          1
-  /home/<redacted>/.config/opencode/hooks/stop/lib/l3-prompt.sh          1
+  $HOME/.config/opencode/hooks/stop/lib/l3-prompt.sh          1
 ```
 
 （计数值 1 = 命中 `ADR 纳入策略（TD-043 修复` 注释标记；`dist/` 是 gitignored 重建产物。）

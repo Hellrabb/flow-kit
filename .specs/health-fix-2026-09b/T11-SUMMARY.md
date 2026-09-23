@@ -53,7 +53,7 @@ make check                                          # ② 全部干净 ⇒ 推�
 判据落地为 `/tmp/t11-sbx.e8cJnD/t11v.sh`（= task `<verify>` 段，唯一授权改写：**禁用构造 grep 改为「注释盲」形态**，见 §8）。`bash -n t11v.sh` rc=0，实跑 **rc=0**：
 
 ```
-== [T11 verify] path=/home/<redacted>/unisoc/flow-kit/flow-kit-bundle/hooks/pre-push/pre-push.sh ==
+== [T11 verify] path=<repo>/flow-kit-bundle/hooks/pre-push/pre-push.sh ==
 ok  文件存在
 ok  可执行
 ok  mode=755 (755)
