@@ -342,10 +342,37 @@ _l3_build_prompt() {
       local adr_dir
       adr_dir="$(dirname "$artifacts_dir")/adr"
       if [ -d "$adr_dir" ]; then
-        while IFS= read -r f; do
-          [ -n "$f" ] || continue
-          artifact="${artifact}"$'\n\n--- '"${f}"$' ---\n'"$(_l3_utf8_head_bytes 2000 "$f" 2>/dev/null || echo "")"
-        done < <(find "$adr_dir" -type f -name '*.md' 2>/dev/null | head -3 || true)
+        # ADR 纳入策略（TD-043 修复 · health-fix-2026-09b · 2026-09-23）：
+        # 只纳入**工件实际引用**的 ADR，按引用频次排序；每份预算 5000 B、总量预算 18000 B，
+        # **截断与未纳入都显式落标记**。原实现为 `find "$adr_dir" | head -3`：取**目录序前 3 份**
+        # ⇒ 与工件无关（实测 phase 2 恒为 ADR-011/015/019，而 DESIGN 引用的是 022/026/027/028，
+        # 含本 change 新建的 ADR-028 ⇒ 该 ADR 永远不进提示词），且每份 2000 B **句中截断**且无标记
+        # ⇒ L3 审查者据**无关且残缺**的证据裁决（实测连续两轮把无关 ADR 全文当作"本 change 的
+        # 决策依据"并列入 critical）。修复只**减少**噪声、不放宽任何判据。
+        local _adr_ids _adr_id _adr_num _adr_f _adr_sz _adr_take _adr_used _adr_budget _adr_n
+        _adr_budget=18000; _adr_used=0; _adr_n=0
+        _adr_ids=$(printf '%s' "$artifact" | grep -oE 'ADR-0[0-9]{2}' 2>/dev/null \
+          | sort | uniq -c | sort -rn | awk '{print $2}' || true)
+        for _adr_id in $_adr_ids; do
+          [ "$_adr_n" -lt 8 ] || break
+          _adr_num="${_adr_id#ADR-}"
+          _adr_f=$(find "$adr_dir" -maxdepth 1 -type f -name "${_adr_num}-*.md" 2>/dev/null | head -1 || true)
+          [ -n "$_adr_f" ] || continue
+          _adr_sz=$(wc -c < "$_adr_f" 2>/dev/null | tr -dc '0-9' || true); _adr_sz=${_adr_sz:-0}
+          _adr_take=$((_adr_sz < 5000 ? _adr_sz : 5000))
+          if [ $((_adr_used + _adr_take)) -gt "$_adr_budget" ] && [ "$_adr_n" -gt 0 ]; then
+            artifact="${artifact}"$'\n\n（ADR 纳入预算（'"${_adr_budget}"$' B）已用尽；以下被工件引用的 ADR **未纳入**，需要时按工件给出的复现命令自行查阅：'"${_adr_ids}"$'）'
+            break
+          fi
+          artifact="${artifact}"$'\n\n--- '"${_adr_f}"$' ---\n'"$(_l3_utf8_head_bytes 5000 "$_adr_f" 2>/dev/null || echo "")"
+          if [ "$_adr_sz" -gt 5000 ] 2>/dev/null; then
+            artifact="${artifact}"$'\n…（本件 '"${_adr_sz}"$' B 超过 5000 B 预算，已按整行**截断**；全文见 `'"${_adr_f}"$'`。此为提示词预算标记，不构成工件缺陷。）'
+          fi
+          _adr_used=$((_adr_used + _adr_take)); _adr_n=$((_adr_n + 1))
+        done
+        if [ "$_adr_n" -eq 0 ]; then
+          artifact="${artifact}"$'\n\n（本工件正文未引用任何 `ADR-0NN` ⇒ 按策略**不纳入** `.specs/adr/` 的任何文件。'$'\n''  审查者若需某条 ADR，请以工件给出的复现命令自行查阅，不要把本提示词中未出现的 ADR 当作本工件的主张。）'
+        fi
       fi
       artifact="${artifact}"$'\n'"$(_l3_extra_deliverables "$artifacts_dir")" 
       checklist="ADR 决策是否合理且有充分理由？是否撞既有架构/跨模块契约？抽象层次是否得当（深模块 vs 浅模块）？风险段是否遗漏关键风险？"

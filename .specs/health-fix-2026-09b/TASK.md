@@ -131,7 +131,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T04" parallel="true" status="pending" model-tier="standard">
+<task id="T04" parallel="true" status="done" model-tier="standard">
   <name>TD-043 收口：L3 提示词信封的 ADR 纳入策略双态验证（含 ADR-028、不含 ADR-011 正文）</name>
   <read_files>
     <`flow-kit-bundle/hooks/stop/lib/l3-prompt.sh`（ADR 纳入段与预算/标记实现）>
