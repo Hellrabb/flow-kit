@@ -92,6 +92,77 @@ deploy_pre_commit() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
+# is_flowkit_symlink — 判 .git/hooks/pre-push 是否「指向已安装 hooks 目录」的 symlink
+# 幂等条件（DESIGN D3 item 0 · ADR-022）：
+#   ① [ -L ] 必须是 symlink
+#   ② [ -e ] 必须非悬空（裸 readlink 对悬空链接同样返回目标串 rc=0 ⇒ 会假判幂等）
+#      [ -e ] 跟随 symlink，BSD/GNU 一致 —— 不用 -f（-f 跨实现语义不一）
+#   ③ 裸 readlink（**禁** readlink -f —— GNU-only，macOS 报 illegal option 且 stdout 空 ⇒ 判据恒假）
+#   ④ case 显式否决源树 (*/flow-kit-bundle/hooks/…) 与 dist 镜像 (*/dist/*)，只认已安装位
+# 依赖 $1 = 待判目标路径
+# ═══════════════════════════════════════════════════════════════════════
+is_flowkit_symlink() {
+  [ -L "$1" ] || return 1
+  [ -e "$1" ] || return 1
+  local t
+  t="$(readlink "$1")" || return 1
+  case "$t" in
+    */flow-kit-bundle/hooks/pre-push/pre-push.sh) return 1 ;;   # 源树 —— 否决
+    */dist/*)                                    return 1 ;;   # dist 镜像 —— 非安装位
+    */hooks/pre-push/pre-push.sh)                return 0 ;;   # 已安装位
+    *)                                           return 1 ;;
+  esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# deploy_pre_push — pre-push symlink 部署（AC-3 推送拦截器 · DESIGN D3）
+# 与 deploy_pre_commit **语义相反**：pre-commit 是 skip/交互确认（既有则不动），
+#   pre-push 是「备份后覆盖」（既有非 flow-kit 文件 ⇒ 先备份再覆盖）。
+# 语义必须重写，**禁止照抄** deploy_pre_commit。
+# 依赖 $project / $hook_dst（bash 动态作用域：从 install_hooks() 内调用时可见）
+# ═══════════════════════════════════════════════════════════════════════
+deploy_pre_push() {
+  # 1. 无条件装源文件到已安装 hooks 目录（user + project scope 都装）
+  install_file "$SCRIPT_DIR/hooks/pre-push/pre-push.sh" "$hook_dst/pre-push/pre-push.sh"
+  chmod +x "$hook_dst/pre-push/pre-push.sh" 2>/dev/null || true
+
+  # 2. 项目级才创建 symlink（user scope 无 .git → 只装源文件）
+  [[ -d "${project}/.git" ]] || return 0
+
+  local target="${project}/.git/hooks/pre-push"
+  mkdir -p "${project}/.git/hooks"
+
+  # 3. 幂等：已是指向已安装位的 symlink ⇒ 跳过
+  if is_flowkit_symlink "$target"; then
+    echo "   ✅ pre-push 已是 flow-kit symlink，跳过: $target"
+    return 0
+  fi
+
+  # 4. 先备份既有物（普通文件 / 悬空 symlink / 错绑 symlink）
+  #    备份名含 PID 避免同秒并发互相覆盖
+  local bak="${target}.bak.$$"
+  if [ -L "$target" ]; then
+    # symlink（非已安装位 / 悬空）：记下其 linktarget 以便回滚
+    local lt
+    lt="$(readlink "$target" 2>/dev/null)" || lt="(unreadable)"
+    printf '%s\n' "$lt" > "${bak}.linktarget" || { echo "🔴 pre-push 备份 linktarget 写入失败: ${bak}.linktarget" >&2; return 1; }
+    echo "   [pre-push] 既有 symlink 备份: ${bak}.linktarget -> $lt"
+  elif [ -e "$target" ]; then
+    cp -p "$target" "$bak" || { echo "🔴 pre-push 备份失败: $target -> $bak" >&2; return 1; }
+    echo "   [pre-push] 既有文件备份: $target -> $bak"
+  fi
+
+  # 5. 删除旧物 + 创建 symlink（唯一产物形态 · ADR-022）
+  rm -f "$target" || { echo "🔴 pre-push 旧物删除失败: $target" >&2; return 1; }
+  ln -s "$hook_dst/pre-push/pre-push.sh" "$target" || { echo "🔴 pre-push symlink 创建失败: $target" >&2; return 1; }
+  chmod +x "$target" 2>/dev/null || true
+
+  # 6. 部署断言（DESIGN D3 item 5）：产物可执行
+  [ -x "$target" ] || { echo "🔴 pre-push 部署后不可执行: $target" >&2; return 1; }
+  echo "   ✅ pre-push symlink → $target"
+}
+
+# ═══════════════════════════════════════════════════════════════════════
 # install_hooks — Stop Hook + SessionStart → user or project scope
 # ═══════════════════════════════════════════════════════════════════════
 install_hooks() {
@@ -190,6 +261,7 @@ install_hooks() {
   done < <(ls "$SCRIPT_DIR/hooks/pre-tool-use"/*.sh 2>/dev/null)
 
   deploy_pre_commit
+  deploy_pre_push
 
   # ── flow-kit-l2-reviewer agent（DESIGN D6）─────────────────────────
   # 仅 opencode 平台安装：claude 平台不装（CC 用 subagent_type 原生派发 L2 审查）

@@ -605,7 +605,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T08</depends_on>
 </task>
 
-<task id="T16" parallel="true" status="pending" model-tier="top">
+<task id="T16" parallel="true" status="done" model-tier="top">
   <name>AC-3(c) 部署形态闭环（L3 #4 major①）：`install_hooks.sh` 新增 `deploy_pre_push()` 并以 symlink 为唯一产物形态</name>
   <read_files>
     <`flow-kit-bundle/lib/install_hooks.sh`（:41 deploy_pre_commit 定义 · **语义相反禁止照抄** / :69 install_hooks / :92/:101 hook_dst / :153 接线点）>
