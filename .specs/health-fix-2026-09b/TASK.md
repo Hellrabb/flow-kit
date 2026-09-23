@@ -899,7 +899,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T17, T18, T21, T22, T23</depends_on>
 </task>
 
-<task id="T21" parallel="true" status="pending" model-tier="top">
+<task id="T21" parallel="true" status="done" model-tier="top">
   <name>R8 落地 + AC-6 基线冻结：常设权威清单 + change 副本 + 读序双态（L2 第 7 轮 handoff ①）</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（T17 的读序实现）>
