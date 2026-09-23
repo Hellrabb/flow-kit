@@ -687,3 +687,27 @@ T27 执行者按契约上报 **BLOCKED**（未提交、未写 SUMMARY、未改 `
 ### 同源修复（T29 判据）
 
 T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `make check`（内部 `make test` ⇒ bats）再直接跑 `npx bats` ⇒ **同一假红必然复现**（只是把 T27 的 BLOCKED 重演一遍）。已在派发前按 L-146 同源修复：删去全局导出、改为说明性注释（本判据无任何步骤依赖 C 地域；`git diff --name-only` / `grep -cE` / `sort -u` 与断言 `[ -n "$FILES" ]` 均与 locale 无关）。全仓核查：另外 10 个 task 块含 `export LC_ALL=C`（T01/T04/T05/T13/T21/T22/T24/T25/T26），**均未在同一块内调用 `npx bats`**，故无同类风险。
+
+## ✅ T29 复核记录（主 agent 独立复核 · 十项 + 活性探针 · AC-8 收口 · 2026-09-24）
+
+交付 `88f7a0ce80a4264b2fd39263be84667dd416d85b`（`fix(health-fix-2026-09b): T29 AC-8 全量质量门禁收口（make check 全绿 · bats 976 ok / 0 not ok / 0 skip · 变更集非空守卫 + 陈旧口径订正）`，`%cI` 2026-09-24T04:00:41+08:00）。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 4 文件：`.specs/STATE.md` 2/2、`.specs/health-fix-2026-09b/T25-SUMMARY.md` 1/1、`.specs/health-fix-2026-09b/T29-SUMMARY.md` 131/0、`.specs/health-fix-2026-09b/TASK.md` 5/5 ✓ |
+| 2 | 工作树 blob == HEAD | 4/4 ✓（`STATE.md` `ea16d75a…`、`T25-SUMMARY.md` `1036421d…`、`T29-SUMMARY.md` `8aa36319…`、`TASK.md` `0749b925…`） |
+| 3 | `TASK.md` 差异 | 恰 4 处 5/5 行：`:905` T20 `<done>` `AC-6①`→`AC-6③`、`:1209` T27 echo 基线口径、`:1213` T27 `<done>` 基线口径、`:1259` T29 `status="pending"`→`"done"` ✓ |
+| 4 | 台账 | length 28→**29**；末条 `{id:T29, commit_sha:88f7a0c, fix_rounds:0, deferred:[], completed_at:2026-09-24T04:00:56+08:00}`；`%cI` 04:00:41 ⇒ Δ=**15s**（L-127 ✓） |
+| 5 | 结构不变量 | `<task id=` / `</task>` / `<depends_on>` / `<action>` 各 **29**；`<verify>` 计数 **30** —— 多出的 1 个是主 agent 在 T27 `<done>` 散文里写下的「首版 `<verify>`」字样，非遗漏/重复结构 ✓ |
+| 6 | 精确 done 计数 | `grep -c '<task[^>]*status="done"'` = **29** == 台账 ✓ |
+| 7 | **判据重抽 + 原样实跑（主 agent 亲跑）** | 自工件本体行锚抽 15 行 ⇒ `bash -n` OK；**rc=0**：`make check` 全绿（lint 68 文件 0 错 / check-validate 317 文件·漏配 0·源缺失 0 / check-test-sync / check-hooks-sync 六镜像漂移 0 / check-dist 与源一致 / check-gate-sync 3/14 对一致 + 17 预设 / check-path-privacy 清单外命中 0 / check-nfr-portability 通过）+ `bats: rc=0 ok=976 not-ok=0` ✓ |
+| 8 | **活性探针（主 agent 亲造）** | L-130 式 stub 短路前段（`/tmp/t29stub/bin` 的伪 `make`/`npx`）+ 真跑末段：`FLOW_KIT_CHANGE_BASE=HEAD` ⇒ **rc=1** + `🔴 AC-8 时点变更集为空（相对锚点 HEAD）⇒ 兼容性判据 rc=3（未验证），不得当作通过` ⇒ **变更集非空守卫不是恒绿** ✓ |
+| 9 | 陈旧口径四处订正 | `.specs/STATE.md:48` = `976 ok / 0 not ok / 0 skip（TAP plan 1..976；2026-09-24 health-fix-2026-09b T29 全量实测）`；`TASK.md:905` = `AC-6③`；`T25-SUMMARY.md:105` 回归行口径已订正；T27 块两处基线字样 = `基线 2026-09-24 T29 收口实测 rc=0 / 976 ok / 0 not ok` ✓（**四处均为口径订正，未改任何断言结构、未收紧阈值**） |
+| 10 | 收尾 | `git status --short` 恰 5 个冻结 `A `；`T29-SUMMARY.md` 脱敏扫描命中 0；`make lint` rc=0；`make check-path-privacy` rc=0 ✓ |
+
+### ℹ️ 两点备查（非缺陷）
+
+1. **T29 是「AC-8 时点」的最后一步**：它把 976/0/0 写进 `.specs/STATE.md` 的同时，自己也成为最后一个改动 `.specs/**` 的产物 —— 此后仅剩审查档（`INDEPENDENT-REVIEW-5/6/7.md`）与归档动作，源面（`flow-kit-bundle/**`、`test/**`、根 `Makefile`、`package-*.sh`）自 `08133b5`（T27 交付）后未再变动 ⇒ `check-dist` 保持绿。
+2. **执行者两处工具用法坑（非产品问题）**：① 整条判据单跑时约 2 分钟（内含 `make check` + bats），60s 超时被 SIGTERM ⇒ 改分步跑（600s / 300s）；② 相对路径被 `runtime-edit-guard` 拒 ⇒ 改绝对路径 + 先 `read` 再 `edit`（与 T05 之后确立的口径一致）。
+
+⇒ **T29 = PASS（`fix_rounds=0`）**；阶段 4（DEV）29 个 task **全部交付**，`make check` 首次在**完整门禁集**上全绿（新增三道：`check-gate-sync` / `check-path-privacy` / `check-nfr-portability`）。

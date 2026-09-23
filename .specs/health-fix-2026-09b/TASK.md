@@ -1290,7 +1290,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     FILES=$( { git -c core.quotepath=false diff --name-only "$BASE8"; git -c core.quotepath=false ls-files -o --exclude-standard; } | grep -E '\.sh$' | sort -u );
     [ -n "$FILES" ] || { echo "🔴 AC-8 时点变更集为空（相对锚点 $BASE8）⇒ 兼容性判据 rc=3（未验证），不得当作通过"; exit 1; }
   </verify>
-  <done>AC-8：`make check` 全绿、bats ≥973 ok / 0 not ok、三道副本一致性门禁 0 漂移、变更集非空（`rc=3` 未被当绿灯）</done>
+  <done>AC-8：`make check` 全绿、bats ≥973 ok / 0 not ok、三道副本一致性门禁 0 漂移、变更集非空（`rc=3` 未被当绿灯）；**时点实测（主 agent 复核 2026-09-24 · 十项 + 活性探针）**：判据自工件本体重抽 15 行原样实跑 rc=0（`make check` 全绿含新增三道门禁、`bats: rc=0 ok=976 not-ok=0`）、变更集非空守卫以 `FLOW_KIT_CHANGE_BASE=HEAD` 实测 rc=1（非恒绿）、四处陈旧口径订正均未改断言结构；`fix_rounds=0`、`commit_sha=88f7a0c`</done>
   <depends_on>T08, T14, T15, T19, T20, T22, T23, T25, T26, T27, T28</depends_on>
 </task>
 ```
