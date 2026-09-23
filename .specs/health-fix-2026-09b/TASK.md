@@ -879,7 +879,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T11, T12, T16, T17, T18, T21, T22, T23, T26</depends_on>
 </task>
 
-<task id="T20" parallel="true" status="pending" model-tier="cheap">
+<task id="T20" parallel="true" status="done" model-tier="cheap">
   <name>AC-6③：pre-commit **仓库内源**接入 `check-path-privacy`</name>
   <read_files>
     <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（32L · 现内容只有 `make test`）>

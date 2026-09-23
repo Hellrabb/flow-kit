@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # pre-commit.sh — flow-kit 归档 commit 门禁
-# make test 非零退出码拒绝 commit。无 Makefile / npx 不可见时跳过。
+# make test 与 make check-path-privacy 非零退出码拒绝 commit。无 Makefile / npx 不可见时跳过。
 # 部署：install_hooks.sh deploy_pre_commit() → symlink .git/hooks/pre-commit → 已安装 hooks 目录
 
 # PATH 补齐（D2 R9 修复 · npx/node 可见性）
@@ -26,6 +26,12 @@ fi
 # make test
 if ! make test; then
   echo "[archive-commit-gate] test failed, commit rejected" >&2
+  exit 1
+fi
+
+# make check-path-privacy（路径隐私门禁 · health-fix-2026-09b AC-6 ③）
+if ! make check-path-privacy; then
+  echo "[archive-commit-gate] path-privacy check failed, commit rejected" >&2
   exit 1
 fi
 
