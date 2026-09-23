@@ -195,3 +195,31 @@
   `flow-kit-bundle/hooks/pre-push/pre-push.sh` 报两条「缺失」（`dist/dsh-flow-kit/hooks/pre-push/pre-push.sh`
   与 vendor 镜像）。这是**打包件新鲜度缺口**（源正确性不受影响，且 `check-dist` 整体本就预期红到 T24
   收口）⇒ 判定为已知接受项，留给 `bash package-dsh-plugin.sh` 重建刷新（集成打包阶段），本 task 不重建 dist。
+
+## 🟢 T11 复核记录 · 主 agent 亲验与两处订正（2026-09-23）
+
+- **commit `d613134` 复核通过**：4 文件（`flow-kit-bundle/hooks/pre-push/pre-push.sh` **新增 41 行 · 100755**、`T11-SUMMARY.md` 155、`MINOR-DEFERRED.md` +7、`TASK.md` 1/1）；工作区 sha == 提交 blob（`d2a14f6f863b6559…`）；`bash sync-hooks.sh --check` rc=0（新增 `pre-push` 不在 sync 的登记面内 ⇒ 无漂移，符合 DESIGN D3「四处登记」待 T12/T16 处理的预期）；`make lint` rc=0（shellcheck 无 error）；台账 `completed_at` = `2026-09-23T15:12:48+08:00` 与 `git log -1 --format=%cI d613134` = `15:12:45+08:00` **同分钟** ✅、`entries=11`、`cat-file -e` 通过。
+- **订正 1（判据分叉 · 授权表述不当 + 未回写工件）**：T11 执行者按授权把 verify 末尾的「禁用构造」检查改成**注释盲**形态，但**只改了运行副本**（`/tmp/t11-sbx.e8cJnD/t11v.sh`），**未回写 `TASK.md`** ⇒ 我用 `task-brief` 抽工件里的判据实跑得 **rc=1**（`🔴 含 bash4-only/GNU-only 构造`），命中源是脚本自身的兼容性注释（`:15`、`:23` 两行整行注释提到 `mapfile` / 关联数组）。已把 `TASK.md` T11 的 verify 改为 `grep -vE '^[[:space:]]*#' "$H" | grep -qE …`（先剔除整行注释再判，与仓内 `check-nfr-portability` 的注释剥离约定一致）；并**顺带修掉同类隐患**：`TASK.md` 中 T17 的 verify 对**尚未创建**的 `check-path-privacy.sh` 用了同一形态的 grep，若其脚本注释里写「不用 mapfile」同样会假红 ⇒ 一并改为注释盲。改写后 T11 判据实跑 **rc=0**。
+- **订正 2（语义边界 · 登记不修）**：「逐 ref 评估」在**扫描面**上做不到按 ref 的树/提交评估 —— `check-path-privacy`（DESIGN D8/§2.1）扫的是 **tracked 文件内容（工作树/索引）**，而 hook 对 stdin 的每个 ref 行重复调用同一检查，`CHECK_REF` 仅作归因提示传入 ⇒ 被指名的总是「本次推送里第一个使全局检查失败的那一行」，而非「该 ref 的内容里含泄漏」。T19 的夹具（推 `main` 时工作树即泄漏态、推 `develop` 时干净）与此实现相容 ⇒ AC-3 可验收；反向情形（干净 ref + 脏工作树）会被判为该 ref 泄漏，方向是 fail-closed（安全侧）。属设计与实现的语义落差，登记待阶段 6 复核；**本 change 不改**。
+- **过程教训**：已落 `.specs/LESSONS.md` **L-128** —— 授权改写判据时，必须要求把改写后的判据**回写工件**（同一提交内）；否则工件的判据与实跑的判据分叉，事后无法从仓内复现。
+
+## 🟢 T12（AC-3(b) · sync-hooks.sh 四处登记 pre-push）· 判据与工件（2026-09-23）
+
+- **`--list` 两条 verify 断言为工件缺陷（非实现失败）**：`TASK.md` T12 的 verify 末两条 ——
+  `bash sync-hooks.sh --list | grep -q 'pre-push'` 与 `[ "$(bash sync-hooks.sh --list | grep -cE '✅')" -ge 7 ]`
+  在**结构性上不可满足**：`sync-hooks.sh --list` 的语义是**逐 DEST_ROOT 枚举状态**（✅/⚠️ per-root，
+  共 6 个 DEST_ROOTS），`grep -cE '✅'` 恒为 6、不随登记面（collect_rel_paths）增长，且 `--list` **不枚举镜像文件名**
+  （只在 root 行下打印 prompts-tree `↳` 与 orphan `↳`）⇒ `grep -q 'pre-push'` 永假、`>=7` 恒假。
+  真实清单文件枚举由 `collect_rel_paths`（:137 已含 pre-push）驱动，非 `--list` 职责。
+  DESIGN D3 item 7 判据（`--entry-class rc=0` + `--check rc=0`）均绿。判据订正需主 agent 依 **L-128** 授权回写
+  `TASK.md`（建议把该两条 `--list` 判据改为对 `--list` 实际语义的表述，或径用 DESIGN 判据），本 task 不改工件判据。
+- **orphan 反向扫描是 `:283/:284` `_d` 目录表 + `:288/:290`「$_rel case 白名单」整体**：T12 实现中仅把 pre-push 加进
+  `_d` 目录表而未同步 case 白名单时，预演 orphan 探针命中 `*) continue` 被静默跳过（漏检）—— 与 DESIGN D3 item 7 一致；
+  补齐 case 白名单后 B5-R5 语义对 pre-push 生效。已如实计入 T12-SUMMARY §三/§四。
+
+## 🧭 主 agent 裁决（阶段 4 · T12 判据工件缺陷 · 2026-09-23）
+
+- **裁决：T12 的「`--list` 两条断言」确认为工件缺陷，非实现失败 —— 已按 L-128 由主 agent 回写 `TASK.md`。** 我独立复现了执行者的结论（非采信自报）：`bash sync-hooks.sh --list` 的输出是**逐 DEST_ROOT 的状态行**（`✅`/`⚠️` 各 6 行）+ 每根下的 prompts-tree `↳`，**从不打印镜像文件名** ⇒ `--list | grep -q 'pre-push'` 命中 **0**、`--list | grep -cE '✅'` **恒为 6**（与 `collect_rel_paths` 的登记面无关）。⇒ 「`--list` 含 pre-push」与「✅ ≥ 7」两条在结构性上不可满足，属我在阶段 3 写 TASK 时的判据设计错误（与 T09 的 spec 自相矛盾同族：**判据只被"想"过，没被"跑"过**，L-119）。
+- **改写后的判据（已写入 `TASK.md` T12 并在写入前实跑，L-119）**：① `--entry-class pre-push/pre-push.sh` rc=0（修复前 rc=2）；② `--check` rc=0；③ 镜像面改为「从 `--list` 抽出全部 `✅` 根 ⇒ 逐一断言 `$root/pre-push/pre-push.sh` 在位」+ `镜像文件数 ≥ 48`（T05 基线 **47**，登记后实测 **48**）；④ 新增 **orphan 反向扫描双态判据**（探针在位 ⇒ `--check --strict-orphans` 必非 0 且报文**指名** `pre-push/zz-verify-orphan-probe.sh`；移除 ⇒ `--check` 必 0），`trap` 保证清理。**实测（从工件抽取 19 行后原样执行）rc=0**，跑后镜像目录无残留。
+- **④「成对改」发现已由主 agent 独立复现并确认**：`_d` 目录表（`:284`）与 `$_rel` 的 case 白名单（`:290`）必须**同改** —— 只加目录表时，orphan 探针会命中 `*) continue` 被静默跳过（＝DESIGN D3 item 7 所述「漏检」现场）。我的实测：探针在位时默认 `--check` rc=0 但打印 `⚠️ … 反向残留 1 个（advisory）: pre-push/zz-probe-t12.sh`、`--check --strict-orphans` **rc=1** 且 `❌ … pre-push/zz-probe-t12.sh`；移除后两者皆 rc=0、目录内无残留。
+- **工艺偏离（已纠正）**：T12 的提交 `9933c35` **只含产品文件 `sync-hooks.sh`**（6+/5−，0 越界），协议产物（`T12-SUMMARY.md`、`MINOR-DEFERRED.md` 追加、`TASK.md` 勾选）**留在工作树未提交** ⇒ 与 T05/T06/T11 的「一个 task 一个提交，含 SUMMARY + 勾选」不一致，审计链会断。已回派执行者以**显式路径**补一个提交（禁止把 `.specs/CONTEXT.md`/`LESSONS.md`/`STATE.md` 等他人在途改动夹带进来）。

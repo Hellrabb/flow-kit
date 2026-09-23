@@ -434,13 +434,13 @@ Wave 7 (收口 · 全量无退化)                  : T29
     [ "$(stat -c '%a' "$H" 2>/dev/null || stat -f '%Lp' "$H")" = "755" ] || { echo "🔴 mode ≠ 755"; exit 1; };
     grep -q 'make check' "$H" || { echo "🔴 未保留 make check 语义（bats 断言会转红）"; exit 1; };
     bash -n "$H" || exit 1;
-    grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i' "$H" && { echo "🔴 含 bash4-only/GNU-only 构造"; exit 1; }
+    grep -vE '^[[:space:]]*#' "$H" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i' && { echo "🔴 含 bash4-only/GNU-only 构造（已剔除整行注释：本判定只读代码行，避免把兼容性说明注释误判为违规）"; exit 1; }
   </verify>
   <done>AC-3：拦截器本体存在、可执行（755 入库）、保留 `make check` 语义且 bash 3.2 兼容 —— AC-8 的 `test_quality_baseline.bats` 两条无 skip 断言可达；**被拒 ref 会被指名**（动态断言在 T19：四种 push 形态各须在报文里出现该 ref 名）</done>
   <depends_on></depends_on>
 </task>
 
-<task id="T12" parallel="true" status="pending" model-tier="standard">
+<task id="T12" parallel="true" status="done" model-tier="standard">
   <name>AC-3(b)：`sync-hooks.sh` 四处登记 `pre-push`（真实条目 + entry-class 白名单 + 收集 + orphan 反向扫描）</name>
   <read_files>
     <`sync-hooks.sh`（全文 · 380L；:56 DEST_ROOTS / :79 is_real_entry / :95-97 --entry-class 白名单 / :110 collect_rel_paths / :283+:289 orphan 扫描）>
@@ -457,12 +457,27 @@ Wave 7 (收口 · 全量无退化)                  : T29
     **不得**改动 `--check`/`--list` 的只读语义（`:164`）；`mapfile`×3 属 TD-035 known-acceptable，**不新增**其他 bash4 构造。
   </action>
   <verify>
+    S=sync-hooks.sh;
+    [ -f "$S" ] || { echo "🔴 缺 $S"; exit 1; };
     bash sync-hooks.sh --entry-class pre-push/pre-push.sh || { echo "🔴 未被登记为真实条目（修复前 rc=2）"; exit 1; };
-    bash sync-hooks.sh --check || { echo "🔴 副本漂移或 orphan 报告"; exit 1; };
-    bash sync-hooks.sh --list | grep -q 'pre-push' || { echo "🔴 --list 未枚举 pre-push"; exit 1; };
-    [ "$(bash sync-hooks.sh --list | grep -cE '✅')" -ge 7 ] || { echo "🔴 副本面枚举数未增（仍为 6）"; exit 1; }
+    bash sync-hooks.sh --check >/dev/null || { echo "🔴 副本漂移或 orphan 报告"; exit 1; };
+    # 镜像面：`--list` 按 DEST_ROOT 枚举状态、**不打印镜像文件名**（✅ 恒为 6），故改判「每个枚举根的 pre-push/pre-push.sh 都在位」
+    roots=$(bash sync-hooks.sh --list | sed -n 's/^[[:space:]]*✅[[:space:]]*//p'); n=$(printf '%s\n' "$roots" | grep -c .);
+    [ "$n" -ge 6 ] || { echo "🔴 镜像根枚举数 = $n（<6：--list 面异常）"; exit 1; };
+    miss=0; for r in $roots; do [ -f "$r/pre-push/pre-push.sh" ] || { echo "🔴 镜像缺 pre-push/pre-push.sh: $r"; miss=1; }; done;
+    [ "$miss" -eq 0 ] || exit 1;
+    nf=$(bash sync-hooks.sh --list | sed -n 's/.*镜像文件数: \([0-9][0-9]*\).*/\1/p');
+    { [ -n "$nf" ] && [ "$nf" -ge 48 ]; } || { echo "🔴 镜像文件数 = ${nf:-空}（<48：登记未进入同步面；T05 基线 47）"; exit 1; };
+    # ④ orphan 反向扫描（双态）：探针在位 ⇒ --strict-orphans 必非 0 且指名；移除 ⇒ --check 必 0
+    probe="$HOME/.claude/hooks/pre-push/zz-verify-orphan-probe.sh"; trap 'rm -f "$probe"' EXIT;
+    [ -d "$(dirname "$probe")" ] || { echo "🔴 无 pre-push 镜像目录（sync 未落盘）"; exit 1; };
+    printf '#!/bin/sh\n' > "$probe";
+    out=$(bash sync-hooks.sh --check --strict-orphans 2>&1); rc=$?;
+    [ "$rc" -ne 0 ] || { echo "🔴 orphan 反向扫描未覆盖 pre-push（探针在位而 rc=0）"; exit 1; };
+    printf '%s' "$out" | grep -q 'pre-push/zz-verify-orphan-probe.sh' || { echo "🔴 报错未指名探针（缺 file:line）"; exit 1; };
+    rm -f "$probe"; bash sync-hooks.sh --check >/dev/null 2>&1 || { echo "🔴 清理探针后 --check 仍非 0"; exit 1; }
   </verify>
-  <done>AC-3：`--entry-class pre-push/pre-push.sh` rc=0、`--check` rc=0 且 `--list` 枚举含 pre-push（修复前实测：`--entry-class` rc=2、✅ 面数 = 6）</done>
+  <done>AC-3：`--entry-class pre-push/pre-push.sh` rc=0、`--check` rc=0、六个镜像根逐一在位的 `pre-push/pre-push.sh`（`镜像文件数` 由 T05 基线 47 增至 48）、④ orphan 反向扫描对 `pre-push/**` 生效（探针在位 ⇒ `--check --strict-orphans` rc=1 且报文指名；移除 ⇒ `--check` rc=0）——修复前实测：`--entry-class` rc=2、`--list` 的 ✅ 恒为 6（`--list` 不打印镜像文件名 ⇒ 原「`--list` 含 pre-push」与「✅ ≥ 7」两条断言为**工件缺陷**，已由主 agent 按 L-128 改写，裁决记录见 `MINOR-DEFERRED.md`）</done>
   <depends_on></depends_on>
 </task>
 
@@ -640,7 +655,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
     bash -n "$S" || exit 1;
     grep -qE 'reference/\*|skills/\*|\.specs/\*' "$S" && { echo "🔴 排除表含宽通配（禁）"; exit 1; };
     grep -q 'reference/check-path-privacy.sh' "$S" || { echo "🔴 排除表未逐条列自指路径"; exit 1; };
-    grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i|grep[[:space:]]+-P' "$S" && { echo "🔴 含 bash4/GNU-only 构造"; exit 1; };
+    grep -vE '^[[:space:]]*#' "$S" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i|grep[[:space:]]+-P' && { echo "🔴 含 bash4/GNU-only 构造（已剔除整行注释：只读代码行）"; exit 1; };
     out=$(bash "$S" 2>&1); rc=$?;
     [ "$rc" -eq 1 ] || { echo "🔴 清单缺失态 rc=$rc ≠ 1（fail-closed 未实现）"; exit 1; };
     printf '%s' "$out" | grep -q 'path-privacy-allowlist.txt' || { echo "🔴 报文未指名缺失清单路径"; exit 1; };
