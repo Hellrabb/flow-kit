@@ -939,7 +939,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T17, T18</depends_on>
 </task>
 
-<task id="T22" parallel="true" status="pending" model-tier="top">
+<task id="T22" parallel="true" status="done" model-tier="top">
   <name>空基线自检（L3 #4 major②）：清单为空时的判据行为固化为双态断言</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（T17/T21 后的清单读取与判据分支）>
