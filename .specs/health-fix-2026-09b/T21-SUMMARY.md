@@ -72,7 +72,9 @@ rc=0
 
 1. **both-missing fail-closed（rc=1）** — T21 `<verify>` 块通过 `trap` 移走两份清单后直接跑 `check-path-privacy.sh`；独立复跑（复制到 `/tmp` 后移走）确认：rc=1，报文 `🔴 允许清单缺失（fail-closed，不得当空清单放行）：` + 两路径 + `扫描面: 工作树`，报文含 `path-privacy-allowlist.txt`。此为 pre-T21 既有态（baseline fact），T21 落档后仍保持。
 2. **self-report-count vs filed-line-count 一致性** — `printed=0` 与 `filed=$(grep -cvE '^[[:space:]]*(#|$)' "$A")=0` 相等（均 0），断言通过；未触发 mismatch 分支（mismatch 会 rc=1 退出）。
-3. **`清单外命中` 非零态** — 未触发（当前 `清单外命中 0 条`）。判别力来源：scanner 对 tracked 内容跑 PAT + 占位符排除 + 自排除后命中合计 = 0；若插入探针 `/home/zz-path-probe/`（REQUIREMENT AC-6① 形态，相邻单引号拼接）会变成非零命中并 rc=1（由 T19 e2e 在 fixture 层验证）。
+3. **`清单外命中` 非零态** — 未触发（当前 `清单外命中 0 条`）。判别力来源：scanner 对 tracked 内容跑 PAT + 占位符排除 + 自排除后命中合计 = 0；若插入 REQUIREMENT AC-6① 的「相邻单引号拼接」探针形态（本文件不复现其字面量，以免被自身门禁计为清单外命中；该形态在 REQUIREMENT 中以源文本安全写法给出）会变成非零命中并 rc=1（由 T19 e2e 在 fixture 层验证）。
+
+> 修复轮 1 记录（fix_rounds=1）：首次交付 `f315b64` 的 T21-SUMMARY.md:75 含合成探针字面量，提交变 tracked 后被自身门禁计为 `清单外命中 1 条`。根因为判据运行时机——跑判据时该文件未 tracked ⇒ 扫描面隐形；`git commit` 扩大扫描面那一刻暴露。修复：改为不落字面量的描述。新纪律 L-137：扫描面相关判据必须在 `git add` 新产物之后再跑。
 4. **file-missing-from-standing-path（仅常设缺，change 在位）** — 未单独触发；R8 读序 = 常设 > change，常设缺则读 change（script `:93-95`）。此分支在 T21 verify 块未单独断言，但 R8 读序逻辑由 both-missing 分支间接覆盖（both-missing 是读序的 fail-closed 兜底）。
 5. **file-missing-from-change-copy（仅 change 缺，常设在位）** — 未单独触发；常设在位即首选常设，change 缺不影响。同上由读序逻辑覆盖。
 
