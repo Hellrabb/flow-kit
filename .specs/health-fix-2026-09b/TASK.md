@@ -660,7 +660,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T06, T12</depends_on>
 </task>
 
-<task id="T17" parallel="true" status="pending" model-tier="top">
+<task id="T17" parallel="true" status="done" model-tier="top">
   <name>AC-6 门禁实现：`check-path-privacy.sh`（PAT + 排除表 + fail-closed 读序 + 自证输出）</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（同址既有门禁的写法与输出风格）>
