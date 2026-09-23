@@ -1119,7 +1119,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T05</depends_on>
 </task>
 
-<task id="T26" parallel="true" status="pending" model-tier="top">
+<task id="T26" parallel="true" status="done" model-tier="top">
   <name>AC-6 端到端判据：探针必须被抓住 + 自报↔落档绑定 + 差分数（防硬编码）</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（T17/T21/T22/T23 定稿）>
