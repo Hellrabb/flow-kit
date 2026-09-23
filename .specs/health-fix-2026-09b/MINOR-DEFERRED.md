@@ -664,3 +664,26 @@ T27 执行者按契约上报 **BLOCKED**（未提交、未写 SUMMARY、未改 `
 3. 登记 **L-146**（判据的环境 export 会泄漏进它调用的子套件；`iconv` 编码断言必须写全 `-f/-t`）与 **TD-051**（`test/test_l3_pipeline_fix.bats:609` 缺 `-t`，`LC_ALL=C` 环境下 `make test` 假红）。
 4. **本 change 不修 `test/**`**：该目录与其 bundle 镜像属**源面**，改动会令 `check-dist` 变红并迫使 T24 重建 —— 违反「T24 必须是最后一个改动源面的步骤」的次序硬约束（TD-051 留待后续 change）。
 5. 修好判据后交回同一执行者重跑并完成 T27（提交 + SUMMARY + 台账 length 28）。
+
+## ✅ T27 复核记录（主 agent 独立复核 · 十项 + 活性探针 · 2026-09-24）
+
+首轮：执行者按契约**诚实 BLOCKED**（判据 rc=1，但残留扫描全 CLEAN），根因 = 判据首行 `export LC_ALL=C` 泄漏进 `npx bats`（详见上节裁决）。判据经主 agent 最小修（作用域收窄，按 L-128 **回写 `TASK.md` 工件本体**，随 `dd0870f` 入库）后，交付提交 `08133b5bfffaff67f3f9bb023b3fa0ac4b6a1fca`（`docs(health-fix-2026-09b): T27 分发件复扫通过（判据 rc=0、bats 976 ok/0 not ok、六项门禁 rc=0）`，`%cI` 2026-09-24T03:35:14+08:00）。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 2 文件：`T27-SUMMARY.md` 78/0、`TASK.md` 1/1 ✓ |
+| 2 | 工作树 blob == HEAD | 2/2 ✓（SUMMARY `a3c1c1d2…`、`TASK.md` `b0798bda…`） |
+| 3 | `TASK.md` 差异 | 恰 1 行（`:1177` `status="pending"`→`"done"`），无其它改动 ✓ |
+| 4 | 台账 | length 27→**28**；末条 `{id:T27, commit_sha:08133b5, fix_rounds:0, deferred:[], completed_at:2026-09-24T03:35:24+08:00}`；与 `%cI` Δ=**10s** ≤120s（L-127）✓ |
+| 5 | **判据重抽 + 原样实跑（主 agent 亲跑）** | 自工件本体行锚抽 **19 行**（`bash -n` OK，第 14 行即本轮作用域修复行）；`bash v_T27.sh` **rc=0**：`dist/dsh-flow-kit-0.2.0.tgz: eval-echo=0` / `chisel=0` / `bats: rc=0 ok=976 not-ok=0` ✓ |
+| 6 | **活性探针（主 agent 亲造）** | 造假归档 `dist/dsh-flow-kit-9.9.9.tgz`（内含 `chisel` + `$(eval echo evil)`）⇒ 判据 **rc=1** 且**逐档指名**：`9.9.9.tgz: eval-echo=1` / `chisel=1` + `🔴 分发件仍有可注入 hook 或内部项目名`；删件后 sha256 与原件一致（`0b3d73e2…`）⇒ 复跑 **rc=0** ⇒ 判据非恒绿 ✓ |
+| 7 | 结构不变量 | `<task id=` / `<verify>` / `</task>` / `<depends_on>` / `<action>` 各 **29**；精确 done 计数 **28** == 台账 length ✓ |
+| 8 | 冻结集 | `git status --short` 恰 5 个 `A `（CHANGE / IR-1/2/3 / REQUIREMENT）✓ |
+| 9 | `dist/` 现状 | 仅 `dsh-flow-kit-0.2.0.tgz`（1385199 B · 9月24 02:44 · sha256 `0b3d73e25cd2c94c2d19eae04b57d27bbb197610c727d1cf878deed0b9d94485`），无 9.9.9 残留 ✓ |
+| 10 | 脱敏 / 门禁 | SUMMARY 中真实账号路径命中 **0**；执行者六项门禁显式跑全 rc=0（本仓 hook 不自动运行，已按 L-144 标注）✓ |
+
+⇒ **T27 = PASS（`fix_rounds=0`）**。AC-1④ + AC-5 的归档面无残留。
+
+### 同源修复（T29 判据）
+
+T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `make check`（内部 `make test` ⇒ bats）再直接跑 `npx bats` ⇒ **同一假红必然复现**（只是把 T27 的 BLOCKED 重演一遍）。已在派发前按 L-146 同源修复：删去全局导出、改为说明性注释（本判据无任何步骤依赖 C 地域；`git diff --name-only` / `grep -cE` / `sort -u` 与断言 `[ -n "$FILES" ]` 均与 locale 无关）。全仓核查：另外 10 个 task 块含 `export LC_ALL=C`（T01/T04/T05/T13/T21/T22/T24/T25/T26），**均未在同一块内调用 `npx bats`**，故无同类风险。

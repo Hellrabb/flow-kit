@@ -1210,7 +1210,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     grep -E '^not ok [0-9]+' "$outf" | head -5; rm -f "$outf";
     { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 973 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; }
   </verify>
-  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-23 实测 973 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）</done>
+  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-23 实测 973 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）；**判据作用域修复（主 agent · L-146 · TD-051）**：首版 `<verify>` 的 `export LC_ALL=C` 泄漏进 `npx bats` ⇒ 环境脏导致的假红（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale），已收窄作用域并回写本工件 ⇒ 判据 rc=0、`bats: rc=0 ok=976 not-ok=0`〔主 agent 复核 2026-09-24 · 十项 + 活性探针〕</done>
   <depends_on>T24</depends_on>
 </task>
 
@@ -1274,7 +1274,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     故先用 `.change-base` 锚点断言变更集非空（守卫与 A 案同锚点）。
   </action>
   <verify>
-    export LC_ALL=C;
+    # L-146 / TD-051（主 agent 裁决 2026-09-24）：本判据**不得**导出 LC_ALL=C —— 它会污染 `make check`（内部 `make test`）与末尾 `npx bats` 子进程（glibc iconv 在 LC_CTYPE=C 下拒绝合法多字节 UTF-8，`test/test_l3_pipeline_fix.bats:609`）⇒ 环境脏导致的假红；确需 C 地域的单条命令请用前缀式 `LC_ALL=C cmd …`。
     # C3：先证「两门禁已接线」再跑 make check —— 否则 T14/T18 未完成时 make check 会在**旧门禁集**上全绿（AC-8「无退化」被架空）
     make -n check 2>/dev/null | grep -q 'check-gate-sync' || { echo "🔴 check-gate-sync 未接入 make check（T14 未完成 ⇒ 全绿不含其实质）"; exit 1; };
     make -n check 2>/dev/null | grep -q 'check-path-privacy' || { echo "🔴 check-path-privacy 未接入 make check（T18 未完成 ⇒ 全绿不含其实质）"; exit 1; };
