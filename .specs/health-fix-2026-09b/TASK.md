@@ -902,7 +902,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     bash -n flow-kit-bundle/hooks/pre-commit/pre-commit.sh || exit 1;
     bash sync-hooks.sh --check || { echo "🔴 副本漂移"; exit 1; }
   </verify>
-  <done>AC-6①：pre-commit 仓库内源已接入新门禁且副本一致（修复前实测：`grep -cE 'path|隐私|leak'` 命中 0）</done>
+  <done>AC-6③：pre-commit 仓库内源已接入新门禁且副本一致（修复前实测：`grep -cE 'path|隐私|leak'` 命中 0）</done>
   <depends_on>T17, T18, T21, T22, T23</depends_on>
 </task>
 
@@ -1206,11 +1206,11 @@ Wave 8 (收口 · 全量无退化)                  : T29
     unset LC_ALL; [ -n "${LANG:-}" ] || export LANG=C.UTF-8;   # 主 agent 裁决 2026-09-24（L-146）：LC_ALL=C 不得泄漏进 bats 子进程 —— glibc iconv 在 LC_CTYPE=C 下拒绝合法多字节 UTF-8（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale）⇒ 环境脏导致的假红，非产品回归；对应登记 TD-051
     outf=$(mktemp); npx bats test/ --formatter tap > "$outf" 2>&1; b_rc=$?;
     b_ok=$(grep -cE '^ok [0-9]+' "$outf"); b_no=$(grep -cE '^not ok [0-9]+' "$outf");
-    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-23 实测 rc=0 / 973 ok / 0 not ok，skip 计入 ok 行）";
+    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-24 T29 收口实测 rc=0 / 976 ok / 0 not ok，skip 计入 ok 行）";
     grep -E '^not ok [0-9]+' "$outf" | head -5; rm -f "$outf";
     { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 973 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; }
   </verify>
-  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-23 实测 973 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）；**判据作用域修复（主 agent · L-146 · TD-051）**：首版 `<verify>` 的 `export LC_ALL=C` 泄漏进 `npx bats` ⇒ 环境脏导致的假红（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale），已收窄作用域并回写本工件 ⇒ 判据 rc=0、`bats: rc=0 ok=976 not-ok=0`〔主 agent 复核 2026-09-24 · 十项 + 活性探针〕</done>
+  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-24 T29 收口实测 976 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）；**判据作用域修复（主 agent · L-146 · TD-051）**：首版 `<verify>` 的 `export LC_ALL=C` 泄漏进 `npx bats` ⇒ 环境脏导致的假红（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale），已收窄作用域并回写本工件 ⇒ 判据 rc=0、`bats: rc=0 ok=976 not-ok=0`〔主 agent 复核 2026-09-24 · 十项 + 活性探针〕</done>
   <depends_on>T24</depends_on>
 </task>
 
@@ -1256,7 +1256,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T02, T18</depends_on>
 </task>
 
-<task id="T29" parallel="false" status="pending" model-tier="top">
+<task id="T29" parallel="false" status="done" model-tier="top">
   <name>AC-8 收口：全量质量门禁无退化 + 变更集非空守卫</name>
   <read_files>
     <`Makefile`（最终 `check:` 组成：原有 6 项 + `check-gate-sync` + `check-path-privacy`）>
@@ -1281,7 +1281,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     make check || { echo "🔴 make check 未全绿"; exit 1; };
     outf=$(mktemp); npx bats test/ --formatter tap > "$outf" 2>&1; b_rc=$?;
     b_ok=$(grep -cE '^ok [0-9]+' "$outf"); b_no=$(grep -cE '^not ok [0-9]+' "$outf");
-    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-23 实测 rc=0 / 973 ok / 0 not ok；skip 计入 ok 行）";
+    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-24 T29 收口实测 rc=0 / 976 ok / 0 not ok；skip 计入 ok 行）";
     grep -E '^not ok [0-9]+' "$outf" | head -5; rm -f "$outf";
     { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 973 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; };
     make check-test-sync >/dev/null && make check-hooks-sync >/dev/null && make check-dist >/dev/null || { echo "🔴 三道副本一致性门禁漂移"; exit 1; };

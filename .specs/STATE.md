@@ -45,8 +45,8 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 973 ok / 0 not ok / 1 skip（TAP plan 1..973；skip = 既有 test_lessons_cleanup.bats:137 AC-4，该 AC 被永久 skip 且把失败说成正确 → 见 TD/health 2026-09-22） · 8 in test_guide_copy_parity.bats（user-guide-sync-2026-09b 新增）`
-  > 数字订正（2026-09-22 全量巡检实测）：原记「973 tests (963 pass + 1 skip)」算术不成立（963+1=964≠973）。TAP 的 `ok` 行含 skip，故正确拆分为 **972 pass + 1 skip = 973**。
+- **test_framework**: `bats-core 1.13.0 (npx) · 976 ok / 0 not ok / 0 skip（TAP plan 1..976；2026-09-24 health-fix-2026-09b T29 全量实测）`
+  > 口径订正（2026-09-24 health-fix-2026-09b T29 收口实测）：当前基线 **976 ok / 0 not ok / 0 skip**（原「973 ok / 0 not ok / 1 skip」已过时——既有 test_lessons_cleanup.bats:137 的 AC-4 skip 已在本 change 前序 task 闭合，不再 skip）。
 - **ci_cd**: `未检测到`
 
 ---

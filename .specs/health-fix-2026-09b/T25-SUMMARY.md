@@ -102,7 +102,7 @@ AC-1 副本面收口完成，**状态 DONE**。`bash sync-hooks.sh` 六面同步
 
 - **正确性**：六个 DEST_ROOT 由 `--list` 的 ✅ 行机械枚举（不手列），`#DESTS == 6`；每面守卫文件与源 `cmp` 逐字节一致；`eval-echo` 三面（源/副本）归零；哨兵未落盘且 rc=2。
 - **完整性**：写入面全部为 `bash sync-hooks.sh` 产出（仓库外副本），未手工编辑任何副本；本仓源文件**零改动**（`git status --short` 除已暂存的 5 份保护文件外无 `M`/`??`）。
-- **回归**：`make test` 973 ok / 0 not ok / 1 skip，`make lint` rc=0，历史判据 T17/18/21/22/23 全绿。
+- **回归**：`make test` 976 ok / 0 not ok / 0 skip，`make lint` rc=0，历史判据 T17/18/21/22/23 全绿。（2026-09-24 T29 收口实测口径订正：原「973 ok / 0 not ok / 1 skip」已过时）
 - **可维护性**：镜像逻辑完全复用 `sync-hooks.sh`/`make check-hooks-sync`，不新增常设维护点；副本后续漂移仍由既有 `--check` 门禁守护。
 - **安全与隐私**：哨兵载荷证明命令替换不执行（RCE 面闭合 `2+2` 结构——源与副本均须闭合，本任务补副本面）；`check-path-privacy` 清单外命中 0；本 SUMMARY 不落任何真实账号字形，DEST_ROOT 枚举一律 de-shape 为 `$HOME` / `$REPO` / `/home/<acct>/` 形态（`<` 非 PAT 字符类 ⇒ 不命中门禁）。
 - **文档一致性**：本 SUMMARY 与 T05/T25 `/done`、`REQUIREMENT.md` AC-1「6 面枚举禁手列 / 哨兵法 / vendored 守卫」口径一致；`TASK.md` 仅翻转 T25 `status`。
