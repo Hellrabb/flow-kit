@@ -815,7 +815,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T17</depends_on>
 </task>
 
-<task id="T19" parallel="false" status="pending" model-tier="top">
+<task id="T19" parallel="false" status="done" model-tier="top">
   <name>AC-3 端到端：四形态 push 拦截 + 干净 ref 放行（隔离 bare remote 实跑）</name>
   <read_files>
     <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（T11 · 次序语义：先逐 ref 评估并指名，后跑 `make check`）>
