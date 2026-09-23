@@ -639,3 +639,28 @@ T19 首轮 BLOCKED 暴露真实产品缺陷：`flow-kit-bundle/hooks/pre-push/pr
 
 1. **判据块抽取手法（L-125 族）**：T24 执行者报告「先前 `awk '/<task id="T24"/,/<\\/task>/'` 跨任务被证伪」，改用行锚定 `sed -n '1040,/^<\\/task>/p'` 精准取块；我的独立抽取用 `awk` 范围式取得 18 行并与执行者一致、`bash -n` 通过、实跑 rc=0 ⇒ 两种手法在本块结果相同。定式：抽 `<verify>` **优先行锚定**（`sed -n '<起始行>,/^<\\/task>/p'`），`awk` 范围式在同名串出现在块内时会跨任务（对比 L-143 同族经验）。
 2. **T27 的 bats 基线措辞陈旧**：T27 的 `<verify>` 仍写 `b_ok -ge 973` 与「基线 973 ok」（实测已 976 ok / 0 not ok / 0 skip）⇒ 该判据**不会因此变红**（`>=`），但措辞须在 T29 的陈旧口径清理里一并对齐（与 `.specs/STATE.md:48` 同批）。
+
+## 🧭 主 agent 裁决 · T27 判据的 locale 作用域缺陷（L-146 · TD-051 登记 · 2026-09-24）
+
+T27 执行者按契约上报 **BLOCKED**（未提交、未写 SUMMARY、未改 `TASK.md`）：判据 rc=1，但其**只读残留扫描全部 CLEAN** —— 归档 `eval-echo=0` / `chisel=0`、源测试 `chisel` 命中 0、`dist/` 只剩 `0.2.0`（假件已删）；六项门禁显式跑全 rc=0；活性校验（造假归档 `9.9.9.tgz` 含 `chisel` + `$(eval echo)`）确实让判据 rc=1。红**只**来自末段 `npx bats test/`：`ok=975 / not-ok=1`，`not ok 646 T06fix: L2 R1 - line cap truncation respects UTF-8 boundary`。
+
+**根因（主 agent 独立复现，与执行者结论一致）**：判据首行 `export LC_ALL=C`（本意只为归档扫描的排序/计数确定性）**泄漏进其 `npx bats` 子进程**；失败用例 `test/test_l3_pipeline_fix.bats:609` 的断言是 `printf '%s' "$capped" | iconv -f utf-8 -o /dev/null` —— `-o` 只是**输出文件**，**未给 `-t` ⇒ 目标字符集取自当前 locale**。⇒ 判为**判据作用域缺陷 + 测试侧 locale 敏感性缺陷（TD-051）**，产品代码无回归。
+
+**证据（主 agent 亲跑）**：
+
+| 命令 | 结果 |
+|---|---|
+| `printf '中文测试' \| LC_ALL=C iconv -f utf-8 -o /dev/null` | rc=1，stderr `iconv: illegal input sequence at position 0` |
+| 同上，`LC_ALL=C.UTF-8` | rc=0 |
+| 同上，`LC_ALL` 未设（本机 `LANG=zh_CN.UTF-8`） | rc=0 |
+| 同上，`LC_ALL=C` 但显式 `-t utf-8` | rc=0 |
+| `LC_ALL=C npx bats test/test_l3_pipeline_fix.bats` | rc=1、ok=40 / not_ok=1、`not ok 41 T06fix…` |
+| 环境地域下同文件 | rc=0、41 ok |
+| `sed -n '1,14p' Makefile` | `test:` 目标**不设** locale（装饰性 `tail -3` + 权威 rc）⇒ `make test` 与 pre-commit 的 `make test` 继承用户 locale |
+
+**裁决**：
+1. **判据最小修**：`LC_ALL=C` 只保留给归档扫描段；在 `npx bats test/` 前 `unset LC_ALL`（并 `[ -n "${LANG:-}" ] || export LANG=C.UTF-8`），**按 L-128 回写 `TASK.md` 工件本体**（T27 `<verify>`，含成因注释与 TD-051 指向）。
+2. 判据**活性不变**：假归档仍必须 rc=1（执行者已实测）。
+3. 登记 **L-146**（判据的环境 export 会泄漏进它调用的子套件；`iconv` 编码断言必须写全 `-f/-t`）与 **TD-051**（`test/test_l3_pipeline_fix.bats:609` 缺 `-t`，`LC_ALL=C` 环境下 `make test` 假红）。
+4. **本 change 不修 `test/**`**：该目录与其 bundle 镜像属**源面**，改动会令 `check-dist` 变红并迫使 T24 重建 —— 违反「T24 必须是最后一个改动源面的步骤」的次序硬约束（TD-051 留待后续 change）。
+5. 修好判据后交回同一执行者重跑并完成 T27（提交 + SUMMARY + 台账 length 28）。

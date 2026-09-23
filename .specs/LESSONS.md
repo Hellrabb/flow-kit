@@ -779,6 +779,14 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-146 · 判据里的 `export LC_ALL=C` 会泄漏进它调用的测试套件；`iconv -f utf-8 -o f` 的目标字符集取自 locale ⇒ 地域 C 下拒绝合法 UTF-8（假红）
+
+- 场景（2026-09-24 · T27）：判据（`TASK.md` T27 `<verify>`）首行 `export LC_ALL=C`（本意只为归档扫描的排序/计数确定性）**同时作用于脚本末尾的 `npx bats test/`**；套件里 `test/test_l3_pipeline_fix.bats:609` 的 `printf '%s' "$capped" | iconv -f utf-8 -o /dev/null` **没写 `-t`** ⇒ `iconv` 的目标字符集取当前 locale：`LC_CTYPE=C` ⇒ 目标是 ANSI_X3.4-1968(ASCII) ⇒ **任何合法多字节 UTF-8 都被判非法**。
+- 最小复现（我亲测）：`printf '中文测试' | LC_ALL=C iconv -f utf-8 -o /dev/null` ⇒ rc=1、stderr `iconv: illegal input sequence at position 0`；`LC_ALL=C.UTF-8` ⇒ rc=0；本机 `LANG=zh_CN.UTF-8` ⇒ rc=0；`LC_ALL=C` 但显式 `-t utf-8` ⇒ rc=0。注意 `-o` 只是**输出文件**，不是目标编码。
+- 现象：`LC_ALL=C npx bats test/test_l3_pipeline_fix.bats` ⇒ `not ok 41 T06fix: L2 R1 - line cap truncation respects UTF-8 boundary`（rc=1、ok=40/not_ok=1）；本机环境地域下同文件 rc=0 / 41 ok。**产品代码无回归**：该用例的被测输出在两种地域下逐字节相同且都是合法 UTF-8（`_l3_utf8_head_stream` 内部已 `local LC_ALL=C`，与外部 locale 无关）。
+- 危害面（不止这一条判据）：`Makefile:8-11` 的 `test:` 目标**不设** locale ⇒ `make test` 与调用它的 pre-commit 门禁**继承用户 locale** ⇒ 在 `LC_ALL=C` 的 CI/容器里 `make test` 会假红（正是 ADR-027 ②③ 最忌的形态：把守规矩的代码判成违规，长期红终被绕过）。
+- 定式：① 判据里对环境的改动（`LC_ALL`/`LANG`/`PATH`/`TZ`）必须**限定作用域** —— 要么用前缀式 `LC_ALL=C cmd …` 只包住需要它的那一段，要么在下游调用前显式还原（`unset LC_ALL`）；② 「编码合法性」断言**不得依赖 locale**：`iconv` 一律写全 `-f/-t`；③ 复核判据时不仅看它自己的断言，还要看它**给下游导入了什么环境**（本例判据输出 `ok=975 / not-ok=1` 是「环境脏」而不是「代码坏」）；④ 出现「判据红、但所有残留扫描 CLEAN」时，先做**地域双态对照**再定性（改判据作用域 vs 改被测件，二选一必须给出证据）。
+
 ### L-145 · 改写判据的某条分支时，必须先枚举旧实现的**语义清单**并逐条回归 —— 换了实现方式不等于换了语义
 
 - 场景（2026-09-24 · T28 修复轮 1）：把「失败归因打印拼接流偏移量」改为「逐文件 `file:line`」时，tracked 分支用 `git diff -U0` + awk 逐行解析（新侧行号口径正确），但 untracked 分支被顺手换成 `grep -nE "$pat" "$file" | sed … | grep -E "$pat"` —— **丢掉了旧实现顺带承担的「剔除整行注释」语义**（旧实现是 `… | grep -vE '^\+?[[:space:]]*#'`，且 T28 的 `<action>` 与 `Makefile` 自己的注释块都写着该口径）。

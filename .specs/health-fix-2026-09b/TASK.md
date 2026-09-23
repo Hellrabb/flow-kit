@@ -1190,7 +1190,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     另跑 `npx bats test/` 证不退化。
   </action>
   <verify>
-    export LC_ALL=C; fail=0;
+    export LC_ALL=C; fail=0;   # 仅归档扫描段需要 C 地域（排序/计数确定性）
     shopt -s nullglob; ARCHIVES=(dist/dsh-flow-kit-*.tgz); shopt -u nullglob;
     [ "${#ARCHIVES[@]}" -gt 0 ] || { echo "🔴 未匹配到任何归档（glob 失效，判据不可信）"; exit 1; };
     for t in "${ARCHIVES[@]}"; do
@@ -1203,6 +1203,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ "$fail" -eq 0 ] || { echo "🔴 分发件仍有可注入 hook 或内部项目名"; exit 1; };
     hits=$(grep -rn chisel test/ flow-kit-bundle/test/ 2>/dev/null || true);
     [ -z "$hits" ] || { printf '%s\n' "$hits" | head -10; echo "🔴 源测试仍含 chisel（命中如上，file:line —— 阶段 3 L3 m11：原写法只报一句、不给定位）"; exit 1; };
+    unset LC_ALL; [ -n "${LANG:-}" ] || export LANG=C.UTF-8;   # 主 agent 裁决 2026-09-24（L-146）：LC_ALL=C 不得泄漏进 bats 子进程 —— glibc iconv 在 LC_CTYPE=C 下拒绝合法多字节 UTF-8（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale）⇒ 环境脏导致的假红，非产品回归；对应登记 TD-051
     outf=$(mktemp); npx bats test/ --formatter tap > "$outf" 2>&1; b_rc=$?;
     b_ok=$(grep -cE '^ok [0-9]+' "$outf"); b_no=$(grep -cE '^not ok [0-9]+' "$outf");
     echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-23 实测 rc=0 / 973 ok / 0 not ok，skip 计入 ok 行）";
