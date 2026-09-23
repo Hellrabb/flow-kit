@@ -223,3 +223,40 @@
 - **改写后的判据（已写入 `TASK.md` T12 并在写入前实跑，L-119）**：① `--entry-class pre-push/pre-push.sh` rc=0（修复前 rc=2）；② `--check` rc=0；③ 镜像面改为「从 `--list` 抽出全部 `✅` 根 ⇒ 逐一断言 `$root/pre-push/pre-push.sh` 在位」+ `镜像文件数 ≥ 48`（T05 基线 **47**，登记后实测 **48**）；④ 新增 **orphan 反向扫描双态判据**（探针在位 ⇒ `--check --strict-orphans` 必非 0 且报文**指名** `pre-push/zz-verify-orphan-probe.sh`；移除 ⇒ `--check` 必 0），`trap` 保证清理。**实测（从工件抽取 19 行后原样执行）rc=0**，跑后镜像目录无残留。
 - **④「成对改」发现已由主 agent 独立复现并确认**：`_d` 目录表（`:284`）与 `$_rel` 的 case 白名单（`:290`）必须**同改** —— 只加目录表时，orphan 探针会命中 `*) continue` 被静默跳过（＝DESIGN D3 item 7 所述「漏检」现场）。我的实测：探针在位时默认 `--check` rc=0 但打印 `⚠️ … 反向残留 1 个（advisory）: pre-push/zz-probe-t12.sh`、`--check --strict-orphans` **rc=1** 且 `❌ … pre-push/zz-probe-t12.sh`；移除后两者皆 rc=0、目录内无残留。
 - **工艺偏离（已纠正）**：T12 的提交 `9933c35` **只含产品文件 `sync-hooks.sh`**（6+/5−，0 越界），协议产物（`T12-SUMMARY.md`、`MINOR-DEFERRED.md` 追加、`TASK.md` 勾选）**留在工作树未提交** ⇒ 与 T05/T06/T11 的「一个 task 一个提交，含 SUMMARY + 勾选」不一致，审计链会断。已回派执行者以**显式路径**补一个提交（禁止把 `.specs/CONTEXT.md`/`LESSONS.md`/`STATE.md` 等他人在途改动夹带进来）。
+
+## 🧭 主 agent 裁决（阶段 4 · 两项排期自锁订正 · 2026-09-23）
+
+**起因**：派发前按 wave 逐条预筛 W3–W7，发现两处**我阶段 3 排期的错误**；两处都会让门禁在被修好之前先把自己锁死（ADR-027②：长期红的门禁会被绕过，比没有门禁更糟）。
+
+### ① T14 的任务前提不成立（工件缺陷）
+- 实测 `grep -n 'check-gate-sync' Makefile` **只命中 `:16` 的注释** ⇒ `check-gate-sync` **目标从未存在**；原 action 写的「追加为 `check:` 先决条件」无对象。
+- 订正：T14 `<action>` 改写为「**新建薄壳目标**（recipe 含 `check-gate-sync.sh` 路径、禁 `|| true` 吞失败）＋ 接线 `Makefile:106` 的 `check:` ＋ `.PHONY`（`:5`）登记」；`<done>` 同步补 `.PHONY`，并把「修复前实测」改记为「目标不存在」。
+
+### ② T20 自锁（🔴 级 · 顺序缺陷）
+- 本仓 `.git/hooks/pre-commit` → `~/.claude/hooks/pre-commit/pre-commit.sh` 的 **symlink**（ADR-022 部署形态）；T20 改 bundle 源后按纪律必须 `./sync-hooks.sh` ⇒ **同一刻**本仓每次提交都会跑 `make check-path-privacy`。
+- 而权威清单/自校验在 T21–T23，T20 原在 Wave 4 ⇒ 门禁必红 ⇒ **T20 连自己的提交都过不去**（`--no-verify` 已禁）。
+- 订正：T20 `depends_on` 补 `T21, T22, T23`；`<action>` 增加「次序硬约束」段；波次表由 Wave 4 移入 Wave 6。
+
+### ③ T24 的 dist 重建时机（同一批）
+- `check-dist` 逐文件比对 bundle 源与 `dist/` ⇒ 重建若早于 T20/T25/T26，`make check` 在 T29 仍红。
+- 订正：T24 `depends_on` 补 `T20, T25, T26`；波次表由 Wave 5 移入 Wave 7（T24 → T27 串行）。
+
+### 另两处判据加固（非排期）
+- **T15**：`<action>` 补**双态证据**硬要求（注入 `exit 1` ⇒ 收紧后的断言必红；逐字节复原 ⇒ 绿），防「只交绿的单态」（L-120/L-123）。
+- **T16**：`<verify>` 补镜像面纪律（`install_hooks.sh` 属镜像面 ⇒ `./sync-hooks.sh` + `--check` + `make check-hooks-sync` 三条），否则 B5-R2/R5 转红、提交被拒（T05 工艺结论）。
+- **T17**：`<verify>` 的「禁宽通配」grep 改**注释盲**（`grep -vE '^[[:space:]]*#'` 前置）—— 脚本必然在注释里写「不得用 `reference/*`」，读全文会假红（L-125 族，与 T11/T13 同处置）。
+
+**复核**：改后 `grep -c '<task id=' `= 29、`grep -c '<verify>'` = 29，结构完整。
+
+## 🧭 主 agent 裁决（阶段 4 · AC-3 评估面缺陷 `CHECK_REV` · 2026-09-23）
+
+**发现（主 agent 亲验，非子 agent 上报）**：`flow-kit-bundle/hooks/pre-push/pre-push.sh:30` 对 stdin 的每一行 ref 调用同一个**扫工作树**的门禁（`CHECK_REF` 只是归因字符串，不改变评估面）⇒ ① **归因错位**：`--all`/`--mirror` 时点名的总是第一行 ref（可能是干净的 `develop`）；② **漏检**：泄漏提交在未检出分支上、工作树干净 ⇒ 整批放行。T11 自报的「双态 4/4」是影子 stub（`CHECK_REF`）造出的判别力，不属产品（L-130）；拦截器的评估面必须等于被拦截对象（L-131，均已落 `.specs/LESSONS.md`）。
+
+**裁决**：
+1. **T17 契约扩充**：新增 `CHECK_REV=<rev>` 外部评估面（缺省仍扫工作树；用 `git ls-tree -r` / `git grep <PAT> <rev>` 取该 rev 的树；自证行须报出「扫描面: 工作树 | <rev>」；rev 不可解析 ⇒ `exit 1` fail-closed）。已写入 `TASK.md` T17 `<action>` 与 `<verify>`（新增双态：夹具内泄漏只存在于历史树、工作树干净 ⇒ 工作树模式 rc=0、`CHECK_REV` 模式 rc=1 且自证报出 `leak.txt`）。
+2. **T11 修复轮**（排在 T18 之后、T21 之前）：逐 ref 传 `CHECK_REV="$local_sha"`，跳过 local sha 全 0 的删除线，保留「先逐 ref 评估、后跑 `make check`」次序语义与 bash 3.2 兼容；提交前 `./sync-hooks.sh`；台账 `fix_rounds:1` 且 `commit_sha` 更新为修复提交。
+3. **T19 判据加强**：新增评估面判别子（`git checkout -q develop` 使工作树干净后 `git push --all` 仍须被拒且报文指名 `main`）。
+4. **T16 夹具加固**：夹具预置既有普通文件 `pre-push` 并断言「覆盖前必须备份且逐字节保全」（`n1 -ge 1` + `cmp`）⇒ 幂等/备份断言不再空转。
+5. **T18 判据加固**：`.PHONY` 断言 + `make -n check-path-privacy | grep -q 'check-path-privacy\.sh'` 正例 + 退出码二值断言（禁 rc=3）。
+
+**未纳入本次修复（登记）**：T11 修复后 `CHECK_REF` 仍只作报文提示（真实目标忽略之）；若阶段 6 认为报文须与该 ref 的树内容严格对应，留作 v2 议题。

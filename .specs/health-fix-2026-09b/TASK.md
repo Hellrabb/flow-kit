@@ -630,6 +630,12 @@ Wave 8 (收口 · 全量无退化)                  : T29
   </action>
   <verify>
     SBX=$(mktemp -d /tmp/l3-push-XXXXXX); mkdir -p "$SBX/proj" "$SBX/home"; git -C "$SBX/proj" init -q;
+    # 夹具预置既有普通文件 pre-push（主 agent 2026-09-23 补 · 真实场景：本仓 .git/hooks/pre-push 是 373 B 普通文件）
+    # 否则 n1=n2=0，幂等断言与「先备份再覆盖」断言全部空转（L-122/L-130）
+    mkdir -p "$SBX/proj/.git/hooks";
+    printf '#!/bin/sh\n# legacy pre-push（AC-3 夹具 · 既有普通文件，非 symlink）\nmake check\n' > "$SBX/proj/.git/hooks/pre-push";
+    chmod +x "$SBX/proj/.git/hooks/pre-push";
+    cp "$SBX/proj/.git/hooks/pre-push" "$SBX/legacy-pre-push.orig";
     HOME="$SBX/home" bash flow-kit-bundle/install.sh --project "$SBX/proj" --no-brooks >/dev/null 2>&1 || true;
     T="$SBX/proj/.git/hooks/pre-push";
     [ -L "$T" ] || { echo "🔴 部署产物不是 symlink（ADR-022 形态未闭环）"; exit 1; };
@@ -638,6 +644,9 @@ Wave 8 (收口 · 全量无退化)                  : T29
     grep -q 'make check' "$T" || { echo "🔴 未保留 make check 语义（bats 断言将转红）"; exit 1; };
     tgt=$(readlink "$T"); case "$tgt" in */flow-kit-bundle/hooks/pre-push/pre-push.sh|*/dist/*) echo "🔴 错绑源树/dist"; exit 1;; esac;
     n1=$(ls "$SBX/proj/.git/hooks/" | grep -c 'pre-push.bak' || true);
+    [ "$n1" -ge 1 ] || { echo "🔴 覆盖既有 pre-push 前未备份（备份数=$n1）"; exit 1; };
+    _bk=0; for _f in "$SBX/proj/.git/hooks/pre-push.bak"*; do [ -e "$_f" ] && cmp -s "$_f" "$SBX/legacy-pre-push.orig" && _bk=1; done;
+    [ "$_bk" -eq 1 ] || { echo "🔴 备份未逐字节保全既有文件（cmp 不一致）"; exit 1; };
     HOME="$SBX/home" bash flow-kit-bundle/install.sh --project "$SBX/proj" --no-brooks >/dev/null 2>&1 || true;
     n2=$(ls "$SBX/proj/.git/hooks/" | grep -c 'pre-push.bak' || true);
     [ "$n1" = "$n2" ] || { echo "🔴 非幂等：二次安装又产生备份"; exit 1; };
@@ -647,7 +656,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     bash sync-hooks.sh --check || { echo "🔴 副本漂移（须先同步再提交）"; exit 1; };
     make check-hooks-sync >/dev/null || { echo "🔴 check-hooks-sync 未通过"; exit 1; }
   </verify>
-  <done>AC-3：部署产物为「指向已安装 hooks 目录」的 symlink、可执行、含 `make check`、二次安装幂等（无新增备份）—— 修复前实测：`deploy_pre_push` 命中 0、pre-push 未被部署</done>
+  <done>AC-3：部署产物为「指向已安装 hooks 目录」的 symlink、可执行、含 `make check`、二次安装幂等（无新增备份）—— 修复前实测：`deploy_pre_push` 命中 0、pre-push 未被部署；既有普通文件 pre-push 必须先备份再覆盖（备份逐字节保全，`cmp` 断言）</done>
   <depends_on>T06, T12</depends_on>
 </task>
 
@@ -675,6 +684,12 @@ Wave 8 (收口 · 全量无退化)                  : T29
     **读序（R8 定级裁决）= 常设路径 > change 副本 > 两者皆缺 ⇒ `exit 1` 并指名缺失路径**（fail-closed，不得当空清单）。
     **对外自证输出**：`允许清单 N 条` / `清单外命中 M 条` + `file:line`；`M≠0` 非零退出；退出码**二值**（0/1，无 SKIP）。
     新写脚本必须 `mktemp` + `trap` 清理；bash 3.2 兼容（不用 `mapfile`/`declare -A`/`readlink -f`/`sed -i`/`grep -P`）。
+
+    **外部指定评估面 `CHECK_REV`（主 agent 2026-09-23 追加 · 裁决 R12 · LESSONS L-131）**：当环境变量 `CHECK_REV` 非空时，
+    评估面从本地工作树切换为**该 rev 的树**：候选文件 = `git ls-tree -r --name-only "$CHECK_REV"`，命中 = `git grep -nE "$PAT" "$CHECK_REV" --`（或等价实现）；
+    逐行仍走**同一套**占位符排除表 / 自排除清单 / `file:line` 归因；`CHECK_REV` 缺省（空）时行为与现状完全一致（扫工作树）；
+    自证输出必须报出扫描面（`扫描面: 工作树` 或 `扫描面: <rev>`）；`CHECK_REV` 无法解析为 commit（`git rev-parse --verify --quiet "$CHECK_REV^{commit}"` 失败）⇒ `exit 1` fail-closed。
+    **理由**：pre-push 的拦截对象是**被推送的 ref 树**，不是本地工作树 —— 工作树干净时泄漏提交会被整批放行（T11 的 `CHECK_REF` 只是归因字符串，不改变评估面）。
   </action>
   <verify>
     S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
@@ -691,9 +706,26 @@ Wave 8 (收口 · 全量无退化)                  : T29
       n_ir=$((n_ir+1));
       grep -qF "$f" "$S" || { echo "🔴 排除表缺 $f（与 T13 的排除面漂移：审查档新增时须显式追加精确路径 —— 阶段 3 L3 M8）"; exit 1; };
     done;
-    [ "$n_ir" -ge 1 ] || { echo "🔴 未枚举到任何审查档（枚举面失效 ⇒ 判据空转）"; exit 1; }
+    [ "$n_ir" -ge 1 ] || { echo "🔴 未枚举到任何审查档（枚举面失效 ⇒ 判据空转）"; exit 1; };
+    # CHECK_REV 外部评估面双态（主 agent 2026-09-23 补 · L-131）：泄漏只存在于历史树、工作树干净 ⇒ rev 模式必须判红并给出扫描面与 file:line
+    _cwd=$(pwd); _sbx2=$(mktemp -d /tmp/l3-rev-XXXXXX); git init -q "$_sbx2/r"; trap 'rm -rf "$_sbx2"' EXIT;
+    mkdir -p "$_sbx2/r/flow-kit-bundle/flow-kit/reference";
+    cp "$S" "$_sbx2/r/flow-kit-bundle/flow-kit/reference/";
+    : > "$_sbx2/r/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
+    ( cd "$_sbx2/r" && git config user.email t@t && git config user.name t && git add -A && git commit -qm base \
+      && printf '/home/%s/leak\n' "$(whoami)" > leak.txt && git add -A && git commit -qm leak && git rm -q leak.txt && git commit -qm clean );
+    _leak_rev=$(git -C "$_sbx2/r" rev-parse HEAD~1);
+    [ -z "$(git -C "$_sbx2/r" status --porcelain)" ] || { echo "🔴 夹具工作树非干净（对照不成立）"; exit 1; };
+    cd "$_sbx2/r" || exit 1;
+    _wt_rc=0; bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" >/dev/null 2>&1 || _wt_rc=$?;
+    [ "$_wt_rc" -eq 0 ] || { echo "🔴 工作树模式在干净树上未 rc=0（rc=$_wt_rc）⇒ 对照不成立"; cd "$_cwd"; exit 1; };
+    _rev_out=$(CHECK_REV="$_leak_rev" bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" 2>&1); _rev_rc=$?;
+    cd "$_cwd" || exit 1;
+    [ "$_rev_rc" -eq 1 ] || { printf '%s\n' "$_rev_out"; echo "🔴 CHECK_REV 漏检：仅存在于历史树里的泄漏未判红（rc=$_rev_rc）"; exit 1; };
+    printf '%s' "$_rev_out" | grep -q '扫描面' || { printf '%s\n' "$_rev_out"; echo "🔴 自证行未报出扫描面（工作树/rev 评估面无法区分）"; exit 1; };
+    printf '%s' "$_rev_out" | grep -q 'leak.txt' || { printf '%s\n' "$_rev_out"; echo "🔴 rev 模式未给出 file:line 归因"; exit 1; }
   </verify>
-  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造</done>
+  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）</done>
   <depends_on>T13</depends_on>
 </task>
 
@@ -714,9 +746,14 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <verify>
     make -n check-path-privacy >/dev/null 2>&1 || { echo "🔴 目标不存在或依赖缺失"; exit 1; };
     make -n check | grep -q 'check-path-privacy' || { echo "🔴 未接入 make check"; exit 1; };
-    grep -q 'check-path-privacy' Makefile || { echo "🔴 Makefile 未登记目标"; exit 1; }
+    grep -q 'check-path-privacy' Makefile || { echo "🔴 Makefile 未登记目标"; exit 1; };
+    # 主 agent 2026-09-23 补（L-121/L-123）：正例（目标真的调用脚本）＋ .PHONY 登记 ＋ 退出码二值
+    make -n check-path-privacy | grep -q 'check-path-privacy\.sh' || { echo "🔴 干跑无脚本路径：目标未真正调用 check-path-privacy.sh"; exit 1; };
+    grep -E '^\.PHONY:' Makefile | grep -qw 'check-path-privacy' || { echo "🔴 .PHONY 未登记 check-path-privacy（同名文件存在时 recipe 会被跳过 ⇒ 假绿）"; exit 1; };
+    _rc=0; make check-path-privacy >/dev/null 2>&1 || _rc=$?;
+    case "$_rc" in 0|1) ;; *) echo "🔴 退出码非二值（rc=$_rc；AC-6 要求 0/1，禁 SKIP/rc=3）"; exit 1;; esac
   </verify>
-  <done>AC-6①：`make -n check-path-privacy` 成功、`make -n check` 先决条件含 `check-path-privacy`（修复前实测：两者 `make -n check | grep` 均 rc=1）</done>
+  <done>AC-6①：`make -n check-path-privacy` 成功、`make -n check` 先决条件含 `check-path-privacy`（修复前实测：两者 `make -n check | grep` 均 rc=1）；`.PHONY` 已登记、干跑含脚本路径、退出码二值（仅 0/1）</done>
   <depends_on>T17</depends_on>
 </task>
 
@@ -769,13 +806,18 @@ Wave 8 (收口 · 全量无退化)                  : T29
     out=$(git push origin --tags 2>&1); rc=$?;
     [ "$rc" -ne 0 ] || { printf '%s\n' "$out"; echo "🔴 形态 [push --tags] 未被拦截（rc=$rc）"; exit 1; };
     printf '%s' "$out" | grep -qE '(^|[^[:alnum:]_])v1([^[:alnum:]_]|$)' || { printf '%s\n' "$out"; echo "🔴 形态 [push --tags] 未指名泄漏 ref（v1）"; exit 1; };
+    # 评估面判别子（主 agent 2026-09-23 补 · L-131）：工作树干净时，泄漏仅在 main 的历史树里 ⇒ 仍须被拒且指名 main
+    git checkout -q develop;
+    out=$(git push --all 2>&1); rc=$?;
+    [ "$rc" -ne 0 ] || { printf '%s\n' "$out"; echo "🔴 工作树干净时泄漏分支被放行（评估面错位：扫了工作树而非被推送的树）"; exit 1; };
+    printf '%s' "$out" | grep -qE '(^|[^[:alnum:]_])main([^[:alnum:]_]|$)' || { printf '%s\n' "$out"; echo "🔴 工作树干净时未指名 main（归因错位）"; exit 1; };
     mv .git/hooks/pre-push "$SBX/pre-push.off"; git push origin main >/dev/null 2>&1; rc_off=$?; mv "$SBX/pre-push.off" .git/hooks/pre-push;
     [ "$rc_off" -eq 0 ] || { echo "🔴 归因对照失败：摘掉 hook 后泄漏 push 仍 rc=$rc_off（拦截来源不明）"; exit 1; };
     git -C "$SBX/remote.git" update-ref -d refs/heads/main 2>/dev/null || true;
     git checkout -q develop; git push origin develop || { echo "🔴 干净 ref（develop）被误拦"; exit 1; };
     git -C "$SBX/remote.git" rev-parse --verify --quiet refs/heads/develop >/dev/null || { echo "🔴 干净 ref 未真正到达远端"; exit 1; }
   </verify>
-  <done>AC-3：四种 push 形态下含泄漏的 ref 被拒且**报文指名该 ref**（`main` / `v1`）、**摘掉 hook 的归因对照**证明拦截确由 hook 产生、干净 ref 放行并真正到达远端（夹具自带 `Makefile` 桩 + 真实门禁脚本 + 已冻结权威清单，且桩在干净态绿/泄漏态红已自检）；四形态的失败分支均**打印实际报文**（可区分「hook 未拦截」与「其它 git 错误」）（修复前：无 pre-push 拦截 ⇒ 全部放行）</done>
+  <done>AC-3：四种 push 形态下含泄漏的 ref 被拒且**报文指名该 ref**（`main` / `v1`）、**摘掉 hook 的归因对照**证明拦截确由 hook 产生、干净 ref 放行并真正到达远端（夹具自带 `Makefile` 桩 + 真实门禁脚本 + 已冻结权威清单，且桩在干净态绿/泄漏态红已自检）；四形态的失败分支均**打印实际报文**（可区分「hook 未拦截」与「其它 git 错误」）（修复前：无 pre-push 拦截 ⇒ 全部放行）；并有评估面判别子（HEAD=develop、工作树无泄漏时 `git push --all` 仍须被拒且指名 `main`）</done>
   <depends_on>T11, T12, T16, T17, T18, T21, T22, T23, T26</depends_on>
 </task>
 
