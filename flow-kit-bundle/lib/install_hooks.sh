@@ -33,6 +33,34 @@ install_file() {
   fi
 }
 
+# ── 原子写 ────────────────────────────────────────────────────────────
+# write_settings_file_atomic <target> <content>
+# 为什么不能直接 `内容 > "$target"`（DESIGN D7/R4 · PC2）：重定向由 shell 在写入
+# **之前**就截断目标文件，一旦后续步骤失败就留下 0 字节 / 半写的 settings.json
+# （实测缺 jq 时既有文件 122B → 0B）。改为「同目录 mktemp 临时文件 + mv」：
+# 同文件系统 ⇒ mv 是 rename，读者要么看到旧文件、要么看到新文件；trap 兜底清理
+# 临时文件（R4 要求），失败时**目标文件保持原状**。
+# 沿用仓内既有原子写范式（hooks/stop/lib/correction-file.sh:221 起）：失败 rm -f 临时文件。
+write_settings_file_atomic() {
+  local target="$1" content="$2"
+  local tmp
+  if ! tmp=$(mktemp "${target}.tmp.XXXXXX"); then
+    echo "   ⚠️  无法在 $(dirname "$target") 创建临时文件，${target} 未改动" >&2
+    return 1
+  fi
+  # SC2064：此处**有意**立即展开 $tmp —— tmp 是局部变量，函数返回后名字即失效，
+  # 若写成单引号，EXIT 时展开为空串、临时文件反而漏删。
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp'" EXIT
+  if printf '%s\n' "$content" > "$tmp" && mv "$tmp" "$target"; then
+    trap - EXIT   # 成功后撤销，避免 trap 残留到后续调用/调用方（install 路径无 EXIT trap）
+    return 0
+  fi
+  rm -f "$tmp"
+  trap - EXIT
+  return 1
+}
+
 # ═══════════════════════════════════════════════════════════════════════
 # deploy_pre_commit — pre-commit symlink 部署（archive-commit-gate）
 # 必须定义在 install_hooks() 之前：install_hooks() 体内调用此函数
@@ -69,6 +97,17 @@ deploy_pre_commit() {
 install_hooks() {
   local project="$1"
   local scope="${2:-project}"   # "user" or "project"
+
+  # ── 依赖硬校验（PC2 · AC-2 · DESIGN D7）：缺 jq → fail-closed ──────────
+  # 为什么必须在**任何写盘之前**：settings 接线靠 jq 生成内容，而 shell 的 `>` 会
+  # 先截断目标文件再执行命令 —— 实测（2026-09-22，`--global --no-brooks --user`）
+  # 缺 jq 时既有 ~/.claude/settings.json 122B → 0B 后才 rc=127，属"先毁数据再失败"。
+  # 探测原语沿用仓内既有写法（hooks/stop/lib/common.sh:226、lib/install_brooks.sh:24）：
+  # `command -v jq >/dev/null 2>&1`。
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "   ❌ 缺少依赖 jq：install_hooks 需要 jq 合并 settings.json，已中止（尚未做任何写盘）" >&2
+    return 1
+  fi
 
   # ── 依赖自加载 ──────────────────────────────────────────────
   # install.sh 调用: resolve_paths 已在 install.sh:153 执行 → 此块 no-op
@@ -208,7 +247,17 @@ install_hooks() {
       return
     fi
 
-    if [ -f "$settings_target" ] && command -v jq &>/dev/null; then
+    if [ -f "$settings_target" ]; then
+      # 已存在 → 合并追加。判据**只看文件存在性**（DESIGN D7）：旧写法把
+      # `[ -f … ] && command -v jq` 串成一个条件，jq 缺失时整体为假 → 落进下面的
+      # "新建"分支，用 `>` 把既有 settings.json 截断。jq 可用性已由 install_hooks()
+      # 入口硬校验保证；此处再探测一次是纵深防御（入口到此处之间还执行过多步安装），
+      # 失败时**原文件保持不动**（fail-closed）。
+      if ! command -v jq >/dev/null 2>&1; then
+        echo "   ❌ jq 不可用，无法合并 ${settings_target}（原文件未改动）" >&2
+        return 1
+      fi
+
       # 已存在 → 检查是否已有此 hook，没有则追加
       if jq -e --arg cmd "$cmd" \
           --arg event "$event" \
@@ -229,16 +278,17 @@ install_hooks() {
           }]
         }]
       ' "$settings_target" 2>/dev/null)
-      if [ -n "$merged" ]; then
-        echo "$merged" > "$settings_target"
+      if [ -n "$merged" ] && write_settings_file_atomic "$settings_target" "$merged"; then
         echo "   ✅ ${settings_target} 已追加 ${event} hook (${label})"
       else
-        echo "   ⚠️  ${settings_target} ${event} (${label}) 合并失败，请手动检查"
+        echo "   ⚠️  ${settings_target} ${event} (${label}) 合并失败，请手动检查" >&2
+        return 1
       fi
     else
-      # 新建
+      # 新建（jq 可用性由 install_hooks() 入口硬校验保证）
       mkdir -p "$(dirname "$settings_target")"
-      jq -n --arg event "$event" \
+      local created
+      created=$(jq -n --arg event "$event" \
             --arg matcher "$matcher" \
             --arg cmd "$cmd" '
         { hooks: { ($event): [{
@@ -248,10 +298,15 @@ install_hooks() {
             "command": $cmd
           }]
         }] } }
-      ' > "$settings_target" 2>/dev/null
-      echo "   ✅ ${settings_target} 已写入 ${event} hook (${label})"
-  fi
-}
+      ' 2>/dev/null)
+      if [ -n "$created" ] && write_settings_file_atomic "$settings_target" "$created"; then
+        echo "   ✅ ${settings_target} 已写入 ${event} hook (${label})"
+      else
+        echo "   ⚠️  ${settings_target} ${event} (${label}) 写入失败" >&2
+        return 1
+      fi
+    fi
+  }
 
 
   # ── Stop hook ──────────────────────────────────────────────────

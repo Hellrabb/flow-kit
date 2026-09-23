@@ -198,7 +198,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T06" parallel="true" status="pending" model-tier="standard">
+<task id="T06" parallel="true" status="done" model-tier="standard">
   <name>PC2：缺 jq 时 fail-closed 且不破坏既有 `settings.json`（入口校验 + 分支订正 + 原子写）</name>
   <read_files>
     <`flow-kit-bundle/lib/install_hooks.sh`（全文 · 303L；:41 deploy_pre_commit / :69 install_hooks / :153 调用点 / :211 条件 / :251 截断行）>

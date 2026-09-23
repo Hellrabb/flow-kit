@@ -104,3 +104,13 @@
 > 否则 pre-commit 的 `[archive-commit-gate]` 会因漂移（`B5-R2` 于 `test/test_l3_review_defects_2026_09.bats:968` 的
 > `[ "$status" -eq 0 ]` 直接跑 `bash sync-hooks.sh --check`、`B5-R5` 于同文件 `:1330`）而红 —— 这是**门禁正常工作**，
 > **不是缺陷**，应按此工艺先同步再提交（T05 实测：同步后 973 ok / 0 not ok / rc=0）。
+
+### 🟡 T06 已知接受（settings 原子写副作用 · 2026-09-23）
+
+| Task | Finding ID | Date | 发现 | 为何不本次修 | 后续动作 |
+|---|---|---|---|---|---|
+| T06 | T06-1 | 2026-09-23 | 原子写后 `settings.json` 权限 **644 → 600**（实测：`stat -c %a` 644 → 600）。成因：`mktemp` 默认 0600，`mv` 保留临时文件 mode，未回写原 mode | DESIGN D7/R4 明确指定「`mktemp` + `mv`」；仓内**既有** mktemp+mv 范式（`hooks/stop/lib/correction-file.sh:221/257/332`、`l2-detect.sh:318/433/477`、`l3-api.sh:99/168`、`l3-prompt.sh:499`）同样不保留 mode。回写 mode 需处理 GNU `chmod --reference`/BSD `stat -f` 差异，属 §0.5.2「原子写统一」v2（PC13）范围。影响：权限**更严**（owner-only），安装器与 Claude Code 同用户读写 ⇒ 无功能影响 | v2 统一原子写 helper 时一并处理 mode 保留 |
+| T06 | T06-2 | 2026-09-23 | `settings.json` 若为**符号链接**（dotfiles 仓库软链），原子写后该路径被替换为普通文件（实测：`[ -L ]` 由 yes → no；link 目标仍留旧内容 40B）。成因：`mv` 覆盖的是链接本身，pre-fix `>` 跟随链接写目标 | `mv` 语义固有，修它需 `readlink -f` 解析真实路径后再原子写，超出 T06 写面（DESIGN 只说 mktemp+mv）。影响面：仅「settings.json 是软链」的少数配置，且安装后 settings 内容仍正确生效 | v2 评估 `readlink -f` 解析；当前可在安装后用真实路径替代软链 |
+| T06 | T06-3 | 2026-09-23 | **有意行为变化**：`DRY_RUN=true` 下入口 jq 硬校验同样生效 ⇒ 无 jq 机器上 `install.sh --dry-run` 由 rc=0 变为 rc=1（dry-run 本身不写盘） | DESIGN §2.3 入口硬校验无 DRY_RUN 例外；dry-run 的价值正是提前暴露缺失依赖，fail-closed 一致 | 无（如需例外，v2 在入口判 DRY_RUN 时跳过校验） |
+| T06 | T06-4 | 2026-09-23 | **有意行为变化**：merge/新建失败由「只打 ⚠️ 且 rc=0」改为「⚠️ + `return 1`」⇒ 安装整体非零退出（原「新建」分支即使 jq 失败也打 ✅ 且留下 0 字节文件） | 属 DESIGN「fail-closed」方向的加强，非缺陷；静默留半成品比非零退出更危险 | 无 |
+| T06 | T06-5（工艺） | 2026-09-23 | `lib/install_hooks.sh` 的安装镜像**不在** `sync-hooks.sh` 同步面内：`collect_rel_paths` 只枚举 `hooks/{stop,stop/lib,pre-tool-use,session-start,pre-commit}` + `flow-kit/prompts/**` + opencode agent ⇒ 单跑 `./sync-hooks.sh` 无法同步 `~/.dsh/.../vendor/flow-kit-bundle/lib/install_hooks.sh` | 非 T06 缺陷，属工艺空洞：改 `lib/**` 后必须 `bash package-dsh-plugin.sh` 重建 dist + `make dsh-sync`，否则 `make check-dist` rc=2 报「陈旧: …/vendor/flow-kit-bundle/lib/install_hooks.sh」（T06 实测复现，已按此修复） | v2 把 `lib/**` 纳入 sync-hooks 面，或把 `check-dist` 接入 pre-commit |
