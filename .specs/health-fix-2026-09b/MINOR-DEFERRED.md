@@ -359,3 +359,27 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 | T10 | `sed -n '…AC-4…' \| grep -q 'skip'` 命中**说明注释**里的「skip」字样 ⇒ 注释盲假红；末行 `bash package-flow-kit.sh --validate`（要求 rc=0）不可满足 —— 该命令 rc=1 且为 pre-existing（TD-048），按 ADR-027 不得升级为 fail | 加 `grep -vE '^[[:space:]]*#'`（只读代码行）；`--validate` 改为断言「漏配 (ERROR) 恰 1 项 + 源缺失 0 + 具名 `flow-kit-bundle/hooks/pre-push/pre-push.sh`」，对**新增**漏配保持判别力；并补 `npx bats test/test_lessons_cleanup.bats`（AC-4 用例本体） | 19 行 rc=0 |
 | T11 | 末行 `grep … \| grep -qE '…' && { echo 🔴; exit 1; }` —— 成功态（无禁用构造）整表达式 rc=1 ⇒ **判据在成功态返回 rc=1**（全 29 块中唯一） | 改 `if … ; then echo "🔴 …"; exit 1; fi`（无 else ⇒ 成功态 rc=0） | 7 行 rc=0 |
 | T18 | 事故把已提交的 `status="done"` 回退成 `pending` | 回写 `done`（`git diff` 与 HEAD 逐字比对确认） | 结构不变量 29×6 ✓，`status="done"` 计数 19 = 18 任务 + 图例行 |
+
+## ✅ T21 首版缺陷 + 修复轮 1（2026-09-23 · 主 agent 复核发现 · L-137）
+
+- 首版交付 `f315b64`：判据 rc=0（当时 `T21-SUMMARY.md` 未 tracked，扫描面看不见它）；**提交后** `make check-path-privacy` ⇒ `命中合计 1 条 / 清单外命中 1 条`（归因 `.specs/health-fix-2026-09b/T21-SUMMARY.md:75` 的合成探针字面量），脚本 rc=1 / make rc=2。
+- 裁决：**判据运行时机缺陷** —— 不是判据写错、也不是仓状态问题；不得用往允许清单加条目消除（棘轮只降不升、终端态为空）。
+- 修复轮 1 = `977e4ac0d5045821714f953f5f1c98f153a5cc21`（`T21-SUMMARY.md` 3/1）：改为不复现字面量的描述；提交后门禁 rc=0 / `命中合计 0 条` / `清单外命中 0 条`；台账 → `{sha: 977e4ac…, fix_rounds: 1, completed_at 2026-09-23T19:02:26+08:00}`（Δ=4s）。
+- 纪律：**L-137**（扫描面判据须在 `git add` 后运行；产物不得含活字面量）。
+
+### T21 复核记录（十二项 · 提交后状态）
+
+| # | 检查 | 结果 |
+|---|---|---|
+| 1 | `git show --numstat` 文件集 | 首版 4 文件 / 修复轮 1 文件 ✓ |
+| 2 | 工作树 blob == HEAD | 4/4 ✓ |
+| 3 | 台账条数 19、末条 sha == HEAD | ✓（Δ=4s ≤ 120s） |
+| 4 | `fix_rounds` 语义 | 1 ✓ |
+| 5 | 结构不变量 29×6 | ✓ |
+| 6 | `status="done"` 计数 | 20 = 19 task + 图例行 ✓ |
+| 7 | 冻结集 6 文件 | 恒为索引 `A `、未被任何提交带走 ✓ |
+| 8 | 工件判据原样跑（14 行） | rc=0 ✓（含 both-missing fail-closed rc=1 指名路径） |
+| 9 | 提交后门禁真实扫描面 | rc=0 / `清单外命中 0 条` ✓（首版此处红 ✗ → 修复轮 1 转绿） |
+| 10 | 打包校验漏配计数 | `漏配 (ERROR): 1`（= 已知 TD-048）✓；期望/实际 310/317（各 +1 = 新清单文件已被 Part 覆盖）✓ |
+| 11 | 两份清单有效行 | 均 0（注释态）✓；`自报条数 = 落档行数` ✓ |
+| 12 | 产物字面量自扫 | SUMMARY 内 0 命中 ✓ |
