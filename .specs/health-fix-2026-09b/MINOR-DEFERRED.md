@@ -427,3 +427,28 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 - 过程偏差登记：T23 用 `git stash` 做该定性（L-136 已禁用法）。事后核对：`git stash list` 为空、5 个冻结文件与索引逐字节一致（21684/55692/251278/294528/58985）、无残留 ⇒ **未造成损坏**，但手法记为偏差并在 `TASK.md` T17 `<done>` 追加订正说明。
 - 订正：改为**两清单皆缺夹具**（`mktemp -d` + `git init` + 复制真实脚本、不建任何清单 ⇒ 期望 rc=1 且报文指名 `path-privacy-allowlist.txt`），判据 54→61 行；订正后实跑 rc=0 ✓ —— 该次运行同时**重新确认**了排除表枚举、`CHECK_REV` 双态、L-133 逐命中判定、自证行格式四条断言在 T23 改动后仍绿。
 - 教训登记：**L-139**。
+
+## ✅ T25 复核记录（主 agent 独立复核 · 2026-09-23）
+
+交付 `ed6a2aba3c236b84c85b1a01e49f7613a578d639`（`feat(health-fix-2026-09b): T25 AC-1 副本面收口（sync-hooks.sh 六面同步 + 哨兵 PoC）`），`fix_rounds=0`。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 2：`T25-SUMMARY.md` 112/0、`TASK.md` 1/1 ✓ |
+| 2 | 工作树 blob == HEAD | 2/2 ✓ |
+| 3 | 台账 | length 22；末条 `{T25, ed6a2ab…, fix_rounds:0, completed_at 19:41:36}`；`%cI` 19:41:30 ⇒ Δ=6s ✓ |
+| 4 | TASK.md 差异 | 恰 1 行属性（`:1081` 状态位翻转）；块内 `<done>` 字段就位 ✓ |
+| 5 | 判据 | 重抽与 `/tmp/vblocks/v_T25.sh` **byte-identical**（14 行）；主 agent 独立实跑 rc=0 ✓ |
+| 6 | 六面枚举 | `sync-hooks.sh --list \| grep -c '✅'` = **6**（含 `dist/dsh-flow-kit/hooks`、两家 `vendor/flow-kit-bundle/hooks`、`~/.dsh/.../node_modules/dsh-flow-kit/hooks`、`~/.config/opencode/hooks`）✓ |
+| 7 | `eval-echo` 归零 | 六面逐面 `grep -cE '\$\([[:space:]]*eval[[:space:]]'` = 0，合计 0（修复前：源树 1 + 六副本各 1 = 7）✓ |
+| 8 | **哨兵独立重放（主 agent 亲跑）** | 恶意载荷 `file_path='$(touch <sentinel>)~/.claude/hooks/x.sh'` ⇒ 已安装守卫 **rc=2**、哨兵 **ABSENT**、报文把该字符串原样回显（`无法解析为绝对路径，拒绝: $(touch …)~/.claude/hooks/x.sh`）；**良性对照**（`$HOME/.claude/hooks/x.sh`）同一守卫 **rc=0** ⇒ 证明守卫确实读取 stdin 并作出裁决，而非「根本没跑被当通过」（阶段 3 L3 M6 的失效模式）✓；仓库内源树守卫同样 rc=2 + 哨兵 ABSENT ✓ |
+| 9 | 残留检查 | `/tmp` 中三条 sentinel 文件（`l2r5-sentinel`、`L2-SENTINEL-INST`、`L2-SENTINEL-REPO`）mtime 均为 2026-09-22（T11 期遗留，非 T25）；`/tmp/FLOWKIT_SENTINEL_*` 不存在 ✓ |
+| 10 | SUMMARY 自扫 | `/home/[a-z_][a-z0-9_-]*/` 命中 0（账号成分 de-shape 为 `/home/<acct>`）✓ |
+| 11 | 提交机械 | reflog 见一次 `reset: moving to cbe05e4`（先提交后校订 SUMMARY 的 soft-reset）；两个悬空提交 `d0c9fa3`（SUMMARY 112/0 + TASK.md 1/1）与 `45ce2a3`（仅 TASK.md 1/1）**均未夹带 5 个冻结文件** ✓；最终为干净单提交 ✓ |
+| 12 | 冻结集 | `git status --short` 恰 5 个 `A `（CHANGE 245 行 / REQUIREMENT 655 / IR-1 1669 / IR-2 1992 / IR-3 496）✓ |
+
+### 📌 基线计数订正：套件已从「972 pass + 1 skip」变为「973 pass + 0 skip」
+
+- 主 agent 直跑 `npx bats test/`（**不能**用 `make test` 的输出计数——它只保留末 3 行 `ok`，见 L-140）：**ok 973 / not ok 0 / skip 0**，rc=0。
+- 机制：`STATE.md:48-49` 记旧基线「973 ok / 0 not ok / **1 skip**」，并指明该 skip = `test/test_lessons_cleanup.bats:137` 的 AC-4（永久 skip 且把失败说成正确）。本 change 的 **T10** 已将其收敛为唯一可机器验证分支：现 `:97` 的 AC-4 对**临时 bundle** 调 `validate_staging_coverage "$TEST_ROOT/flow-kit-bundle"`（`:144`）并断言 `status -eq 0`（`:147`），`:135-142` 留「去过期 skip」说明；该文件 `grep -E '\bskip\b'` 仅剩注释，TAP `# skip` = 0 ✓。
+- ⇒ 正确基线现为 **973 pass / 0 skip**（总数不变、覆盖提升）；`T25-SUMMARY.md:105` 仍引旧口径「973 ok / 0 not ok / 1 skip」（其 `:75` 又称实测无 skip）属**文档口径未同步**，非功能缺陷；`STATE.md:48` 的 `test_framework` 行须在收口（T29）同处订正。教训登记：**L-140**。
