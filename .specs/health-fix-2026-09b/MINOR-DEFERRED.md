@@ -260,3 +260,8 @@
 5. **T18 判据加固**：`.PHONY` 断言 + `make -n check-path-privacy | grep -q 'check-path-privacy\.sh'` 正例 + 退出码二值断言（禁 rc=3）。
 
 **未纳入本次修复（登记）**：T11 修复后 `CHECK_REF` 仍只作报文提示（真实目标忽略之）；若阶段 6 认为报文须与该 ref 的树内容严格对应，留作 v2 议题。
+## 🟢 T15 复核记录 · 判据注入手法订正（L-132 · 2026-09-23）
+
+- **T15 = PASS**：`f04c398`（`%cI` 17:34:12+08:00）恰 4 文件 —— `test/` 与 `flow-kit-bundle/test/` 的 `test_check_gate_sync.bats` 各 `7/+6−`（`:31` `-ne 2` → `-eq 0`；`:6-10` 订正失真注释；`:28` 测试名 `（9 预设）`→`（17 预设）`，前置 grep 证明无外部按名引用）、`T15-SUMMARY.md` 新建 245 行、`TASK.md` 1/1（仅状态行）。主 agent 亲验：工件判据原样执行 **rc=0**、双源 `cmp` 一致、`check-gate-sync.sh` sha256 回到 `ef994b28…` 且 `git diff` 0 行、台账 15 条末条 T15/`f04c398` 与 `%cI` 同分钟。
+- **判据缺陷（工件侧，主 agent 出）**：`<action>`② 原写「在其副本末尾注入 `exit 1`」—— 对以显式 `exit 0` 结尾的脚本是**死代码**（`check-gate-sync.sh:210`）⇒ 注入态仍绿、双态证据假绿。执行者改用等价注入（`sed -i '210s/^  exit 0$/  exit 1/'`）并给出反事实对照（同注入态换回 `-ne 2` ⇒ 5 ok）。
+- **处置（L-128 回写）**：`TASK.md` T15 `<action>`② 与 `<done>` 已改为「把健康分支的自然出口改为非 0，且先断言注入后脚本自身 rc 非 0」；`.specs/LESSONS.md` 新增 **L-132**。

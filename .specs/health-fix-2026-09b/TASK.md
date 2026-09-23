@@ -593,7 +593,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <action>
     ① 把容忍 `exit 1` 的断言收紧为 `[ "$status" -eq 0 ]`（门禁修复后健康态必须绿），双源**逐字节**同步；不得保留任何「非脚本错误即通过」形态。
     ② **双态证据（L-120/L-123，必做；禁止只交「绿」的单态）**：证明收紧后的断言**真的能红** ——
-       备份 `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` → 在其副本末尾注入 `exit 1` → `npx bats test/test_check_gate_sync.bats` 必须出现 `not ok`（贴真实输出）→ 用备份逐字节恢复并 `cmp -s` 证明复原 → 复跑必须全绿。
+       备份 `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` → **把健康分支的自然出口改为非 0**（`sed -i '210s/^  exit 0$/  exit 1/'`；**不得**用「末尾追加 `exit 1`」—— `:210` 的 `exit 0` 先终止进程、追加行是死代码 ⇒ 注入态仍绿 = 假绿，见 **L-132**）→ **先断言注入后脚本自身 rc 非 0** → `npx bats test/test_check_gate_sync.bats` 必须出现 `not ok`（贴真实输出）→ 用备份逐字节恢复并 `cmp -s` 证明复原 → 复跑必须全绿。
   </action>
   <verify>
     grep -nE '\[ "\$status" -ne [0-9]+ \]' test/test_check_gate_sync.bats && { echo "🔴 仍存在「容忍非零退出」形态的断言（-ne N；阶段 3 L3 major：单一 -ne 2 模式可被等价改写绕过）"; exit 1; };
@@ -601,7 +601,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     npx bats test/test_check_gate_sync.bats || { echo "🔴 bats 未绿"; exit 1; };
     cmp -s test/test_check_gate_sync.bats flow-kit-bundle/test/test_check_gate_sync.bats || { echo "🔴 双源不一致"; exit 1; }
   </verify>
-  <done>AC-4：bats 断言为 `exit 0`、**任何** `-ne N` 形态均被判失败（负向穷举 `-ne [0-9]+`，防「-ne 2 改写成 -ne 1」绕过），健康态绿，**并附双态证据**（注入 `exit 1` ⇒ 该用例必红；复原 ⇒ 绿）（修复前实测：`test/test_check_gate_sync.bats:30` 为 `-ne 2`）</done>
+  <done>AC-4：bats 断言为 `exit 0`、**任何** `-ne N` 形态均被判失败（负向穷举 `-ne [0-9]+`，防「-ne 2 改写成 -ne 1」绕过），健康态绿，**并附双态证据**（把健康分支出口改为非 0 ⇒ 该用例必红；复原 ⇒ 绿；**末尾追加 `exit 1` 是死代码**（`:210` 的 `exit 0` 在先）⇒ L-132）（修复前实测：`test/test_check_gate_sync.bats:30` 为 `-ne 2`）</done>
   <depends_on>T08</depends_on>
 </task>
 
