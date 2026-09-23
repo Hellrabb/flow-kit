@@ -1081,7 +1081,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T05, T07, T11, T12, T16, T20, T25, T26</depends_on>
 </task>
 
-<task id="T25" parallel="true" status="pending" model-tier="standard">
+<task id="T25" parallel="true" status="done" model-tier="standard">
   <name>AC-1 副本面收口：`sync-hooks.sh` 同步 6 个 DEST_ROOT + 哨兵 PoC drive 已安装副本</name>
   <read_files>
     <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（T05 修复版）>
