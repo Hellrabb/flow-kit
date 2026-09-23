@@ -751,7 +751,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T13</depends_on>
 </task>
 
-<task id="T18" parallel="true" status="pending" model-tier="cheap">
+<task id="T18" parallel="true" status="done" model-tier="cheap">
   <name>AC-6 接入：`Makefile` 目标 `check-path-privacy` + 纳入 `check:` 先决条件</name>
   <read_files>
     <`Makefile`（:5 .PHONY / :106 check: 先决条件行 / 既有 :33 lint / :95 check-hooks-sync 写法）>

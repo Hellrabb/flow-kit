@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy dsh-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -103,7 +103,7 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync
+check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-path-privacy
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
@@ -116,6 +116,15 @@ check: test lint check-validate check-test-sync check-hooks-sync check-dist chec
 check-gate-sync:
 	@echo "🔍 make check-gate-sync: prompt↔skill 协议一致性检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
+
+# ── check-path-privacy: 路径隐私门禁（health-fix-2026-09b · AC-6）──
+# 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh（T17 定稿）承载，
+#   target 只负责接线进 check: 先决条件并暴露失败 rc。
+# 二值退出（0=通过 / 1=清单外命中≠0 或 fail-closed）；常设允许清单 T21 落档前预期 rc=1。
+# 边界（T18 / DESIGN §1 D8 F2）：NFR 可移植性判据另立 check-nfr-portability（T28），不在此。
+check-path-privacy:
+	@echo "🔍 make check-path-privacy: 路径隐私（允许清单外命中 / fail-closed）检查 ..."
+	@bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
 
 # ── check-dist: 打包件新鲜度门禁（health-fix-2026-09 · F1/D2/D3）──
 # 为什么存在：dist/ 被 .gitignore 忽略 → **git 对它结构性失明**，改了源忘了重建
