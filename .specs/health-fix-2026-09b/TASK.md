@@ -724,6 +724,23 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ "$_rev_rc" -eq 1 ] || { printf '%s\n' "$_rev_out"; echo "🔴 CHECK_REV 漏检：仅存在于历史树里的泄漏未判红（rc=$_rev_rc）"; exit 1; };
     printf '%s' "$_rev_out" | grep -q '扫描面' || { printf '%s\n' "$_rev_out"; echo "🔴 自证行未报出扫描面（工作树/rev 评估面无法区分）"; exit 1; };
     printf '%s' "$_rev_out" | grep -q 'leak.txt' || { printf '%s\n' "$_rev_out"; echo "🔴 rev 模式未给出 file:line 归因"; exit 1; }
+    # 排除粒度判别子（主 agent 2026-09-23 追加 · L-133）：占位符排除必须**逐命中**判定；
+    # 「真名在前、占位在后」同行时不得整行跳过（D10′② 漏报类），清一色占位符行必须判绿。
+    _mix=$(mktemp -d /tmp/t17-ph-XXXXXX); trap 'rm -rf "$_sbx2" "$_mix"' EXIT;
+    mkdir -p "$_mix/flow-kit-bundle/flow-kit/reference";
+    cp "$S" "$_mix/flow-kit-bundle/flow-kit/reference/";
+    : > "$_mix/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
+    ( cd "$_mix" && git init -q . && git config user.email t@t && git config user.name t \
+      && printf 'mixed %s %s\n' "/home/$(whoami)/x" "/home/user/y" > mixed.txt \
+      && printf 'phonly %s\n' "/home/user/y" > ph.txt \
+      && git add -A && git commit -qm mix );
+    _mix_out=$( cd "$_mix" && bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" 2>&1 ); _mix_rc=$?;
+    [ "$_mix_rc" -eq 1 ] || { printf '%s\n' "$_mix_out"; echo "🔴 同真名+占位同行被整行放过（排除粒度 ≠ 命中粒度 · L-133）"; cd "$_cwd"; exit 1; };
+    printf '%s' "$_mix_out" | grep -q 'mixed.txt' || { printf '%s\n' "$_mix_out"; echo "🔴 同行真名未被 file:line 归因"; cd "$_cwd"; exit 1; };
+    ( cd "$_mix" && git rm -q mixed.txt && git commit -qm phonly );
+    _ph_out=$( cd "$_mix" && bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" 2>&1 ); _ph_rc=$?;
+    [ "$_ph_rc" -eq 0 ] || { printf '%s\n' "$_ph_out"; echo "🔴 清一色占位符行被误判为泄漏（rc=$_ph_rc）⇒ 排除表失效"; cd "$_cwd"; exit 1; };
+    rm -rf "$_mix"
   </verify>
   <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）</done>
   <depends_on>T13</depends_on>
@@ -919,6 +936,14 @@ Wave 8 (收口 · 全量无退化)                  : T29
     printf '\n<!-- probe: /home/<user>/ -->\n' >> .specs/CONTEXT.md;
     make check-path-privacy >/dev/null 2>&1 || { cp -f /tmp/probe-bak .specs/CONTEXT.md; echo "🔴 占位符形态被误命中（排除表失效）"; exit 1; };
     cp -f /tmp/probe-bak .specs/CONTEXT.md || { echo "🔴 探针恢复失败（tracked 文件残留；阶段 3 L3 minor：原 ex 恒为 0）"; exit 1; }
+    # 排除粒度探针（主 agent 2026-09-23 追加 · L-133）：真名在前 + 占位在后同行 ⇒ 必红；清一色占位 ⇒ 必绿
+    cp .specs/CONTEXT.md /tmp/l133-bak; trap 'cp -f /tmp/l133-bak .specs/CONTEXT.md 2>/dev/null' EXIT;
+    printf '<!-- mixed: %s %s -->\n' "/home/$(whoami)/x" "/home/user/y" >> .specs/CONTEXT.md;
+    if make check-path-privacy >/tmp/l133-a.out 2>&1; then cp -f /tmp/l133-bak .specs/CONTEXT.md; cat /tmp/l133-a.out; echo "🔴 同行真名+占位被整行放过（排除粒度 ≠ 命中粒度 · L-133）"; exit 1; fi;
+    grep -q 'CONTEXT.md' /tmp/l133-a.out || { cp -f /tmp/l133-bak .specs/CONTEXT.md; cat /tmp/l133-a.out; echo "🔴 同行真名未被 file:line 归因"; exit 1; };
+    cp -f /tmp/l133-bak .specs/CONTEXT.md;
+    make check-path-privacy >/dev/null 2>&1 || { cp -f /tmp/l133-bak .specs/CONTEXT.md; echo "🔴 恢复后非健康态（探针未清干净）"; exit 1; };
+    cmp -s .specs/CONTEXT.md /tmp/l133-bak || { echo "🔴 恢复后与备份不一致（tracked 文件残留）"; exit 1; }
   </verify>
   <done>AC-6（空基线自检）：空清单态 rc=0 且自报 `允许清单 N 条`（N 可为 0）；真实形态探针 ⇒ rc=1；`/home/<user>/` ⇒ rc=0；探针在所有分支均已恢复</done>
   <depends_on>T21</depends_on>
