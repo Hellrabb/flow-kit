@@ -501,3 +501,46 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 - SUMMARY 必须**如实留档**探针形态，但活字面量会触发它自己的 fail-closed 门禁 ⇒ 执行者改用**拼接构造** `'/home/''zz-path-pr''obe/'` 记录（与 verify 内写法一致）⇒ 属正确的记录方式处理：既留档了真实判据协议，又让「提交后再跑门禁」保持绿（实测提交后 `make check-path-privacy` rc=0）。
 - 视觉上 verify 抽取出的判据为 30 行（`/tmp/vblocks/v_T26.sh`），其中 ⓪–⑧ 的断言链完整保留（含 `make -n` rc 只接受 0、`--always-make` 正例自检、末段三条 `cmp -s`）。
 - 新增教训：**L-142**（判据的可重跑性三件套：备份 + EXIT trap + 逐字节复原断言）。
+
+## ✅ T11 修复轮 1 + T19 复核记录（主 agent 独立复核 · 2026-09-23）
+
+### 前置：T11 修复轮 1（`4b2971e100af01dfd38bb91fa9eddb1a575e9313`）
+
+T19 首轮 BLOCKED 暴露真实产品缺陷：`flow-kit-bundle/hooks/pre-push/pre-push.sh:30` 传 `CHECK_REF="$local_ref"`，门禁 `check-path-privacy.sh:90` 读 `${CHECK_REV:-}` ⇒ 死变量 ⇒ 评估面恒为本地工作树（`git push --all` 时把泄漏归因给字母序第一个 ref，且工作树干净时整批放行）。主 agent 独立确认：`CHECK_REF=HEAD …` ⇒ `扫描面: 工作树`；`CHECK_REV=HEAD …` ⇒ `扫描面: <sha>`；全仓 grep 仅 `pre-push.sh:29-30` 命中。
+
+| # | 修复轮复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 2：`T11-SUMMARY.md` 99/1、`pre-push.sh` 21/3 ✓ |
+| 2 | 工作树 blob == HEAD | 2/2 ✓ |
+| 3 | 台账 | T11 `fix_rounds` 0→1，`commit_sha` 保持首次交付 `d613134`，length 仍 24 ✓ |
+| 4 | 产物度量 | 41→59 行，sha256 `581237c21b641345a3c6ef6319d09036a58b3467cc057487dcb68f8ca789d0c9`，mode 755，`bash -n` OK；`CHECK_REF` 计数 **0** / `CHECK_REV` 计数 2 ✓ |
+| 5 | **主 agent 亲测四种 stdin 形态**（伪 make 只经 PATH 前缀） | 空 stdin ⇒ 落到 `make check` rc=0（未被新守卫误拦）；删除行（全 0 sha）⇒ 跳过门禁 rc=0（`git push --delete` 不新增假红 · ADR-027②）；正常行 ⇒ 伪 make 输出 `check-path-privacy \| CHECK_REV=1eb6867…`（**修复生效**）；畸形行（1 字段）⇒ rc=1 + `🔴 拒绝推送 …：pre-push stdin 行缺 local sha（畸形输入），fail-closed 拒绝` ✓ |
+| 6 | 镜像面 | 4 个抽查副本（`~/.claude/hooks`、`dist/dsh-flow-kit/hooks`、`~/.dsh/.../node_modules/dsh-flow-kit/hooks`、`~/.config/opencode/hooks`）均携 `CHECK_REV`；`sync-hooks.sh --check` 漂移 0 ✓ |
+| 7 | 门禁与回归 | `npx bats test/` 973 / 0 / 0；`make lint`、`make check-hooks-sync`、`sync-hooks.sh --check`、`make check-path-privacy` 全 rc=0；`v_T11/T17/T20/T25/T26` 全 rc=0 ✓ |
+
+### T19 交付与复核（`916f979a255f47fcf46261a326bc2b2da49abdc4`）
+
+`feat(health-fix-2026-09b): T19 AC-3 端到端四形态 push 拦截（隔离 bare remote 实跑）`；numstat `T19-SUMMARY.md` 152/0、`TASK.md` 1/1；`fix_rounds=0`。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat / blob | 恰 2 文件；blob == HEAD 2/2 ✓ |
+| 2 | 台账 | length 25；末条 `{T19, 916f979…, fix_rounds:0, deferred:[], completed_at 23:52:02+08:00}`；`%cI` 23:51:56 ⇒ Δ=6s ✓ |
+| 3 | TASK.md 差异 | 恰 1 行（`:818` `status="pending"`→`"done"`）✓ |
+| 4 | **判据原样实跑（主 agent 亲跑）** | 抽 33 行到 `/tmp/vblocks/v_T19.sh`，`bash -n` OK；**`bash v_T19.sh` rc=0** ✓ |
+| 5 | 判据输出中的关键证据（我亲见） | 夹具自检：干净态 `清单外命中 0 条` / 泄漏态 `🔴 清单外命中 1 条` + 归因 `leak.txt:1: /home/<redacted>/leak`；**评估面那一跳实测 `扫描面: eb5208766f27d366cf4cc38aa0c7dcfdbedd8c99`（是 rev，不是「工作树」）⇒ T11 修复轮 1 确实把评估面切到被推送对象** ✓；末段落 `* [new branch] develop -> develop` = CLEAN-PASS ✓ |
+| 6 | 四形态指名 ref（执行者逐形态记录 + 我实跑无 🔴） | `push origin main` ⇒ 指名 `refs/heads/main`；`push --all` ⇒ **指名 `refs/heads/main`**（首轮错指 develop 的修复点）；`push --mirror` ⇒ 指名 `refs/heads/main`；`push origin --tags` ⇒ 指名 `refs/tags/v1` ✓ |
+| 7 | 归因对照 | `mv` 走 hook 后同一泄漏 push `rc_off=0`（拦截确由 hook 产生）✓ |
+| 8 | 门禁与回归 | `npx bats test/` 973/0/0；`make lint`、`make check-hooks-sync`、`sync-hooks.sh --check`、`make check-path-privacy` 全 0；`v_T11/T17/T20/T25/T26` 全 0；pre-commit 门禁随提交真跑通过 ✓ |
+| 9 | SUMMARY 自扫 / 冻结集 / 不变量 | 活路径命中 0；`git status --short` 恰 5 个冻结 `A `；`<task id=`/`<verify>`/`</task>`/`<depends_on>`/`<action>` 各 29，精确 done 计数 == 台账 length ✓ |
+
+### ℹ️ 两条记录备查（非缺陷、非阻断）
+
+1. **判据措辞的 errexit 健壮性**：T19 的 `<verify>` 用 `out=$(git $form 2>&1); rc=$?;` 捕获非零 rc；该写法在**额外**加 `set -euo pipefail` 时会在 `rc=$?` 之前退出（字面块本身**不含** `set -e`）。主 agent 已按历史口径（不加 errexit 原样跑）实测 **rc=0**，故定性为 ℹ️：既不是判据失败，也不是产品缺陷。phase 5 若愿意，可把该写法改成 `rc=0; out=$(cmd) || rc=$?` 以增强健壮性（本 change 不做，避免在阶段 5 之前再改阶段 3 工件）。
+2. **台账 `commit_sha` 约定不一致**：T11 条目 `commit_sha=d613134`（首次交付），其**代码权威**是含修复轮的 `4b2971e`；而 T17 条目记的是修复轮提交。约定不统一，登记备查；**不改台账**（审计记录不追改，修复轮事实由本节与 T11-SUMMARY 承载）。
+3. T19 判据不自带沙箱清理 ⇒ 主 agent 实跑后遗留 `/tmp/l3-ac3-ckgp6k`，已 `rm -rf` 清除（仓库未受影响）。
+
+### 遗留
+
+- C7（干净 clone 复现）属 v2，T19 不承担，已在 T19-SUMMARY §7 声明。
+- T11 修复轮 1 与 T19 端到端判据均已闭环，无产品件遗留。
