@@ -38,7 +38,8 @@ teardown() {
 
 @test "AC-1: Write tool triggers auto checkpoint" {
   echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.sh"}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
 
   active_file=$(jq -r '.interrupt.active_file' .flow-active)
   last_action=$(jq -r '.interrupt.last_action' .flow-active)
@@ -64,7 +65,8 @@ teardown() {
 
 @test "AC-2: Edit tool triggers auto checkpoint" {
   echo '{"tool_name":"Edit","tool_input":{"file_path":"src/config.sh"}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
 
   active_file=$(jq -r '.interrupt.active_file' .flow-active)
   last_action=$(jq -r '.interrupt.last_action' .flow-active)
@@ -81,7 +83,8 @@ teardown() {
   rm .flow-active
   old_dir=$(ls)
   echo '{"tool_name":"Write","tool_input":{"file_path":"test.sh"}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
   # .flow-active 不被创建
   [[ ! -f .flow-active ]]
 }
@@ -90,7 +93,8 @@ teardown() {
   # 预设 .flow-active 含 null change_id + 已有 interrupt 值
   jq -n '{change_id:null,phase:"4",interrupt:{active_file:"old.sh",last_action:"old",checkpoint_at:"2020-01-01T00:00:00Z"}}' > .flow-active
   echo '{"tool_name":"Write","tool_input":{"file_path":"new.sh"}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
   active_file=$(jq -r '.interrupt.active_file' .flow-active)
   [[ "$active_file" == "old.sh" ]]  # 未被覆盖
 }
@@ -103,7 +107,8 @@ teardown() {
   # 预设初始 interrupt 值
   jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
   echo '{"tool_name":"Read","tool_input":{}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
   active_file=$(jq -r '.interrupt.active_file' .flow-active)
   [[ "$active_file" == "before.sh" ]]  # 不变
 }
@@ -111,7 +116,8 @@ teardown() {
 @test "AC-4: Bash tool does not trigger checkpoint" {
   jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
   echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | bash ./auto-checkpoint.sh
-  [[ "$?" -eq 0 ]]
+  hook_rc=$?
+  [[ "$hook_rc" -eq 0 ]]
   active_file=$(jq -r '.interrupt.active_file' .flow-active)
   [[ "$active_file" == "before.sh" ]]  # 不变
 }
@@ -197,27 +203,34 @@ teardown() {
 
 @test "AC-9: two consecutive Writes both succeed (no dedup)" {
   echo '{"tool_name":"Write","tool_input":{"file_path":"a.sh"}}' | bash ./auto-checkpoint.sh
+  hook1_rc=$?
   ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
 
   # 极小间隔后再次触发
   sleep 1
   echo '{"tool_name":"Write","tool_input":{"file_path":"a.sh"}}' | bash ./auto-checkpoint.sh
+  hook2_rc=$?
   ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
 
-  # 两次都成功（exit 0）
-  [[ "$?" -eq 0 ]]
+  # 断言对象是 SUT（auto-checkpoint.sh 自身），非其后的 jq —— 在 SUT 调用处立即捕获退出码
+  [[ "$hook1_rc" -eq 0 ]]
+  [[ "$hook2_rc" -eq 0 ]]
   # checkpoint_at 不同（每次必定更新）
   [[ "$ts1" != "$ts2" ]]
 }
 
 @test "AC-9: two consecutive Edits both succeed (no dedup)" {
   echo '{"tool_name":"Edit","tool_input":{"file_path":"b.sh"}}' | bash ./auto-checkpoint.sh
+  hook1_rc=$?
   ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
 
   sleep 1
   echo '{"tool_name":"Edit","tool_input":{"file_path":"b.sh"}}' | bash ./auto-checkpoint.sh
+  hook2_rc=$?
   ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
 
-  [[ "$?" -eq 0 ]]
+  # 断言对象是 SUT 而非 jq —— 在 SUT 调用处立即捕获退出码
+  [[ "$hook1_rc" -eq 0 ]]
+  [[ "$hook2_rc" -eq 0 ]]
   [[ "$ts1" != "$ts2" ]]
 }

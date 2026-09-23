@@ -316,7 +316,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T09" parallel="true" status="pending" model-tier="standard">
+<task id="T09" parallel="true" status="done" model-tier="standard">
   <name>AC-7(a)：`test_combined_metric.bats` 恒真断言 + `test_auto_checkpoint.bats` 断言对象订正</name>
   <read_files>
     <`test/test_combined_metric.bats`（:31-32 恒真式 `[ "$status" -eq 0 ] || [ "$status" -eq 2 ]`）>
