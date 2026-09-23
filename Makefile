@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy check-nfr-portability check-nfr-portability-internals dsh-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -103,7 +103,7 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-path-privacy
+check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-path-privacy check-nfr-portability
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
@@ -125,6 +125,147 @@ check-gate-sync:
 check-path-privacy:
 	@echo "🔍 make check-path-privacy: 路径隐私（允许清单外命中 / fail-closed）检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
+
+# ── check-nfr-portability: NFR 兼容性判据（health-fix-2026-09b · AC-8 NFR 侧 · T28）──
+# 设计依据：DESIGN §1 D8 F2（落点裁决）、§3 退出码模型、§9.3 包装契约；REQUIREMENT NFR 兼容性判据；
+#   ADR-028 决策 3（三态 + make 层映射）。
+# 为什么是 Makefile recipe 内联而非 .sh 脚本（D8 F2 自排除边界 · 强制）：
+#   A 案受检面 = `git diff <base> -- '*.sh'` 的新增行 + 新 .sh 文件。判据文本必然含被禁原语字面
+#   （mapfile / readlink / stat -c 都在它的 grep 模式里）⇒ 若落成仓内 .sh，它会检到自己而**永久假红**。
+#   Makefile 不是 *.sh ⇒ 天然在受检面之外，无需豁免表。这是 D8 F2 的自排除边界。
+# 两层结构（ADR-028 R1 + DESIGN §9.3）：
+#   ① check-nfr-portability-internals —— 内部判据，三态 rc ∈ {0, 1, 3}，可单独调用、可被 verify 抽取原样实跑。
+#      0=通过；1=失败（报文含 file:line）；3=未验证（SKIP：锚点缺失或变更集为空）。
+#   ② check-nfr-portability —— 包装层，对外 rc ∈ {0, 1}：0=通过（含把内部 3 映射为 SKIP: + exit 0）；
+#      1=失败（原样透传）。包装层**不得**泄漏 rc=3（泄漏即实现偏离 §9.3）。
+#   ② 挂进 check: 先决条件是**安全的**：包装层恒为 0/1（rc=3 已在内部被映射为 0），不撞 ADR-028 R1
+#   （R1 禁的是「三态判据直接挂进 check:」，包装层是二值 ⇒ 合规）。
+# rc=3 的语义（ADR-028 决策 3 / DESIGN §9.3）：「未验证 ≠ 通过」。SKIP ≠ PASS。
+#   在 make check 里 rc=3 经包装映射为「打印 SKIP: … 后 exit 0」⇒ 非阻塞但必须可见。
+#   AC-8 断言（§9.3）：在锚点在位、变更集非空时，输出不得含 SKIP: —— 出现 SKIP 只能是实现缺陷。
+# 受检面（A 案 · REQUIREMENT NFR 段 R3 裁决）：
+#   ADDED = git diff -U0 "$BASE" -- '*.sh' 的 ^+ 行（剔除 +++ 头）
+#   NEWF  = git ls-files -o --exclude-standard 的 .sh 文件（含未跟踪新增 —— L-107：--name-only 看不到）
+#   变更集为空（ADDED 与 NEWF 均空）⇒ rc=3（SKIP：未验证，非通过）
+# 注释行剔除（L-101 / L-128）：负向断言必须排除注释行，否则注释里提到该原语即假红。
+#   剥离口径全仓统一：grep -vE '^\+?[[:space:]]*#'（剥整行注释）。
+# 可移植惯用法豁免（REQUIREMENT 第 6 轮订正 · 按成分删除）：
+#   stat -c … || stat -f … 是本仓既有的正确跨平台写法 ⇒ 不得判红。豁免**必须按成分删除而非整行豁免**
+#   —— 整行豁免会让同行真违规一起逃逸（实测 mapfile …; t=$(stat -c … || stat -f …) 被判 ✅ 假绿）。
+#   做法：先 sed 删掉合规惯用法成分，再对剩余文本做违规匹配。已知边界：跨行书写的合规惯用法会假红。
+# 禁用构造（新增行/新文件命中即违规）：
+#   declare -A / mapfile / readarray / readlink -f / readlink -e / realpath / sed -i / grep -P / find -printf / GNU timeout
+# 语法门禁：对「被修改文件 + 新增文件」整文件 bash -n（语法错误与哪一行引入无关，必须整文件查）。
+# 失败输出必须含 file:line 定位（NFR 可观测性 · REQUIREMENT）。
+# 兼容性：recipe 以 `bash -c` 显式承载判据（macOS /bin/sh=bash3.2、Linux /bin/sh=dash 均可跑；
+#   避免 dash 不支持 <<<、不支持 [[ 等扩展）。判据自身**不用** mapfile（避免自相矛盾 · REQUIREMENT R2③）。
+check-nfr-portability-internals:
+	@bash -euo pipefail -c ' \
+		_write_rc() { [ -n "$${NFR_RC_FILE:-}" ] && printf "%s\n" "$$1" > "$$NFR_RC_FILE" || true; }; \
+		BASE="$${FLOW_KIT_CHANGE_BASE:-$$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}"; \
+		if [ -z "$$BASE" ]; then \
+			echo "SKIP: 变更起点锚点缺失（.change-base 不存在且 \$$FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证"; \
+			_write_rc 3; exit 0; \
+		fi; \
+		if ! git -c core.quotepath=false rev-parse --verify --quiet "$${BASE}^{commit}" >/dev/null 2>&1; then \
+			echo "🔴 FLOW_KIT_CHANGE_BASE 不是有效 commit: $$BASE"; _write_rc 1; exit 0; \
+		fi; \
+		ADDED=$$(git -c core.quotepath=false diff -U0 "$$BASE" -- "*.sh" | grep -E "^\+" | grep -v "^+++" || true); \
+		NEWF=$$(git -c core.quotepath=false ls-files -o --exclude-standard | grep -E "\.sh$$" || true); \
+		if [ -z "$$ADDED" ] && [ -z "$$NEWF" ]; then \
+			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
+		fi; \
+		SCAN=$$( { printf "%s\n" "$$ADDED"; [ -n "$$NEWF" ] && cat $$NEWF; } | grep -vE "^\+?[[:space:]]*#" || true ); \
+		WL='"'"'stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*'"'"'; \
+		if printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
+			| grep -qE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; then \
+			echo "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：" >&2; \
+			printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
+				| grep -nE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf" >&2; \
+			_write_rc 1; exit 0; \
+		fi; \
+		if printf "%s\n" "$$SCAN" | grep -qE "(^|[^-[:alnum:]_])timeout[[:space:]]"; then \
+			echo "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）：" >&2; \
+			printf "%s\n" "$$SCAN" | grep -nE "(^|[^-[:alnum:]_])timeout[[:space:]]" >&2; \
+			_write_rc 1; exit 0; \
+		fi; \
+		CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
+			| grep -E "\.sh$$" | sort -u | grep -v "^$$" || true ); \
+		if [ -n "$$CHK" ]; then \
+			SYN_FAIL=0; \
+			while IFS= read -r fe; do \
+				[ -e "$$fe" ] || continue; \
+				if ! bash -n "$$fe" 2>/dev/null; then \
+					echo "🔴 $$fe 语法错误"; SYN_FAIL=1; \
+				fi; \
+			done <<< "$$CHK"; \
+			[ "$$SYN_FAIL" -eq 0 ] || { _write_rc 1; exit 0; }; \
+		fi; \
+		echo "✅ NFR 兼容性判据通过：无新增 bash4-only / GNU-only 构造，语法检查通过"; \
+		_write_rc 0; exit 0; \
+	'
+
+# ── check-nfr-portability: 包装层（ADR-028 决策 3 / DESIGN §9.3 三态转译）──
+# 对外 rc ∈ {0, 1}：内部 rc=0 ⇒ 透传 0；内部 rc=3 ⇒ 打印 SKIP: 后 exit 0（非阻塞但可见，SKIP≠PASS）；
+#   内部 rc=1 ⇒ 透传 1（阻塞）。**不得**泄漏 rc=3（泄漏即实现偏离 §9.3）。
+# 挂进 check: 先决条件安全：包装层恒为 0/1（rc=3 已在内部映射为 0），不撞 ADR-028 R1。
+# 技术细节：make 在 recipe 失败时对外恒返回 rc=2（掩盖内部真实 1/3）。故内部判据把真实 rc 写入
+#   $$NFR_RC 临时文件，包装层读该文件还原三态 —— 不依赖 make 的退出码（否则 1/3 不可区分，§9.3 包装失败）。
+check-nfr-portability:
+	@echo "🔍 make check-nfr-portability: NFR 兼容性判据（bash 3.2/macOS 可移植 · 三态包装）..."
+	@NFR_OUT=$$(mktemp); NFR_RC=$$(mktemp); \
+	export NFR_RC_FILE="$$NFR_RC"; \
+	bash -euo pipefail -c ' \
+		_write_rc() { [ -n "$${NFR_RC_FILE:-}" ] && printf "%s\n" "$$1" > "$$NFR_RC_FILE" || true; }; \
+		BASE="$${FLOW_KIT_CHANGE_BASE:-$$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}"; \
+		if [ -z "$$BASE" ]; then \
+			echo "SKIP: 变更起点锚点缺失（.change-base 不存在且 \$$FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证"; \
+			_write_rc 3; exit 0; \
+		fi; \
+		if ! git -c core.quotepath=false rev-parse --verify --quiet "$${BASE}^{commit}" >/dev/null 2>&1; then \
+			echo "🔴 FLOW_KIT_CHANGE_BASE 不是有效 commit: $$BASE"; _write_rc 1; exit 0; \
+		fi; \
+		ADDED=$$(git -c core.quotepath=false diff -U0 "$$BASE" -- "*.sh" | grep -E "^\+" | grep -v "^+++" || true); \
+		NEWF=$$(git -c core.quotepath=false ls-files -o --exclude-standard | grep -E "\.sh$$" || true); \
+		if [ -z "$$ADDED" ] && [ -z "$$NEWF" ]; then \
+			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
+		fi; \
+		SCAN=$$( { printf "%s\n" "$$ADDED"; [ -n "$$NEWF" ] && cat $$NEWF; } | grep -vE "^\+?[[:space:]]*#" || true ); \
+		WL='"'"'stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*'"'"'; \
+		if printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
+			| grep -qE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; then \
+			echo "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：" >&2; \
+			printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
+				| grep -nE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf" >&2; \
+			_write_rc 1; exit 0; \
+		fi; \
+		if printf "%s\n" "$$SCAN" | grep -qE "(^|[^-[:alnum:]_])timeout[[:space:]]"; then \
+			echo "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）：" >&2; \
+			printf "%s\n" "$$SCAN" | grep -nE "(^|[^-[:alnum:]_])timeout[[:space:]]" >&2; \
+			_write_rc 1; exit 0; \
+		fi; \
+		CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
+			| grep -E "\.sh$$" | sort -u | grep -v "^$$" || true ); \
+		if [ -n "$$CHK" ]; then \
+			SYN_FAIL=0; \
+			while IFS= read -r fe; do \
+				[ -e "$$fe" ] || continue; \
+				if ! bash -n "$$fe" 2>/dev/null; then \
+					echo "🔴 $$fe 语法错误"; SYN_FAIL=1; \
+				fi; \
+			done <<< "$$CHK"; \
+			[ "$$SYN_FAIL" -eq 0 ] || { _write_rc 1; exit 0; }; \
+		fi; \
+		echo "✅ NFR 兼容性判据通过：无新增 bash4-only / GNU-only 构造，语法检查通过"; \
+		_write_rc 0; exit 0; \
+	' >"$$NFR_OUT" 2>&1 || true; \
+	rc=$$(cat "$$NFR_RC" 2>/dev/null || echo 2); \
+	case "$$rc" in \
+		0) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC" ;; \
+		3) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 0 ;; \
+		1) cat "$$NFR_OUT" 1>&2; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 1 ;; \
+		*) cat "$$NFR_OUT" 1>&2; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 1 ;; \
+	esac
 
 # ── check-dist: 打包件新鲜度门禁（health-fix-2026-09 · F1/D2/D3）──
 # 为什么存在：dist/ 被 .gitignore 忽略 → **git 对它结构性失明**，改了源忘了重建

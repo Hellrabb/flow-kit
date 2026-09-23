@@ -1213,7 +1213,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T24</depends_on>
 </task>
 
-<task id="T28" parallel="true" status="pending" model-tier="top">
+<task id="T28" parallel="true" status="done" model-tier="top">
   <name>NFR 兼容性判据落点：`Makefile` 目标 `check-nfr-portability`（三态，`rc=3` 不得当绿灯）</name>
   <read_files>
     <`Makefile`（接入点；本目标为 recipe 内联，**不落 `.sh`** —— A 案受检面是 `*.sh` 新增行，落 .sh 会自命中永久假红）>
