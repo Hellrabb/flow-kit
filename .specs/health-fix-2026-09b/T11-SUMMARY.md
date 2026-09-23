@@ -153,3 +153,101 @@ awk '{ sub(/#.*/, ""); print }' "$H" | grep -qE "$PAT" && { echo "🔴 含 bash4
 - **R6 领域扭曲 / R6.4 / R6.5**：不引行号；沿用具名目标；`git show --numstat` 越界 0 ⇒ ✅
 
 **收尾**：commit sha 见提交；`make test` 973/0/rc=0；`sync-hooks --check` 漂移 0；`check-test-sync` rc=0；`check-dist` 红（预期，待 T24）；行为双态 4/4；空 stdin ⇒ 放行（理由 §4）；越界 0；遗留 = dist 条目的打包刷新（§11）。
+
+## 修复轮 1（2026-09-23）
+
+### ① 缺陷一句话 + 证据
+
+**`pre-push.sh:30` 把评估面变量名写成 `CHECK_REF`，而门禁 `check-path-privacy.sh:90` 读的是 `CHECK_REV` ⇒ `CHECK_REF` 是死变量，被推送 ref 的泄漏评估从未真正实施 → 违反 AC-3 Then「指出哪个 ref 含泄漏」。**
+
+主 agent 两条实测：
+```
+CHECK_REF=HEAD bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh ⇒ 扫描面: 工作树
+CHECK_REV=HEAD bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh ⇒ 扫描面: 1eb686737c577f720074a89ffb8f089356998be3
+```
+变量名不匹配确凿：`CHECK_REF` 被完全忽略。
+
+### ② 根因
+
+T11 交付原型早于 T17 推出的 `CHECK_REV` 入口（L-131 · ADR-027 拦截面 = 被拦截对象）。门禁随后读 `CHECK_REV`（`check-path-privacy.sh:90`），而 T11 钩子仍传 `CHECK_REF`，两处各自维护、命名错位 ⇒ 钩子永远传错变量。后果（T19 沙箱实测）：评估面恒为本地工作树而非被推送 ref 树 ⇒ `git push --all`（HEAD=main 含泄漏）时钩子把归因给了字母序第一个 ref `refs/heads/develop`（干净）⇒ 违反 AC-3；工作树干净时泄漏 ref 整批放行。
+
+### ③ 修法（before → after + 行数变化 + sha256）
+
+只改一个产品件 `flow-kit-bundle/hooks/pre-push/pre-push.sh`（41 → 59 行）：
+
+```bash
+# before（41 行）
+    set -- $line
+    [ "$#" -ge 1 ] && [ -n "$1" ] || continue
+    local_ref=$1
+    if ! CHECK_REF="$local_ref" make check-path-privacy; then   # ← CHECK_REF 死变量
+
+# after（59 行）
+    set -- $line
+    [ "$#" -ge 2 ] && [ -n "$2" ] || {              # fail-closed：取不到 local sha ⇒ exit 1
+        echo "🔴 拒绝推送 ${1:-<未知 ref>}：pre-push stdin 行缺 local sha（畸形输入），fail-closed 拒绝" >&2
+        exit 1
+    }
+    local_ref=$1
+    local_sha=$2
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then continue; fi  # 删除推送跳过
+    if ! CHECK_REV="$local_sha" make check-path-privacy; then   # ← 传被推送对象 sha（stdin 第 2 字段）
+        echo "🔴 拒绝推送 $local_ref：该 ref 含路径隐私泄漏（make check-path-privacy 未通过）" >&2
+        leaky_ref="$local_ref"; break
+    fi
+```
+
+- 传 **local sha**（stdin 第 2 字段）而非 ref 名：门禁 `^{commit}` 可解析注解 tag 对象 sha，且避免「扫描前 ref 被移动导致扫错对象」。
+- **删除推送**（`git push --delete` / `--mirror`，git 传全 0 sha + local ref `(delete)`）：无对象可扫 ⇒ 该行 `continue` 跳过，不得走到门禁触发 fail-closed（ADR-027② 防新假红）。判据 = 全 0 sha（对 `(delete)` ref 形态稳健）。
+- 沿用 `set -- $line`、无 `mapfile`/关联数组/`readlink -f`/`sed -i`（bash 3.2 兼容）；`make check` 兜底与归因报文 `🔴 拒绝推送 $local_ref：…` 不变。
+- sha256：`581237c21b641345a3c6ef6319d09036a58b3467cc057487dcb68f8ca789d0c9`
+
+### ④ (A)(B)(C) 三组实测
+
+**(A) 钩子层（伪 make 记录 env，仅 PATH 前缀生效，HOME 未指到夹具）**
+
+stdin 两行 = 正常推送行 `<refs/heads/main> <1eb6867…> <refs/heads/main> <1eb6867…>` + 删除行 `< (delete)> <全0> <refs/heads/x> <全0>`（用 `(refs/heads/clean-ok)` 形式验证 sha 判据稳健）：
+```
+伪 make: FAKE_MAKE_ARGS=check-path-privacy / CHECK_REV=1eb686737c577f720074a89ffb8f089356998be3   ← 第 1 行，CHECK_REV=被推送 sha
+伪 make: FAKE_MAKE_ARGS=check  / NO_CHECK_REV_ENV                                                  ← 第 2 行删除被跳过，无 check-path-privacy 调用
+整体 rc=0
+```
+⇒ (A) rc=**0**：正常行真的传了 `CHECK_REV`（=sha），删除行被跳过（门禁不被调用）。
+
+**(B) 门禁层（真实 `check-path-privacy.sh` · 允许清单空基线）** 临时 git 仓（含干净 commit + 泄漏 commit `printf '/home/<acct>/leak'`）：
+```
+CHECK_REV=<干净 sha> bash <gate> ⇒ 扫描面: b7d1e0891a14b3a2ea5ebce41ffc3dfb33281851 / 清单外命中 0 条 ⇒ rc=0
+CHECK_REV=<泄漏 sha> bash <gate> ⇒ 扫描面: 2fc4f273edc7d744ff4f58b5a241c5991de3e107 / 清单外命中 1 条 / leaky.txt:1: /home/<acct>/leak ⇒ rc=1
+旧式（CHECK_REF=<泄漏 sha>，工作树检回干净）⇒ 扫描面: 工作树 / 命中 0 ⇒ rc=0  ← 证明修复前 CHECK_REF 是死变量、泄漏对象永不被扫
+```
+⇒ (B) rc=**0 / 1 / 0（反例）**：评估面确实跟着 `CHECK_REV` 走；同样泄漏对象在修复前永远不会被扫到。
+
+**(C) T11 原判据仍绿（6 行实跑）**：`ok 1 文件存在 / 2 可执行 / 3 mode=755 / 4 含 'make check' 字面 / 5 bash -n 通过 / 6 注释盲无禁用构造`，`grep -q 'make check'` 成立 ⇒ rc=**0**。
+
+### ⑤ 门禁与回归表
+
+| 检查 | rc | 关键输出 |
+|---|---|---|
+| `npx bats test/` | 0 | **973 ok / 0 not ok / 0 skip** |
+| `make lint` | 0 | shellcheck（含 pre-push.sh）no errors |
+| `make check-hooks-sync` | 0 | 副本漂移 0 |
+| `bash sync-hooks.sh --check` | 0 | ✅ 漂移 0 |
+| `make check-path-privacy` | 0 | 清单外命中 0 条 |
+| `v_T11.sh` | 0 | — |
+| `v_T17.sh` | 0 | — |
+| `v_T20.sh` | 0 | 副本一致（同步后） |
+| `v_T25.sh` | 0 | 已同步 6 副本 |
+| `v_T26.sh` | 0 | — |
+
+### ⑥ 6 维自查（R1–R6）
+
+- **R1 认知过载**：59 行、单循环 + 三出口（fail-closed / delete 跳过 / 泄漏 break），分支扁平 ⇒ ✅
+- **R2 变更传播**：产品写面仅 `pre-push.sh`；已 `./sync-hooks.sh` 镜像全部 6 个 DEST_ROOT 副本（`~/.claude/hooks`、dist×2、dsh 运行时×2、opencode 均携 `CHECK_REV=`）⇒ ✅
+- **R3 知识重复**：泄漏扫描逻辑仍完全委托 `check-path-privacy` 目标；`CHECK_REV` 语义是门禁既有契约，hook 只传参 ⇒ ✅
+- **R4 偶然复杂**：删除判据 = 全 0 sha（`(delete)` ref 形式稳健）；畸形行 fail-closed 无 `|| true` 吞错；`set --` 折叠空白 ⇒ 不安全取字段用 `[ "$#" -ge 2 ]` 判字段数 ⇒ ✅
+- **R5 依赖混乱**：只依赖 `make check-path-privacy` / `make check` 契约目标 ⇒ ✅
+- **R6 领域扭曲 / R6.4 / R6.5**：不引行号；`git show --numstat` 越界 0（仅 pre-push.sh 改动 + SUMMARY）⇒ ✅
+
+### ⑦ 遗留
+
+- **T19 需重跑四形态端到端**：EVAL-FACE（评估面＝被推送 ref 树非工作树）、ATTRIBUTION（归因正确指名含泄漏 ref，非字母序第一个干净 ref）、CLEAN-PASS（工作树干净时不整批放行泄漏 ref），属 T19 任务，本修复轮只修了钩子侧因、不做端到端断言。

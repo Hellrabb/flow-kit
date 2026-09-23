@@ -22,12 +22,30 @@ leaky_ref=""
 while IFS= read -r line || [ -n "$line" ]; do
     # 逐字段展开，兼容 bash 3.2（不用 mapfile / 关联数组）
     set -- $line
-    [ "$#" -ge 1 ] && [ -n "$1" ] || continue
+
+    # fail-closed：取不到 local sha（字段不足 / 为空）⇐ stdin 第三、四字段为 remote
+    # ref/sha，第二字段才是被推送对象的 local sha。畸形行不得静默按"干净"放过；
+    # 明确报文 + exit 1。
+    [ "$#" -ge 2 ] && [ -n "$2" ] || {
+        echo "🔴 拒绝推送 ${1:-<未知 ref>}：pre-push stdin 行缺 local sha（畸形输入），fail-closed 拒绝" >&2
+        exit 1
+    }
     local_ref=$1
+    local_sha=$2
+
+    # 删除推送（git push --delete / --mirror 清理）：git 传全 0 sha
+    # （0000…0000）且 local ref 为 `(delete)`，此时没有对象可扫 ⇒ 该行必须跳过，
+    # 不得走到门禁触发 fail-closed（ADR-027② 防新假红）。
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
 
     # 泄漏评估：调用 CheckPathPrivacy 目标（DESIGN §2.1），0=干净 / 非 0=含泄漏。
-    # CHECK_REF 仅作归因提示传入（真实目标忽略之；影子测试 stub 用它区分各 ref）。
-    if ! CHECK_REF="$local_ref" make check-path-privacy; then
+    # CHECK_REV 设为被推送对象的 local sha（stdin 第 2 字段）—— 门禁据此把评估面
+    # 切换到该对象树（L-131 / ADR-027 拦截面 = 被拦截对象），避免「扫本地工作树」的
+    # 归因错位；注解 tag 对象的 sha 也能被门禁 `^{commit}` 正确解析。用 sha 而非 ref
+    # 名，可避免「扫描前 ref 被移动导致扫错对象」。
+    if ! CHECK_REV="$local_sha" make check-path-privacy; then
         echo "🔴 拒绝推送 $local_ref：该 ref 含路径隐私泄漏（make check-path-privacy 未通过）" >&2
         leaky_ref="$local_ref"
         break
