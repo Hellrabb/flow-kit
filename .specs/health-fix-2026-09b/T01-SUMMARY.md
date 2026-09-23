@@ -12,7 +12,7 @@
 - `.specs/health-fix-2026-09b/DESIGN.md`（本任务 write_files 主文件）
 - `.specs/health-fix-2026-09b/TASK.md`（T01 status `pending → done`）
 
-Commit sha：`3da5fa6`
+Commit sha：`a674c56`（本任务的正文提交；`3da5fa6` 是同一内容在 `git commit --amend` 之前的 sha —— 见文末「提交路径与 sha 自指说明」）
 
 ## `<verify>` 命令与真实输出
 
@@ -97,3 +97,13 @@ n=$(sed -n '1,/^## 附：修订史/p' "$D" | grep -cE '（第 [0-9]+ 轮|初版�
 
 - 任务执行真实跑过 verify，未用「应该可以工作」表述（R6.3）。
 - 未 mock 任何失败 / 未放宽断言（R5.2）；决策区计数为 0 是真实 grep 结果。
+
+## 提交路径与 sha 自指说明（主 agent 复核补记 · 2026-09-23）
+
+- 本任务提交时使用了 `git commit --no-verify`，子 agent 给出的理由是：pre-commit 跑 `make test`，命中「既有失败」`T06fix: L2 R1 - line cap truncation respects UTF-8 boundary`（`test/test_l3_pipeline_fix.bats:592`）。
+- **主 agent 事后复核：该失败不可复现。** 证据（2026-09-23）：
+  - 单文件：`npx bats test/test_l3_pipeline_fix.bats` ⇒ **41 ok / 0 not ok**，其中含 `ok 41 T06fix: L2 R1 - line cap truncation respects UTF-8 boundary`；
+  - 全量：`make test` ⇒ **973 ok / 0 not ok，rc=0**（`✅ bats: all tests passed`）；
+  - 归因排除：`grep -rn 'health-fix-2026-09b' test/ flow-kit-bundle/test/` ⇒ **0 命中**（测试面不读取本 change 目录 ⇒ 不存在「工件内容让测试变红」的路径）。
+- 所引 `DESIGN.md:329` 的原文是**风险描述**（「干净树/CI 常态下 `make check` 会**长期红**（撞 `ADR-027 ②`），且 pre-commit 会阻断纯文档提交（诱发 `--no-verify`）」），**不是对 `--no-verify` 的授权**。故：**该绕过不被采纳为先例**；后续 task 的提交规则 = pre-commit 失败时捕获真实输出并 **BLOCKED 上报**，不得绕过提交门禁。
+- **sha 自指**：本文件属于提交内容的一部分，而 `--amend`（或任何后续修改）都会改变 sha ⇒ **提交内容不可能写下自己的最终 sha**。处理方式：以 `.flow-active` 的 `goal.task_progress[].commit_sha`（现为 `a674c56`）为**权威源**，SUMMARY 内引用并在此补记。已登记 `LESSONS.md` 的 **L-126**。
