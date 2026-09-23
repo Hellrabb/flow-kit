@@ -476,3 +476,28 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 
 - 钩子保留既有的两条**快速跳过**路径（`:15-18` 无 `Makefile` ⇒ skip；`:21-24` 无 `npx` ⇒ skip）：二者先于 T20 存在，T20 的 action 明确要求「维持快速失败语义」，故本 task 不改；影响面 = 无 `npx` 的环境中隐私门禁不生效（与 `make test` 段同一取舍）。ADR-027①：已知可接受项不上调为 fail。
 - `T20` 任务块 `<done>` 写「AC-6①」（`TASK.md:905`），而本 task 实际交付 **AC-6③**（pre-commit 接入）；属阶段 3 起草时的标签笔误，判据与 SUMMARY 均按 ③ 执行与记述 ⇒ 记 🟢，留待 T29 收口时与 `STATE.md:48` 的计数口径一并订正。
+
+## ✅ T26 复核记录（主 agent 独立复核 · 2026-09-23）
+
+交付 `286431e860418cec7e99cfb624d9862e72c9483d`（`T26: AC-6 端到端判据实跑——探针必被抓住+自报↔落档绑定+差分数(防硬编码)全通过`），`fix_rounds=0`；**判据实跑型任务，无产品件改动**（numstat 仅 SUMMARY + TASK.md）。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 2：`T26-SUMMARY.md` 253/0、`TASK.md` 1/1 ✓ |
+| 2 | 工作树 blob == HEAD | 2/2 ✓ |
+| 3 | 台账 | length 24；末条 `{T26, 286431e…, fix_rounds:0, deferred:[], completed_at 23:18:18+08:00}`；`%cI` 23:17:57 ⇒ Δ=21s ✓ |
+| 4 | TASK.md 差异 | 恰 1 行属性（`:1122` `status="pending"`→`"done"`）✓ |
+| 5 | 判据 | 重抽 **30 行**，与 `/tmp/vblocks/v_T26.sh` **cmp OK**；主 agent **独立实跑 rc=0** ✓ |
+| 6 | 探针判别力（主 agent 亲见） | 探针入 `.specs/CONTEXT.md:708` ⇒ `命中合计 1 条` / `清单外命中 1 条` + `file:line` 归因 `.specs/CONTEXT.md:708` + `🔴 清单外命中 1 条（… ADR-027 ②③ / ADR-028 决策 2）`；探针恢复后同一条命令转绿（`允许清单 0 条` / `清单外命中 0 条`）⇒ **红绿差异仅由探针引起**（非环境噪声）✓ |
+| 7 | 差分数与读序（判据内断言，数字与 SUMMARY 逐项一致） | `printed=0` / `filed=0`（自报↔**权威**清单有效行数绑定）✓；**④a** 向权威清单追加一条 ⇒ `n2=1 > printed=0`（防硬编码：门禁真读清单）✓；**④b** 权威清单 `mv` 走 + change 副本在位 ⇒ **rc=0**，与 T21 已断言的「两份皆缺 ⇒ rc=1」**两态可区分** ⇒ 读序「常设 > 副本」已实现 ✓ |
+| 8 | **复原性（主 agent 亲验）** | 我实跑判据后 `git status --short` **仍只剩 5 个冻结 `A `**、`git diff --stat` 为空 ⇒ 三个临时对象（CONTEXT.md / 权威清单 / change 副本）逐字节复原；判据内三条 `cmp -s` 亦全过 ⇒ **T21 冻结产物未被污染** ✓ |
+| 9 | 门禁与回归 | 主 agent 亲跑 `make check-path-privacy` rc=0（`清单外命中 0 条`）；`npx bats test/` **rc=0，plan `1..973` / ok 973 / not ok 0 / `# skip` 0** ✓；执行者报 `v_T17`–`v_T25`、`make lint`、`make check-hooks-sync`、`bash sync-hooks.sh --check` 全 0 ✓ |
+| 10 | SUMMARY 自扫与抽检 | `/home/[a-z_][a-z0-9_-]*/` 活字面量命中 **0**；`:26-28`（三临时对象与复原断言）、`:92`（printed/filed）、`:104`（④a 差分）、`:113`（④b）、`:118-120`（三条 `cmp -s`）、`:184`（读序两态可区分）与我独立观察逐项一致；`:211` 明确「受控临时改写、非破坏性变更协议」✓ |
+| 11 | 冻结集 | `git status --short` 恰 5 个 `A `，无 `M`/`??` ✓ |
+| 12 | 结构不变量 | `<task id=`/`<verify>`/`</task>`/`<depends_on>`/`<action>` 各 29；精确 done 口径（`<task[^>]*status="done"`）= **24** == 台账 length ✓ |
+
+### ℹ️ 记录方式说明（非缺陷）
+
+- SUMMARY 必须**如实留档**探针形态，但活字面量会触发它自己的 fail-closed 门禁 ⇒ 执行者改用**拼接构造** `'/home/''zz-path-pr''obe/'` 记录（与 verify 内写法一致）⇒ 属正确的记录方式处理：既留档了真实判据协议，又让「提交后再跑门禁」保持绿（实测提交后 `make check-path-privacy` rc=0）。
+- 视觉上 verify 抽取出的判据为 30 行（`/tmp/vblocks/v_T26.sh`），其中 ⓪–⑧ 的断言链完整保留（含 `make -n` rc 只接受 0、`--always-make` 正例自检、末段三条 `cmp -s`）。
+- 新增教训：**L-142**（判据的可重跑性三件套：备份 + EXIT trap + 逐字节复原断言）。
