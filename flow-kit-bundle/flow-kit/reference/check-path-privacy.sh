@@ -118,6 +118,73 @@ else
   exit 1
 fi
 
+# ----------------------------------------------------------------------------
+# 常设清单自校验 · 格式校验（T23 · L3 #4 major③ fix · ADR-028 规则 ①）
+# ----------------------------------------------------------------------------
+# 每一非注释、非空行必须匹配 `file:token` 语法（对 check-path-privacy =
+# `<路径>:<行号>`，可附 ` # 理由` 尾随注释）。违者 ⇒ rc=1 并在报文里指名
+# ① 清单路径（path-privacy-allowlist.txt）② 违例行号与违例内容。
+# 理由：允许清单是门禁信任根；格式违例 = 清单**本身**失真（非扫描内容泄漏），
+# 必须在读取阶段就拦截 —— 否则畸形行被静默吞掉、ALLOWLIST_COUNT 把它计成
+# 有效条目 ⇒ 信任根静默失效（fail-open）。双态判别力（T23 verify 固化）：
+#   畸形行（如 `ZZ-BAD-LINE-NO-COLON`，无冒号）⇒ rc=1 指名 file:line:content；
+#   合法 `file:line` + 理由注释 / 整行注释 / 空行 ⇒ 不触发。
+validate_allowlist_format() {
+  local al_path="$1"       # 常设 / change 路径名（用于报文归因）
+  local al_file="$2"       # 实际读取的清单内容（临时文件）
+  local lineno=0 line core before after stripped
+  while IFS= read -r line || [ -n "$line" ]; do
+    lineno=$((lineno + 1))
+    # 跳过空行 / 纯空白行 —— 不计入格式校验
+    stripped=$line
+    stripped=${stripped//[[:space:]]/}
+    [ -z "$stripped" ] && continue
+    # 跳过整行注释（首非空字符为 #）与 HTML 注释标记 <!--（探针/标记行，非有效条目）
+    core=${line#"${line%%[![:space:]]*}"}   # 去前导空白
+    case "$core" in
+      '#'*) continue ;;                    # 整行注释 ⇒ 跳过
+      '<!--'*) continue ;;                  # HTML 注释 / 探针标记 ⇒ 跳过（非 file:line 条目）
+    esac
+    # 剥尾随理由注释（首个 # 起，含前导空格）再判 `file:line`
+    core=${line%%#*}
+    core=${core%"${core##*[![:space:]]}"}  # 去尾随空白
+    core=${core#"${core%%[![:space:]]*}"}   # 去前导空白
+    # core 现应为 `<路径>:<行号>`：含冒号、冒号后纯数字、冒号前非空
+    before=${core%%:*}
+    after=${core#*:}
+    case "$core" in
+      *:*) ;;                               # 含冒号 ⇒ 继续判行号段
+      *)
+        echo "🔴 允许清单格式违例（ADR-028 规则 ① · file:token 语法）："
+        echo "   清单: ${al_path}"
+        echo "   ${lineno}: ${line}"
+        return 1
+        ;;
+    esac
+    case "$after" in
+      ''|*[!0-9]*)
+        echo "🔴 允许清单格式违例（ADR-028 规则 ① · file:token 语法）："
+        echo "   清单: ${al_path}"
+        echo "   ${lineno}: ${line}"
+        return 1
+        ;;
+    esac
+    if [ -z "$before" ]; then
+      echo "🔴 允许清单格式违例（ADR-028 规则 ① · file:token 语法）："
+      echo "   清单: ${al_path}"
+      echo "   ${lineno}: ${line}"
+      return 1
+    fi
+  done < "$al_file"
+  return 0
+}
+
+# 在 ALLOWLIST_COUNT 之前做格式校验 —— 畸形行必须先被拦截，否则会被计入有效条目。
+if ! validate_allowlist_format "$ALLOWLIST_SOURCE" "$TMP_ALLOWLIST"; then
+  echo "   扫描面: ${SCAN_SURFACE}"
+  exit 1
+fi
+
 # 统计允许清单有效条目数（每行一条 file:line + 可选理由注释；剥整行注释与空行）。
 # 注：允许清单格式 = `file:line` 每行一条 + 理由注释（ADR-028 决策 1）。
 # grep -c 计数为 0 时退出码为 1（仍打印 "0"）；写成 `$(grep -c … || printf '0')`

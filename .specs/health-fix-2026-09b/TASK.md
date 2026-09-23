@@ -983,7 +983,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T21</depends_on>
 </task>
 
-<task id="T23" parallel="false" status="pending" model-tier="top">
+<task id="T23" parallel="false" status="done" model-tier="top">
   <name>常设清单自身校验（L3 #4 major③）：格式 / 完整性 / 原子更新 + 排除表绑定双态</name>
   <read_files>
     <`.specs/adr/028-gate-baseline-allowlist.md`（棘轮与 SKIP≠PASS 语义；本 task 追加自校验规则）>
