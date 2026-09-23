@@ -79,7 +79,7 @@ PTU_ENTRIES="pre-tool-use/independent-review-gate.sh pre-tool-use/auto-checkpoin
 is_real_entry() {
   case "$1" in
     */*/*) return 1 ;;                            # 三层以上（stop/lib/*、*/*/*）一律是库
-    stop/*.sh|session-start/*.sh|pre-commit/*.sh) return 0 ;;
+    stop/*.sh|session-start/*.sh|pre-commit/*.sh|pre-push/*.sh) return 0 ;;
   esac
   case " $PTU_ENTRIES " in *" $1 "*) return 0 ;; esac
   return 1
@@ -92,9 +92,9 @@ if [ -n "$ENTRY_CLASS" ]; then
   # 前缀白名单：拼错路径（如 `stop/common.sh`）不得被静默判成"库" —— 那会把探针的
   # 失败伪装成结论（review 2026-09-21 · 🟢）。未知前缀一律用法错误 rc=2。
   case "$ENTRY_CLASS" in
-    stop/*|session-start/*|pre-commit/*|pre-tool-use/*) ;;
+    stop/*|session-start/*|pre-commit/*|pre-tool-use/*|pre-push/*) ;;
     *)
-      printf '❌ --entry-class: 无法识别的相对路径 %s（期望 stop/ · session-start/ · pre-commit/ · pre-tool-use/ 前缀）\n' "$ENTRY_CLASS" >&2
+      printf '❌ --entry-class: 无法识别的相对路径 %s（期望 stop/ · session-start/ · pre-commit/ · pre-tool-use/ · pre-push/ 前缀）\n' "$ENTRY_CLASS" >&2
       exit 2 ;;
   esac
   if is_real_entry "$ENTRY_CLASS"; then
@@ -134,6 +134,7 @@ collect_rel_paths() {
     [ -f "$SRC/session-start/${b}.sh" ] && printf 'session-start/%s.sh\n' "$b"
   done
   [ -f "$SRC/pre-commit/pre-commit.sh" ] && printf 'pre-commit/pre-commit.sh\n'
+  [ -f "$SRC/pre-push/pre-push.sh" ] && printf 'pre-push/pre-push.sh\n'
 }
 
 # ── flow-kit/prompts 树（固化指令载体 · 2-design 期 L2 五审 R1/R2 补）──
@@ -280,13 +281,13 @@ for root in "${DEST_ROOTS[@]}"; do
   # 默认 advisory（`~/.claude/hooks` 可能含第三方工具的 hook，误报会拦住正常安装）；
   # `--strict-orphans` 时计入失败（CI 想强约束时用）。
   orphans=""
-  for _d in stop stop/lib pre-tool-use pre-commit; do
+  for _d in stop stop/lib pre-tool-use pre-commit pre-push; do
     [ -d "$root/$_d" ] || continue
     for _f in "$root/$_d"/*; do
       [ -f "$_f" ] || continue
       _rel="${_d}/$(basename "$_f")"
       case "$_rel" in
-        stop/*.sh|stop/lib/*.sh|pre-tool-use/*.sh|pre-commit/*.sh) ;;
+        stop/*.sh|stop/lib/*.sh|pre-tool-use/*.sh|pre-commit/*.sh|pre-push/*.sh) ;;
         *) continue ;;
       esac
       [ -f "$SRC/$_rel" ] && continue          # 源里在 → 不是残留
