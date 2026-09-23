@@ -131,6 +131,10 @@ cp "$HOOK_SRC/pre-tool-use/"*.sh "$STAGING/hooks/pre-tool-use/"
 mkdir -p "$STAGING/hooks/pre-commit"
 cp "$HOOK_SRC/pre-commit/"*.sh "$STAGING/hooks/pre-commit/"
 
+# pre-push hook 脚本（推送路径隐私门禁 · health-fix-2026-09b/T11 change · Part C glob 扩展）
+mkdir -p "$STAGING/hooks/pre-push"
+cp "$HOOK_SRC/pre-push/"*.sh "$STAGING/hooks/pre-push/"
+
 # 模块设计文档
 if [ -f "$HOOK_SRC/MODULE_IDEAS.md" ]; then
   cp "$HOOK_SRC/MODULE_IDEAS.md" "$STAGING/hooks/"

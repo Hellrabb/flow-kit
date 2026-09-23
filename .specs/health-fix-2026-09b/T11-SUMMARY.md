@@ -251,3 +251,92 @@ CHECK_REV=<泄漏 sha> bash <gate> ⇒ 扫描面: 2fc4f273edc7d744ff4f58b5a241c5
 ### ⑦ 遗留
 
 - **T19 需重跑四形态端到端**：EVAL-FACE（评估面＝被推送 ref 树非工作树）、ATTRIBUTION（归因正确指名含泄漏 ref，非字母序第一个干净 ref）、CLEAN-PASS（工作树干净时不整批放行泄漏 ref），属 T19 任务，本修复轮只修了钩子侧因、不做端到端断言。
+## 修复轮 2（2026-09-24）
+
+### ① 缺陷一句话 + 证据
+
+修复轮 1 新交付的 `flow-kit-bundle/hooks/pre-push/pre-push.sh` 未在打包面登记 ⇒ `bash package-flow-kit.sh --validate` **rc=1**、`make check-validate` 红 ⇒ `make check` 整体红，而 AC-8 / T29 判据要求 `make check` 全绿（TD-048）。
+
+复现（修复前实测）：`期望覆盖: 310 项 / 实际文件: 317 项 / 🔴 漏配 (ERROR): 1 / ⚠️ 源缺失 (WARNING): 0`；`🔴 ERROR: 漏配！实际文件未被任何 Part 覆盖 — …/flow-kit-bundle/hooks/pre-push/pre-push.sh`。该红系本 change 自己引入（起点 `534e3e84` 时 bundle 内无 `hooks/pre-push/`；`package-flow-kit.sh` 与起点逐字节相同）。
+
+### ② 根因
+
+1. `flow-kit-bundle/lib/validate_staging.sh:54` 的 Part C 覆盖模式列表只到 `"$BUNDLE_DIR/hooks/pre-commit/"*.sh`，没列出 `"$BUNDLE_DIR/hooks/pre-push/"*.sh` ⇒ 校验时 pre-push 被当作「漏配」。
+2. `package-flow-kit.sh:130-132` 只有 pre-commit 的 `mkdir -p "$STAGING/hooks/pre-commit"` + `cp "$HOOK_SRC/pre-commit/"*.sh …`，没有等价 pre-push 块 ⇒ 打包产物不会带上 pre-push hook。
+
+两者同时缺失：校验根因（1）先红，构建根因（2）后补。
+
+### ③ 修法（before → after）
+
+**`package-flow-kit.sh`**（在 pre-commit 块后追加同风格 pre-push 块）：
+```bash
+# before（130-132）
+# pre-commit hook 脚本（归档 commit 门禁 · archive-commit-gate change · 禁动例外声明：Part C glob 扩展）
+mkdir -p "$STAGING/hooks/pre-commit"
+cp "$HOOK_SRC/pre-commit/"*.sh "$STAGING/hooks/pre-commit/"
+
+# after（追加）
+# pre-push hook 脚本（推送路径隐私门禁 · health-fix-2026-09b/T11 change · Part C glob 扩展）
+mkdir -p "$STAGING/hooks/pre-push"
+cp "$HOOK_SRC/pre-push/"*.sh "$STAGING/hooks/pre-push/"
+```
+
+**`flow-kit-bundle/lib/validate_staging.sh:54`**（Part C for 循环补模式）：
+```bash
+# before
+for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh "$BUNDLE_DIR/hooks/pre-tool-use/"*.sh "$BUNDLE_DIR/hooks/pre-commit/"*.sh; do
+# after
+for pattern in "$BUNDLE_DIR/hooks/stop/"*.sh "$BUNDLE_DIR/hooks/stop/lib/"*.sh "$BUNDLE_DIR/hooks/session-start/"*.sh "$BUNDLE_DIR/hooks/pre-tool-use/"*.sh "$BUNDLE_DIR/hooks/pre-commit/"*.sh "$BUNDLE_DIR/hooks/pre-push/"*.sh; do
+```
+
+最小镜像改动，不做通配重构。新增后 `期望覆盖` 310→**311**。
+
+### ④ 判别力实测（先红后绿）
+
+测试侧新增（`test/test_archive_commit_gate.bats` 原 Part C 两条 grep 旁）：
+1. `validate_staging_coverage: real bundle fully covered` —— 对真实 bundle `source …/lib/validate_staging.sh` + `run validate_staging_coverage "$(pwd)/flow-kit-bundle"`，断言 rc=0 且 `漏配 (ERROR): 0` / `源缺失 (WARNING): 0`（**这条才抓得住本缺陷**）。
+2. `package-flow-kit.sh: pre-push glob in Part C`（grep `pre-push`）
+3. `validate_staging.sh: pre-push pattern in Part C`（grep `pre-push`）
+
+先只加测试、产品侧保持在修复前状态 ⇒ **3 条新测试全红**：
+```
+not ok 1 package-flow-kit.sh: pre-push glob in Part C          # `grep -q 'pre-push' …package-flow-kit.sh' failed
+not ok 2 validate_staging.sh: pre-push pattern in Part C        # `grep -q 'pre-push' …validate_staging.sh' failed
+not ok 3 validate_staging_coverage: real bundle fully covered   # `[ "$status" -eq 0 ]' failed
+（整体 rc=1）
+```
+再改产品侧 ⇒ **3 条全绿（ok ×3，rc=0）**。
+
+> 注（既有测试为何空转）：`test_lessons_cleanup.bats:99-122` 的 AC-4 夹具是合成最小 bundle，从不创建 `hooks/pre-commit/` 或 `hooks/pre-push/` ⇒ 结构上抓不到打包面漏配；`:82-95` 两条 AC-3「注入 gap 后断言 rc≠0」在真实 bundle 本身已有 gap 时属**空转通过（假绿）**。因此新增的是对真实 bundle 跑 `validate_staging_coverage` 的硬断言。
+
+### ⑤ 门禁与回归表（全部真跑，前台）
+
+| 检查 | rc | 关键输出 |
+|---|---|---|
+| `bash package-flow-kit.sh --validate`（靶心） | 0 | `期望覆盖: 311 项 / 实际文件: 317 项 / 🔴 漏配 (ERROR): 0 / ⚠️ 源缺失 (WARNING): 0` → `✅ 校验通过` |
+| `make check-validate` | 0 | staging coverage OK |
+| 构建真实产物 + `tar tzf`/`tar -xOzf` | 0 | 归档含 `…/hooks/pre-push/pre-push.sh`，sha256 == 源 `581237c2…`（字节一致）；产物落在临时目录（repo 外），`git ls-files -o --exclude-standard` 无新增 |
+| `npx bats test/` | 0 | **976 ok / 0 not ok**（973 基线 + 3 新增） |
+| `make lint` | 0 | shellcheck 68 文件 no errors（含 package-flow-kit.sh / validate_staging.sh） |
+| `make test-sync` → `make check-test-sync` | 0 | `✅ test 双源已同步` / `✅ test 双源一致` |
+| `make check-hooks-sync` / `bash sync-hooks.sh --check` | 0 | ✅ 副本一致（漂移 0） |
+| `make check-path-privacy` | 0 | 清单外命中 0 条 |
+| 历史判据 v_T02/T11/T17/T18/T19/T20/T21/T22/T23/T25/T26/T28 | 0 | 12/12 rc=0 |
+| `make check-gate-sync` / `make check-nfr-portability` | 0 | — |
+| `make check-dist` | 2（已知红） | 陈旧/缺失 dist，属 T24 重建 dist 收口 |
+
+> 注：本仓 `core.hooksPath` 为空串 ⇒ git 提交不触发任何 hook；因此验证全部显式真跑，未把 git hook 当证据。
+
+### ⑥ 6 维自查（R1–R6）
+
+- **R1 认知过载**：新增仅 1 个循环模式项 + 1 个 3 行 cp 块 + 3 条测试，无新控制流 ⇒ ✅
+- **R2 变更传播**：产品写面 `package-flow-kit.sh` + `flow-kit-bundle/lib/validate_staging.sh`；测试 `test/test_archive_commit_gate.bats` 已 `make test-sync` 单向镜像到 `flow-kit-bundle/test/`；build 产物实测含 pre-push ⇒ ✅
+- **R3 知识重复**：不打散打包逻辑，仍是「Part A~G glob → coverage」既有契约，仅补一个模式 ⇒ ✅
+- **R4 偶然复杂**：镜像最少；不加新依赖；无通配重构 ⇒ ✅
+- **R5 依赖混乱**：只依赖 bundle 目录树与既有 make 目标 ⇒ ✅
+- **R6 领域扭曲 / R6.4 / R6.5**：`git show --numstat` 越界仅 SUMMARY + 打包面 + 测试文件（无真实账号路径字面量，全 de-shape 为 `/home/<acct>/`）⇒ ✅
+
+### ⑦ 遗留
+
+- **`make check-dist` 仍红**：dist/ 陈旧/缺失两条（`test_l3_review_defects_…` / `check-gate-sync.sh` / `check-path-privacy.sh` / `path-privacy-allowlist.txt`），属 **T24 重建 dist** 收口，本修复轮不做（已在 .flow-active T11 deferred 记账）。
+- **AC-8 / T29 判据 `make check` 全绿**：全部部件绿只剩 `check-dist`（T24），收口后即全绿。

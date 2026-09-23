@@ -117,6 +117,22 @@ EOF
   grep -q 'pre-commit' "$BATS_ROOT/flow-kit-bundle/lib/validate_staging.sh"
 }
 
+@test "package-flow-kit.sh: pre-push glob in Part C" {
+  grep -q 'pre-push' "$BATS_ROOT/package-flow-kit.sh"
+}
+
+@test "validate_staging.sh: pre-push pattern in Part C" {
+  grep -q 'pre-push' "$BATS_ROOT/flow-kit-bundle/lib/validate_staging.sh"
+}
+
+@test "validate_staging_coverage: real bundle fully covered (pre-push included · TD-048)" {
+  local bundle="$(cd "$BATS_ROOT" && pwd)/flow-kit-bundle"
+  run bash -c 'source "$1/lib/validate_staging.sh" && validate_staging_coverage "$1"' _ "$bundle"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"🔴 漏配 (ERROR): 0"* ]]
+  [[ "$output" == *"⚠️  源缺失 (WARNING): 0"* ]]
+}
+
 # ── T07: 7-integration 步骤 5.1 + commit-protocol ──
 
 @test "7-integration.md: step 5.1 archive commit present" {
