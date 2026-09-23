@@ -779,6 +779,23 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-145 · 改写判据的某条分支时，必须先枚举旧实现的**语义清单**并逐条回归 —— 换了实现方式不等于换了语义
+
+- 场景（2026-09-24 · T28 修复轮 1）：把「失败归因打印拼接流偏移量」改为「逐文件 `file:line`」时，tracked 分支用 `git diff -U0` + awk 逐行解析（新侧行号口径正确），但 untracked 分支被顺手换成 `grep -nE "$pat" "$file" | sed … | grep -E "$pat"` —— **丢掉了旧实现顺带承担的「剔除整行注释」语义**（旧实现是 `… | grep -vE '^\+?[[:space:]]*#'`，且 T28 的 `<action>` 与 `Makefile` 自己的注释块都写着该口径）。
+- 后果：一个**只含注释**的未跟踪新文件（注释里提到 `mapfile` 仅作说明）被判违规 ⇒ `make check-nfr-portability` **rc=2** ⇒ 门禁**假红**（ADR-027 ②③ 最忌的形态：把守规矩的文本判成违规；长期红的门禁会被绕过）。
+- 为什么容易漏：注意力全在「新实现能不能拿到真实行号」上，而旧实现**顺带承担的语义**（注释剔除、豁免删除、模式集合）没被当成契约列出来 —— 派发文本写了「检测集合与豁免口径不动」，却没写「注释剔除口径不动」。
+- 定式：① 替换任一分支的实现前，先把旧实现的**语义清单**逐条写下来（剔除规则 / 行号口径 / 豁免与成分删除 / 空集与 `SKIP` 语义），派发时逐条点名「不动」；② 每条语义至少一个探针（本例：纯注释文件 ⇒ 必须 rc=0；注释+空行+真违规混排 ⇒ 只报真违规那一行的**真实行号**）；③ 探针要成矩阵（正例 / 反例 / 边界 / 回归），不要只测新功能点；④ 换实现时留意「保行号」与「剔注释」天然冲突（`grep -v` 后再 `grep -n` 会把行号改掉）—— 解决方式是在**同一次遍历**里同时完成（如 `awk '/^[[:space:]]*#/{next} {…; if (l ~ P) printf "%d:%s\n", NR, $0}'`）。
+
+### L-144 · 「提交没被拒绝」不是门禁生效的证据：本仓 `core.hooksPath` 为空串，git 一个 hook 都不调用
+
+- 场景（2026-09-24 · 主 agent 自查）：我的 T19/T20/T25/T26/T28 复核记录里多次写「pre-commit 门禁随提交真跑通过」，而实测本仓**任何 git hook 都不会被调用**：
+  - `.git/config` 的 `[core]` 段有 `hooksPath = `（**空串**，不是「未设」）⇒ `git rev-parse --git-path hooks` 输出 `./`、`git rev-parse --git-path hooks/pre-commit` 输出 `/pre-commit`；`git config --list --show-origin --show-scope` 的唯一相关项 = `local file:.git/config core.hookspath=`；global/system 未设；env 无 `GIT_CONFIG_COUNT`；
+  - 决议性判据：`git hook run pre-commit` ⇒ `error: cannot find a hook named pre-commit`（git 2.43.0）—— 该命令按 git 自己的解析链查找 hook，找不到即证明 git 不会调用它。
+- 连带解释：本 change 期间我的一次收口提交把判据原始输出（含本机账号路径）写进 `MINOR-DEFERRED.md` 而**未被拦**；我当初归因为「门禁没覆盖该形态」，真相是**机制根本没运行**（已核对那次提交的原始命令：未使用 `--no-verify`，输出里也没有任何 hook 报文）。
+- hook 脚本本身没问题：`.git/hooks/pre-commit` → 符号链接到已安装的 `~/.claude/hooks/pre-commit/pre-commit.sh`，**显式调用** `bash .git/hooks/pre-commit` 两次实验都 rc=1（新建带本机账号路径的探针文件 ⇒ 指名 `.zz-probe1.txt:1`；向 tracked `README.md` 追加同形串 ⇒ 指名 `README.md:151`），并打印 `[archive-commit-gate] path-privacy check failed, commit rejected`。
+- 定式：① 门禁证据**只能来自显式调用**（`bash .git/hooks/<hook>` / `make <gate>`）—— 禁止从「提交成功、没被拒」反推门禁跑过；② 任何「机制 X 生效」的声明先花一条命令验**机制本身**（`git rev-parse --git-path hooks`、`git hook run <name>`、`command -v`、`[ -x ]`）；③ 复核记录里的每条断言都要能指向一次**真实执行**的输出，「应当会触发」不是执行；④ 机制被禁用属环境事实，如实标注并在别处（隔离沙箱 / 显式调用）取证据，既不把它算成产品缺陷，也不让已失效的门禁承担证据。
+- 产品侧同源缺口登记为 **TD-050**（`install_hooks.sh` 写死 `.git/hooks/`，不检测 `core.hooksPath`）。
+
 ### L-143 · 两个任务之间的「接线断口」只能由端到端判据发现；单任务的静态判据在结构上不可能覆盖
 
 - 场景（2026-09-23 · T11→T17→T19）：`flow-kit-bundle/hooks/pre-push/pre-push.sh:30` 传 `CHECK_REF="$local_ref"`，而 `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:90` 读的是 `${CHECK_REV:-}` ⇒ **死变量**，门禁的评估面永远是本地工作树，从不切到被推送的 ref 树。

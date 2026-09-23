@@ -461,7 +461,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     bash -n "$H" || exit 1;
     if grep -vE '^[[:space:]]*#' "$H" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i'; then echo "🔴 pre-push.sh 含 bash4-only/GNU-only 构造（bash 3.2 兼容性破坏）"; exit 1; fi
   </verify>
-  <done>AC-3：拦截器本体存在、可执行（755 入库）、保留 `make check` 语义且 bash 3.2 兼容 —— AC-8 的 `test_quality_baseline.bats` 两条无 skip 断言可达；**被拒 ref 会被指名**（动态断言在 T19：四种 push 形态各须在报文里出现该 ref 名）</done>
+  <done>AC-3：拦截器本体存在、可执行（755 入库）、保留 `make check` 语义且 bash 3.2 兼容 —— AC-8 的 `test_quality_baseline.bats` 两条无 skip 断言可达；**被拒 ref 会被指名**（动态断言在 T19：四种 push 形态各须在报文里出现该 ref 名）；**修复轮 1**（2026-09-23 · L-143）：`CHECK_REF` → `CHECK_REV` 评估面修复（死变量 ⇒ 门禁恒扫本地工作树，`--all`/`--mirror` 时归因错位、工作树干净即整批放行），四形态指名 ref 由 T19 端到端实测；**修复轮 2**（2026-09-24 · TD-048 用户裁决「授权在本 change 内修」· 范围扩张已授权）：`package-flow-kit.sh:134-136` 补 pre-push stanza、`flow-kit-bundle/lib/validate_staging.sh:54` Part C 补 pre-push 模式 ⇒ `--validate` 漏配 0 / `make check-validate` rc=0；`fix_rounds=2`、`commit_sha` 保持 `d613134`〔主 agent 复核 · 九项〕</done>
   <depends_on></depends_on>
 </task>
 
@@ -1251,7 +1251,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     rm -f "$NFR_OUT";
     make -n check 2>/dev/null | grep -q 'check-nfr-portability' || { echo "🔴 check-nfr-portability 未接入 make check（AC-8 要求在 make check 中可见；阶段 3 L3 major）"; exit 1; }
   </verify>
-  <done>AC-8 的 NFR 侧：判据落点为 `Makefile` 目标（不落 `.sh` ⇒ 无自命中）、**rc=0 且输出不含 `SKIP:` 才通过**（rc=1 = 违规 ⇒ 非零退出；`SKIP:` 出现 ⇒ 判据未真正运行 ⇒ 非零退出，SKIP ≠ PASS；rc=3 泄漏 ⇒ 与 DESIGN §9.3 的包装语义不符 ⇒ 非零退出）、`make check` 接入可见；空集只作 ℹ️ 诊断（**不另设非空守卫** —— 全局 AC-8 非空守卫在 T29）。修复前：`case "$rc" in 0|1) : ;;` 把 rc=1 当通过 —— 阶段 3 L3 M3；语义与 DESIGN §9.3 对齐 + SKIP 可见性断言 —— 阶段 3 L3 M7</done>
+  <done>AC-8 的 NFR 侧：判据落点为 `Makefile` 目标（不落 `.sh` ⇒ 无自命中）、**rc=0 且输出不含 `SKIP:` 才通过**（rc=1 = 违规 ⇒ 非零退出；`SKIP:` 出现 ⇒ 判据未真正运行 ⇒ 非零退出，SKIP ≠ PASS；rc=3 泄漏 ⇒ 与 DESIGN §9.3 的包装语义不符 ⇒ 非零退出）、`make check` 接入可见；空集只作 ℹ️ 诊断（**不另设非空守卫** —— 全局 AC-8 非空守卫在 T29）。修复前：`case "$rc" in 0|1) : ;;` 把 rc=1 当通过 —— 阶段 3 L3 M3；语义与 DESIGN §9.3 对齐 + SKIP 可见性断言 —— 阶段 3 L3 M7；**修复轮 1 + 2**（2026-09-24 · L-145）：失败归因从「拼接流偏移量」改为真实 `file:line`（tracked 逐文件解析 `git diff -U0` 新侧行号 / untracked 补 `file:` 前缀），并恢复 untracked 分支的整行注释剔除（保住真实行号）⇒ 主 agent 探针矩阵全过、`fix_rounds=2`、`commit_sha` 保持 `649a2ee`〔主 agent 复核 · 十项 + 修复轮 1/2〕</done>
   <depends_on>T02, T18</depends_on>
 </task>
 

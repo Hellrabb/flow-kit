@@ -544,3 +544,75 @@ T19 首轮 BLOCKED 暴露真实产品缺陷：`flow-kit-bundle/hooks/pre-push/pr
 
 - C7（干净 clone 复现）属 v2，T19 不承担，已在 T19-SUMMARY §7 声明。
 - T11 修复轮 1 与 T19 端到端判据均已闭环，无产品件遗留。
+
+## ⚠️ 主 agent 更正 · 「提交穿过门禁」为未实测声明（本仓 hook 机制被禁用 · 2026-09-24 · L-144）
+
+**更正对象**：本文档若干复核记录里的「pre-commit 门禁随提交真跑通过」类表述（含本文件 `:534` 的 T19 第 8 项，以及 T20 / T25 / T26 / T28 各节的同类句子），以及我在对话中给用户的同类说法。**这些声明没有一次实测依据**。
+
+**事实**：本仓 `.git/config` 的 `[core]` 段有 `hooksPath = `（**空串**，不是「未设」）⇒ git 解析出的 hooks 目录是仓库根：
+
+- `git rev-parse --git-path hooks` = `./`；`git rev-parse --git-path hooks/pre-commit` = `/pre-commit`；
+- `git config --list --show-origin --show-scope` 的唯一相关项 = `local file:.git/config core.hookspath=`（global / system 未设；env 仅 `GIT_PAGER=cat`，无 `GIT_CONFIG_COUNT`）；
+- 决议性判据：`git hook run pre-commit` ⇒ `error: cannot find a hook named pre-commit`（git 2.43.0）—— 该命令按 git 自己的解析链查找 hook，找不到即证明 git 不会调用它。
+
+⇒ **本 change 期间任何一次 `git commit` 都没有运行过 pre-commit 门禁**（`pre-push` 同理）。
+
+**推论与影响**：
+
+1. 我的一次收口提交（`37547f2`）把判据原始输出（含本机账号路径）写进本文件而未被拦 —— 成因是**机制未运行**，不是门禁覆盖缺口；该行已由 `32a848e` 脱敏。已核对那次提交的原始命令：**确未使用 `--no-verify`**，输出里也没有任何 hook 报文。
+2. 「提交被门禁拒绝」在本仓**不可能发生** ⇒ 本 change 关于 AC-3 / AC-6③ 的证据**只能**来自隔离沙箱（T19 的 bare remote 夹具）与**显式调用**（`bash .git/hooks/pre-commit`、`make check-path-privacy` 等）。上述各节的**结论不因此改变**（其判据都是显式实跑），但**证据来源的表述按本条更正**。
+3. hook 脚本本身有效：`.git/hooks/pre-commit` → 符号链接到已安装的 `~/.claude/hooks/pre-commit/pre-commit.sh`（mtime 2026-09-23 19:47:42、mode `-rwxrwxr-x`）；**显式调用**两次实验均 rc=1，分别指名 `.zz-probe1.txt:1` 与 `README.md:151`，并打印 `[archive-commit-gate] path-privacy check failed, commit rejected`；清理后工作树复原（`cmp` SAME、`git diff` 空、status 仅 5 冻结 `A `）。
+4. 产品侧同源缺口登记为 **TD-050**（`install_hooks.sh` 写死 `.git/hooks/`，不检测 `core.hooksPath`）；方法论教训登记为 **L-144**（`.specs/LESSONS.md`）。
+
+## ✅ T28 复核记录（主 agent 独立复核 · 十项 + 修复轮 1/2 · 2026-09-24）
+
+`feat(health-fix-2026-09b): T28 NFR 兼容性判据落点 Makefile 目标 check-nfr-portability（三态包装）` = `649a2ee`
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat（首轮） | 恰 3：`T28-SUMMARY.md` 391/0、`TASK.md` 1/1、`Makefile` 143/2 ✓ |
+| 2 | 工作树 blob == HEAD | 3/3 ✓（`Makefile` = `0fd76357746babc7…`） |
+| 3 | 台账 | length 26；`{T28, 649a2ee, fix_rounds:0, deferred:[], completed_at 2026-09-24T00:24:42+08:00}`；`%cI` 00:24:37 ⇒ Δ=5s ✓ |
+| 4 | 接线（真接线，非「注释里提过」） | `Makefile:106` 的 `check:` 先决条件末尾真含 `check-nfr-portability`；`Makefile:5` 的 `.PHONY` 含 `check-nfr-portability` 与 `check-nfr-portability-internals` ✓ |
+| 5 | 判据原样实跑 | 抽 16 行到 `/tmp/vblocks/v_T28.sh`，原样跑 **rc=0** ✓ |
+| 6 | 冻结集 / 结构不变量 | `git status --short` 恰 5 个冻结 `A `；`<task id=`/`<verify>`/`</task>`/`<depends_on>`/`<action>` 各 29 ✓ |
+| 7 | 三层语义 | 内部层 rc ∈ {0,1,3}；包装层对外 {0,1}（3 ⇒ `SKIP:` + rc=0）；空集 / 锚点缺失 ⇒ `SKIP:`（**非通过**）；`FLOW_KIT_CHANGE_BASE=HEAD` ⇒ `SKIP:` + rc=0 ✓ |
+| 8 | 自排除边界（D8 F2） | 判据不落 `.sh`（落 `Makefile` 目标）⇒ 判据文本里的被禁原语字面量不会自命中 ✓ |
+| 9 | 🟡 首轮真缺陷（已修） | 失败归因打印的是**拼接流偏移量且无文件名**：未跟踪单行探针 ⇒ `481:mapfile -t x < <(:)`；向 tracked `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` 末尾追加同一行（真实行号 394）⇒ `319:+mapfile -t zz < <(:)`。根因 = `SCAN=$$( { printf "%s\n" "$$ADDED"; cat $$NEWF; } | grep -vE "^\+?[[:space:]]*#" )` 把所有文件拼成一个流后再 `grep -n`。契约依据 = T28 `<action>` 要求 `file:line` 归因 |
+| 10 | SUMMARY / 门禁 | SUMMARY 六节齐备；`npx bats test/` 973/0/0；`check-dist` 红属 T24 收口 ✓ |
+
+### 修复轮 1（`91b8040`）与我的复核
+
+- 交付：`Makefile` 80/20、`T28-SUMMARY.md` 120/0；`%cI` 02:09:05；blob == HEAD 2/2（`Makefile` = `967c3da0eb213735fc16b79eee3e5697b52f627b`）；台账 `fix_rounds` 0→1、`commit_sha` 保持 `649a2ee`、length 26、Δ=8s ✓。
+- **归因真修好**：未跟踪违规 ⇒ `.zz-verify-probe.sh:1:mapfile -t x < <(:)`；两个 tracked 文件同时注入 ⇒ 分别指名 `check-path-privacy.sh:393` 与 `pre-push.sh:60`；`cmp -s` 复原；干净态 rc=0 无 `SKIP:`。
+- 🟡 **但引入口径回归**：未跟踪分支把实现换成 `grep -nE "$pat" | sed … | grep -E "$pat"`，**丢掉旧实现的「剔除整行注释」语义** ⇒ 只含注释的未跟踪文件被判违规、`make check-nfr-portability` **rc=2**（假红）。对照同一内容：旧口径命中 0、新分支命中 1。已派修复轮 2（登记 **L-145**）。
+
+### 修复轮 2（`01cb2c7`）与我的复核
+
+- 交付：`Makefile` 8/2、`T28-SUMMARY.md` 118/0；`%cI` 02:17:34；blob == HEAD 2/2（`Makefile` = `bd04aac6604109942588a1c03efa0f482d301103`）；台账 `fix_rounds` 1→2、`commit_sha` 仍 `649a2ee`、length 26、Δ=16s ✓。
+- 修法：untracked 分支改为在**同一次遍历**内完成剔除与真实行号定位 —— `awk -v P="$pat" '/^[[:space:]]*#/{next} {l=$0; gsub(WL,"",l); if(l~P) printf "%d:%s\n",NR,$0}'`。
+- **我的探针矩阵（9 态，全过）**：(A) 未跟踪违规 ⇒ rc=2 + `.zz-verify-probe.sh:1:`；(B) 只含注释的未跟踪文件 ⇒ **rc=0**（回归消除）；(B2) 注释 + 空行 + 真违规混排 ⇒ 只报 `:3:`；(C) 合规惯用法 `stat -c … || stat -f …` ⇒ rc=0；(D) 两个 tracked 文件各注入 ⇒ `:393` 与 `:60` + `cmp -s` 复原；(D3) tracked 追加纯注释行 ⇒ rc=0；(E) 干净态 rc=0 无 `SKIP:`、`FLOW_KIT_CHANGE_BASE=HEAD` ⇒ `SKIP: 相对 HEAD 无 .sh 新增` + rc=0；无探针残留、工作树仅 5 冻结 `A `。
+- ⇒ **T28 = PASS（`fix_rounds=2`，`commit_sha` 保持首轮 `649a2ee`）**；执行者随后另报一次「failed」通知，属交付后收尾噪声（提交 / 台账 / 工作树均已核实落盘）。
+
+## ✅ T11 修复轮 2 复核记录（TD-048 用户裁决落地 · 2026-09-24）
+
+`fix(health-fix-2026-09b): T11 修复轮 2 打包面补 pre-push（TD-048，令 make check-validate 归零）` = `b5ba54e2ebdc1ca27e883896294ad2e3ca415dd2`
+
+**前置裁决**：TD-048 属主裁决 = 用户选 **`1 · 授权在本 change 内修`**（另一选项 = 维持登记、让 `make check` 长期红、AC-8 如实报未达成）。依据：该红系本 change 自引入（变更起点 `534e3e8…` 时 bundle 内无 `hooks/pre-push`，`package-flow-kit.sh` 与起点逐字节相同），而 AC-8 / T29 判据硬要求 `make check` 全绿。范围扩张**只记本文件**（不碰 DESIGN / TASK.md ⇒ 不使阶段 2/3 的 L3 哈希失效）。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat | 恰 5：`T11-SUMMARY.md` 90/1、`flow-kit-bundle/lib/validate_staging.sh` 1/1、`flow-kit-bundle/test/test_archive_commit_gate.bats` 16/0、`package-flow-kit.sh` 4/0、`test/test_archive_commit_gate.bats` 16/0 ✓ |
+| 2 | 工作树 blob == HEAD | 5/5 ✓ |
+| 3 | 台账 | `{T11, commit_sha: d613134（保持首轮）, fix_rounds: 2, deferred: ["dist 重建触发 check-dist 两条缺失·留打包阶段刷新(T24)"], completed_at: 2026-09-24T02:32:00+08:00}`；length 26；`%cI` 02:33:03 ⇒ Δ=63s ✓ |
+| 4 | **靶心（修复前 → 修复后）** | 前（存 `/tmp/validate-before.txt`）：rc=1 + `漏配 (ERROR): 1`（漏配项 = `flow-kit-bundle/hooks/pre-push/pre-push.sh`）、`期望覆盖: 310 / 实际文件: 317`；后（存 `/tmp/validate-after.txt`）：rc=0 + `期望覆盖: 311 / 实际文件: 317 / 漏配 0 / 源缺失 0` + `✅ 校验通过：所有文件均被 Part A~G 覆盖。` ✓ |
+| 5 | `make check-validate` | rc=0 ✓（`check-dist` 仍 rc=2，属 T24） |
+| 6 | 产品侧最小镜像 | `package-flow-kit.sh:134-136` = 注释 + `mkdir -p "$STAGING/hooks/pre-push"` + `cp "$HOOK_SRC/pre-push/"*.sh "$STAGING/hooks/pre-push/"`（与 pre-commit 块同风格）；`flow-kit-bundle/lib/validate_staging.sh:54` 列表尾部补 `"$BUNDLE_DIR/hooks/pre-push/"*.sh` ✓ |
+| 7 | 测试侧判别力（先红后绿） | 新增 3 条（`test/test_archive_commit_gate.bats:125` / `:131` + 一条 grep 断言）：仅加测试、未改产品 ⇒ 3 条全 `not ok`；改产品 ⇒ 全 `ok` ✓ |
+| 8 | **我的独立判别力探针** | 把 `flow-kit-bundle/lib/validate_staging.sh` 临时退回 `01cb2c7` 版本 ⇒ `--validate` rc=1（漏配 1）+ 新测试 `not ok 21` / `not ok 22` ⇒ 测试确实到达缺陷点；复原后 `cmp -s` OK、`--validate` rc=0、该 bats 文件 rc=0（27 ok） ✓ |
+| 9 | 全量门禁电池（我亲跑） | `npx bats test/ --formatter tap` rc=0 / `ok=976 / not_ok=0 / skip=0`；`lint`、`check-validate`、`check-test-sync`、`check-hooks-sync`、`check-gate-sync`、`check-path-privacy`、`check-nfr-portability` 全 rc=0；`sync-hooks.sh --check` rc=0；12 条历史判据 `v_T02/11/17/18/19/20/21/22/23/25/26/28` 全 rc=0 ✓（`check-dist` rc=2 为已知待 T24） |
+
+### 遗留与结构性盲区（备查）
+
+- `check-dist` 仍红 ⇒ **只**由 T24 重建 dist 收口（T24 必须是最后一个改动源面的步骤）。
+- `test/test_lessons_cleanup.bats:82-95` 的 AC-3「注入 gap 文件断言 rc≠0」在**真实 bundle 本身已有 gap** 时空转通过（假绿）；`:99-122` 的 AC-4 夹具是**合成最小 bundle**（只 `touch` 文件、从不创建 `hooks/pre-commit/` 或 `hooks/pre-push/`）⇒ 结构上抓不到此类漏配 ⇒ T11 修复轮 2 因此补了「对真实 bundle 硬断言」的 3 条用例。
