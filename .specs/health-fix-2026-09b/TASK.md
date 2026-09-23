@@ -741,6 +741,11 @@ Wave 8 (收口 · 全量无退化)                  : T29
     _ph_out=$( cd "$_mix" && bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" 2>&1 ); _ph_rc=$?;
     [ "$_ph_rc" -eq 0 ] || { printf '%s\n' "$_ph_out"; echo "🔴 清一色占位符行被误判为泄漏（rc=$_ph_rc）⇒ 排除表失效"; cd "$_cwd"; exit 1; };
     rm -rf "$_mix"
+    # 自证行格式判别子（主 agent 2026-09-23 追加）：`grep -c` 计数为 0 时退出码为 1，
+    # 写成 `$(grep -c … || printf '0')` 会把 '0' 打成两行 ⇒ 自证行在零计数态被折断。
+    printf '%s' "$_ph_out" | grep -qE '^   允许清单 [0-9]+ 条$' || { printf '%s\n' "$_ph_out"; echo "🔴 自证行「允许清单 N 条」在零计数态被折断（应为单行）"; cd "$_cwd"; exit 1; };
+    printf '%s' "$_ph_out" | grep -qE '^   命中合计 [0-9]+ 条（含占位符排除后）$' || { printf '%s\n' "$_ph_out"; echo "🔴 自证行「命中合计 N 条」在零计数态被折断（应为单行）"; cd "$_cwd"; exit 1; };
+    printf '%s' "$_mix_out" | grep -qE '^   命中合计 1 条（含占位符排除后）$' || { printf '%s\n' "$_mix_out"; echo "🔴 非零计数态自证行格式不符"; cd "$_cwd"; exit 1; };
   </verify>
   <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）</done>
   <depends_on>T13</depends_on>
