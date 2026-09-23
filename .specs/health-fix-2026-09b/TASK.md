@@ -348,15 +348,29 @@ Wave 8 (收口 · 全量无退化)                  : T29
     ③ **夹具协议（阶段 3 L3 major①）**：注入/清理只发生在**仓库外沙箱** `$td2`（`mktemp -d`，以 `TMPDIR="$td2"` 驱动 bats）内；用例结束后 `rm -rf "$TD" "$td2"` 清理，**不得**在仓库内留下任何注入残留；沙箱不入库、不属于入库写面。
   </action>
   <verify>
-    TD=$(mktemp -d /tmp/l3-ac7a-XXXXXX); td2=$(mktemp -d /tmp/l3-ac7a2-XXXXXX);
-    TMPDIR="$td2" npx bats test/test_combined_metric.bats || { echo "🔴 健康态（隔离 TMPDIR）应绿"; exit 1; };
-    # C1：注入点必须落在 **SUT 实际读取的临时区**内，且健康态/注入态共用同一 TMPDIR ⇒ 红/绿差异只能归因于
-    # SUT 对残留的敏感性（否则「注入后变红」可能来自环境差异 —— L-122/L-123，阶段 3 L3 C1）
-    grep -qE '\$\{?TMPDIR' test/test_combined_metric.bats || { echo "🔴 SUT 未以 ${TMPDIR:-…} 为扫描根 ⇒ 注入夹具无法触达判据（L-122）"; exit 1; };
-    grep -qE 'ls /tmp/tmp\.\*' test/test_combined_metric.bats && { echo "🔴 SUT 仍在匹配裸 /tmp 全目录（本机实测 144 个无关文件 ⇒ 健康态假红）"; exit 1; };
-    grep -qF 'TEST_TMPDIR' test/test_combined_metric.bats || { echo "🔴 SUT 未排除用例自身的 TEST_TMPDIR ⇒ 健康态恒红（阶段 3 L3 C1）"; exit 1; };
-    touch "$td2/tmp.zz-inject";
-    TMPDIR="$td2" npx bats test/test_combined_metric.bats && { echo "🔴 注入残留后仍绿（恒真未消除）"; exit 1; };
+    npx bats test/test_combined_metric.bats >/tmp/t09-health.out 2>&1 || { cat /tmp/t09-health.out; echo "🔴 健康态应绿"; exit 1; };
+    # 主 agent 2026-09-23 修正（原判据按 T09 修复前形态书写，与 fix loop 第 1 轮实现不一致 ⇒ 假红，且注入点不可达）：
+    # 扫描面已从环境 $TMPDIR 收敛到用例自建根 $TEST_TMPDIR（SUT :30-43）⇒ 断言扫描根形态，注入点改为 SUT 自身。
+    grep -qE '\$TEST_TMPDIR' test/test_combined_metric.bats || { echo "🔴 SUT 未以用例自建根（\$TEST_TMPDIR）为扫描根 ⇒ 未与 /tmp 环境解耦（L-122）"; exit 1; };
+    grep -qE 'ls /tmp/tmp\.\*' test/test_combined_metric.bats && { echo "🔴 SUT 仍在匹配裸 /tmp 全目录（环境相关恒红）"; exit 1; };
+    # 判别力注入①（L-122/L-132：注入点须与被测面同源，且先自证注入生效）：撑过 20000 字节阈值 ⇒ 第 1 用例必须 not ok
+    P4=flow-kit-bundle/flow-kit/prompts/4-dev.md;
+    cp "$P4" /tmp/t09-4dev.bak;
+    cat "$P4" "$P4" > /tmp/t09-4dev.pad && cp -f /tmp/t09-4dev.pad "$P4";
+    _sz=$(wc -c < "$P4"); [ "$_sz" -gt 20000 ] || { cp -f /tmp/t09-4dev.bak "$P4"; echo "🔴 注入未生效（$P4 仅 ${_sz} 字节）"; exit 1; };
+    npx bats test/test_combined_metric.bats >/tmp/t09-inj1.out 2>&1 && { cp -f /tmp/t09-4dev.bak "$P4"; cat /tmp/t09-inj1.out; echo "🔴 撑过阈值后仍绿（阈值断言恒真）"; exit 1; };
+    grep -q 'not ok 1' /tmp/t09-inj1.out || { cp -f /tmp/t09-4dev.bak "$P4"; cat /tmp/t09-inj1.out; echo "🔴 变红但非第 1 用例（注入未触达阈值断言）"; exit 1; };
+    cp -f /tmp/t09-4dev.bak "$P4";
+    cmp -s "$P4" /tmp/t09-4dev.bak || { echo "🔴 4-dev.md 未逐字节复原"; exit 1; };
+    # 判别力注入②：把 SUT 自身的清理行 sed 成 : ⇒ 残留检测（第 2 用例）必须 not ok
+    SUT=test/test_combined_metric.bats;
+    cp "$SUT" /tmp/t09-sut.bak;
+    sed -i 's|^  rm -f "\$t"$|  :|' "$SUT";
+    grep -qE '^  :$' "$SUT" || { cp -f /tmp/t09-sut.bak "$SUT"; echo "🔴 注入未生效（SUT 清理行形态已变 ⇒ 判据需同步）"; exit 1; };
+    npx bats test/test_combined_metric.bats >/tmp/t09-inj2.out 2>&1 && { cp -f /tmp/t09-sut.bak "$SUT"; cat /tmp/t09-inj2.out; echo "🔴 清理被移除后残留断言仍绿（无判别力）"; exit 1; };
+    grep -q 'not ok 2' /tmp/t09-inj2.out || { cp -f /tmp/t09-sut.bak "$SUT"; cat /tmp/t09-inj2.out; echo "🔴 变红但非第 2 用例（残留检测未被触发）"; exit 1; };
+    cp -f /tmp/t09-sut.bak "$SUT";
+    cmp -s "$SUT" /tmp/t09-sut.bak || { echo "🔴 SUT 未逐字节复原"; exit 1; };
     grep -qE '\[ "\$status" -eq 0 \] \|\| \[ "\$status" -eq 2 \]' test/test_combined_metric.bats && { echo "🔴 恒真断言仍在"; exit 1; };
     npx bats test/test_auto_checkpoint.bats || { echo "🔴 auto_checkpoint 健康态应绿"; exit 1; };
     grep -nE '^\s*\[\[ "\$\?" -eq 0 \]\]' test/test_auto_checkpoint.bats && { echo "🔴 仍在对 jq 的 \$? 断言"; exit 1; };
@@ -398,8 +412,16 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ "$rc" -ne 0 ] || { echo "🔴 删除被检文件后仍绿（未先断言文件存在）"; exit 1; };
     npx bats test/test_independent_review_model.bats || { echo "🔴 健康态应绿"; exit 1; };
     sed -n '/AC-4: 模拟全量覆盖场景下 --validate exit = 0/,/^}/p' test/test_lessons_cleanup.bats | grep -q 'AC-4' || { echo "🔴 AC-4 测试段不存在（被删除或改名；阶段 3 L3 major：sed 无匹配时原判据静默通过）"; exit 1; };
-    sed -n '/AC-4: 模拟全量覆盖场景下 --validate exit = 0/,/^}/p' test/test_lessons_cleanup.bats | grep -q 'skip' && { echo "🔴 AC-4 测试仍含 skip"; exit 1; };
-    bash package-flow-kit.sh --validate >/dev/null || { echo "🔴 --validate 非 0（去 skip 后应可绿）"; exit 1; };
+    sed -n '/AC-4: 模拟全量覆盖场景下 --validate exit = 0/,/^}/p' test/test_lessons_cleanup.bats | grep -vE '^[[:space:]]*#' | grep -q 'skip' && { echo "🔴 AC-4 测试仍含可执行 skip（本判定只读代码行；T10 修复说明注释里出现「skip」字样属预期 —— 主 agent 2026-09-23 修正注释盲陷阱 L-121/L-123）"; exit 1; };
+    npx bats test/test_lessons_cleanup.bats >/dev/null || { echo "🔴 AC-4 用例本体未通过（T10 去 skip 后应断言 --validate exit = 0 且变绿）"; exit 1; };
+    # 主 agent 2026-09-23 修正：原判据断言 `bash package-flow-kit.sh --validate` rc=0；实测该命令 rc=1 且为 **pre-existing**
+    # （逐提交回溯 change-base 534e3e8 → HEAD 全红，恒为 1 项：flow-kit-bundle/hooks/pre-push/pre-push.sh 未登记 package-flow-kit.sh Part C）
+    # ⇒ 该项已登记 TD-048、不在本 change 写面（T24 判据对其显式为 ℹ️）⇒ 按 ADR-027「已知可接受项不得升级为 fail」，
+    # 本判据改断言「漏配集合恰为已知 1 项、且具名该文件」，对**新增**漏配保持判别力。
+    _v=$(bash package-flow-kit.sh --validate 2>&1 || true);
+    printf '%s' "$_v" | grep -qE '漏配 \(ERROR\): 1$' || { printf '%s\n' "$_v" | tail -8; echo "🔴 --validate 漏配项数 ≠ 已知的 1 项（TD-048 之外的漏配 ⇒ 本变更引入了未被 Part 覆盖的新文件）"; exit 1; };
+    printf '%s' "$_v" | grep -qE '源缺失 \(WARNING\): 0$' || { printf '%s\n' "$_v" | tail -8; echo "🔴 --validate 报出源缺失（staging 清单指向不存在的文件）"; exit 1; };
+    printf '%s' "$_v" | grep -qE 'flow-kit-bundle/hooks/pre-push/pre-push\.sh$' || { printf '%s\n' "$_v" | tail -8; echo "🔴 漏配项不是已知的 pre-push（TD-048）"; exit 1; };
     cmp -s test/test_lessons_cleanup.bats flow-kit-bundle/test/test_lessons_cleanup.bats || { echo "🔴 双源不一致"; exit 1; }
   </verify>
   <done>AC-7：删除被检文件后该 bats 必红（不再恒真）、`test_lessons_cleanup.bats` 的 AC-4 测试段**先断言存在**（防删除/改名后静默通过）再去 skip 且断言 `exit 0`</done>
@@ -437,7 +459,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ "$(stat -c '%a' "$H" 2>/dev/null || stat -f '%Lp' "$H")" = "755" ] || { echo "🔴 mode ≠ 755"; exit 1; };
     grep -q 'make check' "$H" || { echo "🔴 未保留 make check 语义（bats 断言会转红）"; exit 1; };
     bash -n "$H" || exit 1;
-    grep -vE '^[[:space:]]*#' "$H" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i' && { echo "🔴 含 bash4-only/GNU-only 构造（已剔除整行注释：本判定只读代码行，避免把兼容性说明注释误判为违规）"; exit 1; }
+    if grep -vE '^[[:space:]]*#' "$H" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i'; then echo "🔴 pre-push.sh 含 bash4-only/GNU-only 构造（bash 3.2 兼容性破坏）"; exit 1; fi
   </verify>
   <done>AC-3：拦截器本体存在、可执行（755 入库）、保留 `make check` 语义且 bash 3.2 兼容 —— AC-8 的 `test_quality_baseline.bats` 两条无 skip 断言可达；**被拒 ref 会被指名**（动态断言在 T19：四种 push 形态各须在报文里出现该 ref 名）</done>
   <depends_on></depends_on>

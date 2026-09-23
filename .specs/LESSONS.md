@@ -779,6 +779,21 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-136 · 跨提交回溯禁用 `git stash` / `git checkout <sha> -- .`：会吞掉未提交的受保护工件
+
+一次「逐提交回溯 `bash package-flow-kit.sh --validate` 是否 pre-existing」的循环里，我每轮执行 `git stash -q -u` + `git checkout <sha> -- .`（35 轮）。实测后果：
+
+- **33 次迭代留下 32 个残留 stash**；`stash@{32}`（首个）吞掉了**已 staged、未提交**的冻结集 6 文件——`.specs/adr/028-gate-baseline-allowlist.md`、`.specs/health-fix-2026-09b/CHANGE.md`、`.specs/health-fix-2026-09b/REQUIREMENT.md`、`.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md`、`.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md`、`.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md` ⇒ 六文件从工作树消失，`git status` 只剩 `M Makefile`（连「东西没了」都不显眼）。
+- 该 stash 的 pop 把 `.specs/health-fix-2026-09b/TASK.md` 回退成**旧快照**，静默丢掉刚写入的 T09/T11/T18 三处判据修正（仅事故之后补的 T10 段幸存）——**协议文件被回退，而我没有立刻察觉**。
+- `Makefile` 被留在旧版本（工作树 ≠ HEAD），同样只在 `git status` 里出现一行。
+
+恢复与规范：
+
+- 恢复：`git checkout "stash@{32}" -- <6 路径>`（只有首个 stash 含它们）⇒ 六文件字节数逐一对上基线 **10558 / 21684 / 55692 / 251278 / 294528 / 58985**，重新 `git add` 恢复 `A ` 冻结状态；`git stash list > /tmp/stash-backup-*.txt` 备份后 `git stash clear`。
+- 规范①：**回溯历史一律用 `git worktree add <tmp> <sha>`（或 `git archive` / `git show <sha>:<path>`）**，绝不在持有未提交工件的工作树里 `stash` / `checkout … -- .`。
+- 规范②：凡是「未提交但已 staged」的受保护工件（冻结集、handshake 标记、状态文件），改动后先记 `sha256sum` 再动历史。
+- 规范③：`git status --short` 出现**任何**意料之外的路径（哪怕只是 `M Makefile`），必须先解释清楚再继续，不得当作噪声略过。
+
 ### L-135 · `make` 对任何失败 recipe 恒返回 rc=2：「二值退出」必须直接对脚本断言，接线层用 `0|2` + 反掩蔽判别
 
 - 事实（GNU make 4.3 实测）：recipe 内 `exit 1` / `exit 3` / `exit 5` 经 make 一律暴露为 **rc=2**（`make -q` 的 rc=1 是另一条语义）。

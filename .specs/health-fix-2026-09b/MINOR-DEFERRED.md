@@ -343,3 +343,19 @@ T22 的判据 `grep -qE '允许清单 [0-9]+ 条'`（空清单态）会因此误
 | 其余 26 块 | 无对 `make <目标>` 退出码的直接断言（`make -n` 干跑 + `grep` 用法不涉退出码语义） | ✅ 无同类缺陷 |
 
 **方法**：`task-brief` 逐 task 抽取 `<verify>` 到 29 个独立脚本，按「命令行里出现 `make`」+「`case`/`$_rc`/`$?` 断言」双重过滤人工判读。**结论：L-135 类缺陷全仓仅 T18 一例**，已随 `f9331e6` 修正。
+
+## 🔴 主 agent 事故 · 跨提交回溯的 `git stash` 吞掉冻结集与判据修正（2026-09-23 · L-136）
+
+- **起因**：核查 T10 判据末行 `bash package-flow-kit.sh --validate` rc=1 是否 pre-existing（结论：change-base `534e3e8` → HEAD `9330402` 全部 rc=1，恒为 1 项 = `flow-kit-bundle/hooks/pre-push/pre-push.sh` 未登记 `package-flow-kit.sh` Part C ⇒ **pre-existing**，与 TD-048 同源）。
+- **事实**：该回溯循环每轮 `git stash -q -u` + `git checkout <sha> -- .` ⇒ 32 个残留 stash；首个 stash 吞掉冻结集 6 文件；`TASK.md` 被判据修正前的旧快照覆盖；`Makefile` 落后 HEAD。
+- **恢复**：`stash@{32}` 取回 6 文件（字节数与基线逐一相符，见 L-136）并重新 `git add`；`git stash clear`（33 条已备份）；`git checkout -- Makefile`。
+- **完整性审计（恢复后）**：冻结集 6 文件仍为 `A ` 且未提交（D10′③ 冻结未被破坏）；`.flow-active` 台账 `task_progress` 仍为 **18 条 T01–T18**；`.change-base` 41 B、`.goal-snapshot.json` 260 B、三个阶段 3 handshake 标记 369/374/390 B 均在；`git log` 后 4 个提交的文件集正确、commits 未被污染。
+
+### 判据修正（事故后重做，全部实跑 rc=0）
+
+| 任务 | 缺陷 | 修正 | 实跑 |
+|---|---|---|---|
+| T09 | `grep -qE '\$\{?TMPDIR'` 要求环境 `$TMPDIR`，但 fix loop 第 1 轮已把扫描面收敛到用例自建根 `$TEST_TMPDIR` ⇒ 0 命中假红；且旧注入（`touch "$td2/tmp.zz-inject"`）在收敛后**不可达** ⇒ 原「注入后变红」证据不成立 | 改断言 `$TEST_TMPDIR` 扫描根形态 + 两处 **SUT 侧**注入：① 撑 `flow-kit-bundle/flow-kit/prompts/4-dev.md` 过 20000 字节 ⇒ 必须 `not ok 1`；② `sed` 掉 SUT 自身 `rm -f "$t"` 清理行 ⇒ 必须 `not ok 2`（均含注入生效自证 + `cmp` 逐字节复原断言） | 27 行 rc=0 |
+| T10 | `sed -n '…AC-4…' \| grep -q 'skip'` 命中**说明注释**里的「skip」字样 ⇒ 注释盲假红；末行 `bash package-flow-kit.sh --validate`（要求 rc=0）不可满足 —— 该命令 rc=1 且为 pre-existing（TD-048），按 ADR-027 不得升级为 fail | 加 `grep -vE '^[[:space:]]*#'`（只读代码行）；`--validate` 改为断言「漏配 (ERROR) 恰 1 项 + 源缺失 0 + 具名 `flow-kit-bundle/hooks/pre-push/pre-push.sh`」，对**新增**漏配保持判别力；并补 `npx bats test/test_lessons_cleanup.bats`（AC-4 用例本体） | 19 行 rc=0 |
+| T11 | 末行 `grep … \| grep -qE '…' && { echo 🔴; exit 1; }` —— 成功态（无禁用构造）整表达式 rc=1 ⇒ **判据在成功态返回 rc=1**（全 29 块中唯一） | 改 `if … ; then echo "🔴 …"; exit 1; fi`（无 else ⇒ 成功态 rc=0） | 7 行 rc=0 |
+| T18 | 事故把已提交的 `status="done"` 回退成 `pending` | 回写 `done`（`git diff` 与 HEAD 逐字比对确认） | 结构不变量 29×6 ✓，`status="done"` 计数 19 = 18 任务 + 图例行 |
