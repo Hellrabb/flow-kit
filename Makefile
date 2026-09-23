@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync dsh-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -103,11 +103,19 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync check-dist
+check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
 	@echo "╚════════════════════════════════════════════════════╝"
+
+# ── check-gate-sync: prompt↔skill toll-gate 协议一致性门禁（health-fix-2026-09 · AC-4）──
+# 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-gate-sync.sh（T08 定稿）承载，
+#   target 只负责接线进 check: 先决条件并暴露失败 rc。
+# 边界（T14 / DESIGN D5）：只接线、不新建聚合目标；check-path-privacy 接线属 T18，不在此。
+check-gate-sync:
+	@echo "🔍 make check-gate-sync: prompt↔skill 协议一致性检查 ..."
+	@bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
 
 # ── check-dist: 打包件新鲜度门禁（health-fix-2026-09 · F1/D2/D3）──
 # 为什么存在：dist/ 被 .gitignore 忽略 → **git 对它结构性失明**，改了源忘了重建

@@ -32,15 +32,18 @@
 Wave 1 (parallel · 定稿后置与锚点)          : T01[P], T02[P], T03[P], T04[P]
 Wave 2 (parallel · 源修复层)                : T05[P], T06[P], T07[P], T08[P], T09[P], T10[P], T11[P], T12[P], T13[P]
 Wave 3 (parallel · 判据收紧 / 部署 / 门禁实现): T14[P], T15[P], T16[P], T17[P]
-Wave 4 (parallel · 接线与拦截实跑)          : T18[P], T20[P]
-Wave 5 (并行 3 + 串行 1 · 基线冻结与自校验) : T21[P], T22[P], T24[P]；串行: T23（depends_on T21, T22；与 T22 同写 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh ⇒ **必须等 T22 落定后才可开工，禁止与 T22 并行**）
-Wave 6 (并行 4 + 串行 1 · 复扫与端到端判据) : T25[P], T26[P], T27[P], T28[P]；串行: T19（depends_on T11, T12, T16, T17, T18, T21, T22, T23, T26 —— 阶段 3 L3 M5 由 W4 移入：夹具复制的是**终稿**门禁脚本与**已冻结**清单，而脚本在 T22/T23 之后才定稿、清单在 T26 期间会被临时移走）
-Wave 7 (收口 · 全量无退化)                  : T29
+Wave 4 (parallel · 门禁接线)                : T18[P]
+Wave 5 (并行 2 + 串行 1 · 基线冻结与自校验) : T21[P], T22[P]；串行: T23（depends_on T21, T22；与 T22 同写 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh ⇒ **必须等 T22 落定后才可开工，禁止与 T22 并行**）
+Wave 6 (并行 4 + 串行 1 · 门禁接入与复制面) : T20[P], T25[P], T26[P], T28[P]；串行: T19（depends_on T11, T12, T16, T17, T18, T21, T22, T23, T26 —— 阶段 3 L3 M5 由 W4 移入：夹具复制的是**终稿**门禁脚本与**已冻结**清单，而脚本在 T22/T23 之后才定稿、清单在 T26 期间会被临时移走）
+Wave 7 (串行 2 · 分发件重建与复扫)          : T24（depends_on T05, T07, T11, T12, T16, **T20, T25, T26**）→ T27（depends_on T24）
+Wave 8 (收口 · 全量无退化)                  : T29
 ```
 
 > - 同 wave = 可并行；跨 wave = 必须顺序执行。
 > - **T01（C5 修订史移入附录）位于 Wave 1**：满足 `MINOR-DEFERRED.md` C5 的触发条件「阶段 3 定稿之后、4-dev 编码任务之前」——Wave 2 起全部为编码/改件任务，T01 先于它们。
 > - **T13（工件脱敏）位于 Wave 2、且先于 T21（基线冻结）**：满足 DESIGN D10′①③ 的硬顺序「脱敏 → `git add` → 复扫非 0 即中止 → 冻结」；T17/T21 的排除表与清单均以其结果为准。
+> - **T20 由 Wave 4 移到 Wave 6（主 agent 2026-09-23 订正 · 原排期自锁）**：本仓 `.git/hooks/pre-commit` 是 `~/.claude/hooks/pre-commit/pre-commit.sh` 的 symlink ⇒ T20 一经 `./sync-hooks.sh` 落地，本仓每次提交都会跑 `make check-path-privacy`；权威清单到 T21–T23 才冻结 ⇒ 门禁必红 ⇒ T20 **连自己的提交都过不去**（`--no-verify` 已禁）⇒ 必须排在 T21/T22/T23 之后。
+> - **T24 由 Wave 5 移到 Wave 7（同一批订正）**：`check-dist` 逐文件比对 bundle 源与 `dist/` ⇒ 重建必须是**最后一个改动源面的步骤**（T20/T25/T26 之后），否则 T29 的 `make check` 仍红。
 > - **T19 依赖 T11+T12+T16**：拦截器本体、副本登记、部署形态三者齐备后四形态实跑才成立（AC-3 的 Given「拦截由 pre-push 承担」）。
 > - **T24（重建分发件）依赖 T05/T07/T11/T12/T16**：归档内容 = 源树快照，源未修完则重建等于把缺陷重新打包。
 
@@ -547,7 +550,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on>T01</depends_on>
 </task>
 
-<task id="T14" parallel="true" status="pending" model-tier="cheap">
+<task id="T14" parallel="true" status="done" model-tier="cheap">
   <name>AC-4 接线：`check-gate-sync` 纳入 `make check` 先决条件</name>
   <read_files>
     <`Makefile`（:5 .PHONY / :106 `check:` 先决条件行 / :16 含 `check-gate-sync` 字样的注释）>
@@ -558,14 +561,21 @@ Wave 7 (收口 · 全量无退化)                  : T29
     <`Makefile`>
   </write_files>
   <action>
-    把 `check-gate-sync` 追加为 `check:` 的**先决条件**（沿用既有 `check-*` 命名与接入点，不新建聚合目标）。
+    **现状（主 agent 2026-09-23 实测订正）**：`grep -n 'check-gate-sync' Makefile` 只命中 `:16` 的**注释** —— `check-gate-sync` **目标当前并不存在**。
+    落地三件（只改 `Makefile`）：
+    ① **新建薄壳目标** `check-gate-sync:`（与既有 `check-dist` 同形：`@bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`；recipe 文本须**含该脚本路径**，`make -n` 才可检出；**禁** `|| true` / `&& true` 吞失败 —— L-121「命令 ≠ 断言」）；
+    ② 追加为 `check:` 的**先决条件**（`Makefile:106`；沿用既有 `check-*` 命名与接入点，**不新建聚合目标**）；
+    ③ `.PHONY`（`Makefile:5`）追加 `check-gate-sync`。
     接线断言**必须用干跑**（`make -n check`）—— `Makefile:16` 存在同名**注释**，`grep Makefile` 会命中注释而恒真。
+    **边界**：`check-path-privacy` 的接线是 T18 的活，本 task 不得提前接入；`make check` 因 `check-dist` 未收口（T24）仍为红，本 task 不得试图让它整体变绿。
   </action>
   <verify>
+    grep -E '^\.PHONY:' Makefile | grep -qw 'check-gate-sync' || { echo "🔴 .PHONY 未登记 check-gate-sync（非 phony 目标遇同名文件会被 make 判为最新 ⇒ recipe 不执行、假绿）"; exit 1; };
     make -n check | grep -q 'check-gate-sync' || { echo "🔴 check-gate-sync 未接入 make check"; exit 1; };
+    make -n check-gate-sync | grep -q 'check-gate-sync\.sh' || { echo "🔴 check-gate-sync 目标 recipe 未调用 check-gate-sync.sh（干跑无脚本路径 ⇒ 接线与判据脱节）"; exit 1; };
     bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh || { echo "🔴 健康态门禁未通过"; exit 1; }
   </verify>
-  <done>AC-4①：`make -n check` 的先决条件含 `check-gate-sync`，且健康态该门禁 `exit 0`（修复前实测：`make -n check | grep -q check-gate-sync` ⇒ rc=1）</done>
+  <done>AC-4①：`make -n check` 的先决条件含 `check-gate-sync`、`.PHONY` 已登记、且健康态该门禁 `exit 0`（修复前实测：目标**不存在** —— `grep -n 'check-gate-sync' Makefile` 仅命中 `:16` 注释、`make -n check | grep -q check-gate-sync` ⇒ rc=1）</done>
   <depends_on>T08</depends_on>
 </task>
 
@@ -581,8 +591,9 @@ Wave 7 (收口 · 全量无退化)                  : T29
     <`flow-kit-bundle/test/test_check_gate_sync.bats`>
   </write_files>
   <action>
-    把容忍 `exit 1` 的断言收紧为 `[ "$status" -eq 0 ]`（门禁修复后健康态必须绿），双源逐字同步。
-    不得保留任何「非脚本错误即通过」形态。
+    ① 把容忍 `exit 1` 的断言收紧为 `[ "$status" -eq 0 ]`（门禁修复后健康态必须绿），双源**逐字节**同步；不得保留任何「非脚本错误即通过」形态。
+    ② **双态证据（L-120/L-123，必做；禁止只交「绿」的单态）**：证明收紧后的断言**真的能红** ——
+       备份 `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` → 在其副本末尾注入 `exit 1` → `npx bats test/test_check_gate_sync.bats` 必须出现 `not ok`（贴真实输出）→ 用备份逐字节恢复并 `cmp -s` 证明复原 → 复跑必须全绿。
   </action>
   <verify>
     grep -nE '\[ "\$status" -ne [0-9]+ \]' test/test_check_gate_sync.bats && { echo "🔴 仍存在「容忍非零退出」形态的断言（-ne N；阶段 3 L3 major：单一 -ne 2 模式可被等价改写绕过）"; exit 1; };
@@ -590,7 +601,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
     npx bats test/test_check_gate_sync.bats || { echo "🔴 bats 未绿"; exit 1; };
     cmp -s test/test_check_gate_sync.bats flow-kit-bundle/test/test_check_gate_sync.bats || { echo "🔴 双源不一致"; exit 1; }
   </verify>
-  <done>AC-4：bats 断言为 `exit 0`、**任何** `-ne N` 形态均被判失败（负向穷举 `-ne [0-9]+`，防「-ne 2 改写成 -ne 1」绕过），健康态绿（修复前实测：`test/test_check_gate_sync.bats:30` 为 `-ne 2`）</done>
+  <done>AC-4：bats 断言为 `exit 0`、**任何** `-ne N` 形态均被判失败（负向穷举 `-ne [0-9]+`，防「-ne 2 改写成 -ne 1」绕过），健康态绿，**并附双态证据**（注入 `exit 1` ⇒ 该用例必红；复原 ⇒ 绿）（修复前实测：`test/test_check_gate_sync.bats:30` 为 `-ne 2`）</done>
   <depends_on>T08</depends_on>
 </task>
 
@@ -631,6 +642,10 @@ Wave 7 (收口 · 全量无退化)                  : T29
     n2=$(ls "$SBX/proj/.git/hooks/" | grep -c 'pre-push.bak' || true);
     [ "$n1" = "$n2" ] || { echo "🔴 非幂等：二次安装又产生备份"; exit 1; };
     grep -q 'deploy_pre_push' flow-kit-bundle/lib/install_hooks.sh || { echo "🔴 缺 deploy_pre_push"; exit 1; }
+    # 镜像面纪律（主 agent 2026-09-23 补 · T05 工艺结论）：install_hooks.sh 属镜像面 ⇒ 不同步会让 B5-R2/R5 转红、提交被拒
+    ./sync-hooks.sh >/dev/null || { echo "🔴 sync-hooks.sh 同步失败"; exit 1; };
+    bash sync-hooks.sh --check || { echo "🔴 副本漂移（须先同步再提交）"; exit 1; };
+    make check-hooks-sync >/dev/null || { echo "🔴 check-hooks-sync 未通过"; exit 1; }
   </verify>
   <done>AC-3：部署产物为「指向已安装 hooks 目录」的 symlink、可执行、含 `make check`、二次安装幂等（无新增备份）—— 修复前实测：`deploy_pre_push` 命中 0、pre-push 未被部署</done>
   <depends_on>T06, T12</depends_on>
@@ -665,7 +680,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
     S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
     [ -f "$S" ] || { echo "🔴 缺门禁脚本"; exit 1; };
     bash -n "$S" || exit 1;
-    grep -qE 'reference/\*|skills/\*|\.specs/\*' "$S" && { echo "🔴 排除表含宽通配（禁）"; exit 1; };
+    grep -vE '^[[:space:]]*#' "$S" | grep -qE 'reference/\*|skills/\*|\.specs/\*' && { echo "🔴 排除表含宽通配（禁；已剔除整行注释：脚本注释里写「不得用 reference/*」不算违规 —— L-125 族）"; exit 1; };
     grep -q 'reference/check-path-privacy.sh' "$S" || { echo "🔴 排除表未逐条列自指路径"; exit 1; };
     grep -vE '^[[:space:]]*#' "$S" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i|grep[[:space:]]+-P' && { echo "🔴 含 bash4/GNU-only 构造（已剔除整行注释：只读代码行）"; exit 1; };
     out=$(bash "$S" 2>&1); rc=$?;
@@ -777,7 +792,10 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <action>
     在**仓库内源** `flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 中接入 `make check-path-privacy`（在既有 `make test` 之后；
     失败必须阻塞提交）。**禁止**改用仓外 symlink 目标作断言对象（干净 clone 上假红）。
-    维持 hook 的快速失败语义与既有注释风格；`sync-hooks.sh --check` 必须仍 rc=0。
+    维持 hook 的快速失败语义与既有注释风格；改完**必须** `./sync-hooks.sh` 同步（本文件属镜像面），`sync-hooks.sh --check` 与 `make check-hooks-sync` 必须 rc=0。
+    **次序硬约束（主 agent 2026-09-23 订正 · 原排期自锁）**：本仓 `.git/hooks/pre-commit` 是 `~/.claude/hooks/pre-commit/pre-commit.sh` 的 symlink
+    ⇒ 本 task 落地的**同一刻**（同步后）本仓每次提交都会跑新门禁。若门禁此时为红，后续**所有** task 都无法提交、本 task 自己也提交不了
+    （`--no-verify` 已禁）⇒ 必须在权威清单已冻结、干净树上 `make check-path-privacy` 已绿之后才执行（`depends_on` 已补 `T21, T22, T23`；ADR-027②）。
   </action>
   <verify>
     grep -q 'check-path-privacy' flow-kit-bundle/hooks/pre-commit/pre-commit.sh || { echo "🔴 pre-commit 源未接入"; exit 1; };
@@ -785,7 +803,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
     bash sync-hooks.sh --check || { echo "🔴 副本漂移"; exit 1; }
   </verify>
   <done>AC-6①：pre-commit 仓库内源已接入新门禁且副本一致（修复前实测：`grep -cE 'path|隐私|leak'` 命中 0）</done>
-  <depends_on>T17, T18</depends_on>
+  <depends_on>T17, T18, T21, T22, T23</depends_on>
 </task>
 
 <task id="T21" parallel="true" status="pending" model-tier="top">
@@ -928,6 +946,8 @@ Wave 7 (收口 · 全量无退化)                  : T29
     源修复（T05/T07/T11/T12/T16）全部落地后执行 `bash package-dsh-plugin.sh` 重建归档；
     删除 `dist/dsh-flow-kit-0.1.0.tgz`（该档从未发布、无兼容义务 ⇒ 保留即留一个**已知可注入**的发布件）。
     **禁止**手工编辑 `.tgz` 内文件（必须经打包路径产出，保证 staging 与源同源）。
+    **次序硬约束（主 agent 2026-09-23 订正）**：`check-dist` 逐文件比对 bundle 源与 `dist/` ⇒ 任何**之后**的 bundle 源改动都会让它重新转红
+    ⇒ 本次重建必须是**最后一个改动源面的步骤**（`depends_on` 已补 `T20, T25, T26`）；若之后仍有源改动，须重跑本 task 的构建与判据。
   </action>
   <verify>
     export LC_ALL=C;
@@ -950,7 +970,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
     echo "0.2.0: chisel=$c"; [ "$c" -eq 0 ] || { echo "🔴 归档仍含内部项目名"; exit 1; }
   </verify>
   <done>AC-1④ + AC-5：重建后的归档 `eval-echo=0` / `chisel=0`，且可注入的 `0.1.0` 已删除（修复前实测：0.1.0=2 处 eval-echo、0.2.0=2 处 eval-echo + 6 处 chisel）</done>
-  <depends_on>T05, T07, T11, T12, T16</depends_on>
+  <depends_on>T05, T07, T11, T12, T16, T20, T25, T26</depends_on>
 </task>
 
 <task id="T25" parallel="true" status="pending" model-tier="standard">
