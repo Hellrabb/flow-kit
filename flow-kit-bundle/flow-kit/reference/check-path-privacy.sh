@@ -155,11 +155,31 @@ is_self_exclude() {
 HITS_OUT_OF_ALLOWLIST=0
 HITS_TOTAL=0
 
-# 占位符成分提取：从命中行里抠出 PAT 匹配到的 username 片段。
-# 用 sed 替换出第一个 `/home/<name>/` 的 <name>（ERE，bash 3.2 的 sed -E 支持）。
-extract_username() {
-  # 输入：一行文本；输出：第一个 /home/<name>/ 的 <name>（无则空）
-  printf '%s\n' "$1" | sed -nE 's#.*/home/([a-z_][a-z0-9_-]*)/.*#\1#p' | head -1
+# 逐命中占位符判定（L-133 修复 · 2026-09-23 主 agent 探针发现漏报）：
+# 一行可能含多个 `/home/<name>/` 命中；旧实现 `extract_username` 用贪婪 sed 只取
+# 最后一个，再据此单一成分决定是否整行 `continue` ⇒ 「真名在前、占位在后」同行被
+# 整行放过（D10′② 漏报类）。正解：取该行**全部**命中，**仅当全部命中都是占位符**
+# 才跳过该行；否则按 `file:line` 记命中（归因不变）。
+# 返回 0 = 该行可整行跳过（全部命中皆占位符）；返回 1 = 该行含至少 1 个真名 ⇒ 记命中。
+line_all_hits_placeholder() {
+  local content="$1"
+  local hits any_real=0
+  # grep -oE 输出每个 `/home/<name>/` 命中，每行一个（bash 3.2 的 grep -oE 支持）
+  hits=$(printf '%s\n' "$content" | grep -oE "$PAT" 2>/dev/null || true)
+  [ -z "$hits" ] && return 1   # 无命中（不应发生，调用方已筛选）⇒ 不跳过
+  local h uname
+  while IFS= read -r h; do
+    [ -z "$h" ] && continue
+    # 从单个命中 `/home/<name>/` 抠 <name>
+    uname=$(printf '%s\n' "$h" | sed -nE 's#^/home/([a-z_][a-z0-9_-]*)/$#\1#p')
+    if [ -z "$uname" ] || ! is_placeholder_name "$uname"; then
+      any_real=1
+      break
+    fi
+  done <<EOF
+$hits
+EOF
+  [ "$any_real" -eq 0 ]
 }
 
 scan_file() {
@@ -182,9 +202,8 @@ scan_file() {
       local rest="${stripped#*:}"
       l="${rest%%:*}"
       c="${rest#*:}"
-      # 占位符成分判定
-      uname=$(extract_username "$c")
-      if [ -n "$uname" ] && is_placeholder_name "$uname"; then
+      # 逐命中占位符判定（L-133）：仅当该行**全部**命中都是占位符才跳过
+      if line_all_hits_placeholder "$c"; then
         continue
       fi
       # 记命中（外部文件写入需在子 shell 外可见 ⇒ 用追加到 TMP_HITS）
@@ -201,8 +220,8 @@ scan_file() {
       local l c
       l="${hitline%%:*}"
       c="${hitline#*:}"
-      uname=$(extract_username "$c")
-      if [ -n "$uname" ] && is_placeholder_name "$uname"; then
+      # 逐命中占位符判定（L-133）：仅当该行**全部**命中都是占位符才跳过
+      if line_all_hits_placeholder "$c"; then
         continue
       fi
       printf '%s:%s:%s\n' "$file" "$l" "$c" >> "$TMP_HITS"

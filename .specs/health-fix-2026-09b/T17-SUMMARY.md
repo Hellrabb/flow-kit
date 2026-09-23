@@ -216,3 +216,82 @@ exit 0
 
 - **无**遗留：`path-privacy-allowlist.txt` 由 T21 创建；`make check-path-privacy` 接线由 T18；pre-commit 源接线由 T20；pre-push 拦截器（T19）将逐 ref 传 `<local sha>` 给 `CHECK_REV` —— 本 task 已提供该入口（含注解 tag 解析）。
 - **注解 tag 解析**（主 agent 追加要求）：实现见 §3 `RESOLVED_REV=$(git rev-parse --verify --quiet "${CHECK_REV}^{commit}" …)`；解析失败 fail-closed；下游 `ls-tree`/`grep`/`扫描面` 报告一律用解析后 commit sha。
+
+---
+
+## 9 修复轮（2026-09-23 · L-133 排除粒度）
+
+### 缺陷
+主 agent 独立探针发现**漏报**（file:line：`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:162` 旧 `extract_username` + `:186-189` 旧 `continue`）：`extract_username` 用**贪婪** `sed`（`s#.*/home/([a-z_][a-z0-9_-]*)/.*#\1#p`）⇒ 一行只取**最后一个** `/home/<name>/`；再据此**单一**成分决定是否 `continue` ⇒ **整行**跳过。同行「真名在前、占位在后」时真名被整行放过（D10′② 漏报类）。已登记 `.specs/LESSONS.md` **L-133** 与 `MINOR-DEFERRED.md`。
+
+### 四项对照实测（主 agent 独立夹具，非复述第一轮证据）
+| 夹具行内容 | 期望 | 第一轮实测 | 修复后实测 |
+|---|---|---|---|
+| `mixed /home/<real>/x /home/user/y`（真名在前、占位在后） | rc=1 | **rc=0 / `清单外命中 0 条` ⇒ 漏报** | **rc=1** ✓（归因含 `mixed.txt`） |
+| `B /home/user/y /home/<real>/x`（顺序对调） | rc=1 | rc=1 ✓ | rc=1 ✓ |
+| `C /home/user/y`（仅占位） | rc=0 | rc=0 ✓ | rc=0 ✓ |
+| `D /home/<real>/x /home/<real>/y`（两个真名） | rc=1 | rc=1 ✓ | rc=1 ✓ |
+
+⇒ 第一轮结论随**行内顺序**翻转；修复后四项全对。
+
+### 修复实现
+新增 `line_all_hits_placeholder`（逐命中判定，替换旧 `extract_username` + 单成分 `continue`）：
+```bash
+# flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:170-194（修复后）
+line_all_hits_placeholder() {
+  local content="$1"
+  local hits any_real=0
+  hits=$(printf '%s\n' "$content" | grep -oE "$PAT" 2>/dev/null || true)
+  [ -z "$hits" ] && return 1   # 无命中 ⇒ 不跳过
+  local h uname
+  while IFS= read -r h; do
+    [ -z "$h" ] && continue
+    uname=$(printf '%s\n' "$h" | sed -nE 's#^/home/([a-z_][a-z0-9_-]*)/$#\1#p')
+    if [ -z "$uname" ] || ! is_placeholder_name "$uname"; then
+      any_real=1
+      break
+    fi
+  done <<EOF
+$hits
+EOF
+  [ "$any_real" -eq 0 ]
+}
+```
+两处调用点（rev 模式 `:212`、工作树模式 `:230`）改为 `if line_all_hits_placeholder "$c"; then continue; fi` —— 仅当该行**全部**命中都是占位符才跳过，否则按 `file:line` 记命中。bash 3.2 兼容（`grep -oE`、here-doc、无 `mapfile`/`declare -A`）。
+
+### 新旧 sha256
+| 版本 | sha256 |
+|---|---|
+| 第一轮（缺陷版，HEAD `e4dd4f8`） | `ab34082e1f7d31fce7593b482828b7eddd9cf7313a4ec6db5fe344a65809f585` |
+| 修复轮（本提交） | `2d424d5af619fb311f60be748baf542a89d1bb59cfcfcd51282a55f02d8f66da` |
+
+### 判别力注入与复原证据（L-132 · 命中真出口）
+- **注入**：把 `line_all_hits_placeholder` 函数体退回旧单成分判定（`sed` 取首/末命中 + `is_placeholder_name` 决定整行跳过）。
+- **注入后脚本自测**（`mixed.txt` 夹具）：`rc=0` / `命中合计 0` / `清单外命中 0 条` ⇒ 漏报复现（注入生效，命中 buggy 真出口）。
+- **verify 夹具对应断言变红**：
+  ```
+  injected verify rc=1
+  🔍 … 命中合计 0 … 清单外命中 0 条
+  ✅ 清单外命中 0 条（…）
+  🔴 同真名+占位同行被整行放过（排除粒度 ≠ 命中粒度 · L-133）
+  ```
+- **复原**：`cp /tmp/t17_fix.sh`；`sha256sum` = `2d424d5a…`（与修复值一致）。
+
+### 工件判据原样抽取实跑
+`task-brief … T17 | awk … | bash`（49 行，含 L33-49 排除粒度判别子）⇒ **rc=0**。
+
+### 门禁输出
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| 单元测试 | `make test` | 973 ok / 0 not ok / rc=0 |
+| shellcheck | `make lint` | `✅ shellcheck: no errors found` / rc=0 |
+| hooks 同步 | `make check-hooks-sync` | `✅ hooks 副本一致（漂移 0）` / rc=0 |
+| hooks --check | `bash sync-hooks.sh --check` | `✅ hooks 副本一致（漂移 0）` / rc=0 |
+
+### 取证（第 5 条 · 临时空清单下 M 与归因全集）
+- 临时建空文件 `.specs/health-fix-2026-09b/path-privacy-allowlist.txt`（`允许清单 0 条`）⇒ 跑 `bash …/check-path-privacy.sh` ⇒ **`M=0` / `清单外命中 0 条` / rc=0**。即 T13 脱敏后工作树基线干净，**无此前被整行跳过而新浮现的命中**（修复改的是「同行多命中」判定逻辑，不改变单命中行的归因）。
+- 旁证（临时 in-repo tracked 泄漏 `_t17_probe_leak.txt:1: leak probe /home/<acct>/secret`）⇒ `rc=1` / `命中合计 1 条` / `清单外命中 1 条` / 归因 `_t17_probe_leak.txt:1: …` —— 逐命中判定确实抓住真名。
+- 取证后删除临时文件：`git status --short` 仅余冻结集 6 `A ` + 脚本 ` M`（无 `path-privacy-allowlist.txt` 残留，属 T21 产物）。
+
+### 第一轮三条注入为何没抓到它
+第一轮三条注入（fail-closed 出口 / rev 检索 / 宽通配）**均不涉及「一行多命中」维度**（L-122 族：判据没打到缺陷现场）。verify 夹具的命中行都是**单命中**形态（`leak.txt:1`、`/home/<real>/x`），从未构造「真名 + 占位同行」⇒ 单成分判定对单命中行行为正确，bug 被夹具形态掩盖。主 agent 补强的 L33-49 判别子正是补上这个维度。
