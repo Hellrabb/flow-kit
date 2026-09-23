@@ -121,3 +121,18 @@
 |---|---|---|---|---|---|
 | T06 | T06-6 | 2026-09-23 | `bash flow-kit-bundle/hooks/stop/33-flow-active-integrity.sh`（仓库根 cwd）**裸跑 rc=1 且 stdout/stderr 全空、不写 `.flow-active.correction`**。根因：hook 只用局部变量 `hook_base=flow-kit-bundle/hooks/stop`，而它 source 的 `hooks/stop/lib/flow-kit-artifacts.sh:13` 依赖环境变量 `HOOK_BASE_DIR`（`source "${HOOK_BASE_DIR}/lib/done-validation.sh"`）⇒ hook 顶部 `set -euo pipefail` 的 `set -u` 立即退出。实测：`bash -c 'set -euo pipefail; source …/flow-kit-artifacts.sh'` rc=1 + `行 13: HOOK_BASE_DIR: 未绑定的变量`；加 `HOOK_BASE_DIR=…` 后 rc=0。唯一合法路径是 `hooks/stop/00-gate.sh:7`（`HOOK_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"`）→ `:44 export HOOK_BASE_DIR …` → `:120 run_module "${HOOK_BASE_DIR}/33-flow-active-integrity.sh"` ⇒ **裸跑属 out-of-contract**，任何「裸跑该 hook 做 task_progress 自检」都会拿到误导性 rc=1 | 非 T06 缺陷：本仓既有 hook 结构问题，T06 只 append `goal.task_progress`，且**双态对照 4 态同值 rc=1**（含 T06 条目 / `jq 'del(.goal.task_progress[-1])'` 回到 T05 态 / 用 `534e3e8` 版 hook / 现状复跑）⇒ 与本次改动无关，修它属扩范围（R7.1） | v2：hook 内改 `HOOK_BASE_DIR="${HOOK_BASE_DIR:-$(cd "$(dirname "$0")" && pwd)}"`，使裸跑与 00-gate 编排行为一致 |
 | T06 | T06-7 | 2026-09-23 | 补 `HOOK_BASE_DIR=… PROJECT_ROOT=…` 后该 hook 仍 rc=1，失败点前移到自身 `:235` 的算术展开：`行 235: 1790104581.736337: 语法错误：无效的算术运算符（错误记号是 ".736337"）` —— 因 `.flow-active` 顶层 `updated_at: 1790104581.736337` 是**浮点**时间戳（`534e3e8` 版 hook 同样在此炸） | 同上：状态文件/hook 双边的既有形态问题，不在 T06 写面（`install_hooks.sh`）。另注：本次 T06 的 `task_progress` 写入用 `mktemp` + `mv` 原子写，未触碰 `updated_at`（该浮点值早于本任务存在） | v2：把 `updated_at` 规范为整数秒，或 hook 侧对浮点/非整数做容错再进算术上下文 |
+
+### 🟢 T07 已知接受（AC-5 源侧脱敏的固有代价 · 2026-09-23）
+
+| Task | Finding ID | Date | 发现 | 为何不本次修 | 后续动作 |
+|---|---|---|---|---|---|
+| T07 | T07-1（R6 领域扭曲 · 🟢） | 2026-09-23 | 中性占位 `sample-proj_env` 的**信息量低于原文** `chisel_env`：原文「`<项目名>` + `_env`」能自解释命名约定（项目名+下划线环境后缀），而 `sample-proj` 是泛化名，后续读者无法从占位串反推真实命名约定；`test/test_correction_hygiene.bats:206-207` 的用例标题与 `test/test_l3_review_defects_2026_09.bats:4` 的溯源注释同此 | **该信息量损失正是 AC-5 的意图**（P3 = 切断雇主内部项目线索）；且保留任何可反推的命名结构都会削弱脱敏效果。语义位（skill 名 / 环境目录）已一一对应，测试可读性与判据均不受影响 ⇒ 属脱敏固有代价，非缺陷 | 无（如未来需要可读性更强的占位，须先确认不含可反推线索，且仍满足 `grep chisel` = 0） |
+
+### ⚙️ 工艺说明（非缺陷 · T07 提交复盘 · 2026-09-23）
+
+> 「先 `grep` 枚举消费方、再替换」这条工艺（AC-5 假设 3）**实测有效且必要**：T07 枚举出 12 处命中（4 文件 × 源码 6 处，双源各 6），
+> 逐处判定后确认三处 fixture 值（`chisel-foreign` / `chisel-skill`）**只被写入、从不被断言读取** ⇒ 可安全替换而无需解耦；
+> 若当时按「替换可能与断言耦合」直接改写断言，反而会引入无谓的断言改动（并触碰 out 段的「不得放宽断言」）。
+> **定式**：脱敏/改名类任务必须先做「消费方枚举 + 逐处耦合判定」，把结论（命中总数 + 每个 `file:line` + 是否耦合）落档，
+> 再做替换 —— 枚举是**证据**，不是形式步骤。
+

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # test_l3_review_defects_2026_09.bats — L3 审查链缺陷修复回归（2026-09-18）
 #
-# 来源：`L3-review-defects-2026-09-17.md`（chisel-skill 开发中在 chisel_env 的
+# 来源：`L3-review-defects-2026-09-17.md`（sample-proj-skill 开发中在 sample-proj_env 的
 #       change `verify-ac-env-fix` 踩到，阶段 7 实测复现）。
 # 本文覆盖该报告 5 条缺陷的**重新实测 + 修复**回归，逐条标注 §Bx：
 #

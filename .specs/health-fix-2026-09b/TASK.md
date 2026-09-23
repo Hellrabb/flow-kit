@@ -244,7 +244,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T07" parallel="true" status="pending" model-tier="cheap">
+<task id="T07" parallel="true" status="done" model-tier="cheap">
   <name>AC-5：`chisel-*` 中性化（双源 4 文件）+ 断言解耦</name>
   <read_files>
     <`test/test_correction_hygiene.bats`（chisel ×5）>

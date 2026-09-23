@@ -171,7 +171,7 @@ EOF
 @test "AC-5/6: 外来 YAML → 无 corrupt_json 追加 + 白名单清空 + 恰 1 条 foreign_state（再跑不重复）+ type 剥离为 l2-missing + compliance 保留" {
   # 外来 .flow-active（YAML 文本）
   cat > "$FLOW_ACTIVE" <<'EOF'
-change_id: "chisel-foreign"
+change_id: "sample-proj-foreign"
 phase: "4"
 EOF
   # 陈旧 state-integrity + 合并标签 + compliance
@@ -203,11 +203,11 @@ EOF
   [[ "$output" == "1" ]]
 }
 
-# ── AC-9 · chisel_env 场景模拟收敛 ─────────────────────────────────
-@test "AC-9: chisel_env 场景 — 50 条陈旧（43 corrupt_json + 6 artifact_missing）单轮收敛" {
+# ── AC-9 · sample-proj_env 场景模拟收敛 ─────────────────────────────────
+@test "AC-9: sample-proj_env 场景 — 50 条陈旧（43 corrupt_json + 6 artifact_missing）单轮收敛" {
   cat > "$FLOW_ACTIVE" <<'EOF'
 phase: "dev"
-tool: "chisel-skill"
+tool: "sample-proj-skill"
 EOF
   # 构造 50 条：43 corrupt_json + 6 phase_artifact_missing（field 全互异）+ 1 compliance
   jq -nc '
@@ -239,7 +239,7 @@ EOF
 # ── AC-7 · 绝不转换/覆盖/删除外来文件 ───────────────────────────────
 @test "AC-7: 外来 .flow-active（YAML）跑 33 号前后 sha256 + mtime 逐字节一致" {
   cat > "$FLOW_ACTIVE" <<'EOF'
-change_id: "chisel-foreign"
+change_id: "sample-proj-foreign"
 phase: "4"
 EOF
   local before_sha before_mtime
