@@ -103,7 +103,10 @@ fi
 
 # 统计允许清单有效条目数（每行一条 file:line + 可选理由注释；剥整行注释与空行）。
 # 注：允许清单格式 = `file:line` 每行一条 + 理由注释（ADR-028 决策 1）。
-ALLOWLIST_COUNT=$(grep -cvE '^[[:space:]]*(#|$)' "$TMP_ALLOWLIST" 2>/dev/null || printf '0')
+# grep -c 计数为 0 时退出码为 1（仍打印 "0"）；写成 `$(grep -c … || printf '0')`
+# 会把 '0' 打成两行 ⇒ 自证行在零计数态被折断（L-133 修复轮 2 · 2026-09-23）。
+# 惯用法：命令替换成功后变量已持 '0'；`||` 只兜非零退出码 ⇒ 恒为单行。
+ALLOWLIST_COUNT=$(grep -cvE '^[[:space:]]*(#|$)' "$TMP_ALLOWLIST" 2>/dev/null) || ALLOWLIST_COUNT=0
 
 # ----------------------------------------------------------------------------
 # 枚举候选文件（扫描面 = git ls-files，不扫 .git 内部）
@@ -241,7 +244,7 @@ done < "$TMP_CANDIDATES"
 # ----------------------------------------------------------------------------
 # 允许清单每行 `file:line`（可能带 ` # 理由`）；取 `file:line` 前缀做集合比对。
 # 命中行的归因 = `file:line`；查它是否在允许清单内。
-HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null || printf '0')
+HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null) || HITS_TOTAL=0
 
 # 允许清单条目集（剥注释 → 只留 file:line 前缀）存临时文件
 TMP_ALLOWLIST_KEYS=$(mktemp)

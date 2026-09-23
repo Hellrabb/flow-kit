@@ -295,3 +295,89 @@ EOF
 
 ### 第一轮三条注入为何没抓到它
 第一轮三条注入（fail-closed 出口 / rev 检索 / 宽通配）**均不涉及「一行多命中」维度**（L-122 族：判据没打到缺陷现场）。verify 夹具的命中行都是**单命中**形态（`leak.txt:1`、`/home/<real>/x`），从未构造「真名 + 占位同行」⇒ 单成分判定对单命中行行为正确，bug 被夹具形态掩盖。主 agent 补强的 L33-49 判别子正是补上这个维度。
+
+---
+
+## 10 修复轮 2（2026-09-23 · 自证行零计数态）
+
+### 缺陷
+`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:106`（`ALLOWLIST_COUNT`）与 `:247`（`HITS_TOTAL`）旧写法：
+```bash
+ALLOWLIST_COUNT=$(grep -cvE '^[[:space:]]*(#|$)' "$TMP_ALLOWLIST" 2>/dev/null || printf '0')
+HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null || printf '0')
+```
+`grep -c` 在**计数为 0** 时**既打印 `0`、又返回退出码 1** ⇒ `||` 分支再打印一个 `0` ⇒ 命令替换捕获**两行** ⇒ `echo "   允许清单 ${ALLOWLIST_COUNT} 条"` 渲染成 `   允许清单 0` + 换行 + `0 条`。首轮交付版 `e4dd4f8` 同址即有（非修复轮引入），主 agent 已在 `MINOR-DEFERRED.md` 登记。
+
+### 机制（实测两行报文）
+沙箱夹具（空允许清单 + 零命中），修复前：
+```
+   允许清单 0
+0 条
+   命中合计 0
+0 条（含占位符排除后）
+   清单外命中 0 条          ← 该行由算术变量渲染，未受影响
+```
+`   清单外命中 0 条` 由算术变量 `HITS_OUT_OF_ALLOWLIST`（`$((…))`）渲染，未受 `grep -c` 折断 ⇒ 仅 `允许清单`/`命中合计` 两行折断。AC-6 机器可读自证契约（`允许清单 N 条` / `命中合计 N 条`）恰在零计数态失效；T22 的 `grep -qE '允许清单 [0-9]+ 条'` 与 T21 条数等式断言都依赖这两行。
+
+### 修复写法
+惯用法（bash 3.2 兼容）—— 命令替换成功后变量已持 `0`；`||` 只兜非零退出码 ⇒ 恒为单行：
+```bash
+# flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:106-109
+ALLOWLIST_COUNT=$(grep -cvE '^[[:space:]]*(#|$)' "$TMP_ALLOWLIST" 2>/dev/null) || ALLOWLIST_COUNT=0
+# :247
+HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null) || HITS_TOTAL=0
+```
+
+### 新旧 sha256
+| 版本 | sha256 |
+|---|---|
+| 第一轮（缺陷版，`e4dd4f8`） | `ab34082e1f7d31fce7593b482828b7eddd9cf7313a4ec6db5fe344a65809f585` |
+| 修复轮 1（L-133 排除粒度，`75e06e9`） | `2d424d5af619fb311f60be748baf542a89d1bb59cfcfcd51282a55f02d8f66da` |
+| 修复轮 2（本提交） | `33d34d90bd595af53b9406ef483117e6900742c459851cd7462a142cda22df7b` |
+
+### 判别力注入与复原证据（L-132 · 命中真出口）
+- **注入**：两行退回 `|| printf '0'`（折断形态）。
+- **注入后 verify 夹具对应断言变红**：
+  ```
+  injected verify rc=1
+  🔍 … 允许清单 0 / 0 条 … 命中合计 0 / 0 条 …
+  🔴 自证行「允许清单 N 条」在零计数态被折断（应为单行）
+  ```
+- **复原**：`cp /tmp/t17_fix2.sh`；`sha256sum` = `33d34d90…`（与修复值一致）。
+
+### 工件判据原样抽取实跑
+`task-brief … T17 | awk … | bash`（54 行，含 L50-54 自证行格式判别子）⇒ **rc=0**。
+
+### 零计数态与非零态自证行逐行原文
+**零计数态**（phonly fixture，`允许清单 0 条`）：
+```
+   扫描面: 工作树
+   允许清单来源: flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
+   允许清单 0 条
+   命中合计 0 条（含占位符排除后）
+   清单外命中 0 条
+✅ 清单外命中 0 条（允许清单内残留只暴露不阻塞）
+```
+**非零命中态**（mixed fixture，`命中合计 1 条`）：
+```
+   扫描面: 工作树
+   允许清单来源: flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
+   允许清单 0 条
+   命中合计 1 条（含占位符排除后）
+   清单外命中 1 条
+   ── 清单外命中归因（file:line）──
+   mixed.txt:1: mixed /home/<acct>/x /home/user/y
+🔴 清单外命中 1 条（非允许清单命中 ⇒ 阻塞，ADR-027 ②③ / ADR-028 决策 2）
+```
+两态自证行均**单行**（修复前为两行折断）。
+
+### 门禁输出
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| 单元测试 | `make test` | 973 ok / 0 not ok / rc=0 |
+| shellcheck | `make lint` | `✅ shellcheck: no errors found` / rc=0 |
+| hooks 同步 | `make check-hooks-sync` | `✅ hooks 副本一致（漂移 0）` / rc=0 |
+| hooks --check | `bash sync-hooks.sh --check` | `✅ hooks 副本一致（漂移 0）` / rc=0 |
+
+### 为何前两轮判据都没抓到
+前两轮判据只 grep 归因（`leak.txt`）与「扫描面」字样，**从未约束自证行的行形状**（L-121 族：命令 ≠ 断言）。`grep -q '扫描面'` 只查「是否含」，不查「是否单行」；`grep -q 'leak.txt'` 只查归因存在性。零计数态自证行折断成两行后，`grep -qE '允许清单 [0-9]+ 条'` 若不锚定行首行尾，仍可能在跨行拼接的文本流里匹配到子串 —— 主 agent 补强的 L50-54 用 `^…$` 行锚定精确约束单行形状，才暴露此缺陷。
