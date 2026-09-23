@@ -747,7 +747,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     printf '%s' "$_ph_out" | grep -qE '^   命中合计 [0-9]+ 条（含占位符排除后）$' || { printf '%s\n' "$_ph_out"; echo "🔴 自证行「命中合计 N 条」在零计数态被折断（应为单行）"; cd "$_cwd"; exit 1; };
     printf '%s' "$_mix_out" | grep -qE '^   命中合计 1 条（含占位符排除后）$' || { printf '%s\n' "$_mix_out"; echo "🔴 非零计数态自证行格式不符"; cd "$_cwd"; exit 1; };
   </verify>
-  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）</done>
+  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）；**修复轮 1 + 2** 后（L-133 逐命中占位符判定 · L-134 自证行零计数态单行化）：脚本 297 行、sha256 `33d34d90…`、判据 54 行（含自证行格式判别子）原样跑 rc=0；主 agent 额外验证 `CHECK_REV` 的轻量 tag / 附注 tag / 分支 / sha 四形态解析与未解析 ref 的 fail-closed（`扫描面: …（未解析）`）</done>
   <depends_on>T13</depends_on>
 </task>
 
