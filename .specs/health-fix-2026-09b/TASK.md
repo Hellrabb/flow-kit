@@ -1037,7 +1037,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T21, T22</depends_on>
 </task>
 
-<task id="T24" parallel="true" status="pending" model-tier="standard">
+<task id="T24" parallel="true" status="done" model-tier="standard">
   <name>分发件处置（D4）：重建 `0.2.0`、删除可注入的 `0.1.0`</name>
   <read_files>
     <`package-dsh-plugin.sh`（只读 · 无参数即构建，`TARBALL="$DIST_DIR/dsh-flow-kit-${VERSION}.tgz"`；**不在禁动清单**）>
