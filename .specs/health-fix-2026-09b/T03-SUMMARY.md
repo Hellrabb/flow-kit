@@ -241,6 +241,26 @@ $ ls -l flow-kit-bundle/hooks/pre-push/
 
 **未使用 `git commit --no-verify` 或任何绕过门禁的写法**（`LESSONS.md` **L-126 ②** 明令禁止 —— 该条正源于 T01 的一次真实绕过）；pre-commit（`flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 跑 `make test`，bats 约 1–2 分钟）**真跑并等待**。门禁若失败 ⇒ 捕获完整输出并以 `STATUS: BLOCKED` 上报，不绕过、不改测试（见本文件「门禁实跑结果」段）。
 
-### 门禁实跑结果
+### 门禁实跑结果（未绕过）
 
-见本任务最终汇报的 `STATUS:` 段；门禁输出（含 `ok`/`not ok` 计数与 rc）由本任务在提交时实跑采集。
+```bash
+$ git add .specs/adr/022-git-hook-deployment.md .specs/health-fix-2026-09b/TASK.md \
+        .specs/health-fix-2026-09b/T03-SUMMARY.md .specs/health-fix-2026-09b/MINOR-DEFERRED.md
+$ git commit -m 'docs(health-fix-2026-09b): T03 ADR-022 追加部分 Superseded-by（新增 pre-push 注入面 · 原正文只追加不改写）'
+```
+
+```
+🧪 make test: running bats...
+ok 971 CF-01: write_compliance_correction creates valid JSON with all fields
+ok 972 CF-02: write_compliance_correction merges with existing + dedup
+ok 973 CF-03: clear_compliance_correction removes the file
+✅ bats: all tests passed
+[develop c23213e] docs(health-fix-2026-09b): T03 ADR-022 追加部分 Superseded-by（新增 pre-push 注入面 · 原正文只追加不改写）
+ 4 files changed, 330 insertions(+), 1 deletion(-)
+ create mode 100644 .specs/health-fix-2026-09b/T03-SUMMARY.md
+=== COMMIT_RC=0 ===
+```
+
+- **`make test` 真跑并全绿**（`bats` 末条 `ok 973` + `✅ bats: all tests passed`），**未使用 `--no-verify`**、未绕过任何门禁、未改测试（L-126 ②）。
+- `4 files changed, 330 insertions(+), 1 deletion(-)` —— 那个 `1 deletion` 位于 `TASK.md` 的 T03 头行（`status="pending"` → `status="done"`），**不在 ADR-022**（ADR-022 自身为 `75	0`，见上「证据 1」）。
+- commit sha `c23213e` 为**落档引用**（权威源仍是 `.flow-active.goal.task_progress[]`）；按 **L-126 ③**「提交内容不可能写下自己的最终 sha」，本行是提交**之后**的补记。
