@@ -280,7 +280,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T08" parallel="true" status="pending" model-tier="top">
+<task id="T08" parallel="true" status="done" model-tier="top">
   <name>AC-4：`check-gate-sync.sh` 由比行数改为比内容 + 打印覆盖度 `校验对 3/14`</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（全文 · 159L；:16/:39/:43 现行计数判据；:85-107 check_gate_config_sync；:138 校验对定义；:157 汇总行）>

@@ -136,3 +136,15 @@
 > **定式**：脱敏/改名类任务必须先做「消费方枚举 + 逐处耦合判定」，把结论（命中总数 + 每个 `file:line` + 是否耦合）落档，
 > 再做替换 —— 枚举是**证据**，不是形式步骤。
 
+## 🧭 主 agent 裁定（阶段 4 · T07 两项遗留 · 2026-09-23）
+
+**遗留 1「归档面未做」= 已分配，不必新建 task。** `REQUIREMENT.md:641` 的 AC-5 验收本就含分发件（`tar xzOf dist/dsh-flow-kit-0.2.0.tgz | grep -ac chisel` 由 **6 → 0**）；TASK 中该面归 **T24**（重建 `dist/dsh-flow-kit-0.2.0.tgz`、处置 `0.1.0.tgz`）与 **T27**（分发件复扫）。主 agent 实测「修复前」基线（2026-09-23 · **逐档、禁通配**，以免重演 `REQUIREMENT.md:642` 记录的 rc=2 构造性假绿）：`dist/dsh-flow-kit-0.2.0.tgz` = **6**、`dist/dsh-flow-kit-0.1.0.tgz` = **0**、`dist/dsh-flow-kit/vendor/flow-kit-bundle/test/test_correction_hygiene.bats` = **5**、`…/test_l3_review_defects_2026_09.bats` = **1**。⇒ 现阶段 `make check-dist` **预期为红**（dist/vendor 的 test 副本未随源更新）；**在 T24 之前不得据此判定任何 task 失败**。
+
+**遗留 2「文档面」（`.specs/health/2026-09-22-FULL-SWEEP.md` 仍有 9 处 `chisel`）= 不扩大 AC-5 口径。** 理由：本 change 的全部工件（`REQUIREMENT.md` / `DESIGN.md` / `TASK.md` / 各审查档）**必须**指名被脱敏的目标串才能描述判据本身 —— 若把 `.specs/` 纳入 AC-5，则 AC-5 会与它自己的验收记录互相矛盾（判据档自身即含命中）。AC-5 的实测判据（`REQUIREMENT.md:640-642`）限定为 `flow-kit-bundle/test/` 与**分发件**（出厂面）；`.specs/` 属仓内过程记录、不随分发件出厂 ⇒ 保持在范围外。**若用户要求连仓内过程记录一并脱敏，那应另开 change**（换判据：逐档豁免清单 + 变更工件白名单），本 change 不夹带。
+
+
+## 🟢 T08（AC-4 · check-gate-sync 内容比对）· 已知接受项（2026-09-23）
+
+- **TC1/TC2（`check_gate_config_sync()` 值比较逻辑缺陷）= 🔴 留 v2。** 同文件内 `check_gate_config_sync()` 的 set-diff 值比较仍存在 TC1（390 行 mock 自证）与 TC2（值盲视）缺陷，严重度按巡检升级为 🔴（TD-033/TD-034）。**DESIGN D5 明确本 task 不收**：AC-4 只改 PCSC 判据，不碰值比较；强行并入会让本 change 范围失控。本 change 结束后 TC1/TC2 仍是活缺陷。
+- **其余 11 对载体漂移无门禁覆盖 = 🟢 v1 边界接受。** v1 仅覆盖 3/14 对（内容本应一致、仅差 front-matter 的对）；其余 11 对已实质分叉（最惨 `6-review`↔`flow-review` 仅 28 行交集），强行纳入会让门禁立刻红且无法收敛。全量 14 对同步策略属 v2/TD-025（镜像 or 允许差异的精简版）。已在门禁输出打印覆盖度 `校验对 3/14` 防误读。
+- **6 维自查无 🟡 / 🟢 需修项。** R1–R6 全 ✅（详见 `T08-SUMMARY.md` §9）。
