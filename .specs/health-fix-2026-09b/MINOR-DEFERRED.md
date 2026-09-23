@@ -616,3 +616,26 @@ T19 首轮 BLOCKED 暴露真实产品缺陷：`flow-kit-bundle/hooks/pre-push/pr
 
 - `check-dist` 仍红 ⇒ **只**由 T24 重建 dist 收口（T24 必须是最后一个改动源面的步骤）。
 - `test/test_lessons_cleanup.bats:82-95` 的 AC-3「注入 gap 文件断言 rc≠0」在**真实 bundle 本身已有 gap** 时空转通过（假绿）；`:99-122` 的 AC-4 夹具是**合成最小 bundle**（只 `touch` 文件、从不创建 `hooks/pre-commit/` 或 `hooks/pre-push/`）⇒ 结构上抓不到此类漏配 ⇒ T11 修复轮 2 因此补了「对真实 bundle 硬断言」的 3 条用例。
+
+## ✅ T24 复核记录（主 agent 独立复核 · 十一项 + 活性探针 · 2026-09-24）
+
+交付 `126b5c7b29ac5f30de688c65fe055f20df4eb6d9`（`chore(health-fix-2026-09b): T24 分发件处置——重建 0.2.0 并删除可注入的 0.1.0`，`%cI` 2026-09-24T02:47:53+08:00）；numstat 恰 2 文件 = `T24-SUMMARY.md` 132/0、`TASK.md` 1/1。
+
+| # | 复核项 | 结果 |
+|---|---|---|
+| 1 | numstat / blob | 恰 2 文件；两文件 blob == HEAD ✓ |
+| 2 | TASK.md 差异 | 恰 1 行（T24 `status="pending"`→`"done"`）✓ |
+| 3 | 台账 | length **27**；末条 `{"id":"T24","commit_sha":"126b5c7","fix_rounds":0,"deferred":[],"completed_at":"2026-09-24T02:47:53+08:00"}`；与 `%cI` **Δ=0s**（L-127 ✓） |
+| 4 | 结构不变量 / done 计数 | `<task id=` / `<verify>` / `</task>` / `<depends_on>` / `<action>` 各 **29**；精确 done 计数 **27** == 台账 length ✓ |
+| 5 | 冻结集 | `git status --short` 恰 5 个冻结 `A `（CHANGE / INDEPENDENT-REVIEW-1/2/3 / REQUIREMENT）✓ |
+| 6 | dist 现场 | 仅剩 `dist/dsh-flow-kit-0.2.0.tgz`（1385199 B · 9月24 02:44 · 本次重建）；`0.1.0.tgz` 已删除 ✓ |
+| 7 | 归档成员（我亲跑 `tar tzf`） | 两个 pre-push 成员都在：`dsh-flow-kit/hooks/pre-push/pre-push.sh`（**顶层**，T11 修复轮 2 生效）+ `dsh-flow-kit/vendor/flow-kit-bundle/hooks/pre-push/pre-push.sh`（vendored）✓ |
+| 8 | **源一致性（比判据更强）** | 两个归档成员的 sha256 **均 ==** 源 `flow-kit-bundle/hooks/pre-push/pre-push.sh` 的 `581237c21b641345a3c6ef6319d09036a58b3467cc057487dcb68f8ca789d0c9`（即含 T11 修复轮 1 的版本）；归档内 `CHECK_REV` 计数 = 2 ✓ |
+| 9 | **判据原样实跑（我独立抽取）** | 抽 18 行到 `/tmp/vblocks/v_T24.sh`（`bash -n` OK），`bash v_T24.sh` **rc=0**，输出 `归档内 pre-push 成员：…` / `0.2.0: eval-echo=0` / `0.2.0: chisel=0`；verify 里「顶层 `hooks/` 无 pre-push」的 ℹ️ 分支**未触发** ✓ |
+| 10 | **活性探针（我亲跑 · 防恒绿）** | (a) 造一个假 `dist/dsh-flow-kit-0.1.0.tgz` ⇒ rc=1 且报文 `🔴 可注入的旧归档仍在（须删除）`；删除后 rc=0 ✓。(b) 把 `0.2.0.tgz` 移走 ⇒ rc=1 且报文 `🔴 0.2.0 未重建`；复原后 `cmp -s` 逐字节一致 + rc=0 ✓。收尾 `git status --short` 仍恰 5 个冻结 `A `、`dist/` 恢复原状 ✓ |
+| 11 | 全量电池（我亲跑 · 后台作业 `bash-189`） | `lint` / `check-validate` / `check-test-sync` / `check-hooks-sync` / `check-gate-sync` / `check-path-privacy` / `check-nfr-portability` / **`check-dist`** 全 rc=0；`sync-hooks.sh --check` rc=0；`npx bats test/` rc=0（ok=976 / not_ok=0 / skip=0）；12 条历史判据 `v_T02/11/17/18/19/20/21/22/23/25/26/28` 全 rc=0 ⇒ **本 change 首次全套门禁全绿** ✓ |
+
+### ℹ️ 两条备查
+
+1. **判据块抽取手法（L-125 族）**：T24 执行者报告「先前 `awk '/<task id="T24"/,/<\\/task>/'` 跨任务被证伪」，改用行锚定 `sed -n '1040,/^<\\/task>/p'` 精准取块；我的独立抽取用 `awk` 范围式取得 18 行并与执行者一致、`bash -n` 通过、实跑 rc=0 ⇒ 两种手法在本块结果相同。定式：抽 `<verify>` **优先行锚定**（`sed -n '<起始行>,/^<\\/task>/p'`），`awk` 范围式在同名串出现在块内时会跨任务（对比 L-143 同族经验）。
+2. **T27 的 bats 基线措辞陈旧**：T27 的 `<verify>` 仍写 `b_ok -ge 973` 与「基线 973 ok」（实测已 976 ok / 0 not ok / 0 skip）⇒ 该判据**不会因此变红**（`>=`），但措辞须在 T29 的陈旧口径清理里一并对齐（与 `.specs/STATE.md:48` 同批）。

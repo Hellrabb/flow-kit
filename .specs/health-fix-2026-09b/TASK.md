@@ -1077,7 +1077,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     c=$(tar xzOf dist/dsh-flow-kit-0.2.0.tgz | grep -ac chisel);
     echo "0.2.0: chisel=$c"; [ "$c" -eq 0 ] || { echo "🔴 归档仍含内部项目名"; exit 1; }
   </verify>
-  <done>AC-1④ + AC-5：重建后的归档 `eval-echo=0` / `chisel=0`，且可注入的 `0.1.0` 已删除（修复前实测：0.1.0=2 处 eval-echo、0.2.0=2 处 eval-echo + 6 处 chisel）</done>
+  <done>AC-1④ + AC-5：重建后的归档 `eval-echo=0` / `chisel=0`，且可注入的 `0.1.0` 已删除（修复前实测：0.1.0=2 处 eval-echo、0.2.0=2 处 eval-echo + 6 处 chisel）；**主 agent 复核**（2026-09-24 · 十项 + 活性探针）：归档内两个 pre-push 成员（顶层 + vendored）sha256 **均 ==** 源 `581237c2…d0c9`（即含 T11 修复轮 1 的版本）、判据 18 行原样实跑 rc=0、假 `0.1.0` ⇒ `🔴 可注入的旧归档仍在（须删除）`、移走 `0.2.0` ⇒ `🔴 0.2.0 未重建`（复原后 `cmp` 逐字节一致）；`check-dist` 红已由本次重建收口 ⇒ **T24 = PASS（`fix_rounds=0`）**</done>
   <depends_on>T05, T07, T11, T12, T16, T20, T25, T26</depends_on>
 </task>
 
