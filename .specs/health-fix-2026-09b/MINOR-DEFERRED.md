@@ -528,7 +528,7 @@ T19 首轮 BLOCKED 暴露真实产品缺陷：`flow-kit-bundle/hooks/pre-push/pr
 | 2 | 台账 | length 25；末条 `{T19, 916f979…, fix_rounds:0, deferred:[], completed_at 23:52:02+08:00}`；`%cI` 23:51:56 ⇒ Δ=6s ✓ |
 | 3 | TASK.md 差异 | 恰 1 行（`:818` `status="pending"`→`"done"`）✓ |
 | 4 | **判据原样实跑（主 agent 亲跑）** | 抽 33 行到 `/tmp/vblocks/v_T19.sh`，`bash -n` OK；**`bash v_T19.sh` rc=0** ✓ |
-| 5 | 判据输出中的关键证据（我亲见） | 夹具自检：干净态 `清单外命中 0 条` / 泄漏态 `🔴 清单外命中 1 条` + 归因 `leak.txt:1: /home/<redacted>/leak`；**评估面那一跳实测 `扫描面: eb5208766f27d366cf4cc38aa0c7dcfdbedd8c99`（是 rev，不是「工作树」）⇒ T11 修复轮 1 确实把评估面切到被推送对象** ✓；末段落 `* [new branch] develop -> develop` = CLEAN-PASS ✓ |
+| 5 | 判据输出中的关键证据（我亲见） | 夹具自检：干净态 `清单外命中 0 条` / 泄漏态 `🔴 清单外命中 1 条` + 归因 `leak.txt:1: /home/<acct>/leak`；**评估面那一跳实测 `扫描面: eb5208766f27d366cf4cc38aa0c7dcfdbedd8c99`（是 rev，不是「工作树」）⇒ T11 修复轮 1 确实把评估面切到被推送对象** ✓；末段落 `* [new branch] develop -> develop` = CLEAN-PASS ✓ |
 | 6 | 四形态指名 ref（执行者逐形态记录 + 我实跑无 🔴） | `push origin main` ⇒ 指名 `refs/heads/main`；`push --all` ⇒ **指名 `refs/heads/main`**（首轮错指 develop 的修复点）；`push --mirror` ⇒ 指名 `refs/heads/main`；`push origin --tags` ⇒ 指名 `refs/tags/v1` ✓ |
 | 7 | 归因对照 | `mv` 走 hook 后同一泄漏 push `rc_off=0`（拦截确由 hook 产生）✓ |
 | 8 | 门禁与回归 | `npx bats test/` 973/0/0；`make lint`、`make check-hooks-sync`、`sync-hooks.sh --check`、`make check-path-privacy` 全 0；`v_T11/T17/T20/T25/T26` 全 0；pre-commit 门禁随提交真跑通过 ✓ |
