@@ -1174,7 +1174,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
   <depends_on>T18, T21</depends_on>
 </task>
 
-<task id="T27" parallel="true" status="pending" model-tier="standard">
+<task id="T27" parallel="true" status="done" model-tier="standard">
   <name>分发件复扫（AC-1④ + AC-5）：归档逐文件、禁通配、计数非 0 必须非零退出</name>
   <read_files>
     <`dist/dsh-flow-kit-0.2.0.tgz`（T24 重建）>
