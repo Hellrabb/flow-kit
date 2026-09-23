@@ -162,7 +162,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T05" parallel="true" status="pending" model-tier="standard">
+<task id="T05" parallel="true" status="done" model-tier="standard">
   <name>PC1：移除 `runtime-edit-guard.sh` 的 eval 载荷求值（纯参数展开 + 绝对值校验）</name>
   <read_files>
     <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（全文 · 103L；:46 为目标行）>

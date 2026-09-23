@@ -11,7 +11,11 @@
 #   2. tool_input.file_path 命中 ~/.claude/{hooks,skills}/
 #   3. 对应 flow-kit-bundle/ 维护源存在（否则放行——可能是不属于 flow-kit 的 user-level 配置）
 #
-# fail 策略：fail-open（拦不住不卡 agent 工具流）
+# fail 策略（health-fix-2026-09b · T05 收缩，如实订正）：整体仍 fail-open——
+# jq 不可用 / stdin 解析失败等意外错误 → 放行，不阻塞 agent 工具流。
+# 但**路径解析这一步改为 fail-closed**：`~` / `~/` 一律纯参数展开，展开后结果
+# 必须以 `/` 开头，否则（相对路径 / `~user` / 空串等无法解析为绝对路径者）一律 `exit 2`。
+# 注意与「以 $HOME/ 开头」区分：以 `/` 开头是**绝对值校验**，故 /tmp/x 等合法绝对路径不被误拒。
 #
 # PreToolUse stdin: {hook_event_name, tool_name, tool_input:{file_path}, ...}
 # exit 2 = deny（agent 看得到 stderr 引导消息）
@@ -22,7 +26,9 @@
 set -euo pipefail
 
 # ── fail-open wrapper ─────────────────────────────────────────────────────
-# 任何意外错误（jq 不可用 / stdin 解析失败 / 路径计算错误）→ 放行，不阻塞 agent。
+# jq 不可用 / stdin 解析失败等意外错误 → 放行，不阻塞 agent。
+# （T05 收缩：**路径解析改 fail-closed**，见下方规范化步骤——路径无法解析为绝对路径一律 exit 2，
+#   不属此处「意外错误→放行」的 fail-open 范围。）
 main() {
   local stdin_data
   stdin_data=$(cat 2>/dev/null) || return 0
@@ -38,12 +44,26 @@ main() {
     *) return 0 ;;
   esac
 
-  # 路径必须非空
-  [[ -n "$file_path" ]] || return 0
+  # 路径必须非空 —— 空串直接拒绝（fail-closed，D6 七态：空串 ⇒ exit 2）
+  [[ -n "$file_path" ]] || { echo "runtime-edit-guard: file_path 为空串，拒绝" >&2; exit 2; }
 
-  # 规范化路径（展开 ~ + 相对路径转绝对）
+  # 规范化路径：**纯参数展开** `~`（health-fix-2026-09b · T05，消除 eval 求值注入）。
+  #   `~` 整体      ⇒ $HOME
+  #   `~/...` 前缀  ⇒ $HOME/ + 余部
+  #   其余一律不展开（含 `~user/...` —— 不引入 getent/passwd 查询，也不依赖 shell 的
+  #   `~user` 语义，安全优先显式收缩）
+  # 展开后做**绝对值校验**：结果必须以 `/` 开头，否则 exit 2（fail-closed）。
+  #   注意不是「以 $HOME/ 开头」——那会误拒 /tmp/x 等合法绝对路径。
   local real_path
-  real_path=$(eval echo "$file_path" 2>/dev/null) || real_path="$file_path"
+  case "$file_path" in
+    \~)      real_path="$HOME" ;;
+    \~/*)    real_path="$HOME/${file_path#\~/}" ;;
+    *)       real_path="$file_path" ;;
+  esac
+  [[ "$real_path" == /* ]] || {
+    echo "runtime-edit-guard: 无法解析为绝对路径，拒绝: ${file_path}" >&2
+    exit 2
+  }
 
   # ── 平台感知的运行时副本判定（dsh-flow-kit 解耦）──
   local runtime_kind=""
