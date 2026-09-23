@@ -162,7 +162,8 @@
 
 ## 🟢 T09（AC-7 前两条 · 恒真消除 + 断言对象订正）· 已知接受项（2026-09-23）
 
-- **`make test` 门禁的隔离 TMPDIR 驱动方式 = 🟢 环境口径，非缺陷。** 本机 `/tmp` 现存 **148 个无关 `tmp.*`**（其它进程/历史残留），而 AC-7 的新断言扫描根 = `${TMPDIR:-/tmp}` 单层 `tmp.*`（task 规定形态，禁止裸 `/tmp/tmp.*` 匹配），在**未设 `TMPDIR`** 时会回落 `/tmp` ⇒ 默认无隔离的 `make test` 会因无关文件**假红**。任务 `<verify>` 段本身就**要求**以 `TMPDIR="$td2"` 隔离驱动（健康态判绿的唯一正确方式）；以隔离 `TMPDIR` 跑全量 `make test` 得 **973 ok / 0 not ok / rc=0**，与基线逐项一致 ⇒ 门禁数字满足，只是**正确运行姿势必须是隔离 TMPDIR**。这是环境状态（脏 `/tmp`）与「扫描根 = `${TMPDIR:-/tmp}`（task 规定）」语义的固有交互，非断言可再收敛的空间 —— 任何以 `${TMPDIR:-/tmp}` 为扫描根的断言在脏 `/tmp` 下都无法同时满足「健康态绿 + 隔离注入判红」，故门禁须以隔离 `TMPDIR` 驱动。后续动作：无（v2 如想让默认 `make test` 也绿，可考虑套一层「批内隔离 TMPDIR」的 runner，但本 change 不引入）。
+- **spec 自相矛盾的订正（1.8 fix loop 第 1 轮）**：TASK.md T09 原句「扫描根改为 `${TMPDIR:-/tmp}` 的单层 `tmp.*`…**禁用**裸 `/tmp/tmp.*`」本身自相矛盾 —— TMPDIR 未设时 `${TMPDIR:-/tmp}` **就是** `/tmp`，而本机 `/tmp` 现存 148 个无关 `tmp.*` ⇒ 默认环境恒红。责任在主 agent（spec 错，非执行错），修法已落**测试自身**（不靠调用者约定）。修复后断言面自带无噪声根（`$TEST_TMPDIR/scan`），`env TMPDIR="$root"` 驱动被测命令、只扫 `"$root"/tmp.*`，与环境 `/tmp` 彻底解耦 ⇒ **默认环境（TMPDIR 未设、/tmp 有 148 个无关文件）下 `make test` = 973 ok / 0 not ok / rc=0**，`env -u TMPDIR npx bats test/test_combined_metric.bats` = 2/2 ok。此前的「门禁须隔离 TMPDIR 驱动」口径随此订正**作废**。
+- **本 test 现在断言什么（如实声明，不编造产品语义）**：`INT-COMBINED-1-cleanup` 断言的是**用例自身的临时文件生命周期在自有根内自洽且无残留** —— 在 `TMPDIR="$root"` 驱动下用 `mktemp` 造临时文件并随建随删（复刻 INT-COMBINED-1 的建/删模式），然后断言 `"$root"/tmp.*` 无残留（grep 无命中）。它**不直接测 task-brief 的输出正确性**（那是 INT-COMBINED-1 的 `≤20000` 字节断言），而是收敛 AC-7「恒真消除」的判据到可区分的真红/真绿，并外加上游裁决要求的「断言面自带扫描根、不回落环境 /tmp」卫生面。若未来要让该用例真测产品残余，需在 INT-COMBINED-1 与 cleanup 间共享一个文件级根（如 bats `setup_file`），属 v2，本变更不收。
 
 > ### ⚙️ 工艺说明（非缺陷 · T09 反向对照 · 2026-09-23）
 > 反向对照脚本初版因 `TEST_TMPDIR` 为空（在 bash -c 内未继承 bats `setup()` 的导出）导致
