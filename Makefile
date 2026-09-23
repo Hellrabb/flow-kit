@@ -162,6 +162,42 @@ check-path-privacy:
 check-nfr-portability-internals:
 	@bash -euo pipefail -c ' \
 		_write_rc() { [ -n "$${NFR_RC_FILE:-}" ] && printf "%s\n" "$$1" > "$$NFR_RC_FILE" || true; }; \
+		_report_viol() { \
+			_pat="$$1"; _hdr="$$2"; \
+			_found=0; \
+			for _f in $$(git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); do \
+				[ -e "$$_f" ] || continue; \
+				_tf=$$(mktemp); \
+				git -c core.quotepath=false diff -U0 "$$BASE" -- "$$_f" 2>/dev/null | awk -v FN="$$_f" -v P="$$_pat" -v TF="$$_tf" '\'' \
+					BEGIN { c=0; found=0 } \
+					/^@@/ { match($$0, /\+[0-9]+/); c = substr($$0, RSTART+1, RLENGTH-1)+0; next } \
+					/^\+\+\+/ { next } \
+					/^\+/ { \
+						line = substr($$0, 2); \
+						if (line ~ /^[[:space:]]*#/) { c++; next } \
+						gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", line); \
+						if (line ~ P) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } \
+						c++ \
+					} \
+					END { if (found) print "1" > TF } \
+				'\''; \
+				[ -s "$$_tf" ] && _found=1; \
+				rm -f "$$_tf"; \
+			done; \
+			for _nf in $$(git -c core.quotepath=false ls-files -o --exclude-standard 2>/dev/null | grep -E "\.sh$$" || true); do \
+				[ -e "$$_nf" ] || continue; \
+				_hits=$$(grep -nE "$$_pat" "$$_nf" 2>/dev/null | sed -E "s/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*//g" | grep -E "$$_pat" || true); \
+				if [ -n "$$_hits" ]; then \
+					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
+						_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \
+						_rest=$$(printf "%s" "$$_h" | sed -n "s/^[0-9]*://p"); \
+						printf "%s:%s:%s\n" "$$_nf" "$$_ln" "$$_rest" >&2; \
+					done; \
+					_found=1; \
+				fi; \
+			done; \
+			[ "$$_found" = "1" ] && { printf "%s\n" "$$_hdr" >&2; return 0; } || return 1; \
+		}; \
 		BASE="$${FLOW_KIT_CHANGE_BASE:-$$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}"; \
 		if [ -z "$$BASE" ]; then \
 			echo "SKIP: 变更起点锚点缺失（.change-base 不存在且 \$$FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证"; \
@@ -175,18 +211,12 @@ check-nfr-portability-internals:
 		if [ -z "$$ADDED" ] && [ -z "$$NEWF" ]; then \
 			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
 		fi; \
-		SCAN=$$( { printf "%s\n" "$$ADDED"; [ -n "$$NEWF" ] && cat $$NEWF; } | grep -vE "^\+?[[:space:]]*#" || true ); \
-		WL='"'"'stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*'"'"'; \
-		if printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
-			| grep -qE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; then \
-			echo "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：" >&2; \
-			printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
-				| grep -nE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf" >&2; \
+		BAN="declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\\brealpath\\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; \
+		if _report_viol "$$BAN" "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
-		if printf "%s\n" "$$SCAN" | grep -qE "(^|[^-[:alnum:]_])timeout[[:space:]]"; then \
-			echo "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）：" >&2; \
-			printf "%s\n" "$$SCAN" | grep -nE "(^|[^-[:alnum:]_])timeout[[:space:]]" >&2; \
+		TMOUT="(^|[^-[:alnum:]_])timeout[[:space:]]"; \
+		if _report_viol "$$TMOUT" "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
 		CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
@@ -217,6 +247,42 @@ check-nfr-portability:
 	export NFR_RC_FILE="$$NFR_RC"; \
 	bash -euo pipefail -c ' \
 		_write_rc() { [ -n "$${NFR_RC_FILE:-}" ] && printf "%s\n" "$$1" > "$$NFR_RC_FILE" || true; }; \
+		_report_viol() { \
+			_pat="$$1"; _hdr="$$2"; \
+			_found=0; \
+			for _f in $$(git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); do \
+				[ -e "$$_f" ] || continue; \
+				_tf=$$(mktemp); \
+				git -c core.quotepath=false diff -U0 "$$BASE" -- "$$_f" 2>/dev/null | awk -v FN="$$_f" -v P="$$_pat" -v TF="$$_tf" '\'' \
+					BEGIN { c=0; found=0 } \
+					/^@@/ { match($$0, /\+[0-9]+/); c = substr($$0, RSTART+1, RLENGTH-1)+0; next } \
+					/^\+\+\+/ { next } \
+					/^\+/ { \
+						line = substr($$0, 2); \
+						if (line ~ /^[[:space:]]*#/) { c++; next } \
+						gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", line); \
+						if (line ~ P) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } \
+						c++ \
+					} \
+					END { if (found) print "1" > TF } \
+				'\''; \
+				[ -s "$$_tf" ] && _found=1; \
+				rm -f "$$_tf"; \
+			done; \
+			for _nf in $$(git -c core.quotepath=false ls-files -o --exclude-standard 2>/dev/null | grep -E "\.sh$$" || true); do \
+				[ -e "$$_nf" ] || continue; \
+				_hits=$$(grep -nE "$$_pat" "$$_nf" 2>/dev/null | sed -E "s/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*//g" | grep -E "$$_pat" || true); \
+				if [ -n "$$_hits" ]; then \
+					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
+						_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \
+						_rest=$$(printf "%s" "$$_h" | sed -n "s/^[0-9]*://p"); \
+						printf "%s:%s:%s\n" "$$_nf" "$$_ln" "$$_rest" >&2; \
+					done; \
+					_found=1; \
+				fi; \
+			done; \
+			[ "$$_found" = "1" ] && { printf "%s\n" "$$_hdr" >&2; return 0; } || return 1; \
+		}; \
 		BASE="$${FLOW_KIT_CHANGE_BASE:-$$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}"; \
 		if [ -z "$$BASE" ]; then \
 			echo "SKIP: 变更起点锚点缺失（.change-base 不存在且 \$$FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证"; \
@@ -230,18 +296,12 @@ check-nfr-portability:
 		if [ -z "$$ADDED" ] && [ -z "$$NEWF" ]; then \
 			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
 		fi; \
-		SCAN=$$( { printf "%s\n" "$$ADDED"; [ -n "$$NEWF" ] && cat $$NEWF; } | grep -vE "^\+?[[:space:]]*#" || true ); \
-		WL='"'"'stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*'"'"'; \
-		if printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
-			| grep -qE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; then \
-			echo "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：" >&2; \
-			printf "%s\n" "$$SCAN" | sed -E "s/$$WL//g" \
-				| grep -nE "declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\brealpath\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf" >&2; \
+		BAN="declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\\brealpath\\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; \
+		if _report_viol "$$BAN" "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
-		if printf "%s\n" "$$SCAN" | grep -qE "(^|[^-[:alnum:]_])timeout[[:space:]]"; then \
-			echo "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）：" >&2; \
-			printf "%s\n" "$$SCAN" | grep -nE "(^|[^-[:alnum:]_])timeout[[:space:]]" >&2; \
+		TMOUT="(^|[^-[:alnum:]_])timeout[[:space:]]"; \
+		if _report_viol "$$TMOUT" "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
 		CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
