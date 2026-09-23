@@ -105,7 +105,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T03" parallel="true" status="pending" model-tier="cheap">
+<task id="T03" parallel="true" status="done" model-tier="cheap">
   <name>ADR-022 追加 `Superseded-by`（部分：新增 pre-push 注入）</name>
   <read_files>
     <`.specs/adr/022-git-hook-deployment.md`（全文 · 保留原决策正文）>
