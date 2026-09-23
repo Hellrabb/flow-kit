@@ -188,3 +188,10 @@
 > `grep -qE '^[[:space:]]*skip([[:space:]]|$)'`（只匹配真 `skip` 调用形态，不匹配注释文本），并保留
 > 一条 的 AC-4 存在性前置 `grep -q 'AC-4: …exit = 0'` 防 sed 无匹配静默通过。双态实测：注释含「原 skip」
 > 仍绿；注入真 `skip "临时注入"` 必红。
+
+## 🟢 T11（AC-3(a) · 新建 pre-push 拦截器本体）· 已知接受项（2026-09-23）
+
+- **dist 件缺失直到打包阶段刷新（非缺陷）**：`make check-dist` 在源→dist 重建前对我新增的
+  `flow-kit-bundle/hooks/pre-push/pre-push.sh` 报两条「缺失」（`dist/dsh-flow-kit/hooks/pre-push/pre-push.sh`
+  与 vendor 镜像）。这是**打包件新鲜度缺口**（源正确性不受影响，且 `check-dist` 整体本就预期红到 T24
+  收口）⇒ 判定为已知接受项，留给 `bash package-dsh-plugin.sh` 重建刷新（集成打包阶段），本 task 不重建 dist。

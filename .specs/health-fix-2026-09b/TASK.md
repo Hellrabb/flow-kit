@@ -403,7 +403,7 @@ Wave 7 (收口 · 全量无退化)                  : T29
   <depends_on></depends_on>
 </task>
 
-<task id="T11" parallel="true" status="pending" model-tier="standard">
+<task id="T11" parallel="true" status="done" model-tier="standard">
   <name>AC-3(a)：新建 `pre-push` 拦截器本体（保留 `make check` 语义 + 100755）</name>
   <read_files>
     <`.git/hooks/pre-push`（既有 373 B 文件 · 内容含 `make check`；处置见 DESIGN D3）>
