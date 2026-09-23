@@ -720,9 +720,16 @@ Wave 8 (收口 · 全量无退化)                  : T29
     grep -vE '^[[:space:]]*#' "$S" | grep -qE 'reference/\*|skills/\*|\.specs/\*' && { echo "🔴 排除表含宽通配（禁；已剔除整行注释：脚本注释里写「不得用 reference/*」不算违规 —— L-125 族）"; exit 1; };
     grep -q 'reference/check-path-privacy.sh' "$S" || { echo "🔴 排除表未逐条列自指路径"; exit 1; };
     grep -vE '^[[:space:]]*#' "$S" | grep -qE 'mapfile|declare[[:space:]]+-A|readlink[[:space:]]+-[fe]|sed[[:space:]]+-i|grep[[:space:]]+-P' && { echo "🔴 含 bash4/GNU-only 构造（已剔除整行注释：只读代码行）"; exit 1; };
-    out=$(bash "$S" 2>&1); rc=$?;
-    [ "$rc" -eq 1 ] || { echo "🔴 清单缺失态 rc=$rc ≠ 1（fail-closed 未实现）"; exit 1; };
-    printf '%s' "$out" | grep -q 'path-privacy-allowlist.txt' || { echo "🔴 报文未指名缺失清单路径"; exit 1; };
+    # 清单缺失态（fail-closed）必须在「两份清单都不存在」的夹具里判定 —— 常设清单自 T21 起已冻结存在，
+    # 在真实仓根上跑永远是「有清单」态（旧断言自 T21 后恒红：判据陈旧，非门禁回归 · 主 agent 2026-09-23 订正）
+    _miss=$(mktemp -d /tmp/t17-miss-XXXXXX); trap 'rm -rf "$_miss"' EXIT;
+    mkdir -p "$_miss/flow-kit-bundle/flow-kit/reference";
+    cp "$S" "$_miss/flow-kit-bundle/flow-kit/reference/";
+    ( cd "$_miss" && git init -q . && git config user.email t@t && git config user.name t && git add -A && git commit -qm base );
+    out=$( cd "$_miss" && bash "./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" 2>&1 ); rc=$?;
+    [ "$rc" -eq 1 ] || { printf '%s\n' "$out"; echo "🔴 两清单皆缺态 rc=$rc ≠ 1（fail-closed 未实现）"; exit 1; };
+    printf '%s' "$out" | grep -q 'path-privacy-allowlist.txt' || { printf '%s\n' "$out"; echo "🔴 报文未指名缺失清单路径"; exit 1; };
+    rm -rf "$_miss";
     # 排除表完备性（阶段 3 L3 M8）：实际存在的审查档必须逐条列在门禁排除表内，否则后续阶段新增审查档会静默漂移
     n_ir=0; for f in $(ls .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-*.md 2>/dev/null | sort); do
       n_ir=$((n_ir+1));
@@ -769,7 +776,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     printf '%s' "$_ph_out" | grep -qE '^   命中合计 [0-9]+ 条（含占位符排除后）$' || { printf '%s\n' "$_ph_out"; echo "🔴 自证行「命中合计 N 条」在零计数态被折断（应为单行）"; cd "$_cwd"; exit 1; };
     printf '%s' "$_mix_out" | grep -qE '^   命中合计 1 条（含占位符排除后）$' || { printf '%s\n' "$_mix_out"; echo "🔴 非零计数态自证行格式不符"; cd "$_cwd"; exit 1; };
   </verify>
-  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）；**修复轮 1 + 2** 后（L-133 逐命中占位符判定 · L-134 自证行零计数态单行化）：脚本 297 行、sha256 `33d34d90…`、判据 54 行（含自证行格式判别子）原样跑 rc=0；主 agent 额外验证 `CHECK_REV` 的轻量 tag / 附注 tag / 分支 / sha 四形态解析与未解析 ref 的 fail-closed（`扫描面: …（未解析）`）</done>
+  <done>AC-6：门禁脚本落地且**清单缺失时 fail-closed**（rc=1 并指名缺失路径）、排除表逐条精确且无 bash4/GNU-only 构造；并支持 `CHECK_REV=<rev>` 外部评估面（缺省扫工作树；rev 模式下评估面是该 rev 的树，自证行报出扫描面）；**修复轮 1 + 2** 后（L-133 逐命中占位符判定 · L-134 自证行零计数态单行化）：脚本 297 行、sha256 `33d34d90…`、判据 54 行（含自证行格式判别子）原样跑 rc=0；主 agent 额外验证 `CHECK_REV` 的轻量 tag / 附注 tag / 分支 / sha 四形态解析与未解析 ref 的 fail-closed（`扫描面: …（未解析）`）〔2026-09-23 主 agent 订正：清单缺失态断言改为「两份清单皆缺」夹具（原断言在 T21 冻结常设清单后恒红，属判据陈旧而非门禁回归），判据 54→61 行〕</done>
   <depends_on>T13</depends_on>
 </task>
 
