@@ -9,27 +9,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUNDLE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ERRORS=0
+COMPARED=0    # 实际参与内容比对的 PCSC 对数（两侧文件均在才算；缺失对不计）
 
 # ============================================================================
 # 边界声明（DESIGN D5 / AC-4 · 必须随本文件维护）
 # ----------------------------------------------------------------------------
 # 本门禁只校验 PCSC（prompt↔skill 一致性校验对）判据，判据为「比内容」：
 #   比较对 = 内容本应一致、仅平台 front-matter（SKILL 独有的 YAML 头）不同的
-#   prompt↔skill 载体对。v1 覆盖 3/14 对（实测 diff 恒为 6 行 = front-matter）。
+#   prompt↔skill 载体对。v1 覆盖 3/PAIRS_TOTAL 对（实测 diff 恒为 6 行 = front-matter）。
 # 边界（DESIGN D5）：
 #   - 只改 PCSC 判据；**不碰**同文件 check_gate_config_sync() 的值比较逻辑
 #     （TD-033/TC1、TD-034/TC2 属 v2，本 change 不收）。
 #   - 排除 PCSC 表本身：reference/phase-prompt-template.md:144 明写其属
 #     「结构性文档化（不抽取）」，逐 phase 本就不应相同 —— 不纳入本门禁比较。
 #   - 排除 hooks 镜像面：已有 check-hooks-sync 专职守护，纳入属重复覆盖（L2 N2）。
-# 14 对全量同步策略属 v2/TD-025；本 v1 必须打印覆盖度「校验对 3/14」，
-#   防 :157 汇总行「✅ 所有校验对一致」被误读成 14 对全绿。
+# 全量同步策略属 v2/TD-025；本 v1 必须打印覆盖度「校验对 N/PAIRS_TOTAL」，
+#   其中 N 为实际比对对数（COMPARED），防汇总行「✅ … 一致」被误读成全量全绿。
+#   任一校验对缺 prompt/skill 文件 ⇒ 计入错误（F6 收敛：不得裸 return + ✅ 全绿）。
 # ============================================================================
 
-echo "🔍 check-gate-sync: 校验 prompt↔skill toll-gate 协议一致性..."
+echo "🔍 check-gate-sync: 校验 prompt↔skill 内容一致性..."
 echo ""
 
-# PCSC 校验对清单（v1：3/14；其余 11 对已实质分叉，留 v2/TD-025）
+# PCSC 校验对清单（v1：3/PAIRS_TOTAL；其余对已实质分叉，留 v2/TD-025）
 # 每项：prompt 文件名(无扩展名) ; skill 目录名
 # 实测这 3 对 diff 恒为 6 行（SKILL 独有 front-matter），内容逐字一致。
 PAIRS=(
@@ -37,7 +39,9 @@ PAIRS=(
   "I-intel-scan|flow-intel"
   "L-restyle|flow-restyle"
 )
-PAIRS_TOTAL=14    # 全量载体对总数（DESIGN D2 实测分档）；v1 只覆盖前 3 对
+# 全量载体对总数（常量单点，F7 收敛）：DESIGN D2 实测分档；v1 只覆盖前 3 对。
+# 其余文案一律插值引用此常量，禁止再出现裸字面量 14。
+PAIRS_TOTAL=14
 
 # ── PCSC 判据：比内容（仅允许平台 front-matter 差异，其余逐行比对）──
 # 设计依据（DESIGN D2 / REQUIREMENT AC-4）：
@@ -56,16 +60,24 @@ check_pair() {
   echo "     prompt: $prompt_file"
   echo "     skill:  $skill_file"
 
+  # F6 收敛：缺 prompt/skill 文件 ⇒ 计入错误（不再裸 return + ✅ 全绿）。
+  # 覆盖度分母用实际比对对数（COMPARED），缺失对既不计入「已比对」也不得让汇总打印 ✅ 一致。
   if [ ! -f "$prompt_file" ]; then
-    echo "   ⚠️  WARNING: prompt 文件不存在，跳过"
+    echo "   🔴 MISSING: prompt 文件不存在（校验对未比对）"
+    echo "       prompt: $prompt_file"
     echo ""
+    ERRORS=$((ERRORS + 1))
     return
   fi
   if [ ! -f "$skill_file" ]; then
-    echo "   ⚠️  WARNING: skill 文件不存在，跳过"
+    echo "   🔴 MISSING: skill 文件不存在（校验对未比对）"
+    echo "       skill:  $skill_file"
     echo ""
+    ERRORS=$((ERRORS + 1))
     return
   fi
+
+  COMPARED=$((COMPARED + 1))
 
   # 剥离 YAML front-matter（若存在）：首个 ^---$ 到第二个 ^---$（含）+ 紧随的 1 个空行
   # 两侧对称剥离 —— prompt 通常无 front-matter，剥后不变；skill 剥去独有的平台头。
@@ -187,7 +199,7 @@ check_gate_config_sync() {
   echo ""
 }
 
-# ── 执行 PCSC 校验对（v1：3/14）──
+# ── 执行 PCSC 校验对（v1：3/PAIRS_TOTAL）──
 for pair in "${PAIRS[@]}"; do
   prompt_name="${pair%%|*}"
   skill_name="${pair##*|}"
@@ -201,11 +213,11 @@ check_gate_config_sync
 
 # ── 汇总 ──
 echo "   ── 校验汇总 ──"
-echo "   覆盖度: 校验对 ${#PAIRS[@]}/${PAIRS_TOTAL}（v1 仅覆盖内容本应一致、仅差 front-matter 的对；其余 $((PAIRS_TOTAL - ${#PAIRS[@]})) 对已实质分叉，留 v2/TD-025）"
+echo "   覆盖度: 实际比对 ${COMPARED}/${PAIRS_TOTAL}（v1 仅覆盖内容本应一致、仅差 front-matter 的对；其余 $((PAIRS_TOTAL - ${#PAIRS[@]})) 对已实质分叉，留 v2/TD-025；另有 $((${#PAIRS[@]} - COMPARED)) 对因文件缺失未比对）"
 if [ "$ERRORS" -gt 0 ]; then
-  echo "   🔴 发现 $ERRORS 处漂移。请同步 prompt 和 skill 的 toll-gate 协议段。"
+  echo "   🔴 发现 $ERRORS 处问题（漂移或文件缺失）。请同步 prompt 和 skill 的全文内容（剥离平台 front-matter 后逐行比对一致）。"
   exit 1
 else
-  echo "   ✅ 校验对 ${#PAIRS[@]}/${PAIRS_TOTAL} 一致（仅覆盖上述对，非全量 14 对全绿）。"
+  echo "   ✅ 校验对 ${COMPARED}/${PAIRS_TOTAL} 一致（仅覆盖上述 ${COMPARED} 对，非全量 ${PAIRS_TOTAL} 对全绿）。"
   exit 0
 fi

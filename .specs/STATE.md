@@ -45,7 +45,8 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 1023 ok / 0 not ok / 0 skip（TAP plan 1..1023；2026-09-24 health-fix-2026-09b T-FIX-03 全量实测）`
+- **test_framework**: `bats-core 1.13.0 (npx) · 1025 ok / 0 not ok / 0 skip（TAP plan 1..1025；2026-09-24 health-fix-2026-09b T-FIX-04 全量实测）`
+  > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-04 收口实测）：**1025 ok / 0 not ok / 0 skip** = T-FIX-03 基线 1023 + T-FIX-04 check-gate-sync 缺对不得报全绿双态判据 2 例（test_check_gate_sync.bats：F6 好态完整夹具 rc=0 + 坏态缺一对 skill rc≠0 且不打印 ✅ 一致）；`npx bats --count test/` 同步为 1025。
   > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-03 收口实测）：**1023 ok / 0 not ok / 0 skip** = T-FIX-02 基线 1012 + T-FIX-03 隐私门禁 fail-open 收敛双态判据 11 例（test_path_privacy_gate.bats：F1 坏态/好态 2 · F2 坏态①/坏态②/好态 3 · F3 坏态/好态 2 · F4 坏态/好态 2 · F5 静态/好态 2）；`npx bats --count test/` 同步为 1023。
   > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-02 收口实测）：**1012 ok / 0 not ok / 0 skip** = T-FIX-01 基线 1001 + 阶段门标记有效性常设判据 11 例（test_review_gate_validity.bats：A 无标记 / B 6 键有效 / B2 口径相悖 / B3 touch 空 / B4 缺 L3_verdict / B5 值域非法 / C 无 .flow-active / gate 未开反面对照 / 函数级三例）；`npx bats --count test/` 同步为 1012。
   > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-01 收口实测）：**1001 ok / 0 not ok / 0 skip** = T29 基线 976 + TD-053 常设回归网 25 例（test_path_privacy_gate.bats 9 + test_runtime_edit_guard.bats 9 + test_nfr_portability_gate.bats 7）；`npx bats --count test/` 同步为 1001。
