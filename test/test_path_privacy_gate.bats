@@ -50,6 +50,8 @@ setup() {
   mkfile() { mkdir -p "$FIXTURE/$(dirname "$1")"; printf '%b' "$2" > "$FIXTURE/$1"; }
   stage() { git -C "$FIXTURE" add -- "$@"; }
   run_sut() { ( cd "$FIXTURE" && bash "$SUT_REL" ); }
+  # 按需注入环境变量（如坏 TMPDIR）驱动故障态双态用例
+  run_sut_env() { ( cd "$FIXTURE" && env "$@" bash "$SUT_REL" ); }
 }
 
 teardown() {
@@ -160,4 +162,145 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"允许清单来源: $ALLOW_REL"* ]]
   [[ "$output" == *"清单外命中 0 条"* ]]
+}
+
+# ============================================================================
+# T-FIX-03 双态判据（F1~F5 收敛 · 阶段 6 REVIEW §B）
+# 沿用既有范式：运行时复制真实生产件进夹具 + 拼接构造探针。
+# 每条发现一正一反双态；夹具隔离（teardown 清理）。
+# 脱敏（L-129）：探针用字符串拼接构造，本文件不出现真实账号路径形态。
+# ============================================================================
+
+# ---- F1（🔴 机械故障 ⇒ 必须非 0）双态 ----
+
+@test "F1 坏态：TMPDIR 不可用 + 真泄漏 ⇒ rc≠0 且不得打印「清单外命中 0 条」" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
+
+  BAD_TMPDIR="${TEST_TMPDIR}/no-such-dir-probe"
+  run --separate-stderr run_sut_env TMPDIR="$BAD_TMPDIR"
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"清单外命中 0 条 ✅"* ]]
+  [[ "$output" != *"✅ 清单外命中 0 条"* ]]
+}
+
+@test "F1 好态：TMPDIR 可用 + 真泄漏 ⇒ 正常归因（rc=1 + leak file:line），故障态未旁路正常流程" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"清单外命中 1 条"* ]]
+  [[ "$output" == *"probe.txt:1"* ]]
+}
+
+# ---- F2（🔴 0 候选 ≠ 干净）双态 · 两型 ----
+
+@test "F2 坏态①：非 git 目录 + 真泄漏 ⇒ rc≠0（0 候选面与干净不得同形）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
+  # 拆掉夹具的 .git ⇒ 非 git 目录（候选枚举失败 ⇒ 0 候选面）
+  rm -rf "$FIXTURE/.git"
+
+  run --separate-stderr run_sut
+  [ "$status" -ne 0 ]
+}
+
+@test "F2 坏态②：git 仓但 index 为空（未 add）+ 真泄漏 ⇒ rc≠0" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  # 注意：此处不 stage ⇒ git ls-files rc=0 但输出 0 行（空 index 变体）
+  # （setup 已 git init；未 add ⇒ index 为空）
+
+  run --separate-stderr run_sut
+  [ "$status" -ne 0 ]
+}
+
+@test "F2 好态：候选文件数落进自证行且与 git ls-files 一致" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"候选文件"* ]]
+  local reported real
+  reported=$(printf '%s\n' "$output" | grep -oE '候选文件[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  real=$(git -C "$FIXTURE" ls-files | wc -l | tr -d ' ')
+  [ "${reported:-x}" = "$real" ]
+}
+
+# ---- F3（🟡 二进制策略单点）双态 ----
+
+@test "F3 坏态：tracked 二进制含探针 ⇒ 工作树模式必须非 0 且归因可解析（line 为数字）" {
+  mkfile "docs/notes.md" "clean\n"
+  printf 'BIN\x00%s\x00\n' "${PROBE}" > "$FIXTURE/bin.dat"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "bin.dat" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -ne 0 ]
+  printf '%s\n' "$output" | grep -qE 'bin\.dat:[0-9]+:'
+}
+
+@test "F3 好态：干净仓 + 无探针 ⇒ rc=0（二进制策略未引入假红）" {
+  mkfile "docs/notes.md" "clean\n"
+  printf 'BIN\x00no-probe-here\x00\n' > "$FIXTURE/bin.dat"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "bin.dat" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+}
+
+# ---- F4（🟡 注释口径单点）双态 ----
+
+@test "F4 坏态：清单仅含 HTML 注释 ⇒ 自证须报「允许清单 0 条」（不得计为有效条目）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "$ALLOW_REL" "<!-- only html comment -->\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [[ "$output" == *"允许清单 0 条"* ]]
+}
+
+@test "F4 好态：清单含有效 file:line + # 注释 ⇒ 计数正确（口径一致）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\nprobe.txt:1 # 夹具登记\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"允许清单 1 条"* ]]
+  [[ "$output" == *"清单外命中 0 条"* ]]
+}
+
+# ---- F5（🟡 临时文件单点）双态 ----
+
+@test "F5 静态：全脚本只剩一个 EXIT trap（单一事实源）" {
+  local trap_count
+  trap_count=$(grep -cE '^[[:space:]]*trap .*EXIT' "$SUT_SRC")
+  [ "$trap_count" -eq 1 ]
+}
+
+@test "F5 好态：正常扫描 + 正常退出 ⇒ 临时文件被清理（唯一 trap 覆盖全部 TMP）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  local before tmp_count after
+  before=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  # 清理后不得残留本门禁的临时文件（按 mktemp 前缀 tmp. 计数前后相等）
+  after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+  [ "$after" -le "$before" ]
 }
