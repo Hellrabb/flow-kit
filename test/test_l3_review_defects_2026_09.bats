@@ -1708,6 +1708,16 @@ EOS
   grep -q "sed '\$d'" "$L3_PROMPT_LIB"
   # ⑤ mktemp 失败三处都有显式分支
   [ "$(grep -c 'mktemp 失败' "$L3_API_LIB" "$L3_PROMPT_LIB" "$L2_LIB" | grep -c ':1$')" -eq 3 ]
+  # ⑥ G-T04-1 / G-T04-2（阶段 5 前置修复·静态钉住）：ADR 预算标记的文案必须与行为一致
+  #    —— ① 预算用尽处的清单是「工件引用的 ADR 全清单」，不得把已在上文附正文的 ADR 一并声明为未纳入
+  grep -q '工件引用的 ADR 全清单' "$L3_PROMPT_LIB"
+  ! grep -q '以下被工件引用的 ADR \*\*未纳入\*\*' "$L3_PROMPT_LIB"
+  #    —— ② ADR 路径是**字节**截断（未补 `sed '$d'`）⇒ 不得声称「整行截断」
+  grep -q '已按\*\*字节\*\*截断' "$L3_PROMPT_LIB"
+  ! grep -q '已按整行\*\*截断\*\*；全文见' "$L3_PROMPT_LIB"
+  #    —— ③ 反假绿：补充产物路径仍必须是**真正**的整行截断（`sed '$d'` 在位时才允许该措辞）
+  grep -q "sed '\$d'" "$L3_PROMPT_LIB"
+  grep -q '已按整行截断' "$L3_PROMPT_LIB"
 }
 
 @test "B12-R1: 守卫判据是**承重**的 —— 真跑变异体（M41 第 1 条真行为变异）" {

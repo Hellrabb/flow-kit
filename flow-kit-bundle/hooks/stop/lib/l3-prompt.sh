@@ -361,12 +361,12 @@ _l3_build_prompt() {
           _adr_sz=$(wc -c < "$_adr_f" 2>/dev/null | tr -dc '0-9' || true); _adr_sz=${_adr_sz:-0}
           _adr_take=$((_adr_sz < 5000 ? _adr_sz : 5000))
           if [ $((_adr_used + _adr_take)) -gt "$_adr_budget" ] && [ "$_adr_n" -gt 0 ]; then
-            artifact="${artifact}"$'\n\n（ADR 纳入预算（'"${_adr_budget}"$' B）已用尽；以下被工件引用的 ADR **未纳入**，需要时按工件给出的复现命令自行查阅：'"${_adr_ids}"$'）'
+            artifact="${artifact}"$'\n\n（ADR 纳入预算（'"${_adr_budget}"$' B）已用尽；以下为**工件引用的 ADR 全清单**（其中已在上文附 `--- … ---` 正文标记者即为**已纳入**，其余为**未纳入**），需要时按工件给出的复现命令自行查阅：'"${_adr_ids}"$'）'
             break
           fi
           artifact="${artifact}"$'\n\n--- '"${_adr_f}"$' ---\n'"$(_l3_utf8_head_bytes 5000 "$_adr_f" 2>/dev/null || echo "")"
           if [ "$_adr_sz" -gt 5000 ] 2>/dev/null; then
-            artifact="${artifact}"$'\n…（本件 '"${_adr_sz}"$' B 超过 5000 B 预算，已按整行**截断**；全文见 `'"${_adr_f}"$'`。此为提示词预算标记，不构成工件缺陷。）'
+            artifact="${artifact}"$'\n…（本件 '"${_adr_sz}"$' B 超过 5000 B 预算，已按**字节**截断（仅保证 UTF-8 码点边界安全，末行可能不完整）；全文见 `'"${_adr_f}"$'`。此为提示词预算标记，不构成工件缺陷。）'
           fi
           _adr_used=$((_adr_used + _adr_take)); _adr_n=$((_adr_n + 1))
         done
