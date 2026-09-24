@@ -23,6 +23,12 @@
 #     修复后回写权威副本 TASK.md，本脚本仍为**原样抽取 + 字面执行**。
 #   · 门禁面 [F] 由「缺口实证」转为**闭合态**：无效完成标记 B2（口径相悖）/ B3（touch 空）/ B4（缺
 #     `L3_verdict`）一律 rc=2；健康层 A/B/C 不变。
+# 第 6 次执行（REPRO5 · 阶段 5 重入第 2 轮 · 2026-09-25）：阶段 6 审查 verdict=fail ⇒ 用户裁决回退
+#   4-dev 执行 fix 循环；三条 fix 任务交付后重入阶段 5 重验。
+#   · 判据面 14 → 17：纳入 `T-FIX-03`（隐私门禁 fail-open 收敛 F1~F5 · commit 6e39cfb）·
+#     `T-FIX-04`（check-gate-sync 缺对不得报全绿 F6/F7 · commit 521b21c）·
+#     `T-FIX-05`（Makefile NFR 判据去重 F8 · commit 6e94d60）；三条均已回写权威副本 TASK.md。
+#   · 基线 1012 → 1025 ok / 0 not ok（+11 隐私门禁双态 · +2 gate-sync 缺对 · +0 Makefile 去重）。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,14 +36,14 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --criteria-only) MODE=criteria ;;
     --gates-only)    MODE=gates ;;
     --only)          shift; DEFAULT_IDS=$(printf '%s' "${1:-}" | tr ',' ' ') ;;
-    -h|--help)       sed -n '2,25p' "$0"; exit 0 ;;
+    -h|--help)       _end=$(grep -n '^set -u' "$0" | head -1 | cut -d: -f1); sed -n "2,$(( ${_end:-27} - 1 ))p" "$0"; exit 0 ;;
     *) echo "未知参数: $1（用 --help 查看用法）" >&2; exit 2 ;;
   esac
   shift
@@ -104,7 +110,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1012 ok / 0 not ok，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1025 ok / 0 not ok，skip 计入 ok 行）"
 
   echo
   echo "== [B] make check（全门禁）=="

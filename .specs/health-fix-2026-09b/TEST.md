@@ -11,7 +11,7 @@
 > ② `bash .specs/health-fix-2026-09b/reproduce-phase-gate.sh` —— 沙箱复现**阶段门拦截 `git commit`**（UAT ③ 的可构造等价物；**六态 A/B/B2/B3/B4/C**，见 §1.2 ③）。
 > **原始输出存档**：`.specs/health-fix-2026-09b/PHASE5-RECEIPTS.md` —— **§0 是最小复算证据（保证落在 L3 补充产物预算 3000 B 内，见 L-151 与 L3 第 3 轮 major 1）** · §A 12 条判据 rc + 原始 stdout · §B 六项门禁回执（含完整 TAP）· §C 三条零引用判据 · §D 判据修正台账 · §E 性能测量环境 · §F 973→976 归因 · §G 复算入口与失败语义 · §H 阶段门沙箱复现原文（第 [F] 项 · **已按第 5 次执行刷新为闭合六态**）· §I 处置后复算全绿回执（rc=0，含 T19 回写后的 36 行抽取）· **§J 第 5 次执行（REPRO4）原始回执（14 条判据 + 7 项门禁 + 权威输出原文 · 2026-09-24）**。
 
-## 0. 本次测试范围声明（5 轮金字塔 + 第 5 次执行重入复跑 + 第 6 次执行终版复跑）
+## 0. 本次测试范围声明（5 轮金字塔 + 第 5 次执行重入复跑 + 第 6 次执行终版复跑 + 第 7 次执行 fix 循环后重验）
 
 产品类型裁剪依据：`flow-kit-bundle/flow-kit/reference/test-pyramid.md` 的适用矩阵 —— 本仓是**纯 Bash/Markdown 分发件 + git hook/安装器**（CLI 工具形态，无前端、无服务端、无数据库），故按「CLI 工具 / 内部工具」两行取并集裁剪。
 
@@ -25,6 +25,8 @@
 | **第 5 次执行** · REPRO4 重入复跑（2026-09-24 16:56–17:22 · HEAD `ddea327`） | ✅ **全跑（判据 14/14 rc=0 · 门禁 7/7 rc=0 · 脚本总 rc=0）** · ⚠️ **AC-8 = 有条件通过（仅静态面；跨 OS 实机面未验证）** · **判据版本 = 修正前**（`T-FIX-01`/`T-FIX-02` 已修，`T27`/`T29` 仍为旧地板 `-ge 973`；修正后地板的 T27/T29 复跑见 §D-4，**修正后判据集的整轮全绿 = 第 6 次执行**） | 阶段 4 的两个 fix 交付后重入（`T-FIX-01` = `5ee4ebc` / `T-FIX-02` = `6cff7a2` ⇒ **TD-053 / TD-059 闭合**）：判据面 **12 → 14**（新增两条 fix 判据）逐条 awk 原样抽取实跑；七项门禁全跑；**bats 全量 1012（有效 1011）**；阶段门沙箱 **六态全绿**（对照 0 可提交 · A rc=2 且 HEAD 不变 · B rc=0 且 commit 真生效 · **B2/B3/B4 一律 rc=2** · C rc=0）。原始证据内嵌于 §附录 D | 未覆盖面与第 4 轮相同，**本轮未新增覆盖缺口**：**macOS 真机 = TD-055**（仅静态代理判据 `make check-nfr-portability`；`TD-055` 仍开放）；无 `kcov`/`bashcov` 行覆盖率；无 CI（本机门禁） |
 
 | **第 6 次执行** · 终版复跑（2026-09-24 18:26:52 → 18:52:27 · HEAD `ddea327`） | ✅ **全跑（判据 14/14 rc=0 · 门禁 7/7 rc=0 · `R4D_RC=0`）** · ⚠️ **AC-8 = 有条件通过（仅静态面；跨 OS 实机面未验证）** · **判据版本 = 修正后（`-ge 1009`）+ 源面冻结 ⇒ 本轮是全报告唯一「修正后判据集整轮全绿」的执行** | **源面冻结后**的终版口径：主 agent 的 `G-T04-1`/`G-T04-2` 前置修复（`l3-prompt.sh` 两处纯文案 · `test_l3_review_defects_2026_09.bats` 的 `B11-R6` 内六条静态断言 · `sync-hooks.sh` 六副本 · dist 重建）+ 判据地板订正（`T27`/`T29` `-ge 973` → `-ge 1009`）均落树 ⇒ 整轮 14 条判据 + 7 项门禁重跑：bats **1012**（有效 1011）· NFR 均值 **2.937 s = 预算 58.7%** · 阶段门六态全绿。原始回执内嵌 §附录 **D-7**（处置事实 §D-6 · 完整原文 `PHASE5-RECEIPTS.md` **§M**） | 与第 5 次执行同口径，**未新增覆盖缺口**：**macOS 真机 = `TD-055`**（仍开放）· 无 `kcov`/`bashcov` · 无 CI。另有中间轮 r4c（18:09:29 → 18:25:42）**rc=1**，根因 = **源面在飞行中被改**致 `check-dist` 陈旧（**非判据问题**，已修复并冻结）—— 如实内嵌 §附录 **D-5**；**执行时 HEAD = `ddea327` + `G-T04` 三文件的未提交工作树改动**（该批改动随后提交为 **`f446617`**，与其内容逐字节一致 · 见 §D-6） |
+
+| **第 7 次执行** · fix 循环后重验（2026-09-25 00:26 → · HEAD `ee29a6d`） | ✅ **全跑（判据 17/17 rc=0 · 门禁 7/7 rc=0 · `REPRO5_RC=0`）** · ⚠️ **AC-8 = 有条件通过（仅静态面；跨 OS 实机面未验证 · `TD-055` 仍开放）** · **判据面 14 → 17**（纳入 `T-FIX-03` / `T-FIX-04` / `T-FIX-05` 三条 fix 判据） | 阶段 6 审查 `verdict=fail`（2 🔴 F1/F2 + 6 🟡）⇒ 用户裁决回退 4-dev 执行 fix 循环：`T-FIX-03` = `6e39cfb`（隐私门禁 fail-open 收敛 F1~F5 · 392 → 548 行 · +11 双态用例）· `T-FIX-04` = `521b21c`（`check-gate-sync` 缺对不得报全绿 F6/F7 · +2 用例）· `T-FIX-05` = `6e94d60`（`Makefile` NFR 判据正文去重 F8 · wrapper 配方 **89 → 13 行**（`awk` 范围法 · Δ−76）· 本提交 3 文件 **+35/−77 ⇒ 净 −42 行**）；**bats 全量 1025（有效 1024）**（基线演进 1012 → 1023 → 1025）· 三件 fix 均经主 agent 十项复核 + 活性重放（还原旧件各自恰转红）。原始回执内嵌 §附录 **D-8**（完整原文 `PHASE5-RECEIPTS.md` **§O**） | 未覆盖面与前几轮相同：**macOS 真机 = `TD-055`** · 无 `kcov`/`bashcov`（`TD-061`）· 无 CI；安全工具面仍 0/10（`TD-056`）；**本轮未新增覆盖缺口** |
 
 > **判据修改前原文存档（L3 第 7 轮 major 2 / L2 R2 响应）**：6 条被回写判据（`T17` · `T19` · `T-FIX-01` · `T-FIX-02` · `T27` · `T29`）的**修改前 `<verify>` 原文 + 来源 commit + 逐条执行结论**见 `PHASE5-RECEIPTS.md` **§K**/**§L**；结论 = **无一条属「判据判红 ⇒ 改判据至绿」**。
 
@@ -47,14 +49,15 @@
 | **AC-3** 泄漏分支无法被误推（P1） | 判据 `T11` / `T17` / `T19` 实跑 **rc=0**（T19 = 隔离 bare remote 的**四形态 push 拦截 + 干净 ref 放行**端到端）；报文含 ref 与原因（`flow-kit-bundle/hooks/pre-push/pre-push.sh:30` 畸形 stdin fail-closed、`:49` 泄漏 ref 拒绝）；`test_archive_commit_gate.bats`（27 用例，本 change +16 行） | ✅ | ✅ 常设 bats（`test_archive_commit_gate.bats` 27 用例） |
 | **AC-4** 门禁看得见「内容漂移」 | 判据 `T13`（修复后，见 §阶段 5 发现 #2）实跑 **rc=0**；`make check-gate-sync` rc=0（3/14 对一致 / 17 预设）；`test_check_gate_sync.bats`（5 用例，本 change +7/−6）与 `test_quality_baseline.bats` 的 AC-2/AC-3 断言。**Then 第二分支（漂移 ⇒ 非零 + 指名）的独立双态证据**：`test/test_check_gate_sync.bats:29-31`（健康态基线 ⇒ `[ "$status" -eq 0 ]` 且无 gate-config 漂移报告）、`:36`（向 `SKILL.md` 注入假预设 `fake-preset` ⇒ gate-config 段**报漂移并列出该名**）、`:43`（删除真预设 `design` ⇒ 报漂移）、反向对照 `:49`（注入无 `→` 的英文注释 ⇒ **不误报**）；断言由 `-ne 2` 容忍式收紧为 `-eq 0` 精确式（T15 判据 `TASK.md` T15 `<verify>` 实跑 rc=0） | ✅ | ✅ 常设 bats（`test_check_gate_sync.bats` 5 用例） |
 | **AC-5** 内部项目名不随分发件出厂 | 判据 `T24` / `T27` 实跑 **rc=0**（dist 0.2.0 重建 + 归档重扫）；`make check-dist` rc=0（`dist/dsh-flow-kit/vendor/flow-kit-bundle` 与源一致） | ✅ | ✅ 常设门禁 `make check-dist` |
-| **AC-6** 前向脱敏有机器门禁 | 判据 `T20` / `T22` / `T23` / `T25` / `T26` 实跑 **rc=0**；`make check-path-privacy` rc=0（**清单外命中 0 条**；自证行四要素齐全）；**探针注入 ⇒ rc=1 并指名 `file:line`**（T26 判据内固化 + 本次 T13 判别力注入复证）（**仅 change 期判据覆盖，无常设 bats 回归 · TD-053**） | ✅ | ✅ **常设 bats**（`test/test_path_privacy_gate.bats` 9 用例 · `T-FIX-01` = `5ee4ebc` ⇒ **TD-053 已闭合**，第 5 次执行订正） |
+| **AC-6** 前向脱敏有机器门禁 | 判据 `T20` / `T22` / `T23` / `T25` / `T26` 实跑 **rc=0**；`make check-path-privacy` rc=0（**清单外命中 0 条**；自证行四要素齐全）；**探针注入 ⇒ rc=1 并指名 `file:line`**（T26 判据内固化 + 本次 T13 判别力注入复证）（**仅 change 期判据覆盖，无常设 bats 回归 · TD-053**；**第 7 次执行加严**：机械/工具故障面亦 fail-closed —— 坏 `TMPDIR` ⇒ rc≠0 且报文归因、非 git 目录 / index 为空的 git 仓 ⇒ 候选面 N=0 ⇒ rc≠0，修复 = `T-FIX-03` = `6e39cfb` · F1/F2 闭合 · `TD-064`） | ✅ | ✅ **常设 bats**（`test/test_path_privacy_gate.bats` **20** 用例 · `T-FIX-01` = `5ee4ebc` + `T-FIX-03` = `6e39cfb` ⇒ **TD-053 / TD-064 已闭合**） |
 | **AC-7** 四处假绿测试不再假绿 | 四条「**注入失败源 ⇒ 必须变红**」证据（AC-7 原文形态 `REQUIREMENT.md:406-428`）：`test_combined_metric.bats`（注入残留文件 ⇒ 红）/ `test_auto_checkpoint.bats`（让 SUT 失败 ⇒ 红）/ `test_independent_review_model.bats`（删除被断言文件 ⇒ 红）/ `test_lessons_cleanup.bats`（移除过期 skip 并断言 `exit 0`）；四文件差异见 `git diff 534e3e8..HEAD -- test/`，判据 `T15` / `T17` rc=0 | ✅ | ✅ 常设 bats（四个假绿文件各含注入型用例） |
-| **AC-8** 无退化 | 判据 `T29 <verify>` 原样抽取实跑 **rc=0**：`make check` 全绿 + `npx bats test/` **976 收集 / 975 有效 · ok=976 / not ok=0 / skip=0**（**第 5 次执行实测订正：1012 收集 / 有效 1011 · ok=1012 / not ok=0 / skip=0，见 §1.3 第 2/5 条**）（1 条 TD-033 mock 不计入结论面，见 §1.3 第 5 条）+ 三道副本一致性门禁（test/hooks/dist）0 漂移；**活性探针**：`FLOW_KIT_CHANGE_BASE=HEAD` ⇒ **rc=1** + `🔴 AC-8 时点变更集为空（相对锚点 HEAD）⇒ 兼容性判据 rc=3（未验证），不得当作通过`（非空守卫非恒绿）（**长期回归保护无常设 bats · TD-053**；**macOS 实机未验证 · 仅静态判据 TD-055**） | ⚠️ **有条件通过（仅静态面）** —— change 期静态判据 rc=0；**跨 OS 实机面 = 未验证（macOS 无任何机器证据 · `Tech-debt: TD-055`）**，不得读作 AC-8 通过（L3 第 10 轮 major 1 收紧） | ⚠️ **常设 bats 覆盖三件生产件静态面**（`test_path_privacy_gate.bats` 9 + `test_runtime_edit_guard.bats` 9 + `test_nfr_portability_gate.bats` 7 = 25 用例 · `T-FIX-01` = `5ee4ebc`）+ 全量 `npx bats test/` = **1012**（`T-FIX-02` = `6cff7a2` 收口）⇒ **TD-053 已闭合**；**macOS 实机面未验证（TD-055，仍开放）** ⇒ 本列**不得读作 AC-8 全通过**（L3 第 8 轮 major 1 收紧） |
+| **AC-8** 无退化 | 判据 `T29 <verify>` 原样抽取实跑 **rc=0**：`make check` 全绿 + `npx bats test/` **976 收集 / 975 有效 · ok=976 / not ok=0 / skip=0**（**第 5 次执行实测订正：1012 收集 / 有效 1011 · ok=1012 / not ok=0 / skip=0，见 §1.3 第 2/5 条**；**第 7 次执行实测：1025 收集 / 有效 1024 · ok=1025 / not ok=0 / skip=0**）（1 条 TD-033 mock 不计入结论面，见 §1.3 第 5 条）+ 三道副本一致性门禁（test/hooks/dist）0 漂移；**活性探针**：`FLOW_KIT_CHANGE_BASE=HEAD` ⇒ **rc=1** + `🔴 AC-8 时点变更集为空（相对锚点 HEAD）⇒ 兼容性判据 rc=3（未验证），不得当作通过`（非空守卫非恒绿）（**长期回归保护：第 5 次执行起已补三件常设 bats 网，第 7 次执行扩到 36 例 · TD-053 已闭合**；**macOS 实机未验证 · 仅静态判据 TD-055**） | ⚠️ **有条件通过（仅静态面）** —— change 期静态判据 rc=0；**跨 OS 实机面 = 未验证（macOS 无任何机器证据 · `Tech-debt: TD-055`）**，不得读作 AC-8 通过（L3 第 10 轮 major 1 收紧） | ⚠️ **常设 bats 覆盖三件生产件静态面**（`test_path_privacy_gate.bats` **20** + `test_runtime_edit_guard.bats` 9 + `test_nfr_portability_gate.bats` 7 = **36 用例** · `T-FIX-01` = `5ee4ebc` + `T-FIX-03` = `6e39cfb`）+ 全量 `npx bats test/` = **1025**（`T-FIX-02` = `6cff7a2` 收口 · **第 7 次执行实测 1025**）⇒ **TD-053 已闭合**；**macOS 实机面未验证（TD-055，仍开放）** ⇒ 本列**不得读作 AC-8 全通过**（L3 第 8 轮 major 1 收紧） |
 
-**覆盖判定（第 5 次执行订正 · L3 第 8 轮 major 1 收紧）**：**8/8 条 AC 有 change 期覆盖且无空缺 —— 其中 7 项通过、1 项「有条件通过（仅静态面）」**（**AC-8**：Linux 本机静态判据 rc=0；**跨 OS 实机面 = 未验证 ⇒ 不构成通过** · `Tech-debt: TD-055` · L3 第 10 轮 major 1 收紧）；原判定的「3/8（AC-1 / AC-6 / AC-8）无常设回归保护」缺口**已由 `T-FIX-01`（commit `5ee4ebc`）闭合** —— 三件生产件现有常设 bats 网（`test_path_privacy_gate.bats` 9 · `test_runtime_edit_guard.bats` 9 · `test_nfr_portability_gate.bats` 7 = 25 用例，本次实测全绿）。**历史记录（不抹除）**：第 1–4 次执行时该判定为「**8/8 仅有 change 期覆盖，其中 3/8 无常设回归保护**（`Tech-debt: TD-053`）」。**静态判据通过 ≠ 跨 OS 兼容性验收通过**（AC-8 的 macOS 面 = `Tech-debt: TD-055`，**仍开放**，见 §4.4）。**判定词收口（L3 第 7 轮 major 1 / L2 R1 响应 · 2026-09-24）**：**AC-8 的 change 期判定 = ⚠️ 部分通过**（静态判据通过；macOS 实机面未验证 · TD-055），其余 7 条 = ✅ 通过；**「判据 14/14 rc=0 · 门禁 7/7 rc=0」是执行面口径，不等于 8/8 AC 全部通过**。
+**覆盖判定（第 5 次执行订正 · L3 第 8 轮 major 1 收紧）**：**8/8 条 AC 有 change 期覆盖且无空缺 —— 其中 7 项通过、1 项「有条件通过（仅静态面）」**（**AC-8**：Linux 本机静态判据 rc=0；**跨 OS 实机面 = 未验证 ⇒ 不构成通过** · `Tech-debt: TD-055` · L3 第 10 轮 major 1 收紧）；原判定的「3/8（AC-1 / AC-6 / AC-8）无常设回归保护」缺口**已由 `T-FIX-01`（commit `5ee4ebc`）闭合** —— 三件生产件现有常设 bats 网（`test_path_privacy_gate.bats` **20**（第 7 次执行起 · 含机械故障面）· `test_runtime_edit_guard.bats` 9 · `test_nfr_portability_gate.bats` 7 = **36 用例**，本次实测全绿）。**历史记录（不抹除）**：第 1–4 次执行时该判定为「**8/8 仅有 change 期覆盖，其中 3/8 无常设回归保护**（`Tech-debt: TD-053`）」。**静态判据通过 ≠ 跨 OS 兼容性验收通过**（AC-8 的 macOS 面 = `Tech-debt: TD-055`，**仍开放**，见 §4.4）。**判定词收口（L3 第 7 轮 major 1 / L2 R1 响应 · 2026-09-24）**：**AC-8 的 change 期判定 = ⚠️ 部分通过**（静态判据通过；macOS 实机面未验证 · TD-055），其余 7 条 = ✅ 通过；**「判据 14/14 rc=0 · 门禁 7/7 rc=0」是执行面口径，不等于 8/8 AC 全部通过**。 **第 7 次执行补记（fix 循环后）**：判据面 **17/17 rc=0 · 门禁 7/7 rc=0**；阶段 6 审查的两条 🔴（F1 机械故障 fail-open · F2 扫描面塌陷 0 候选同形）已由 `T-FIX-03`（`6e39cfb`）闭合 —— AC-6 的判定力证据由「change 期判据」升级为「**常设双态 bats（20 例，含机械故障面与 0 候选面）**」；🟡 F6/F7（`T-FIX-04` = `521b21c`）与 F8（`T-FIX-05` = `6e94d60`）同属「门禁自称一致却不一致」家族，一并闭合 ⇒ 阶段 6 的 **2 🔴 / 6 🟡 全部结案**（详 §阶段 5 发现 #34–#40）。
 
 > **安全工具面另计（L3 第 9 轮 major 3 响应）**：**安全工具面 = 0 / 10 未覆盖**（`A01–A10` 无任一条目具备独立安全工具证据）· **`Tech-debt: TD-056` = 本 change 安全验收的未覆盖项** ⇒ 该面**不构成 AC 通过面证据**；`AC-1..AC-8` 无「安全工具面」类验收项，注入面由 `AC-1` 的双态注入实证承载（详见 §3.4 结论与 §3.5 第 1 条）。
 > **AC-8 四处口径一致性核对（L3 第 9 轮 major 1 响应）**：`§1.1` change 期判定列 = **⚠️ 部分通过** · `§1.1` 长期回归列 = **⚠️**（静态面有 25 例常设 bats，macOS 面无机器证据） · `§0` 第 5/6 次执行行 = **⚠️ 部分通过** · `§4.4` 表内唯一 ✅ = **静态判据通过**（其口径注明示「不含 macOS 实机」）—— 四处**无一处**把 AC-8 读作全通过；**macOS 面无机器证据 = `Tech-debt: TD-055`（仍开放）**。
+> **开放项集中收口（L2 第 3 轮 F-2 响应 · 2026-09-25 · 唯一裁决行）**：本轮仍开放的未覆盖/未验证项统一归口 **阶段 7 triage**，均**不改变**「AC-1..AC-7 = ✅ 通过 · AC-8 = ⚠️ 有条件通过（仅静态面）」的既有口径，**AC-8 的 ⚠️ 一律不得读作全通过**。清单：`TD-055`（macOS 实机面 0 机器证据 · AC-8 的 ⚠️ 唯一成因）· `TD-056`（安全工具面 0/10）· `TD-061`（无 `kcov`/`bashcov` 覆盖率数据）· `TD-058`（`HOOK_BASE_DIR` 两族语义分歧）· `TD-057` / `TD-060` / `TD-062` / `TD-063` / `TD-065`（判据/工具自身缺陷族）· `TD-049`（`.flow-active` 时间戳类型不一致）· `TD-035`（既有 bash4/GNU-only 构造，非本次引入）。
 
 > **结论口径声明（L3 第 4 轮 major 1 响应）**：本表「✅」一律指 **change 期（本次变更集）覆盖** —— 证据 = `TASK.md` 判据**原样抽取实跑** + 双态注入 + 全量回归，逐项可复算（§附录 A）。其中 **3 件生产件（`runtime-edit-guard.sh` / `check-path-privacy.sh` / `check-nfr-portability.sh`）在 `test/` 树 0 引用**（§可复算覆盖代理表）⇒ 本报告**不宣称**它们具备**长期回归保护**：归档后其判定力只由 change 期判据承载（`Tech-debt: TD-053`，已写入 §回归保护，并交**阶段 7 triage**）—— **第 5 次执行订正（`T-FIX-01` = `5ee4ebc`）：上述 0 引用缺口已补齐，三件现有常设 bats 网（25 用例）⇒ 该段的后半句（「不宣称长期回归保护」）自本次执行起不再适用，`TD-053` 已闭合**。同理 §1.2 的 UAT ③ —— 第 1–4 次执行时 **判为「未通过（FAIL）」，失败分支即 B2/B3（完成标记口径相反 / 残缺时门禁放行，`Tech-debt: TD-059`）**；**第 5 次执行起订正为「已通过（PASS）」**：无效标记 B2/B3/B4 **一律 rc=2**（修复 = `T-FIX-02` = `6cff7a2` · ADR-029 ⇒ **TD-059 已闭合**）。历史 FAIL 判定与缺口实证见该条历史行、§阶段 5 发现 #17、§0 阶段门有效性声明的历史对照行。
 
@@ -104,23 +107,23 @@ bash package-flow-kit.sh --validate | tail -4; echo "rc=$?"
 
 ### 1.3 覆盖率（Coverage · 如适用）
 
-> **时点标记规则（L3 第 7 轮 minor ③ 响应）**：本节数字**未标「第 1–4 次执行」者一律为当前值 = 第 5 次执行（`1012` 收集 / `1011` 有效）**；历史值一律显式前缀。主表、性能回执、附录 C 中的旧值（976/975）一律按此读，**不得当作当前基线**。
+> **时点标记规则（L3 第 7 轮 minor ③ 响应）**：本节数字**未标「第 1–4 次执行」者一律为当前值 = 第 7 次执行（`1025` 收集 / `1024` 有效）**；历史值一律显式前缀。主表、性能回执、附录 C 中的旧值（976/975）一律按此读，**不得当作当前基线**。
 > **TD-033 mock 计数口径（L3 第 7 轮 minor ② / L2 R6 响应）**：该 1 条 mock 仍在 `npx bats --count` 总数内 ⇒ **有效口径 = 1011**；把它重写为 source 真实 lib 属 `test/**` **源面**变更（本 change 明令 `T24` 之后不动源面）⇒ 记 **`Tech-debt: TD-033`**（v2 重写为真实实现回归）。
 
 **Coverage（行覆盖）**：本仓为 bash + bats —— **本机无 `kcov` / `bashcov` ⇒ 行覆盖率 / 分支覆盖率「无任何数据」（不是「0%」，是「无测量工具」；L3 第 8 轮 minor ① 明写）**，故按「等价强度」的三条替代口径：
 
 1. **AC 覆盖**：8/8 全覆盖（§1.1），且每条 AC 都有**双态**证据（健康 ⇒ 绿 / 注入缺陷 ⇒ 红），不是「跑一次看绿」。
-2. **收集面 = 执行面**：`npx bats --count test/` = **1012**（**有效用例 1011**，见第 5 条 —— 第 5 次执行实测；第 1–4 次执行时该值为 976 / 975，构成见第 4 条的历史归因），直跑实测 `ok=1012 / not ok=0 / skip=0` ⇒ **1012 条被收集且全部执行（零 skip）**；其中 **1 条为 TD-033 mock**（见第 5 条）⇒ **有效验证用例 = 1011**；**「零 skip」只表示无静默跳过，不等于 1012 条全为真实验证**（L3 第 9 轮 minor ① 收口）；**行覆盖率无数据不影响 AC 双态证据的结论** —— AC 判定依据是「判据原样实跑 + 双态注入」（§附录 A），不是行覆盖率。原始 TAP 全文（1012 行逐条 `ok`/`not ok` 与显式 skip 计数命令）见 `PHASE5-RECEIPTS.md` §B-2 与 §J；**判据原文关键行已按 L-151 内嵌于本文 §附录 D**（避免补充产物被截断）。
-3. **关键判定路径的专项用例数**：`test_archive_commit_gate.bats` 27（pre-commit/pre-push 接线）、`test_gate_config_presets.bats` 34、`test_install_coverage.bats` 17、`test_lessons_cleanup.bats` 16、`test_check_gate_sync.bats` 5、`test_combined_metric.bats` 2（+1 见 AC-7 修正）。**第 5 次执行新增的四个文件**：`test_path_privacy_gate.bats` **9**、`test_runtime_edit_guard.bats` **9**、`test_nfr_portability_gate.bats` **7**（`T-FIX-01` = `5ee4ebc` ⇒ TD-053 常设回归网，本 change 合计 25 例）、`test_review_gate_validity.bats` **11**（`T-FIX-02` = `6cff7a2` ⇒ TD-059 阶段门标记有效性，合计 11 例）。四个文件均为 `test/` ↔ `flow-kit-bundle/test/` **双源同步**（`make check-test-sync` rc=0）。
+2. **收集面 = 执行面**：`npx bats --count test/` = **1025**（**有效用例 1024**，见第 5 条 —— 第 7 次执行实测；第 1–4 次执行时该值为 976 / 975，第 5/6 次执行时为 1012 / 1011，构成见第 4 条的历史归因），直跑实测 `ok=1025 / not ok=0 / skip=0` ⇒ **1025 条被收集且全部执行（零 skip）**；其中 **1 条为 TD-033 mock**（见第 5 条）⇒ **有效验证用例 = 1024**；**「零 skip」只表示无静默跳过，不等于 1025 条全为真实验证**（L3 第 9 轮 minor ① 收口）；**行覆盖率无数据不影响 AC 双态证据的结论** —— AC 判定依据是「判据原样实跑 + 双态注入」（§附录 A），不是行覆盖率。原始 TAP 全文（1025 行逐条 `ok`/`not ok` 与显式 skip 计数命令）见 `PHASE5-RECEIPTS.md` §B-2 / §J / **§O-2**；**判据原文关键行已按 L-151 内嵌于本文 §附录 D**（避免补充产物被截断）。
+3. **关键判定路径的专项用例数**：`test_archive_commit_gate.bats` 27（pre-commit/pre-push 接线）、`test_gate_config_presets.bats` 34、`test_install_coverage.bats` 17、`test_lessons_cleanup.bats` 16、`test_check_gate_sync.bats` **7**、`test_combined_metric.bats` 2（+1 见 AC-7 修正）。**第 5 次执行新增的四个文件**：`test_path_privacy_gate.bats` **9**、`test_runtime_edit_guard.bats` **9**、`test_nfr_portability_gate.bats` **7**（`T-FIX-01` = `5ee4ebc` ⇒ TD-053 常设回归网，本 change 合计 25 例）、`test_review_gate_validity.bats` **11**（`T-FIX-02` = `6cff7a2` ⇒ TD-059 阶段门标记有效性，合计 11 例）。四个文件均为 `test/` ↔ `flow-kit-bundle/test/` **双源同步**（`make check-test-sync` rc=0）。**第 7 次执行加严（fix 循环）**：`test_path_privacy_gate.bats` **9 → 20** 例（`T-FIX-03` = `6e39cfb`：F1~F5 各双态）· `test_check_gate_sync.bats` **5 → 7** 例（`T-FIX-04` = `521b21c`：完整夹具 + 缺对双态）；`T-FIX-05` = `6e94d60` 以钉住断言改写既有用例（`Makefile` 判据正文唯一性）⇒ **计数 +0**。
 4. **976（有效 975）的构成 · 973 → 976 的逐项归因**（L3 第 2 轮 minor ④ 响应）：`git diff --stat 534e3e8..HEAD -- test/` = **8 文件 +84/−28**；逐文件 `@test` 计数**唯一变化** = `test/test_archive_commit_gate.bats` **24 → 27（+3）**，其余 7 个文件计数不变（`test_auto_checkpoint.bats` 13 · `test_check_gate_sync.bats` 5 · `test_combined_metric.bats` 2 · `test_correction_hygiene.bats` 10 · `test_independent_review_model.bats` 12 · `test_l3_review_defects_2026_09.bats` 124 · `test_lessons_cleanup.bats` 16）⇒ **973 + 3 = 976**，无计数口径漂移。历史 SUMMARY 中的「973 ok / **1 skip**」是**变更前基线**（阶段 1 记录）；那 1 个 skip 来自 `test_lessons_cleanup.bats` 的过期 skip，已由 AC-7 移除并改为机器可验证断言（见 §新增测试登记）⇒ 阶段 4 起实测基线统一为 **976 ok / 0 not ok / 0 skip**。复算命令：
    ```bash
    for f in $(git diff --name-only 534e3e8..HEAD -- test/); do
      printf '%s  base=%s  head=%s\n' "$f" "$(git show 534e3e8:"$f" | grep -c '@test')" "$(grep -c '@test' "$f")"
    done
    ```
-   **基线演进（第 5 次执行补记 · 与 `.specs/STATE.md:48-51` 同源）**：**976 → 1001 → 1012** —— `976`（T29 时点收口）· `1001` = 976 + **25**（`T-FIX-01` = `5ee4ebc`：`test_path_privacy_gate.bats` 9 + `test_runtime_edit_guard.bats` 9 + `test_nfr_portability_gate.bats` 7）· **`1012` = 1001 + 11**（`T-FIX-02` = `6cff7a2`：`test_review_gate_validity.bats` 11 例 = A 无标记 / B 6 键有效 / B2 口径相悖 / B3 `touch` 空 / B4 缺 `L3_verdict` / B5 值域非法 / C 无 `.flow-active` / gate 未开反面对照 / 函数级三例）。四个新文件行数 = 163 / 113 / 127 / 197，`@test` 计数 = 9 / 9 / 7 / 11（`grep -c '@test'`）。本轮实测 `npx bats --count test/` = **1012**、`npx bats test/` = **ok=1012 / not ok=0 / skip=0**（TAP `1..1012`）。
+   **基线演进（第 5 次执行补记 · 与 `.specs/STATE.md:48-51` 同源）**：**976 → 1001 → 1012** —— `976`（T29 时点收口）· `1001` = 976 + **25**（`T-FIX-01` = `5ee4ebc`：`test_path_privacy_gate.bats` 9 + `test_runtime_edit_guard.bats` 9 + `test_nfr_portability_gate.bats` 7）· **`1012` = 1001 + 11**（`T-FIX-02` = `6cff7a2`：`test_review_gate_validity.bats` 11 例 = A 无标记 / B 6 键有效 / B2 口径相悖 / B3 `touch` 空 / B4 缺 `L3_verdict` / B5 值域非法 / C 无 `.flow-active` / gate 未开反面对照 / 函数级三例）· **`1023` = 1012 + 11**（`T-FIX-03` = `6e39cfb`：`test_path_privacy_gate.bats` 9 → 20）· **`1025` = 1023 + 2**（`T-FIX-04` = `521b21c`：`test_check_gate_sync.bats` 5 → 7；`T-FIX-05` = `6e94d60` 计数 +0）。四个新文件行数 = 163 / 113 / 127 / 197，`@test` 计数 = 9 / 9 / 7 / 11（`grep -c '@test'`）。**第 7 次执行实测**：`npx bats --count test/` = **1025**、`npx bats test/` = **ok=1025 / not ok=0 / skip=0**（TAP `1..1025`）。
 
-5. **有效用例口径**（L3 第 3 轮 minor ③ 响应 · 第 5 次执行数值订正）：**1012** 条中有 **1 条是 TD-033 记录的 mock 用例**（`test/test_gate_config_presets.bats:27-28` 自陈 `Simulates the resolve_gate_config() logic`，从不 source 生产实现）⇒ **有效用例 = 1011**（第 1–4 次执行时对应数值为 976 / 975）；该条**不计入** AC-7「不再假绿」的结论面（§1.6 ② 已把 AC-4 的证据整体迁到 `test/test_check_gate_sync.bats` 的 5 个双态用例），本 change 不修它（TD-033 属 change 前既有债、已由 `REQUIREMENT.md` 范围切分排除）。**处置选项（L3 第 10 轮 minor ② 响应）**：① 重写为 source 真实实现（**v2 推荐** · 消除 mock）· ② 标 `skip`（会打破「零 skip」宣称且掩盖债）· ③ 移出收集面（等同删证据）—— 本 change 选**显式登记 + 在所有引用处标注「含 1 条 mock ⇒ 有效 1011」**（`test/**` 源面自 `T24` 起冻结 · 该债由 `REQUIREMENT.md` 范围切分排除）。
+5. **有效用例口径**（L3 第 3 轮 minor ③ 响应 · 第 5 次执行数值订正）：**1025** 条中有 **1 条是 TD-033 记录的 mock 用例**（`test/test_gate_config_presets.bats:27-28` 自陈 `Simulates the resolve_gate_config() logic`，从不 source 生产实现）⇒ **有效用例 = 1024**（第 1–4 次执行时对应数值为 976 / 975，第 5/6 次执行时为 1012 / 1011）；该条**不计入** AC-7「不再假绿」的结论面（§1.6 ② 已把 AC-4 的证据整体迁到 `test/test_check_gate_sync.bats` 的 5 个双态用例），本 change 不修它（TD-033 属 change 前既有债、已由 `REQUIREMENT.md` 范围切分排除）。**处置选项（L3 第 10 轮 minor ② 响应）**：① 重写为 source 真实实现（**v2 推荐** · 消除 mock）· ② 标 `skip`（会打破「零 skip」宣称且掩盖债）· ③ 移出收集面（等同删证据）—— 本 change 选**显式登记 + 在所有引用处标注「含 1 条 mock ⇒ 有效 1011」**（`test/**` 源面自 `T24` 起冻结 · 该债由 `REQUIREMENT.md` 范围切分排除）。
 
 **可复算覆盖代理表（L3 第 1 轮 minor「覆盖率无量化数据」的响应 · 已覆盖 / 未覆盖清单）**：
 
@@ -130,7 +133,7 @@ bash package-flow-kit.sh --validate | tail -4; echo "rc=$?"
 | `flow-kit-bundle/hooks/pre-push/pre-push.sh` | 3 | T19 / T20 | 四形态 push 全拒 + 干净 ref 放行 |
 | `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh` | **9 ✅**（`test_runtime_edit_guard.bats` · 第 5 次执行起） | T05 / **T-FIX-01** | 相对路径 ⇒ rc=2；绝对路径 ⇒ rc=0 |
 | `flow-kit-bundle/lib/install_hooks.sh` | 4 | T06 / T18 | 缺依赖 ⇒ fail-closed 且不破坏既有配置 |
-| `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` | **9 ✅**（`test_path_privacy_gate.bats` · 第 5 次执行起） | T21 / T22 / T23 / T13 / **T-FIX-01** | 探针注入 ⇒ rc=1 指名；空清单 ⇒ rc=0；缺清单 ⇒ rc=1 |
+| `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` | **9 → 20 ✅**（`test_path_privacy_gate.bats` · 第 7 次执行起含机械故障面） | T21 / T22 / T23 / T13 / **T-FIX-01** / **T-FIX-03** | 探针注入 ⇒ rc=1 指名；空清单 ⇒ rc=0；缺清单 ⇒ rc=1；**坏 `TMPDIR` ⇒ rc≠0（fail-closed）**；**0 候选（非 git / index 空）⇒ rc≠0** |
 | `Makefile`（`check-nfr-portability` **内联 recipe** + 内部判据 `check-nfr-portability-internals`；**非 `.sh` 文件** · L2 R4 订正） | **7 ✅**（`test_nfr_portability_gate.bats` · 第 5 次执行起） | T24 / T27 / T28 / **T-FIX-01** | 空变更集 ⇒ rc=3；GNU-only 注入 ⇒ rc≠0 |
 | `flow-kit-bundle/hooks/stop/lib/l3-prompt.sh` | 6 | T04 | ADR 引用频次采样差异两态 |
 | `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（新增） | 2 | T13 / T15 | 注入假预设 / 删真预设 ⇒ 报漂移；无 `→` 注释 ⇒ 不误报 |
@@ -189,7 +192,7 @@ L3 第 2 轮 major 3 问：本报告的 `rc=0` 是**字面执行**还是**修正
 | T17 | 字面执行 **rc=1** ⇒ 暴露旧断言的策略错误（「集合完备」会把新审查档推向门禁豁免表 = 泄漏静默入库，见 L-150）⇒ **修正直接落在权威副本内** | 订正后 **rc=0**（73 行判据） | **已回写**：`TASK.md` 的 T17 `<verify>` 整块重写为**时间切点**策略（冻结集 1–3 唯一豁免；新增档进表即红）+ `T13` done 注记同批订正（L-150 / TD-054）⇒ 重抽即为修正后版本，两者同源 |
 | T19 | 字面执行 **rc=0**（修正前 33 行 / 修正后 36 行）；L3 第 3 轮 major 4 指出 `out=$(cmd 2>&1); rc=$?` 在 `set -e` 下与真红态不可区分 ⇒ **修正直接落在权威副本内**（4 处改为「先置零再捕获」，并把严格模式约定写进块内注释） | 平跑 **rc=0**；strict 对照 `bash -e -u -o pipefail …/v_T19.sh` ⇒ **rc=0 / 37 行输出**（修正前实测：**rc=1 / 19 行前置输出 / 无任何 🔴 断言报文** ⇒ 只能靠报文与真红态区分） | **已回写**：`TASK.md` 的 T19 `<verify>` 四处（`:877` 循环内 / `:881` `--tags` / `:886` `--all` 判别子 / `:889` 摘 hook 归因对照）改为 `rc=0; out=$(cmd 2>&1) || rc=$?`（或 `rc_off=0; cmd || rc_off=$?`），块尾加注释固化约定；`reproduce-5-test.sh` 重抽后实跑 ⇒ **两种运行器同结论**。同族其余 18 处（未复算的判据块）仍留 **`Tech-debt: TD-057`**（不机械改写） |
 
-**结论（L3 第 8 轮 major 2 收口）**：**除 `T17` / `T19` / `T-FIX-01` / `T-FIX-02` / `T27` / `T29` 六条在修正后重抽重跑**（修改前原文与来源 commit 见 `PHASE5-RECEIPTS.md` **§K**，逐条「原文字面执行为何红 / 为何绿」见 **§L**）**外，其余判据为字面执行** —— 被修正的判据共六条（组）—— T17 与 T19（阶段 5 第 1–4 次执行期间，见上表）· `T-FIX-01` 与 `T-FIX-02`（**第 5 次执行重入复跑期间**发现，见下表前两行）· `T27`/`T29` 的 bats 回归地板（同期间订正，见下表第三行），且五处修正**都写在权威副本 `TASK.md` 内**（重抽即得修正后版本 ⇒ 不存在「报告用修正版、仓内是旧版」的分叉）：T17 因旧策略会把新审查档推向门禁豁免表（L-150），T19 因 `set -e` 陷阱使两种运行器结论相反（L3 第 3 轮 major 4），`T-FIX-01` 因判据的 `LC_ALL=C` 泄漏进子进程（TD-051 复发 · locale 敏感性），`T-FIX-02` 因判据出沙箱后未回仓根（TD-060 · cwd 泄漏），`T27`/`T29` 因回归地板按旧基线标定而失去判定力（L-152 同族）。TD-057 的 T19 实例已闭环（两种运行器均 rc=0），同族其余 18 处仍留债。
+**结论（L3 第 8 轮 major 2 收口）**：**除 `T17` / `T19` / `T-FIX-01` / `T-FIX-02` / `T-FIX-04` / `T27` / `T29` 七条（组）在修正后重抽重跑**（第 7 次执行新增 `T-FIX-04`）（修改前原文与来源 commit 见 `PHASE5-RECEIPTS.md` **§K**，逐条「原文字面执行为何红 / 为何绿」见 **§L**）**外，其余判据为字面执行** —— 被修正的判据共六条（组）—— T17 与 T19（阶段 5 第 1–4 次执行期间，见上表）· `T-FIX-01` 与 `T-FIX-02`（**第 5 次执行重入复跑期间**发现，见下表前两行）· `T27`/`T29` 的 bats 回归地板（同期间订正，见下表第三行），且六处修正**都写在权威副本 `TASK.md` 内**（重抽即得修正后版本 ⇒ 不存在「报告用修正版、仓内是旧版」的分叉）：T17 因旧策略会把新审查档推向门禁豁免表（L-150），T19 因 `set -e` 陷阱使两种运行器结论相反（L3 第 3 轮 major 4），`T-FIX-01` 因判据的 `LC_ALL=C` 泄漏进子进程（TD-051 复发 · locale 敏感性），`T-FIX-02` 因判据出沙箱后未回仓根（TD-060 · cwd 泄漏），`T27`/`T29` 因回归地板按旧基线标定而失去判定力（L-152 同族）。TD-057 的 T19 实例已闭环（两种运行器均 rc=0），同族其余 18 处仍留债。
 
 **第 5 次执行追加的两行（重入复跑时才暴露的判据缺陷 · 均由主 agent 修正并回写 `TASK.md`）**：
 
@@ -199,6 +202,12 @@ L3 第 2 轮 major 3 问：本报告的 `rc=0` 是**字面执行**还是**修正
 | **`T-FIX-02`**（TD-060 · cwd 泄漏） | 判据进 `mktemp -d` 沙箱后**未回仓根**，其后 6 步（新 bats + 4 条 `make`）全在 `${TMPDIR:-/tmp}` 里执行 ⇒ 五态行虽全对，随后四条 🔴（`新增双态判据 rc=1` / `hooks 副本未同步` / `test 双源不一致` / `dist 未重建`）+ `make: *** 没有规则可制作目标“check”` | 补 `REPO_ROOT="$PWD"`（进沙箱前记录仓根）与沙箱段末尾 `cd "$REPO_ROOT"`；**步骤与断言逐字不动**（执行者当时按「不改验收标准」原则未动判据、改以仓根 cwd 补跑同 6 行全绿并如实上报，主 agent 判定为判据缺陷后就地修复） | **rc=1 → rc=0**（42 行判据；原始输出 `A=2 B=0 B2=2 B3=2 B4=2 C=0`，其后 `make check` = `✅ make check: 全部通过`） |
 
 | **`T27` / `T29`**（回归地板过时 · 第 5 次执行重入复核触发） | 判据的 bats 回归**地板**按旧基线标定为 `[ "$b_ok" -ge 973 ]`（= 976 − 3）；基线升到 **1012** 后，旧地板允许 **39 例静默消失** ⇒ 「回归网被削弱」**不可判失败**（判据自身不红，但判定力已被削弱，与 L-152「门禁强度 = 最早返回的检查」同族） | 断言值与描述串就地订正（落在权威副本 `TASK.md`）：`:1231`（T27 断言）/ `:1306`（T29 断言）`-ge 973` → **`-ge 1009`**（= 1012 − 3，与原 976/973 同余量）；同步 `:1229`（T27 echo 描述串）/ `:1291`（T29 `<action>` 描述串）/ `:25`（AC-8 行 `bats ≥1009`）+ 两条 `<done>` 注记。**不动断言结构、不动判据步骤**，`<verify>` 行数未变（T27 = 19 行 / T29 = 15 行） | **rc=0 → rc=0（红绿不变 · 判定面收紧）**：新地板下 `ok=1012 ≥ 1009` ⇒ 仍绿，但 `ok ≤ 1008` 自此可判失败。本行为「判据已失去判定力」的订正，**不是**红绿翻转；未新开 TD（主 agent 就地修，台账见本条） |
+
+**第 7 次执行追加的一行（fix 循环后重验时暴露的判据缺陷 · 由主 agent 修正并回写 `TASK.md`）**：
+
+| task | 原文字面执行为何红 | 修正内容（落在权威副本 `TASK.md`） | 修正前 → 修正后 rc |
+|---|---|---|---|
+| **`T-FIX-04`**（`TD-065` · 夹具样本与被测集合脱钩） | 缺对夹具用 `ls flow-kit-bundle/skills/*/SKILL.md \| head -1` 取到字母序首个 `flow-architect/SKILL.md`（**不是** `PAIRS` 成员）⇒ `MISS=0` ⇒ 修复后的**正确**行为（汇总仍打印 `✅ 校验对 3/14 一致`）被判据报成 🔴「F6：缺一对文件仍 rc=0」⇒ `<verify>` 恒 rc=1、任务无法提交 | 夹具改为**从被测数据权威来源派生**：`grep -oE '\|flow-[a-z0-9-]+' flow-kit-bundle/flow-kit/reference/check-gate-sync.sh \| head -1` ⇒ `hidden="flow-kit-bundle/skills/${pair_skill}/SKILL.md"` + `[ -f ]` 前置（失败即打印「判据前置失败」）+ 诊断行 `（诊断）verify hides: …`；**其余断言、汇总 printf、bats/门禁段逐字不动** | **rc=1 → rc=0**（44 行判据；`verify hides: flow-kit-bundle/skills/flow-evolve/SKILL.md` · `real=21 full_fixture=0 missing_pair=1`） |
 
 上表三行的台账归属：`T-FIX-01` 判为 **TD-051 复发**（不新开 TD，登记于 `MINOR-DEFERRED.md:906-935`）；`T-FIX-02` **新开 `Tech-debt: TD-060`**（同类性质：验收判据自身的环境假设错误，登记于 `MINOR-DEFERRED.md:945-963`）；`T27`/`T29` 为**判据强度订正**（不新开 TD，由主 agent 就地修 `TASK.md` 并于第 5 次执行复核）。三条判据修正后**原样复跑均 rc=0**，并在第 5 次执行（REPRO4）中以 14 条判据整轮重跑复证（§附录 D）。
 
@@ -211,7 +220,9 @@ L3 第 2 轮 major 3 问：本报告的 `rc=0` 是**字面执行**还是**修正
 | `T-FIX-01` | `export LC_ALL=C` → 4 行成因注释 + `rc=0`（其余 31 行逐字不动） | `0dfb08f` | 工作树（第 5 次执行期间修，未提交） | rc=1（locale 泄漏 · TD-051 复发） | rc=0 | 第 5 / 6 次执行 |
 | `T-FIX-02` | 缺 `REPO_ROOT` 复位 → 补 `REPO_ROOT` + 沙箱末尾 `cd`（步骤/断言逐字不动） | `0dfb08f` | `c50ad42` | rc=1（cwd 泄漏 · TD-060） | rc=0 | 第 5 / 6 次执行 |
 | `T27` / `T29` | 回归地板 `-ge 973` → `-ge 1009`（= 1012 − 3） | `c50ad42` | 工作树（第 5 次执行期间修，未提交） | rc=0（但判定力被削弱：允许 39 例静默消失） | rc=0（判定面收紧） | 第 5 / 6 次执行 |
-| 其余 8 条（`T05` / `T06` / `T11` / `T13` / `T20` / `T22` / `T24` / `T26`） | 无修改 | — | — | — | rc=0 | 第 1–4 / 5 / 6 次执行（同一文本） |
+| `T-FIX-04` | 夹具 `ls … \| head -1` → 从 `PAIRS` 派生 + `[ -f ]` 前置 | 判据侧缺陷随 fix 循环暴露（生产件 `521b21c`） | 工作树（第 7 次执行前修 · 随后 housekeeping 提交） | rc=1（夹具样本脱钩 · `TD-065`） | rc=0 | 第 7 次执行 |
+| `T-FIX-03` / `T-FIX-05` | 无修改（**字面执行**） | — | — | — | rc=0 | 第 7 次执行 |
+| 其余 8 条（`T05` / `T06` / `T11` / `T13` / `T20` / `T22` / `T24` / `T26`） | 无修改 | — | — | — | rc=0 | 第 1–4 / 5 / 6 / 7 次执行（同一文本） |
 
 > **历史回执的时点前缀规则（同轮 major 2 收口）**：本报告内**未标「第 1–4 次执行」前缀**的旧数字（如 §2.5 的 `ok=976`）一律读作**修正前判据集的历史回执**，仅作原始证据保留（**不为口径改写数字**）；**当前基线口径 = §1.3 第 2/5 条 + §0 第 6 次执行行 + 附录 D-7**（1012 / 1011 · 修正后判据集）。
 
@@ -238,9 +249,11 @@ L3 第 2 轮 major 3 问：本报告的 `rc=0` 是**字面执行**还是**修正
 
 **测量环境与 5 次补测（L3 第 2 轮 minor ① 响应）**：环境 = 同一台机器 `nproc=32`、运行前 `loadavg` = `6.04 / 6.48 / 6.52`、无并发测试进程、git 索引**热态**（前序 `make check` 已扫过同一工作树，非冷缓存）；计时用 `TIMEFORMAT='real=%R user=%U sys=%S'`。**5 次** `time make check-path-privacy`：real = **2.842 / 2.847 / 2.898 / 2.836 / 2.867 s**（min 2.836 · max 2.898 · 均值 2.858 ⇒ 预算 ≤5 s 的 **57%**），与上表 3 次口径一致（极差 0.062 s，远小于预算余量的 1%）⇒ **判定不变：✅ 达标**。复算命令 = `reproduce-5-test.sh` 门禁段 [D]（内部即 `time make check-path-privacy` ×5，并打印 nproc/loadavg）。
 
-**处置后独立复测（L3 第 3 轮响应 · receipts §I）**：同一命令、同一环境（`nproc=32`、`loadavg` = `5.95 / 6.13 / 6.25`）再测 **5 次**：real = **2.876 / 2.822 / 2.850 / 2.834 / 2.871 s**（min 2.822 · max 2.876 · 均值 **2.851** = 预算 **57%**）⇒ 两次独立实测结论一致（波动 < 0.1 s，均远低于 5 s 预算），**判定不变：✅ 达标**。原始回执见 `PHASE5-RECEIPTS.md` §E（首轮）与 §I（处置后）。**时点限定（L3 第 10 轮 minor ③ 响应）**：本节各次数值（2.826–2.898 s 区间 · 均值 2.841 / 2.858 / 2.851 s）均为**第 1–5 次执行的历史值**；**终版性能基线 = 第 6 次执行 = 均值 2.937 s（§附录 D-7 · `loadavg` 6.94/6.83/7.13）**，全部 ≤5 s 预算 ⇒ **性能结论不依赖版本口径**。
+**处置后独立复测（L3 第 3 轮响应 · receipts §I）**：同一命令、同一环境（`nproc=32`、`loadavg` = `5.95 / 6.13 / 6.25`）再测 **5 次**：real = **2.876 / 2.822 / 2.850 / 2.834 / 2.871 s**（min 2.822 · max 2.876 · 均值 **2.851** = 预算 **57%**）⇒ 两次独立实测结论一致（波动 < 0.1 s，均远低于 5 s 预算），**判定不变：✅ 达标**。原始回执见 `PHASE5-RECEIPTS.md` §E（首轮）与 §I（处置后）。**时点限定（L3 第 10 轮 minor ③ 响应）**：本节各次数值（2.826–2.898 s 区间 · 均值 2.841 / 2.858 / 2.851 s）均为**第 1–5 次执行的历史值**；**终版性能基线 = 第 6 次执行 = 均值 2.937 s（§附录 D-7 · `loadavg` 6.94/6.83/7.13）**；**第 7 次执行更新：当前基线 = 均值 3.011 s（§附录 D-8 · `loadavg` 7.64/7.86/7.83）**，全部 ≤5 s 预算 ⇒ **性能结论不依赖版本口径**。
 
 **负载差异说明（第 5 次执行 vs 第 1–4 次执行 · L3 第 8 轮 minor ③ 响应）**：第 5 次执行时本机 `loadavg` = **7.91 / 8.12 / 7.49**，高于第 1–4 次执行的 5.95 / 6.04 / 6.13 / 6.25 / 6.48 / 6.52（各轮记于 receipts §E / §I / §J-2）；对应 5 次均值 **2.895 s**（第 5 次）vs **2.851–2.858 s**（第 1–4 次）= **+0.037 ~ +0.044 s（+1.3% ~ +1.5%）**，方向与负载升高一致，属**同量级波动**。**判定不依赖负载归一化**：预算是**绝对阈值 ≤5 s**，五次单测**全部 ≤5 s**（最差 2.929 s，仍留 41.4% 余量），故不做负载折算、也不引入「按 loadavg 折算耗时」的口径（那会掩盖真实绝对耗时）。原始计时逐行见 §附录 D-2 与 receipts §J-2。
+
+**第 7 次执行（fix 循环后重验 · 2026-09-25）性能回执**：`loadavg` = **7.64 / 7.86 / 7.83**（`nproc=32`），5 次 `time make check-path-privacy` real = **2.985 / 3.005 / 3.012 / 3.019 / 3.032 s**（min 2.985 · max 3.032 · 均值 **3.011 s** = 预算 ≤5 s 的 **60.2%**）⇒ **判定：✅ 达标**（最差单次仍留 39.8% 余量）。与前几轮均值的差异（+0.12 s vs 第 5 次 2.895 s、+0.07 s vs 第 6 次 2.937 s）方向与负载升高一致（7.64/7.86/7.83 > 6.94/6.83/7.13 > 5.95/6.04/6.13/6.25/6.48/6.52），属**同量级波动**；预算为**绝对阈值**，不做负载折算。原始逐行见 §附录 **D-8** 与 `PHASE5-RECEIPTS.md` **§O**。
 
 **端到端耗时实测（L3 第 4 轮 minor ① 响应 · 2026-09-24）**：`TIMEFORMAT='real=%R user=%U sys=%S'; time npx bats test/` ⇒ **real = 121.203 s**（user 81.050 / sys 44.707，rc=0）；`time make check` ⇒ **real = 258.890 s**（user 170.315 / sys 93.520，rc=0）＝ bats 主体 121.2 s + 其余 8 道静态/一致性/新门禁合计 ≈ **137.7 s**（`shellcheck` 68 文件为大头）。**与 change 前基线的对比**：本次新增门禁对 `make check` 的增量 = `check-path-privacy` 2.8 s + `check-gate-sync` 0.05 s + `check-nfr-portability` 0.17 s ≈ **3.0 s（占 1.2%）**，未改变「分钟级主体」的量级；`npx bats` 不受新门禁影响（用例数 973 → 976，+3）。原始回执 `PHASE5-RECEIPTS.md` §I。
 
@@ -407,7 +420,7 @@ make check-path-privacy                      # 脱敏门禁 + 自证四行
 
 ## 新增测试登记
 
-本 change **未新增** bats 文件；对既有套件做了 8 处修改（`git diff --numstat 534e3e8..HEAD -- test/`）。**⇒ 第 5 次执行订正（上一行是第 1–4 次执行时点的历史事实，保留不抹除）**：阶段 4 的两个 fix 任务交付后，本 change 实际**新增 4 个 bats 文件 / 36 例**（`T-FIX-01` 25 例 + `T-FIX-02` 11 例），逐文件登记见下表「第 5 次执行新增登记」。
+本 change **未新增** bats 文件；对既有套件做了 8 处修改（`git diff --numstat 534e3e8..HEAD -- test/`）。**⇒ 第 5 次执行订正（上一行是第 1–4 次执行时点的历史事实，保留不抹除）**：阶段 4 的两个 fix 任务交付后，本 change 实际**新增 4 个 bats 文件 / 36 例**（`T-FIX-01` 25 例 + `T-FIX-02` 11 例），逐文件登记见下表「第 5 次执行新增登记」。**⇒ 第 7 次执行补记（fix 循环）**：再增 **13 例**（`T-FIX-03` = `6e39cfb` 隐私门禁 11 例 + `T-FIX-04` = `521b21c` gate-sync 2 例；`T-FIX-05` = `6e94d60` 以钉住断言改写既有用例 ⇒ **+0**），逐行见下表「第 7 次执行新增登记」。
 
 | 文件 | 变更 | 目的（AC） |
 |---|---|---|
@@ -428,8 +441,14 @@ make check-path-privacy                      # 脱敏门禁 + 自证四行
 | `test/test_runtime_edit_guard.bats` | 113 | **9** | `T-FIX-01` · `5ee4ebc` | `runtime-edit-guard.sh`（AC-1）：相对路径 ⇒ rc=2 / 绝对路径 ⇒ rc=0 / 双态注入判活 —— **补齐 TD-053** |
 | `test/test_nfr_portability_gate.bats` | 127 | **7** | `T-FIX-01` · `5ee4ebc` | `check-nfr-portability.sh`（AC-8 静态面）：空变更集 ⇒ rc=3 / GNU-only 构造注入 ⇒ rc≠0 / `bash -n` 面 —— **补齐 TD-053** |
 | `test/test_review_gate_validity.bats` | 197 | **11** | `T-FIX-02` · `6cff7a2` | 阶段门**标记有效性**（`Tech-debt: TD-059` 闭合 · ADR-029）：A 无标记 / B 合格 6 键 / B2 口径相悖 / B3 `touch` 空 / B4 缺 `L3_verdict` / B5 值域非法 / C 无 `.flow-active` / gate 未开反面对照 / 函数级三例 —— 无效标记**一律必须拒绝** |
+**第 7 次执行新增登记（fix 循环 · 每条均有 `flow-kit-bundle/test/` 下的双源镜像）**：
 
-**基线演进（与 `.specs/STATE.md:48-51` 同源 · 第 5 次执行实测）**：**976**（T29 收口：`npx bats --count test/` = 976 / 有效 975）→ **1001** = 976 + **25**（`T-FIX-01` = `5ee4ebc`）→ **1012** = 1001 + **11**（`T-FIX-02` = `6cff7a2`）；本轮 REPRO4 实测 `npx bats --count test/` = **1012**、`npx bats test/` = **ok=1012 / not ok=0 / skip=0**、有效用例 = **1011**（1 例 TD-033 mock 不计，§1.3 第 5 条）。
+| 文件 | 行数 | `@test` 例数 | 对应 task / commit | 覆盖的生产件或判定面 |
+|---|---|---|---|---|
+| `test/test_path_privacy_gate.bats` | 306 | **20**（9 → 20） | `T-FIX-03` · `6e39cfb` | `check-path-privacy.sh`（AC-6 · **`TD-064` 闭合**）：F1 坏 `TMPDIR` ⇒ rc≠0 / F1 `cp` rc 断言 / F2 非 git 目录 ⇒ rc≠0 / F2 index 空仓 ⇒ rc≠0 / F2 自证候选数 / F3 二进制两模式统一 / F4 注释口径单点 / F5 单一 trap + 各面好态对照 —— **机械故障面与 0 候选面 fail-closed** |
+| `test/test_check_gate_sync.bats` | 92 | **7**（5 → 7） | `T-FIX-04` · `521b21c` | `check-gate-sync.sh`（AC-4 · **`TD-065` 判据修复**）：缺一对 prompt/skill ⇒ rc≠0 且汇总**不打印**「✅ … 一致」（`🔴 MISSING` + 覆盖度分母 = 实际比对对数）/ 完整夹具 ⇒ rc=0 且覆盖度 = 3/14 |
+
+**基线演进（与 `.specs/STATE.md:48-51` 同源 · 第 5 次执行实测）**：**976**（T29 收口：`npx bats --count test/` = 976 / 有效 975）→ **1001** = 976 + **25**（`T-FIX-01` = `5ee4ebc`）→ **1012** = 1001 + **11**（`T-FIX-02` = `6cff7a2`）→ **1023** = 1012 + **11**（`T-FIX-03` = `6e39cfb`）→ **1025** = 1023 + **2**（`T-FIX-04` = `521b21c`；`T-FIX-05` = `6e94d60` +0）；**第 7 次执行（REPRO5）实测** `npx bats --count test/` = **1025**、`npx bats test/` = **ok=1025 / not ok=0 / skip=0**、有效用例 = **1024**（1 例 TD-033 mock 不计，§1.3 第 5 条）。
 
 **新增判定力的另两种承载形式**（不属于 bats，但同属回归面）：
 1. **change 期判据**：19 条（`T02/05/06/11/13/17/18/19/20/21/22/23/24/25/26/27/28/29`），原文在 `TASK.md` 各 `<verify>`，归档后仍在仓内可复算（本次全部复跑 rc=0）。
@@ -495,10 +514,17 @@ make check-path-privacy                      # 脱敏门禁 + 自证四行
 | 32 | 🟡 | **`T27`/`T29` 判据的 bats 回归地板按旧基线标定**：断言 `[ "$b_ok" -ge 973 ]`（= 976 − 3），而基线已升到 **1012** ⇒ 旧地板可容忍 **39 例静默消失**（回归网被静默削弱；与 L-152「门禁强度 = 最早返回的检查」同族） | **判据地板订正（主 agent 就地修 `TASK.md` · 阶段 5 重入）**：`TASK.md:1231`（T27 断言）/ `:1306`（T29 断言）`-ge 973` → **`-ge 1009`**（= 1012 − 3，与原 976/973 同余量）；同步 `:1229`（T27 echo 描述串）/ `:1291`（T29 `<action>` 描述串）/ `:25`（AC-8 行 `bats ≥1009`）与两条 `<done>` 注记；**`<verify>` 行数未变**（T27 = 19 行 / T29 = 15 行）⇒ 本轮判据抽取口径不受影响；实测 `ok=1012 ≥ 1009` ⇒ 两条判据在新地板下 **rc=0**（§1.7 台账第 5–6 行 · §附录 D） |
 
 | 33 | 🟡 | **`G-T04-1`/`G-T04-2` 前置修复（主 agent 自定的阶段 5 门禁前置项 · **非判据失败**）在飞行中改动源面 ⇒ 中间轮 r4c 的 `make check` 因 `check-dist` 陈旧转红**（`T29` / `T-FIX-01` / `T-FIX-02` 三条判据的 `<verify>` 均以 `make check` 为必经步骤，故同一根因连带三红） | **`Fixed in: flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:364` / `:369`（两处纯文案 · **零行为变更**）+ `test/test_l3_review_defects_2026_09.bats` 的 `B11-R6` 内 **6 条静态断言**（不新增用例 ⇒ 计数仍 **1012**）+ `./sync-hooks.sh` 六副本 + `bash package-dsh-plugin.sh`（dist 重建 · gitignored）** ⇒ `make check-dist` = ✅ dist 与源一致 · `make check-hooks-sync check-test-sync` = ✅ 漂移 0 / ✅ 双源一致；源面随后**冻结**，终版整轮复跑（第 6 次执行 · `R4D_RC=0`）判据 **14/14** + 门禁 **7/7** 全绿。中间轮的 rc=1 与根因**如实保留**在 §附录 **D-5**；处置事实见 §附录 **D-6**、终版回执见 §附录 **D-7** 与 `PHASE5-RECEIPTS.md` **§M** |
+| 34 | 🔴 | **隐私门禁 F1（机械/工具故障 fail-open）**：`check-path-privacy.sh` 把 `mktemp`（`:75-77`）/ `cp`（`:105-111`）/ `git ls-tree`/`git ls-files`（`:203-209`）的失败与 `grep` 的 rc/stderr（`:285`/`:309` 的 `2>/dev/null || true`）折算成「0 命中 ⇒ ✅ rc=0」⇒ 坏 `TMPDIR` 下仓内**真泄漏仍 rc=0**（主 agent 四态复现 + 跨模型 spot-check `qwen3.8-flash` 独立复现，逐字节稳定） | **`Fixed in: flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（`T-FIX-03` = `6e39cfb` · 392 → 548 行）**：`mktemp_checked()` `:106-115` · `cp` rc `:153`/`:161` · `git ls-tree`/`git ls-files` rc `:271`/`:279` · `git grep`/`grep` rc≥2 `:385-395`/`:425-435`（**rc=1 无命中仍放行 ⇒ 无假红**）；`|| true` 仅存 2 处且均在 rc 已断言后 ⇒ **`Tech-debt: TD-064` 已闭合** |
+| 35 | 🔴 | **隐私门禁 F2（扫描面塌陷 · 0 候选与干净同形）**：自证行（`:369-374`）无「候选文件 N 个」，非 git 目录 / git 仓但 index 为空 ⇒ 候选 0 ⇒ 输出「命中合计 0 条 ✅」rc=0，与「全部干净」不可区分（跨模型 spot-check 另发现「`git init` 未 `add`」变体：`git ls-files` rc=0 只是输出 0 行，F1 的 rc 断言抓不到） | **`Fixed in: 同上`**：自证行含候选数（`:296-300`）+ `N=0 ⇒ 🔴 候选面为空` fail-closed（`:300-303`）+ 常设双态 bats 同时覆盖「非 git 目录」与「git 仓 0 tracked」两型 ⇒ **`TD-064` 已闭合** |
+| 36 | 🟡 | **隐私门禁 F3/F4/F5**：F3 两模式二进制策略相反（工作树 `grep -nE` 静默丢弃 ⇒ 假绿；rev `git grep` 把 `Binary file … matches` 当命中 ⇒ 不可归因假红且白名单永不生效）· F4 注释口径两套（校验器认 `#` 与 `<!--`，计数器只认 `#` ⇒ 自证行「允许清单 N 条」虚高）· F5 临时文件清单两份 + 第二个 `trap … EXIT` 覆盖 `cleanup()` ⇒ 首次登记的临时文件失联 | **`Fixed in: 同上`（`T-FIX-03`）**：F3 两模式统一 `-a` + 命中读取端断言 line 字段 `^[0-9]+$`；F4 `IS_COMMENT_OR_BLANK_RE`（`:192`）校验器 `:205` 与计数器 `:261` 共用；F5 唯一 `trap cleanup EXIT`（`:98`）+ 单一 `TMP_FILES`（`:120`/`:475`） |
+| 37 | 🟡 | **`check-gate-sync.sh` F6/F7（门禁自称一致却不一致）**：缺一对 prompt/skill 文件时只打 `⚠️ WARNING` + 裸 `return`（`ERRORS` 不增）⇒ 沙箱实测缺 1 对仍打印 `✅ 校验对 3/14 一致` rc=0；「14」在 `:25`/`:32`/`:40`/`:204`/`:209` 硬编码 + `:206` 文案陈旧 | **`Fixed in: flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（`T-FIX-04` = `521b21c`）**：缺对 ⇒ `🔴 MISSING` + `ERRORS+1`；新增 `COMPARED` 计数器，汇总分母 `${COMPARED}/${PAIRS_TOTAL}` 并单列未比对对数，`✅` 行改用 `${COMPARED}` ⇒ 缺对时必走 🔴 分支；`PAIRS_TOTAL=14` 常量单点 + 全集插值；常设 bats 5 → **7** 例 |
+| 38 | 🟡 | **`Makefile` F8（判据正文复制两遍）**：`check-nfr-portability`（`:247` 起 89 行 wrapper）与 `check-nfr-portability-internals`（`:162` 起 78 行正文）有 **76 条语句逐字重复** ⇒ 双份维护、改一处即漂移 | **`Fixed in: Makefile`（`T-FIX-05` = `6e94d60`）**：wrapper 配方 **89 → 13 行薄壳**（`awk` 范围法 · Δ−76 · 本提交 `Makefile` numstat `+9/−77`）（`mktemp` 两临时件 → `export NFR_RC_FILE` → `bash -c 'make --no-print-directory check-nfr-portability-internals'` → 三态映射 0/3/1），判据正文唯一留存 internals（范围法 79 行不变）· 本提交 3 文件 **+35 / −77 ⇒ 净 −42 行**；钉住断言（`_report_viol() {` 唯一 + wrapper recipe < 30 行）**改写既有用例**（计数 +0）；**零行为变更**（F3 既有 7 例全绿）。张力点：薄壳用 `bash -c 'make …'` 而非 `$(MAKE)`（GNU make `-n` 特例与 `make -n` 可解析性断言互斥）⇒ 主 agent 裁定**接受**（`<action>` ② 允许等价递归形态 · **L-156**） |
+| 39 | 🟡 | **判据夹具自身缺陷（`TD-065`）**：`T-FIX-04 <verify>` 的缺对夹具用 `ls flow-kit-bundle/skills/*/SKILL.md | head -1` 取字母序首个 `flow-architect`，而生产件 `PAIRS` 只含 `flow-evolve`/`flow-intel`/`flow-restyle` ⇒ `MISS=0` ⇒ 修复后的**正确**行为被判据报成 🔴 ⇒ `<verify>` 恒 rc=1（执行者依硬规则 2 停下原样上报，**未自行改判据**） | **`Fixed in: .specs/health-fix-2026-09b/TASK.md` 的 `T-FIX-04 <verify>`**（夹具改为从 `PAIRS` 声明的 `|flow-<name>` 形态派生 + `[ -f ]` 前置 + 诊断行）⇒ 原样复跑 **rc=0**（`verify hides: flow-kit-bundle/skills/flow-evolve/SKILL.md` · `real=21 full_fixture=0 missing_pair=1`）；**`Tech-debt: TD-065` 已闭合（v2 = `make lint` 静态检查 `ls … | head -1` 形态）** |
+| 40 | ℹ️ | **阶段 6 审查另登记的三条开放债**：`TD-061`（行/分支覆盖率无数据 · 本机无 `kcov`/`bashcov`）· `TD-062`（`check-path-privacy.sh:50-53` 回退读序硬编码本 change id ⇒ 归档后成死代码）· `TD-063`（`.specs/**` 31 个 tracked 文件仍含内部项目名 · 不在分发面故不违反 AC-5 的「不随分发件出厂」） | **`Tech-debt:` 结案（交阶段 7 triage）**；三条均为 v2 面，不阻塞本 change（`TD-062`/`TD-063` 由 `REVIEW.md` 🟢 F12/F17 登记 · `TD-061` 由 L3 第 11 轮 major 4 登记） |
 
 > **修改前判据原文存档（L3 第 7 轮 major 2 / L2 R2 响应）**：6 条被回写判据（`T17` · `T19` · `T-FIX-01` · `T-FIX-02` · `T27` · `T29`）的**修改前 `<verify>` 原文 + 来源 commit + 逐条执行结论**见 `PHASE5-RECEIPTS.md` **§K**/**§L**；结论 = **无一条属「判据判红 ⇒ 改判据至绿」**（`T-FIX-02` 修的是判据自身假红 · TD-060；`T27`/`T29` 收紧弱地板且红绿不变）。
 
-> **审查发现处置位置索引**：L2 第 1 轮 3 条 🟡（R8/R9/R10）与 L3 第 1–4 轮全部 major/minor 的逐条分类（`Fixed in:` / `Tech-debt:` / `Not-applicable:`）见 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md` 的六段「主 agent 响应」；本节 **1–28** 为第 1–4 次执行的处置索引（历史记录，保留不抹除），**29–32** 为第 5 次执行（REPRO4 重入复跑）的追加条目，**33** 为第 6 次执行（终版 · `G-T04-1`/`G-T04-2` 修复与源面冻结）的追加条目。**独立技术债条目 = 7**（TD-053 常设回归网 · **TD-055** macOS 实机 · **TD-056** 安全工具面 · **TD-057** 判据 `rc=$?` 惯用法 · **TD-058** `HOOK_BASE_DIR` 语义 · TD-059 阶段门存在性判定 · **TD-060** 判据 cwd 泄漏），均为 `Tech-debt:` 结案；其中 **3 条已在本 change 内闭合**（TD-053 = `5ee4ebc` · TD-059 / TD-060 = `6cff7a2` 判据侧修复），**4 条仍开放**（TD-055 / TD-056 / TD-057 / TD-058，交阶段 7 triage），**技术债 / 处置发现 = 7 / 33 ≈ 21.2%，未达 `5-test.md` 的 50% 阈值**；其中 **TD-058 / TD-059 为阶段 5 实测新发现的产品缺陷**，各附 v2 修法与非本 change 范围内的次序理由。
+> **审查发现处置位置索引**：L2 第 1 轮 3 条 🟡（R8/R9/R10）与 L3 第 1–4 轮全部 major/minor 的逐条分类（`Fixed in:` / `Tech-debt:` / `Not-applicable:`）见 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md` 的六段「主 agent 响应」；本节 **1–28** 为第 1–4 次执行的处置索引（历史记录，保留不抹除），**29–32** 为第 5 次执行（REPRO4 重入复跑）的追加条目，**33** 为第 6 次执行（终版 · `G-T04-1`/`G-T04-2` 修复与源面冻结）的追加条目。**独立技术债条目 = 12**（TD-053 常设回归网 · **TD-055** macOS 实机 · **TD-056** 安全工具面 · **TD-057** 判据 `rc=$?` 惯用法 · **TD-058** `HOOK_BASE_DIR` 语义 · TD-059 阶段门存在性判定 · **TD-060** 判据 cwd 泄漏 · **TD-061** 覆盖率无数据 · **TD-062** 常设件硬编码 change id · **TD-063** `.specs/**` 内部名留存 · **TD-064** 隐私门禁 fail-open / 扫描面塌陷 · **TD-065** 判据夹具样本脱钩），均为 `Tech-debt:` 结案；其中 **5 条已在本 change 内闭合**（TD-053 = `5ee4ebc` · TD-059 / TD-060 = `6cff7a2` · TD-064 = `6e39cfb` · TD-065 = `T-FIX-04` 判据修复），**7 条仍开放**（TD-055 / TD-056 / TD-057 / TD-058 / TD-061 / TD-062 / TD-063，交阶段 7 triage），**技术债 / 处置发现 = 12 / 40 = 30.0%，未达 `5-test.md` 的 50% 阈值**；其中 **TD-058 / TD-059 为阶段 5 实测新发现的产品缺陷**，各附 v2 修法与非本 change 范围内的次序理由。
 
 ---
 
@@ -1058,3 +1084,79 @@ R4D_RC=0
 ```
 
 > **读法**：本小节 = 终版（源面冻结 + 地板订正后）的**整轮**回执摘要，完整原文见 `PHASE5-RECEIPTS.md` **§M**（§M-1 判据 · §M-2 门禁 · §M-3 权威行 · §M-4 六态全文）；`D-0` ~ `D-3` 为**修正前**判据集的整轮（rc=0），`D-4` 为修正后地板版单条（rc=0），**`D-5` 为中间轮（r4c）的 rc=1 诚实记录**（根因 = 源面在飞行中被改致 `check-dist` 陈旧，非判据问题；`D-6` 记该批修复的处置事实）。
+
+### D-8 第 7 次执行（fix 循环后重验 · 17 条判据 + 7 项门禁）原始回执内嵌
+
+**运行标识**：`FK_REPRO_LOG_DIR=/tmp/fk-reproduce-5-r5 bash .specs/health-fix-2026-09b/reproduce-5-test.sh` ⇒ **`REPRO5_RC=0`**；HEAD = `ee29a6d`；起始 **2026-09-25T00:26:42+08:00**；`bash 5.2.21(1)-release`；脚本 = `reproduce-5-test.sh`（198 行 · `DEFAULT_IDS` 17 条）。
+
+**D-8-1 判据（17/17 rc=0 · `抽取行数` = 判据块有效命令/断言行数）**
+
+| 判据 | 结果 | 抽取行数 | 原始输出 |
+|---|---|---|---|
+| T05 | ✅ rc=0 | 12 | `out_T05.txt` |
+| T06 | ✅ rc=0 | 22 | `out_T06.txt` |
+| T11 | ✅ rc=0 | 7 | `out_T11.txt` |
+| T13 | ✅ rc=0 | 34 | `out_T13.txt` |
+| T17 | ✅ rc=0 | 73 | `out_T17.txt` |
+| T19 | ✅ rc=0 | 36 | `out_T19.txt` |
+| T20 | ✅ rc=0 | 3 | `out_T20.txt` |
+| T22 | ✅ rc=0 | 20 | `out_T22.txt` |
+| T24 | ✅ rc=0 | 18 | `out_T24.txt` |
+| T26 | ✅ rc=0 | 30 | `out_T26.txt` |
+| T27 | ✅ rc=0 | 19 | `out_T27.txt` |
+| T29 | ✅ rc=0 | 15 | `out_T29.txt` |
+| **T-FIX-01** | ✅ rc=0 | 36 | `out_T-FIX-01.txt` |
+| **T-FIX-02** | ✅ rc=0 | 42 | `out_T-FIX-02.txt` |
+| **T-FIX-03**（新增纳入） | ✅ rc=0 | 78 | `out_T-FIX-03.txt` |
+| **T-FIX-04**（新增纳入 · 判据经 `TD-065` 修复） | ✅ rc=0 | 44 | `out_T-FIX-04.txt` |
+| **T-FIX-05**（新增纳入） | ✅ rc=0 | 26 | `out_T-FIX-05.txt` |
+
+**D-8-2 门禁（7/7 rc=0）**
+
+| 门禁 | 结果 | 摘要（原文） |
+|---|---|---|
+| `npx bats --count test/` | ✅ rc=0 | `用例数 1025（源码面 test/*.bats）` |
+| `npx bats test/` | ✅ rc=0 | `rc=0 ok=1025 not-ok=0（基线 1025 ok / 0 not ok，skip 计入 ok 行）` |
+| `make check` | ✅ rc=0 | `21 条 ✅ / 0 条 ❌`（尾框 `✅ make check: 全部通过`） |
+| `make check-path-privacy` | ✅ rc=0 | `扫描面: 工作树` · `允许清单 0 条` · `命中合计 0 条（含占位符排除后）` · `清单外命中 0 条` |
+| NFR ≤5 s ×5 | ✅ rc=0 | `nproc=32 loadavg=7.64 7.86 7.83`；real = 2.985 / 3.005 / 3.012 / 3.019 / 3.032 ⇒ 均值 **3.011 s = 60.2%** |
+| `bash package-flow-kit.sh --validate` | ✅ rc=0 | `期望覆盖: 315 项` · `实际文件: 321 项` · `🔴 漏配 (ERROR): 0` · `⚠️ 源缺失 (WARNING): 0` |
+| 阶段门沙箱复现（六态） | ✅ rc=0 | 见 D-8-4 |
+
+**D-8-3 三条 fix 判据的 stdout 关键行（原文）**
+
+```text
+-- T-FIX-03（隐私门禁 fail-open 收敛 · F1~F5）--
+A=1 B=0 D=1 E=1 E2=1 F=1 traps=1
+bats: 1025 ok / 0 not-ok / count=1025
+-- T-FIX-04（check-gate-sync 缺对不得报全绿 · F6/F7 · 夹具经 TD-065 修复）--
+   （诊断）verify hides: flow-kit-bundle/skills/flow-evolve/SKILL.md
+real=21 full_fixture=0 missing_pair=1
+-- T-FIX-05（Makefile NFR 判据去重 · F8）--
+wrapper_recipe_lines=13 internals_recipe_lines=79
+bats: 1025 ok / 0 not-ok / count=1025
+```
+
+**D-8-4 阶段门沙箱六态（stdout 摘要 · 全文 `/tmp/fk-reproduce-5-r5/phase-gate.txt`）**
+
+```text
+── 对照 0：门禁外直连 git …（证明仓库本身可提交，拦截不是命令形态问题）
+  ✅ 门禁外直连 commit 成功（HEAD 前进）（yes）
+── 状态 A：gate_config["5-test"]=both 且无 .done
+  ✅ 门禁 rc（拒绝）（2）· ✅ 报文含「⛔ 独立 review gate：阶段 5 (5-test) 独立 review 未完成，禁止 git commit。」
+  ✅ HEAD 未变（0b62276435d0ba0fe4af8a553e22d5b906b3d963）
+── 状态 B：合格 .done（6 键 KVP · 阶段 5 健康态）⇒ 同一命令应放行
+  ✅ 门禁 rc（放行）（0）· ✅ 放行后真 commit 生效（HEAD 前进）（yes）
+── 状态 B2：.done 记 pass 而审查档记 fail ⇒ 期望 rc=2
+  ✅ 口径不一致（标记记 pass / 审查档记 fail）被拒（2）· ✅ 报文含「禁止 git commit。」
+── 状态 B3：.done 被 touch 成 0 字节 ⇒ 期望 rc=2
+  ✅ 空标记（touch 0 字节）被拒（2）· ✅ 报文含「禁止 git commit。」
+── 状态 B4：.done 缺 L3_verdict 键（5 行 < MIN_MEANINGFUL_LINES=6）⇒ 期望 rc=2
+  ✅ 残缺标记（删 L3_verdict 键 · 5 行 < 6 行下限）被拒（2）
+── 状态 C：沙箱无 .flow-active（门不适用 ⇒ fail-open 对照）
+  ✅ 门禁 rc（不适用）（0）
+✅ 阶段门复现：健康层全绿 —— A 拒绝且 HEAD 不变 · B 放行且 commit 真的生效 · B2/B3/B4 无效标记一律拒绝（存在 ≠ 有效 · ADR-029）· C 门不适用放行；判别子：门禁外直连 commit 可用 ⇒ 拦截确由门禁判定产生。
+ℹ️ 历史对照（TD-059 缺口实证）：修复前 B2（口径相悖）/ B3（空标记）/ B4（缺键）均是「存在即放行」的 rc=0；现收敛为 rc=2。
+```
+
+> **读法**：本小节 = **第 7 次执行（fix 循环后 · 判据面 17 条）** 的整轮回执摘要，完整原文见 `PHASE5-RECEIPTS.md` **§O**（§O-1 判据 · §O-2 门禁 · §O-3 三条新判据 stdout · §O-4 六态全文）。与 D-7 的差异 = 判据面 14 → 17（新增 `T-FIX-03`/`T-FIX-04`/`T-FIX-05`）+ bats 1012 → **1025** + 三件 fix 提交（`6e39cfb` / `521b21c` / `6e94d60`）落地后重跑。
