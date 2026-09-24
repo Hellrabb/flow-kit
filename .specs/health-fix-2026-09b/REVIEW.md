@@ -1,17 +1,119 @@
 # 阶段 6 · REVIEW — health-fix-2026-09b
 
-**verdict: fail** —— 2 条 🔴 Critical（均在**本 change 新增**的隐私门禁里，属 fail-open 假绿）+ 6 条 🟡 Important + 9 条 🟢 Minor。
+**verdict（第 2 轮 · fix 循环后重审）: pass** —— 第 1 轮的 2 条 🔴 + 6 条 🟡 已**全部闭合并逐条活性重放**；9 条 🟢 维持 `MINOR-DEFERRED.md`；第 2 轮另增 **3 条 🟡**（F-18 扫描面标签过度声明 · F-19「0 实际扫描」仍报 ✅ · F-20 `mktemp` 立即终止未生效）——**三条均经用户裁决在本 change 内修**（F-18 = 只改措辞；F-19 + F-20 = 同批修复）⇒ 已回退 4-dev 追加 `T-FIX-06`，修后重跑 5-test → 6-review；深审 🟢 F-21（jobserver 警告）裁决 `Not-applicable` 并登记 `MINOR-DEFERRED.md`。
 
-- **审查对象**：`534e3e842fc900045f39492badc66eabe3ffd4c4` … `HEAD`（`7dd4bd7`，2026-09-24T19:03:11+08:00）
-- **变更规模**：全量 **85 files / +17005 / −149**；产品面（排除 `.specs/`）**37 files / +2416 / −146**
-- **审查者**：主 agent（Reviewer）· 遵守 **R3.3 = 本次审查未修改任何代码**（仅生成本文件 + `MINOR-DEFERRED.md` + 追加 fix 任务）
-- **动态门禁判定（AC-9）**：**❌ 未通过**（存在 🔴 Critical）⇒ 禁止进 INTEGRATION
-- **修复出口**：`T-FIX-03` / `T-FIX-04` / `T-FIX-05` → `4-dev`
-- **spot-check**：**触发**（verdict=fail 且 ≥1 🔴，ADR-014）→ 第 2 轮盲审结果见 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md` 的 `## Cross-Model Spot-Check` 段
+> **第 1 轮（历史）** = 下方 §0 … §G：`verdict: fail`（2 🔴 + 6 🟡 + 9 🟢），修复出口 `T-FIX-03`/`T-FIX-04`/`T-FIX-05` → `4-dev`。
+> **第 2 轮（本轮 · 现行结论）** = 本节 §0′：对 fix 循环后的 HEAD 重新审查。
+
+- **审查对象（第 2 轮）**：`534e3e842fc900045f39492badc66eabe3ffd4c4` … `HEAD`（`cb21c03`）
+- **变更规模（第 2 轮）**：全量 **95 files / +24300 / −153**；fix 循环 3 提交 = `6e39cfb`（`T-FIX-03`）/ `521b21c`（`T-FIX-04`）/ `6e94d60`（`T-FIX-05`）
+- **审查者**：主 agent（Reviewer）· 遵守 **R3.3 = 本次审查未修改任何代码**（仅生成本文件 + `MINOR-DEFERRED.md`）
+- **动态门禁判定（AC-9）**：**✅ 通过**（0 条 🔴 Critical；🟡 F-18 按 `6-review.md:294` 非阻塞）。**注**：本判定属第 2 轮快照（HEAD `cb21c03`）；用户已裁决 F-18/F-19/F-20 在本 change 内修 ⇒ 该快照的 AC-9 结论将在 `T-FIX-06` 落地后的重审中重新出具。
+- **spot-check（ADR-014）**：第 1 轮已触发并完成（`INDEPENDENT-REVIEW-6.md` 的 `## Cross-Model Spot-Check` 段）；本轮 `verdict=pass` ⇒ **无新触发条件**
 
 ---
 
-## 0. 审查方法、门禁回执与独立复现
+## 0′. 第 2 轮审查（fix 循环后重审 · HEAD `cb21c03`）
+
+### 0′.1 复审面与运行标识
+
+| 项 | 值 | 来源 |
+|---|---|---|
+| HEAD | `cb21c03` | `git log --oneline -1` |
+| 变更集 | 95 files / **+24300 / −153** | `git diff 534e3e8..HEAD --shortstat` |
+| 全量测试 | `1..1025` · **ok=1025 / not ok=0**（`npx bats --count test/` = 1025） | §D-8-2 · `/tmp/p6b/` 回执 |
+| 门禁总闸 | `make check` **rc=0** · 21 ✅ / 0 ❌ | 同上 |
+| 隐私门禁 | `make check-path-privacy` **rc=0** · 清单外命中 **0** | 同上 |
+| fix 三件判据 | `T-FIX-03` / `T-FIX-04` / `T-FIX-05` 的 `<verify>` 各 **rc=0**（主 agent 独立抽取后原样复跑） | `TASK.md:1600±` |
+
+### 0′.2 第 1 轮发现闭合表（逐条 + 证据）
+
+| ID | 第 1 轮 | 症状 | 闭合提交 | 第 2 轮独立证据 | 判定 |
+|---|---|---|---|---|---|
+| **F1** `REVIEW.md:84` | 🔴 | 机械/工具故障（坏 `TMPDIR` 等）折算成「命中合计 0 条 ✅」rc=0 | `6e39cfb` | 同夹具态 B：rc=0 → **rc=1**，报文 `🔴 无法完成扫描：mktemp 失败（TMPDIR=…）` + 位置 `check-path-privacy.sh:mktemp_checked`；活性重放（生产件还原 `6e39cfb^`）⇒ `not ok 10`（F1 坏态） | ✅ 闭合 |
+| **F2** `REVIEW.md:93` | 🔴 | 扫描面塌陷：非 git / index 空 ⇒ 0 候选与「全干净」同形 rc=0 | `6e39cfb` | 态 C：rc=0 → **rc=1**（`git ls-files 失败` + `:ls-files`）；态 E（index 空）：rc=0 → **rc=1**（`候选文件 0 个` + `🔴 候选面为空，无法判定（0 候选 ≠ 干净 · ADR-027 ②③ fail-closed）`）；活性重放 `not ok 12/13/14` | ✅ 闭合 |
+| **F3** `REVIEW.md:102` | 🟡 | 二进制载体：工作树模式静默丢（rc=0）、rev 模式结论相反且行号不可解析 | `6e39cfb` | 态 F（泄漏仅在二进制内）：rc=0 → **rc=1**（`候选文件 2 个` · `命中合计 1 条`）；`-a` + 行号字段 `^[0-9]+$`（`check-path-privacy.sh:425-435`）；活性重放 `not ok 15`（`F3 坏态：tracked 二进制含探针 ⇒ 工作树模式必须非 0 且归因可解析`） | ✅ 闭合 |
+| **F4** `REVIEW.md:110` | 🟡 | 「什么算注释」两套口径（校验器 vs 计数器） | `6e39cfb` | `IS_COMMENT_OR_BLANK_RE`（`:192`）单点定义，校验器 `:205` 与计数器 `:261` 共用；活性重放 `not ok 17`（`F4 坏态：清单仅含 HTML 注释 ⇒ 自证须报「允许清单 0 条」`） | ✅ 闭合 |
+| **F5** `REVIEW.md:118` | 🟡 | 临时文件清单两份 + 第二个 EXIT trap 覆盖 `cleanup()` | `6e39cfb` | 唯一 `trap cleanup EXIT`（`:98`）+ `TMP_FILES`（`:120`/`:475`）；活性重放 `not ok 19`（`F5 静态：全脚本只剩一个 EXIT trap`） | ✅ 闭合 |
+| **F6** `REVIEW.md:126` | 🟡 | `check-gate-sync` 缺一对文件仅 WARNING，仍打印 `✅ 校验对 3/14 一致` rc=0 | `521b21c` | `<verify>` rc=0：缺对夹具 ⇒ rc=1 · `missing_pair=1` · **无 ✅ 汇总行**（缺对 ⇒ `🔴 MISSING` + `ERRORS+1`；汇总分母 `${COMPARED}/${PAIRS_TOTAL}`）；活性重放 ⇒ 恰 `not ok 7` | ✅ 闭合 |
+| **F7** `REVIEW.md:134` | 🟡 | `PAIRS_TOTAL` 之外散落字面「14」+ 补救文案与判据脱节 | `521b21c` | `PAIRS_TOTAL=14` 常量单点（`:44`）；改前 `:25/:32/:40/:204/:209` 的裸字面量已全部改为插值（现行全文仅 `:44` 一处常量，`grep -n '14'` 已核）；`:218` 文案改「请同步 prompt 和 skill 的全文内容（剥离平台 front-matter 后逐行比对一致）」 | ✅ 闭合 |
+| **F8** `REVIEW.md:142` | 🟡 | NFR 判据正文写两遍（wrapper 89 行 ≡ internals 76 条语句） | `6e94d60` | wrapper 配方 89 → **13 行**薄壳（`Makefile:247` 起 · `awk` 范围法 Δ−76），判据正文唯一留 internals（`:162` 起 79 行）；本提交 numstat = `Makefile +9/−77` · 3 文件合计 **+35/−77（净 −42 行）**；三态 rc 映射等价（0/3/1）；活性重放 ⇒ 恰 `not ok 6`（`_report_viol() {` 出现 2 次） | ✅ 闭合 |
+| **F9–F17** | 🟢 ×9 | Minor（命名/去重/文案等） | — | 全部登记在 `MINOR-DEFERRED.md`，**不入 fix loop**（`6-review.md:295`） | ✅ 已登记 |
+| **S1/S2/S3** | spot-check 补充 | S2（bats 例数 10 → 9）第 1 轮已就地订正；S1（`mktemp` 行号 off-by-4）与 S3（`AC-9` 出处）已登记 | — | `MINOR-DEFERRED.md` | ✅ 已处理 |
+
+> 三个 fix 提交的完整十项契约复核（numstat / blob 对 HEAD / 台账 Δ / 结构不变量 / 冻结集 / 判据独立复跑 / 双源镜像 / 活性重放 / 语义核对 / 残留面）见 `MINOR-DEFERRED.md` 的三段「复核记录」。
+
+### 0′.3 同夹具对照：第 1 轮抓到的三个 fail-open 夹具在新 HEAD 重跑
+
+夹具 = `mktemp -d` + `cp` 真实生产件（按脚本期望的相对布局：`flow-kit-bundle/flow-kit/reference/{check-path-privacy.sh,path-privacy-allowlist.txt}`）+ 拼接探针（`'/home/'` + `'zz-p6b-pro''be'` + `'/'`，L-137 形态）+ git 仓 + **已被 git add 的**泄漏文件（阳性对照必备，TD-065 教训）。脚本：`/tmp/p6b/four-state-privacy.sh`（只读，不触碰工作树）。
+
+| 态 | 构造 | 第 1 轮（旧生产件） | 第 2 轮（HEAD `cb21c03`） | 判定 |
+|---|---|---|---|---|
+| **A** | 规范环境 + 真泄漏（已跟踪） | rc=1 | rc=1（`候选文件 2 个` · `命中合计 1 条`） | 阳性对照成立 |
+| **B** | `TMPDIR=/nonexistent-dir-probe` | **rc=0 假绿 🔴** | **rc=1** + `🔴 无法完成扫描：mktemp 失败` + `位置: check-path-privacy.sh:mktemp_checked` | F1 闭合 |
+| **C** | 非 git 目录 | **rc=0 假绿 🔴** | **rc=1** + `🔴 git ls-files 失败（非 git 目录或 git 不可用）` + `位置: :ls-files` | F2 闭合（第一型） |
+| **E** | git 仓 + index 空 | rc=0（spot-check 变体） | **rc=1** + `候选文件 0 个` + `🔴 候选面为空，无法判定（0 候选 ≠ 干净 · ADR-027 ②③ fail-closed）` | F2 闭合（第二型） |
+| **F** | 泄漏仅在二进制载体（已跟踪） | **rc=0 静默丢 🔴** | **rc=1**（`候选文件 2 个` · `命中合计 1 条`） | F3 闭合 |
+| **D** | 控制（同 A 布局、无泄漏） | rc=0 | rc=0（`候选文件 1 个` · `命中合计 0 条`） | 无假红 |
+
+**新增发现（第 2 轮）**
+
+### 🟡 F-18 · R6 Domain Model Distortion：候选面标签写「工作树」，实际面 = git index
+
+**Severity**: 🟡 Important
+**定位**（行号 @ 被审 revision `cb21c03`；该文件在 T-FIX-06 落地后行号会前移）：`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:130`（`SCAN_SURFACE='工作树'`）· `:279`（候选 = `git ls-files --`）· `:518`（汇总行打印 `${SCAN_SURFACE}`）
+**四要素**：
+- 症状：门禁第 1 行与汇总行都打印「扫描面: 工作树」，但候选枚举是 `git ls-files`（= **git index**）。**未 `git add` 的工作树文件不在面内**：同一目录里放一个被跟踪的泄漏文件 → rc=1；把它 `git rm --cached` 变回 untracked（文件仍在磁盘上）→ **rc=0 + `候选文件 1 个` + `命中合计 0 条`**，读者会把「工作树」读成「整棵树已验干净」。
+- 证据（态 G / G2，`/tmp/p6b/index-face.txt`）：`git add staged.txt` ⇒ rc=1（候选 2 · 命中 1）；`git rm --cached staged.txt` ⇒ **rc=0**（候选 1 · 命中 0）；对应 `git ls-files` 输出 `clean.txt staged.txt` vs `clean.txt`。
+- 反例边界：脚本内注释 `:277` 是**准确**的（「候选 = tracked 文件」）⇒ 缺陷在**对外措辞**与「未跟踪面是否应纳入」的策略选择，不在实现的自洽性。风险面因此是「窄」的：未入库文件不进入分发面；提交时 PreToolUse/pre-commit 链路会在文件已 staged 后拦住它（态 G 已证）。
+- 建议动作（二选一，用户裁决）：
+  ① **补面**：`:279` 改 `git ls-files --cached --others --exclude-standard --`（未跟踪但未被 ignore 的文件一并入面）⇒ 标签与行为同时为真，并补 2 条双态用例（untracked 泄漏 ⇒ rc=1；被 ignore 的文件含泄漏 ⇒ rc=0）。
+  ② **改措辞**：`SCAN_SURFACE='工作树（git index：已 add / 已提交）'`，并把边界写进 `:19-25` 的契约注释与 `docs`（零行为变更）。
+- **用户裁决（2026-09-25 · question `f18_surface_label`）= ② 只改措辞（零行为变更）** ⇒ **并入 `T-FIX-06`**（与 F-19/F-20 同批；该任务已使 `.flow-active` 回退 4-dev，`.goal.rollback_2`）：常量改为 `SCAN_SURFACE='工作树（git index：已 add / 已提交）'`（5 处打印共用变量 ⇒ 单点变更）· 相邻「扫本地工作树」类注释同步对齐 · 新增钉住断言（先红后绿）；**不得**给 `git ls-files` 加 `--others`/`--exclude-standard`（用户未选 ①，扫描面保持不变）。
+
+### 0′.4 只读深审回执（fix 循环 3 提交）
+
+第 2 轮另派**只读**子 agent 对 `6e39cfb` / `521b21c` / `6e94d60` 三个 diff 做独立缺陷审查（bash 3.2 兼容 · fail-closed 穷举 · 新用例判别力 · 是否引入新缺陷）。其发现与主 agent 独立复现结果：
+
+**深审结论**：verdict = **pass**（无 🔴 · 旧缺陷逐条闭合 · 未引入 fail-open 回归 · 新用例均具判别力（回退父版必红）· bash 3.2 仅静态核（`bash -n` + 违禁构造 `grep`：无 `declare -A`/`mapfile`/`readarray`/`sed -i`/`${var^^}`/`&>>`/`[[ -v ]]`/`local -n`）· 未在真机 macOS 实跑 = TD-055 同族）。子 agent 在写盘实验阶段被 phase-6 门禁拦下（要求先有 `.independent-review-6.done`），故其结论全部取自 `/tmp` 只读副本实验 —— 与「只读深审」定位一致。
+
+**旧缺陷闭合（深审实测：父版 vs 新版）**
+- **F1 ✅**：`mktemp_checked()` `:106-116` · `git rev-parse` `:135-139` · `cp` `:153`/`:161` · `git ls-tree`/`git ls-files` `:271-283` · `git grep` `:385-395` · `grep -naE` `:425-435` 全部 rc 断言（全文 12 个「失败吞噬点」逐个核）；坏 `TMPDIR` ⇒ 父版 rc=0 + `✅` / 新版 rc=1 + 多条 🔴。
+- **F2 ✅**：两型 0 候选（非 git 目录 / 空 index）父版 rc=0 + `✅` / 新版 rc=1 + `🔴 候选面为空，无法判定`。
+- **F6/F7 ✅**：缺 prompt/skill ⇒ 父版 rc=0 + `✅ 校验对 3/14 一致` / 新版 rc=1 + `🔴 MISSING` + `ERRORS+1` 且不再打印 ✅ 汇总；`COMPARED` 只在两文件俱在时递增（`:80`），汇总行 `:216`/`:221` 用 `COMPARED` 而非对数总数；无 tautology（用例不断言 `COMPARED` 的值）。
+- **F8 ✅ 语义等价**：wrapper 13 行薄壳；判据正文唯一在 internals（`bash -euo pipefail -c`）；三态 rc 映射实测（fixture rc=3 ⇒ `SKIP:` + exit 0；违规 rc=1 ⇒ exit 1 + stderr `seed.sh:3:` 归因）；`make -n` 下 internals 仍打印完整正文；`MAKELEVEL=5` 无无限递归；`FLOW_KIT_CHANGE_BASE` 命令行/环境下传、`NFR_RC_FILE` 由 wrapper export 下传。
+
+**深审新发现（3 条 · 主 agent 已逐条独立复核机制）**
+
+- **F-19 · 🟡 · `check-path-privacy.sh:293`（`CANDIDATE_COUNT`）vs `:461-462`（`is_self_exclude && continue`）vs `:521`（自证行）** —— 自证行报的是**自排除前**的候选数：若 tracked 文件**全部**落在 `SELF_EXCLUDE`（`:67-74` 的 6 条 flow-kit 自身工件）内，则 `scan_file` 实际调用 **0 次**，脚本仍打印 `候选文件 N 个` + `清单外命中 0 条` + `✅` + rc=0 ⇒「0 实际扫描」与「N 个干净文件」同形（与 F2 同族：0 面 ≠ 干净 · ADR-027 ②③）。**主 agent 复核**：机制成立（`:293` 在 `:279` 枚举之后、`:461` 过滤之前计数；`:521` 打印该值）。触发面窄（需全部 tracked 文件恰为这 6 件）但可构造。**建议动作**：扫描循环内递增 `SCANNED_COUNT`，自证行报 `实际扫描 N 个`，并在 `SCANNED_COUNT=0 && CANDIDATE_COUNT>0` 时 fail-closed + 2 条双态用例。
+- **F-20 · 🟡 · `check-path-privacy.sh:106-119`（`mktemp_checked()` 与其 3 个调用点）** —— 函数内 `exit 1`（`:113`）位于 `TMP_X=$(mktemp_checked)`（`:117-119`）的命令替换中 ⇒ **只退子 shell**，脚本继续（深审以 `/tmp` 最小脚本实证：`exit 1` 后仍打印后续行、rc=0）；三个变量退化为空串，最终由 `cp` 失败路径（`:153`）或 allowlist-missing 路径（`:173`）兜住 ⇒ **终态仍 rc=1 fail-closed**，但设计意图「mktemp 失败 ⇒ 立即终止」未生效，且产生 3 条冗余 `🔴 mktemp 失败` 报文。**建议动作**：调用点改 `if ! TMP_X=$(mktemp_checked); then exit 1; fi`（或函数改「回填全局变量 + 显式 rc」）。
+- **F-21 · 🟢 · `Makefile:255`（`check-nfr-portability` wrapper）** —— `bash -c 'make … check-nfr-portability-internals'` 不参与 GNU make jobserver（无 `+` 前缀/`$(MAKE)`），`make -j2` 时子 make 回退 `-j1` 并打警告 `jobserver 不可用`。功能正确（internals 仍跑、rc 映射不变），且本 target 为顺序配方无并行收益。**主 agent 裁决**：`Not-applicable`（改 `+$$(MAKE)` 会让 `make -n` 下子 make 继承 `-n`、判据体不执行 ⇒ `NFR_RC_FILE` 未写 ⇒ 映射为 2 ⇒ `<verify>` 的 `make -n` 断言判红，正是 T-FIX-05 已上报并由主 agent 裁决接受的张力点，见 `TASK.md:1826`）⇒ 保留现状，警告噪声记入 `MINOR-DEFERRED.md`。
+
+**深审自陈存疑项（未穷举 · 已如实登记）**：① `make -j2` 下违规（rc=1）路径未实测（预期同，无并行点）；② F-19 的叠加触发面（submodule / `git worktree` / `.gitignore` 全排除后 `ls-files` 非空但全被自排除）未穷举 —— 走同一条 `CANDIDATE_COUNT>0` 而 `SCANNED=0` 的路径；③ gate-sync「两侧文件俱在但内容为空」判为非 F6/F7 回归（空内容视作一致 = 既有语义），front-matter 剥离后为空的边界未穷举；④ bash 3.2 未实机（TD-055）；⑤ 全量 bats 未跑（主 agent 已补：`--count` 1025 · ok=1025 / not ok=0，见 §0′.1）。
+
+### 0′.5 阶段完成自检（`6-review.md:152-166` 九项）
+
+| # | 检查项 | 验证方式 | 状态 |
+|---|---|---|---|
+| 1 | `REVIEW.md` 已写入 `.specs/health-fix-2026-09b/` | `test -f` | ✅ |
+| 2 | Spec 合规审查已完成（AC-1..AC-9 逐条） | §A · §0′.6 | ✅ |
+| 3 | 代码质量审查已完成（6 维衰退风险） | §B（17 + 1 条 finding） | ✅ |
+| 4 | UI 视觉审查（前端项目）/ 已声明跳过 | §C = N/A（纯 Bash/Markdown 分发件） | ✅ N/A |
+| 5 | 动态门禁判定（AC-9）已通过（无 🔴，或已记录接受风险） | §0′.6 = ✅（0 🔴） | ✅ |
+| 6 | Gate 失败项（如有）已记录在 `REVIEW.md` | 第 1 轮 §0.3 + 第 2 轮 §0′.3 | ✅ |
+| 7 | 技术债已同步 `CONTEXT.md` | `grep -c '^| TD-0' .specs/CONTEXT.md` = 57（TD-060..TD-065 已登记） | ✅ |
+| 8 | `TEST.md` 5 轮金字塔完整性（2.0 段） | `TEST.md:14` §0 + `:20-24` 五行（功能 ✅必跑 / 性能 ⚠️部分 / 安全 ⚠️受限 / 兼容 静态+⚠️实机 / 可观测 ⚠️部分，各带未覆盖面归因） | ✅ |
+| 9 | `.flow-active` 关键字段落盘 | `jq -e '.updated_at' .flow-active` rc=0 | ✅ |
+
+### 0′.6 第 2 轮结论
+
+- **AC 判定**：AC-1..AC-7 ✅ · AC-8 ⚠️（跨 OS 实机与安全工具面缺口 = `TD-055`/`TD-056`，维持第 1 轮口径，未夸大）· AC-9 ✅
+- **verdict = pass**：0 条 🔴（第 1 轮 2 条已闭合且活性重放）· 第 2 轮新增 3 条 🟡（F-18/F-19/F-20，均非阻塞、均由用户裁决在本 change 内修）· 9 条 🟢 维持 deferred
+- **出口（已发生）**：用户裁决 ① **F-19 + F-20 本 change 内修**（question `deep_review_findings_6b`）② **F-18 只改措辞**（question `f18_surface_label`）⇒ `.flow-active` 回退 **6 → 4-dev**（`.goal.rollback_2` · `2026-09-25T01:44:19+08:00` · `gates_reset=["4→5","5→6"]`），追加 **`T-FIX-06`**（`TASK.md` · `status="pending"` · `depends_on T-FIX-05`），执行者 subagent `f99aca2b`；修后须**重跑 5-test 与 6-review**（本 §0′ 结论为 `cb21c03` 快照，重审后另出）。
+
+---
+
+## 0. 第 1 轮审查（历史 · `verdict=fail`）—— 审查方法、门禁回执与独立复现
 
 ### 0.1 审查面
 - `bash flow-kit-bundle/flow-kit/scripts/review-package 534e3e842fc900045f39492badc66eabe3ffd4c4 HEAD > /tmp/review-pkg.md`（rc=0 · 19092 行 · 85 个 `diff --git`；分段 `## Commits` `:1` / `## Files changed` `:75` / `## Diff` `:164`）——已 Read。

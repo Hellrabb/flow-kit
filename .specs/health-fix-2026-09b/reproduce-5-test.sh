@@ -29,6 +29,21 @@
 #     `T-FIX-04`（check-gate-sync 缺对不得报全绿 F6/F7 · commit 521b21c）·
 #     `T-FIX-05`（Makefile NFR 判据去重 F8 · commit 6e94d60）；三条均已回写权威副本 TASK.md。
 #   · 基线 1012 → 1025 ok / 0 not ok（+11 隐私门禁双态 · +2 gate-sync 缺对 · +0 Makefile 去重）。
+# 第 7 次执行（REPRO6 · 阶段 5 重入第 3 轮 · 2026-09-25）：阶段 6 **第 2 轮**只读深审（subagent 7daa47c0）
+#   报 pass 但新增 3 条 🟡 —— F-18（扫描面措辞「工作树」与候选面 `git ls-files`（index）不符）·
+#   F-19（候选面经自排除后为 0 时仍报「清单外命中 0 条 ✅」）· F-20（`mktemp_checked()` 的 `exit 1`
+#   落在 `$( )` 内被吞 ⇒ 3 条冗余 mktemp 失败报文）；用户裁决 `deep_review_findings_6b` = 1（F-19 +
+#   F-20 本 change 内修）· `f18_surface_label` = ②（仅订正措辞，零行为变更）⇒ 回退 4-dev 追加 T-FIX-06。
+#   · 判据面 17 → 18：纳入 `T-FIX-06`（隐私门禁候选面 fail-closed + 错因定位 · commit 421640a）。
+#   · 基线 1025 → 1029 ok / 0 not ok（+4 隐私门禁双态：F19 坏/好 · F20 坏/好；F18 错因断言追加进
+#     既有用例，不改计数）。
+# 第 8 次执行（REPRO7 · 阶段 5 重入第 4 轮 · 2026-09-25）：REPRO6 暴露两条**判据/工具面**缺陷（均非生产件
+#   回归，登记 TD-066 / TD-067），主 agent 订正后重跑本脚本取阶段 5 的权威干净全脸：
+#   · T17 CHECK_REV「干净树工作树模式 rc=0」对照夹具补入非自排除候选 `README.md`（TD-066：F-19 起
+#     「自排除后 0 实际扫描」即 fail-closed ⇒ 全自排除夹具不再是干净对照）；
+#   · `extract_verify()` 改为**整行锚定**抽取（TD-067 · L-153 族复发：`<action>` 正文里的 `<verify>`
+#     字样会把行内子串匹配的抽取起点拉进 action 段 ⇒ 废件被记成判据失败 rc=2）。
+#   · 判据面 18 条 / 门禁面 7 项与第 7 次执行同构；基线仍 1029 ok / 0 not ok。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -36,7 +51,7 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,11 +68,15 @@ mkdir -p "$LOG_DIR" || exit 2
 cd "$ROOT" || exit 2
 
 # 抽取 <task id="Tnn"> … <verify>…</verify> 的判据正文（原样，不动一个字符）
+# TD-067（L-153 族复发 · 抽取锚定）：标签必须**整行锚定**。`<action>` 正文里出现的
+#   `<verify>` 字样（TASK.md T-FIX-06 action 段）会把行内子串匹配的抽取起点拉进 action 段，
+#   产出「散文 + </action> + 判据正文」的废件 ⇒ v_T-FIX-06.sh 行 1 报「…: 未找到命令」、
+#   行 2 报语法错误 ⇒ REPRO6 把 rc=2 记成判据失败（假红）。行内子串匹配在本仓已是复发陷阱。
 extract_verify() {
   awk -v id="$1" '
     $0 ~ ("<task id=\"" id "\"") { intask = 1 }
-    intask && /<verify>/ { inv = 1; next }
-    inv && /<\/verify>/ { exit }
+    intask && /^[[:space:]]*<verify>[[:space:]]*$/ { inv = 1; next }
+    inv && /^[[:space:]]*<\/verify>[[:space:]]*$/ { exit }
     inv { print }
   ' "$TASK_MD"
 }
@@ -110,7 +129,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1025 ok / 0 not ok，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1029 ok / 0 not ok，skip 计入 ok 行）"
 
   echo
   echo "== [B] make check（全门禁）=="

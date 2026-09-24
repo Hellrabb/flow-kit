@@ -1098,3 +1098,52 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | 7 | 收口提交 | ✅ | **`a702547`** `test(health-fix-2026-09b): 阶段 5 重验收口（REPRO5 判据 17/17 · 门禁 7/7 · L2 第 3 轮 + L3 第 12 轮 pass）` · 9 files **+5579/−50** |
 
 **过程偏差披露（冻结集 `A ` 态结束）**：收口提交 `a702547` 把 **5 件冻结工件**（`CHANGE.md` / `REQUIREMENT.md` / `INDEPENDENT-REVIEW-1/2/3.md`）**一并落库**（它们自阶段 1/2 起一直处于 `A ` 暂存态，本提交未带 pathspec ⇒ 索引整体入库）。**未造成内容变更**：五件字节数与历次复核记录**逐一相符**（**23693 / 55692 / 251278 / 294528 / 58985**；其中 `CHANGE.md` 的 21684 → 23693 为已披露的范围追加 `### 4d`），提交后 `git status --short` **为空**、`git diff a702547 -- <五件>` **为空**。**影响**：后续复核若沿用「冻结集恰 5 个 `A `」判据将不再成立（`A ` 态 → 已提交态），**判定词应改为「五件内容 == 冻结态（字节数 / sha256 相符）」**。
+
+## 🟢 阶段 6 第 2 轮 · 只读深审未处置项（F-21 + 存疑项 · 交阶段 7 triage · 2026-09-25）
+
+**范围**：阶段 6 第 2 轮重审（HEAD `cb21c03`）在 fix 循环 3 提交之上另做的只读深审（subagent `7daa47c0`，verdict = **pass**，🔴 0）。**F-19 🟡 / F-20 🟡 不在本表** —— 用户裁决「本 change 内修」，已立项 `T-FIX-06` 并回退 4-dev（`.flow-active.goal.rollback_2`）；**F-18 🟡** 亦不在本表 —— 用户裁决 option ②（**只改措辞 · 零行为变更**，不给 `git ls-files` 加 `--others`），已由 `T-FIX-06` = `421640a` 落地（详见下方复核记录）。
+
+| # | 位置 | 严重度 | 症状与影响 | 处置 |
+|---|------|--------|-----------|------|
+| F-21 | `Makefile:255`（wrapper 的 `bash -c 'make …'`） | 🟢 | 该递归调用**不参与 GNU make jobserver** ⇒ `make -j2 check` 时子 make 回退 `-j1` 并打警告噪声（`warning: jobserver unavailable: using -j1. Add '+' to parent make rule.`）。**功能正确**：判据体本身无并行收益（单文件顺序扫描），三态 rc 映射与 `file:line` 归因通道均不受影响 | **Not-applicable（主 agent 裁决 · 2026-09-25）**：改 `+$$(MAKE)` 会让 `make -n` 下子 make 继承 `-n` ⇒ `NFR_RC_FILE` 未写 ⇒ wrapper 读空 ⇒ rc=2 ⇒ `<verify>` 的 `make -n` 断言判红（与 `TASK.md` 的 T-FIX-05 张力点互斥，已在 `TASK.md` 就地标注）。保留现状，登记为 v2 可选优化 |
+| D-1 | 深审存疑项 ① | 🟢 | `make -j2 check` 的「jobserver 警告 + 回退 -j1」路径未实测（F-21 结论基于 make 语义推理与 `MAKELEVEL` 无递归证据） | 交阶段 7 triage / v2；无功能风险 |
+| D-2 | 深审存疑项 ② | 🟢 | F-19 的叠加触发面未穷举（本次只证「tracked 全为 `SELF_EXCLUDE`」与「未 add 的泄漏文件」两态；`SELF_EXCLUDE` 部分命中 + 大量 untracked 的组合未矩阵化） | 交阶段 7 triage；`T-FIX-06` 的双态用例已覆盖主路径 |
+| D-3 | 深审存疑项 ③ | 🟢 | `check-gate-sync.sh` 的**空内容边界**未测（两侧文件俱在但内容为空 / 仅 front-matter 时 `COMPARED` 与 diff 口径） | 交阶段 7 triage / v2 |
+| D-4 | 深审存疑项 ④ | 🟢 | 未在真实 macOS **bash 3.2** 实机跑（`declare -A`/`mapfile`/`sed -i` 静态扫描 + `bash 3.2` 语法检查已过） | 与 **TD-055** 合并处理（macOS 实机面缺） |
+| D-5 | 深审存疑项 ⑤ | 🟢 | 深审**未跑全量 bats**（仅跑与三个 fix 相关的单文件套件）；全量面由阶段 5 REPRO5 与阶段 6 回执 `bash-301` 各自覆盖（1025/1025） | 交阶段 7 triage；风险由「同一提交的两条独立全量回执」抵消 |
+
+---
+
+## ✅ T-FIX-06 复核记录（主 agent 十项契约 + 判据独立复跑 + 活性重放 · 2026-09-25）
+
+提交 **`421640a`**（`fix(health-fix-2026-09b): T-FIX-06 隐私门禁 0 实际扫描 fail-closed + mktemp 立即终止 + 扫描面措辞精确化（F-19/F-20/F-18）`）+ 补提交 **`2afb0e2`**（`docs(health-fix-2026-09b): T-FIX-06 测试注释口径订正（三调用点 → 4 处）`，双源各 1 行注释、零语义）。执行者 subagent `f99aca2b-106e-4073-98ed-3ccae6a1110e` 在**提交之后、写 SUMMARY 之前**中断 ⇒ 主 agent 以 `send_message` 唤醒，补交 SUMMARY（`.specs/health-fix-2026-09b/T-FIX-06-SUMMARY.md` **249 行** · sha256 `665d38a63829e5d91a3b55c64ea213bfe9b75beea5c9ca212d9302e85a93563c`）与注释补提交。十项复核全部由主 agent 独立执行：
+
+1. **numstat 面** ✅ 5 文件（`.specs/STATE.md` 2/1 · `check-path-privacy.sh` 55/9 · 双源 bats 各 72/0），全部落在声明 `<write_files>` 面内，无越界文件。
+2. **工作树 == HEAD** ✅ 4/4 blob 一致 —— 生产件 `8e74623cdb877fd669bbfa9d6cb41b3e7c1aab98` · 双源 bats `b22e496293789b9972a95a2f3bd11a26f96ee6e9` · `.specs/STATE.md` `9be011fe754a06e524d5b47743aeeb60da100cf8`。
+3. **台账** ✅ `{"id":"T-FIX-06","commit_sha":"421640a4582445c5d609a7825a2d88011600e9df","fix_rounds":0,"deferred":[],"completed_at":"2026-09-25T02:12:13+08:00"}`；提交 `%cI` = `2026-09-25T02:11:53+08:00` ⇒ **Δ = 20 s**（规则 9 ≤120 s）；`task_progress` 共 **35** 条。
+4. **结构不变量** ✅ `<task id=` 35 · `</task>` 35 · `<depends_on>` 35 · `</depends_on>` 35 · `</verify>` 35；35 个 task 头**全部** `status="done"`（T01–T29 + `T-FIX-01`…`T-FIX-06`）。
+5. **冻结集** ✅ 五件字节 23693 / 55692 / 251278 / 294528 / 58985 全对（该批已由阶段 5 收口提交 `a702547` 落库 ⇒ 以**字节比对**替代 `A ` 暂存态比对，见 `## 阶段 5 重验收口记录`）。
+6. **`<verify>` 独立复跑** ✅ 主 agent 自行 awk 抽取（**41 行** · `bash -n` 通过）字面执行 ⇒ **rc=0**：`（诊断）F-19 坏态 rc=1 追踪文件=6` · `（诊断）F-20 坏态 rc=1 mktemp 报文=1 条` · `bats: 1029 ok / 0 not-ok / count=1029`。
+7. **残留面** ✅ 仅主 agent 工件（`MINOR-DEFERRED.md` / `REVIEW.md` / `TASK.md` / `reproduce-5-test.sh`）+ 未跟踪的 `T-FIX-06-SUMMARY.md`；无生产件游离改动。
+8. **双源 + dist** ✅ `test/` ↔ `flow-kit-bundle/test/` 逐字节一致；`package-dsh-plugin.sh` 重建后 `make check-dist` rc=0（判据内已覆盖）。
+9. **活性重放** ✅ 将生产件还原为 `421640a^`（**27942 B** vs 新版 **31930 B**）⇒ `npx bats test/test_path_privacy_gate.bats` **rc=1 · ok=20 / not ok=4**，红的恰是新行为依赖例：`not ok 14`（F2 好态 · F-18 措辞断言）· `not ok 21`（F19 坏态）· `not ok 22`（F19 好态）· `not ok 23`（F20 坏态）；`#24`（F20 好态）**保持绿** —— 该例断言的是「旧件也无 false-red」，判别方向正确。`cp -p` 还原后 `git diff --exit-code` 干净、blob 回 `8e74623c…`。
+10. **语义逐行** ✅ `mktemp_checked()` 由 `exit 1` 改 `return 1`（stderr 报文原样）+ **4 处**调用点 `|| exit 1`（`TMP_ALLOWLIST` / `TMP_CANDIDATES` / `TMP_HITS` / `TMP_ALLOWLIST_KEYS`）· `SCAN_SURFACE='工作树（git index：已 add / 已提交）'`（5 处打印共享）· `SCANNED_COUNT` 在 `is_self_exclude … continue` **之后**、`scan_file` **之前** `+1` · 早退分支 `M=0 && N>0` ⇒ 自证块（扫描面 / 允许清单来源 / 允许清单条数 / `候选文件 N 个` / `实际扫描 0 个`）+ `🔴 候选面经自排除后为空，无法判定（0 实际扫描 ≠ 干净 · ADR-027 ②③ fail-closed）` + `exit 1` · 汇总补 `实际扫描 ${SCANNED_COUNT} 个` · 早退分支前已定义 `ALLOWLIST_COUNT`（`:284`）与 `CANDIDATE_COUNT` ⇒ 无 `set -u` unbound 风险。
+
+**主 agent 附加实证**：自建「全自排除」夹具（tracked 仅 SUT + 允许清单）实跑 ⇒ `候选文件 2 个` / `实际扫描 0 个` / 🔴 一行 / **rc=1**。
+
+**契约偏差（执行者主动披露 · 属契约描述不完整而非生产缺陷）**：`TASK.md` T-FIX-06 原 `<action>` 写「**三**调用点 `|| exit 1`」，生产件实为 **4 处**（3 初始化 + 1 汇总段 `TMP_ALLOWLIST_KEYS`）—— 执行者按 4 处全改并在 `<done>` 修正口径；同一口径错误残留在双源 bats 注释中，已由补提交 `2afb0e2` 订正（仅注释、零语义）。
+
+**F-18 处置**：用户裁决 option ②（**仅订正措辞 · 零行为变更**，不给 `git ls-files` 加 `--others`）已在同一提交落地 —— `SCAN_SURFACE` 现精确描述候选面 = git index（已 add / 已提交），未跟踪未忽略文件不在面内（态 G2 假绿的措辞根因，行为面不变）。
+
+**模式交互（主 agent 观察 · 非缺陷 · 记录备查）**：早退分支对 `CHECK_REV`（pre-push）模式同样生效 —— 若被推送树的候选面经自排除后为空，则报「无法判定」+ rc=1（fail-closed，与 ADR-027 ②③ 意图一致）；正常推送的树含数百文件，不触发。
+
+---
+
+## 🔧 阶段 5 重验（第 3 轮）· REPRO6 两条假红与判据/工具面订正（TD-066 / TD-067 · 2026-09-25）
+
+**REPRO6 全脸**（job `bash-315` · 起于 `2026-09-25T02:30:36+08:00` · HEAD `2afb0e2` · 日志 `/tmp/p6b/repro6-run.txt` · 日志目录 `/tmp/fk-reproduce-5-r6`）：判据面 **16/18 ✅ rc=0**（T05 · T06 · T11 · T13 · T19 · T20 · T22 · T24 · T26 · T27 · T29 · T-FIX-01 · T-FIX-02 · T-FIX-03 · T-FIX-04 · T-FIX-05），两条红**均非生产件回归**：
+
+- **T17 🔴 rc=1** —— `🔴 工作树模式在干净树上未 rc=0（rc=1）⇒ 对照不成立`。T-FIX-06（F-19）引入 fail-closed（自排除后 `SCANNED_COUNT=0` 且 `CANDIDATE_COUNT>0` ⇒ rc=1）后，T17 CHECK_REV 对照夹具 `_sbx2/r` 的 tracked 面（被测脚本 + 空 `path-privacy-allowlist.txt`）**恰好全部命中 `SELF_EXCLUDE`** ⇒ 候选 N≥1、实际扫描 M=0 ⇒ 判红。⇒ 登记 **TD-066**（🟡 · 判据夹具候选面必须非空 · TD-060 / TD-065 同族）；订正 `TASK.md:761` 增 `printf 'benign candidate（TD-066：…）\n' > "$_sbx2/r/README.md";`；`--criteria-only --only T17` 复跑 ⇒ **✅ rc=0（73 → 74 行）**。
+- **T-FIX-06 🔴 rc=2** —— `v_T-FIX-06.sh: 行 1: T-FIX-06-SUMMARY.md: 未找到命令` · `command substitution: 行 2: 未预期的记号 "newline" 附近有语法错误` · `行 2: \`</action>'`。`reproduce-5-test.sh` 的 `extract_verify()` 按**行内子串**匹配 `<verify>`，而 T-FIX-06 的 `<action>` 正文含 `<verify>` 字样 ⇒ 抽取起点被拉进 action 段，产出「散文 + `</action>` + 判据正文」的 **43 行**废件（真判据 41 行）。⇒ 登记 **TD-067**（🟡 · L-153 族复发 · 未锚定的标签抽取）；订正为**整行锚定**（`^[[:space:]]*<verify>[[:space:]]*$` / `^[[:space:]]*</verify>[[:space:]]*$`）；复抽 ⇒ **41 行 · 首行 `set -u; rc=0;` · `bash -n` 通过**。抽取器缺陷本身属「判据/工具与权威文本的耦合面失配」，与 TD-065 / TD-066 同族，三者均已登记 v2 静态检查项。
+- **门禁面 7/7 ✅ rc=0** —— bats `--count` 1029 · `bats test/` ok=1029 / not-ok=0 · `make check` 21 ✅ / 0 ❌ · `check-path-privacy` 清单外命中 0（自证面含「候选文件 N 个 / 实际扫描 M 个」）· NFR ×5 = 2.997 / 3.006 / 3.115 / 3.103 / 3.112 s（均值 **3.067 s = 61.3%** · nproc=32 · loadavg 9.50/8.91/9.23）· `package-flow-kit.sh --validate` 漏配 0 / 源缺失 0 · 阶段门沙箱六态 A/B/C ✅ + B2/B3/B4 一律 rc=2 ✅（历史对照行仍在）。
+- **结论**：REPRO6 `REPRO6_RC=1` 由两条**判据/工具面**缺陷导致，与 `check-path-privacy.sh` / `check-gate-sync.sh` / `Makefile` 的修复行为无关；订正后重跑 **REPRO7（第 8 次执行）** 作为阶段 5 的权威全脸。TD-066 / TD-067 已登记于 `.specs/CONTEXT.md:613-614`。

@@ -758,6 +758,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     mkdir -p "$_sbx2/r/flow-kit-bundle/flow-kit/reference";
     cp "$S" "$_sbx2/r/flow-kit-bundle/flow-kit/reference/";
     : > "$_sbx2/r/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
+    printf 'benign candidate（TD-066：F-19 起自排除后 0 实际扫描即 fail-closed ⇒ 干净对照夹具必须含至少 1 个非自排除候选）\n' > "$_sbx2/r/README.md";
     ( cd "$_sbx2/r" && git config user.email t@t && git config user.name t && git add -A && git commit -qm base \
       && printf '/home/%s/leak\n' "$(whoami)" > leak.txt && git add -A && git commit -qm leak && git rm -q leak.txt && git commit -qm clean );
     _leak_rev=$(git -C "$_sbx2/r" rev-parse HEAD~1);
@@ -1831,4 +1832,73 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
        台账：task_progress 五字段已写（completed_at 2026-09-25T00:08:38+08:00，Δ=14s）。
        遗留：无（deferred=[]）。 -->
   <depends_on>T-FIX-04</depends_on>
+</task>
+
+<task id="T-FIX-06" parallel="false" status="done" model-tier="top">
+  <name>阶段 6 深审 🟡 F-19/F-20 —— 隐私门禁「0 实际扫描」不得报 ✅ + mktemp 失败必须立即终止</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/REVIEW.md` §0′.4（F-19/F-20 全文 + 主 agent 独立复现结论与建议动作）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（`:67-74` SELF_EXCLUDE 6 条 · `:106-119` `mktemp_checked()` 与三个 `TMP_X=$(mktemp_checked)` 调用点 · `:293` `CANDIDATE_COUNT` 自证计数 · `:321-330` `is_self_exclude` · `:455-465` 扫描循环（`:461` `is_self_exclude "$f" && continue` / `:462` `scan_file "$f"`） · `:515-525` 汇总与自证行）>
+    <`test/test_path_privacy_gate.bats`（现 20 例：#10 `F1 坏态：TMPDIR 不可用 + 真泄漏 ⇒ rc≠0 且不得打印「清单外命中 0 条」` · #14 `F2 好态：候选文件数落进自证行且与 git ls-files 一致` · #20 `F5 好态：正常扫描 + 正常退出 ⇒ 临时文件被清理`）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`>
+    <`test/test_path_privacy_gate.bats` + `flow-kit-bundle/test/test_path_privacy_gate.bats`（`make test-sync`；新增断言优先**追加进既有用例**以保持计数，新增用例只在既有用例无法承载时添加）>
+    <`.specs/STATE.md`（bats 基线计数行；仅当计数变化时）>
+    <`dist/`（重建）>
+  </write_files>
+  <action>
+    **目标：两条残留缺陷各自堵死，且都能被双态用例判红。**
+    ① **F-19（0 实际扫描 ≠ 干净）**：`候选文件 N 个`（`:293`/`:521`）是**自排除前**的枚举计数，而扫描循环（`:461`）会 `continue` 跳过 `SELF_EXCLUDE` 命中的候选 ⇒ 若 tracked 文件全部落在 `SELF_EXCLUDE` 6 条内，`scan_file` 实际调用 **0 次**却仍打印 `清单外命中 0 条` + `✅` + rc=0（已实测：`bash -x` 迹线计数 `^+ scan_file` = 0）。修法（最小面）：新增 `SCANNED_COUNT`（初值 0），在 `:462` 前 `SCANNED_COUNT=$((SCANNED_COUNT + 1))`；自证区新增一行 `实际扫描 ${SCANNED_COUNT} 个`（**保留** `候选文件 N 个` 一行不动 —— #14 断言它与 `git ls-files` 计数一致）；扫描循环结束后若 `SCANNED_COUNT -eq 0` ⇒ 打印同一自证块（含 `实际扫描 0 个`）+ `🔴 候选面经自排除后为空，无法判定（0 实际扫描 ≠ 干净 · ADR-027 ②③ fail-closed）` 并 `exit 1`，**不得**打印 `清单外命中 0 条` 与 `✅`。契约注释（`:19-25` 与 `:62-66` 附近）同步说明自证含「枚举计数 / 实际扫描计数」两个数。
+    ② **F-20（mktemp 失败必须立即终止）**：`mktemp_checked()` 内 `exit 1`（`:113`）位于 `TMP_X=$(mktemp_checked)`（`:117-119`）的命令替换中 ⇒ 只退子 shell、脚本继续（变量退化为空串，最终虽由 `cp`/allowlist 路径兜成 rc=1，但意图未生效且产生 3 条冗余 🔴）。修法：函数内改 `return 1`（stderr 报文原样保留），三个调用点改 `TMP_X=$(mktemp_checked) || exit 1`（bash 3.2 兼容；不得引入 `local -n`/nameref）。
+    ③ **双态用例（判别力优先）**：F-19 坏态 = 夹具仓 tracked 文件**全部**为 `SELF_EXCLUDE` 6 条（`git init -q .` + `git add -A` 即可，无需 commit）⇒ 断言 rc≠0 + 自证含 `实际扫描 0 个` + 打印 🔴 + **不含** `清单外命中 0 条` 与 `✅`；F-19 好态 = 既有干净夹具（候选均非自排除）⇒ rc=0 且 `实际扫描 M 个` 与候选数一致（`M ≥ 1`）。F-20 坏态 = `TMPDIR` 指向不存在目录 ⇒ rc≠0 且 `🔴 无法完成扫描：mktemp 失败` 出现**恰 1 次**（证明立即终止、无冗余）；F-20 好态 = 正常 `TMPDIR` ⇒ 该报文出现 0 次且 rc=0。既有 #10 必须继续绿（其断言 rc≠0 且无 `清单外命中 0 条`）。
+    **TDD/判别式**：先在**修复前**跑出红（贴 `not ok` 原文与命令），再改生产件至全绿并贴原文；夹具内探针一律**拼接构造**（L-137）且用 `mktemp -d` 隔离；不得改 `SELF_EXCLUDE` 清单成员、不得改 `PAT` 与允许清单读序语义。
+    **判据自身缺陷**：若 `<verify>` 或既有用例的夹具本身有缺陷（如样本取自文件系统枚举顺序，TD-065），**停下原样上报**，不得为了让判据变绿而修改生产件语义。
+    收尾与提交同 T-FIX-03（顺序 `make test-sync` → `package-dsh-plugin.sh` → 三一致性门禁 → `make check`；显式 `git add` 路径；`git commit -m "fix(health-fix-2026-09b): T-FIX-06 隐私门禁 0 实际扫描 fail-closed + mktemp 立即终止（F-19/F-20）" -- <路径…>`）；提交后写 `T-FIX-06-SUMMARY.md`、勾 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段（`completed_at` 必须在提交之后且 Δ ≤ 120 s）。
+  </action>
+  <verify>
+    set -u; rc=0;
+    S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
+    grep -q 'SCANNED_COUNT' "$S" || { echo "🔴 F-19：无 SCANNED_COUNT"; rc=1; };
+    grep -q '实际扫描' "$S" || { echo "🔴 F-19：自证缺「实际扫描 M 个」"; rc=1; };
+    grep -q 'mktemp_checked) || exit 1' "$S" || { echo "🔴 F-20：调用点未改成 || exit 1"; rc=1; };
+    # F-19 坏态夹具：tracked 全部为 SELF_EXCLUDE（只用 git init + git add，无需 commit）
+    SBX=$(mktemp -d);
+    mkdir -p "$SBX/flow-kit-bundle/flow-kit/reference" "$SBX/.specs/health-fix-2026-09b";
+    cp "$S" "$SBX/flow-kit-bundle/flow-kit/reference/";
+    cp flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt "$SBX/flow-kit-bundle/flow-kit/reference/";
+    for f in 1 2 3; do cp ".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-$f.md" "$SBX/.specs/health-fix-2026-09b/" 2>/dev/null || true; done;
+    cp .specs/health-fix-2026-09b/path-privacy-allowlist.txt "$SBX/.specs/health-fix-2026-09b/" 2>/dev/null || true;
+    ( cd "$SBX" && git init -q . && git add -A >/dev/null 2>&1 );
+    OUT=$( cd "$SBX" && bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh 2>&1 ); SRC=$?;
+    printf '   （诊断）F-19 坏态 rc=%s 追踪文件=%s\n' "$SRC" "$( cd "$SBX" && git ls-files | wc -l | tr -d ' ' )";
+    printf '%s\n' "$OUT" | grep -q '实际扫描 0 个' || { printf '%s\n' "$OUT" | tail -12; echo "🔴 F-19：坏态未报「实际扫描 0 个」"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q '清单外命中 0 条' && { echo "🔴 F-19：坏态仍打印「清单外命中 0 条」（假绿未堵）"; rc=1; };
+    [ "$SRC" -ne 0 ] || { echo "🔴 F-19：坏态 rc=0（仍 fail-open）"; rc=1; };
+    rm -rf "$SBX";
+    # F-20 坏态：TMPDIR 不可用 ⇒ 恰一条 mktemp 报文 + rc≠0
+    BAD=$(TMPDIR=/nonexistent-dir-probe bash "$S" 2>&1); BRC=$?;
+    M=$(printf '%s\n' "$BAD" | grep -c 'mktemp 失败' || true);
+    printf '   （诊断）F-20 坏态 rc=%s mktemp 报文=%s 条\n' "$BRC" "$M";
+    [ "$BRC" -ne 0 ] || { echo "🔴 F-20：坏 TMPDIR 下 rc=0"; rc=1; };
+    [ "$M" -eq 1 ] || { printf '%s\n' "$BAD" | head -6; echo "🔴 F-20：mktemp 报文 $M 条（应为恰 1 条）"; rc=1; };
+    # 常设网 + 全量套件
+    OUT1=$(npx bats test/test_path_privacy_gate.bats 2>&1); brc=$?;
+    printf '%s\n' "$OUT1" | grep -q '^not ok' && { printf '%s\n' "$OUT1" | grep '^not ok' | head -5; echo "🔴 隐私门禁常设网有失败项"; rc=1; };
+    [ $brc -eq 0 ] || { echo "🔴 test_path_privacy_gate.bats rc=$brc"; rc=1; };
+    FULL=$(npx bats test/ 2>&1); frc=$?;
+    printf '%s\n' "$FULL" | grep -q '^not ok' && { printf '%s\n' "$FULL" | grep '^not ok' | head -5; rc=1; };
+    [ $frc -eq 0 ] || { echo "🔴 全量套件 rc=$frc"; rc=1; };
+    echo "bats: $(printf '%s\n' "$FULL" | grep -cE '^ok [0-9]+') ok / $(printf '%s\n' "$FULL" | grep -cE '^not ok [0-9]+') not-ok / count=$(npx bats --count test/)";
+    # 真实仓零假红 + 三一致性 + 总门禁
+    make check-path-privacy > /tmp/tfix6-priv.out 2>&1 || { tail -10 /tmp/tfix6-priv.out; echo "🔴 真实仓 check-path-privacy 不绿（引入假红）"; rc=1; };
+    make check-hooks-sync > /dev/null 2>&1 || { echo "🔴 hooks 副本未同步"; rc=1; };
+    make check-test-sync  > /dev/null 2>&1 || { echo "🔴 test 双源不一致"; rc=1; };
+    make check-dist       > /dev/null 2>&1 || { echo "🔴 dist 未重建"; rc=1; };
+    make check > /tmp/tfix6-check.out 2>&1 || { tail -20 /tmp/tfix6-check.out; echo "🔴 make check 不绿"; rc=1; };
+    exit $rc
+  </verify>
+  <done>F-19/F-20/F-18 收敛：自证区含「候选文件 N 个」（枚举 · 不变 · #14 断言它与 git ls-files 一致）+「实际扫描 M 个」（实际 `scan_file` 次数 · 自排除后）；`M=0 && N>0` ⇒ fail-closed rc=1 且不打印 `清单外命中 0 条`/`✅`（坏态 = 自排除全覆盖仓，好态 = 既有干净夹具）；`mktemp_checked()` 改 `return 1` + 4 个调用点（3 初始化 + 1 汇总段 TMP_ALLOWLIST_KEYS）`|| exit 1` ⇒ 坏 `TMPDIR` 下恰 1 条 mktemp 报文且立即 exit 1；F-18 用户裁决 option ②（仅措辞 · 零行为变更）：`SCAN_SURFACE` 精确化为「工作树（git index：已 add / 已提交）」5 处打印单点；既有 #10/#14/#20 全绿；双态用例在修复前红、修复后绿（原文入 SUMMARY）；三一致性门禁 + `make check` 全绿。时点实测（T-FIX-06 执行者 2026-09-25）：commit `421640a`；`<verify>` rc=0（诊断 F-19 坏态 rc=1/追踪 6、F-20 坏态 rc=1/mktemp 报文 1 条、bats 1029 ok/0 not-ok/count 1029）；台账 `completed_at` 2026-09-25T02:12:13+08:00，Δ=20s ≤120s。</done>
+  <depends_on>T-FIX-05</depends_on>
 </task>
