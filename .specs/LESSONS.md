@@ -779,6 +779,22 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-156 · GNU make 的 `-n` 特例与「`$(MAKE)` 递归」互斥：需要「`make -n` 可解析」的薄壳必须用 `bash -c 'make …'` 包裹
+
+**现象（2026-09-25 · T-FIX-05 执行者上报 + 最小复现）**：把 `check-nfr-portability` 改成只做「递归调用 internals + 三态 rc 映射」的薄壳时，若按常规写 `$(MAKE) --no-print-directory check-nfr-portability-internals`，则 `make -n check-nfr-portability` 会**实际执行**该配方行 —— GNU make 对含 `$(MAKE)` / `${MAKE}` 字面（或以 `make` 开头）的配方行在 `-n` 下仍执行 ⇒ 子 make 也带 `-n` ⇒ `check-nfr-portability-internals` 的 `bash -euo pipefail -c …` 只被打印不执行 ⇒ `$NFR_RC_FILE` 从未写入 ⇒ wrapper `cat` 读到空 ⇒ 兜底 `echo 2` ⇒ `case *` ⇒ `exit 1` ⇒ make 报 Error 1 ⇒ **`make -n` rc=2** ⇒ 任何断言「`make -n <target>` 可解析」的判据判红。
+
+**定式**：① 需要满足「`make -n` 只打印不执行」的薄壳递归，写成 `bash -c 'make --no-print-directory <target> >"$OUT" 2>&1 || true'` —— 配方行以 `bash` 开头且不含 `$(MAKE)` 字面 ⇒ `-n` 模式下不执行；make 变量（命令行/环境）经 MAKEFLAGS 与 shell 环境自动下传，`export NFR_RC_FILE` 让子 make 的 shell 看见回传文件；② 契约模板写「`$(MAKE)` 递归」而实现取等价形态时，**必须由主 agent 就地裁定并标注**（`<action>` 若已写「或等价的递归调用」则可直接采用）—— 这类「契约与实现措辞张力」是 `-n` 可解析性断言造成的**结构性互斥**，不是实现偷工；③ 判定薄壳是否真的变薄、判据正文是否唯一，用可执行钉住断言（本例：`grep -c '_report_viol() {' Makefile` 必须为 1 + wrapper recipe < 30 行），复发即刻转红。
+
+**状态**：✅ 已吸收（`Makefile:255-266` 薄壳 + 常设断言固化在 `test/test_nfr_portability_gate.bats` 用例 6；`TASK.md` 的 T-FIX-05 `<done>` 就地标注裁定）。
+
+### L-155 · 判据夹具的样本必须从**被测数据的权威来源**派生：`ls … | head -1` 的偶然顺序会让判据把「正确行为」判成缺陷
+
+**现象（2026-09-24 · 阶段 4 复核 T-FIX-04 时 · TD-065）**：`TASK.md` 的 T-FIX-04 `<verify>` 用 `hidden=$(cd "$SBX/fk" && ls flow-kit-bundle/skills/*/SKILL.md 2>/dev/null | head -1)` 选「要被隐藏的 skill 文件」，取到字母序首个 `flow-architect/SKILL.md`；而被测生产件 `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh:37-40` 的 `PAIRS` 只含 `flow-evolve` / `flow-intel` / `flow-restyle` ⇒ 隐藏的是**非比对对成员** ⇒ 生产件的 `MISS=0`，修复后代码的**正确**行为（汇总照旧 `✅ 校验对 3/14 一致`）被判据报成 🔴「F6：缺一对文件仍 rc=0」⇒ `<verify>` 恒 rc=1、任务永远无法提交。执行者按硬规则停下原样上报，主 agent 坐实后修判据。
+
+**定式**：① 判据夹具的**样本选择**与生产代码一样需要被测数据作为唯一真相源 —— 从权威声明派生（本例 `pair_skill=$(grep -oE '\|flow-[a-z0-9-]+' <生产件> | head -1 | tr -d '|')`），禁止 `ls … | head -1` / `find … | head -1` 这类依赖文件系统枚举顺序的取法；② 派生到样本后必须断言「存在且属于被测集合」，否则夹具自身 fail-closed 打印「判据前置失败」并置 rc=1（把夹具缺陷与被测缺陷分开归因）；③ 与 TD-060（判据块 `cd` 进沙箱后未回仓根）同属「判据自身缺陷」家族 —— 判据的**错误**只能由人来裁决，执行者必须停下上报而不是改判据。
+
+**状态**：✅ 已吸收（判据已改，`TASK.md` 就地标注；v2 计划在 `make lint` 加静态检查：`<verify>` 块内出现 `ls … | head -1` / `find … | head -1` 且无集合成员断言时告警）。
+
 ### L-154 · 交付窗口内的「冻结」是硬约束：改了 `test/` 之后不按 `make test-sync` → 重建 dist 的顺序收尾，会让**别人的整轮回执凭空变红**
 
 **现象（2026-09-24 · 阶段 5 终版复跑）**：主 agent 为修 G-T04-1/G-T04-2（`l3-prompt.sh` 文案）改了 `test/test_l3_review_defects_2026_09.bats`，并各自跑通了 `check-hooks-sync` / `check-test-sync` / `check-dist`；但那次 `check-dist` 通过是在 `make test-sync` **之前**跑的 —— 随后 `make test-sync` 更新了 `flow-kit-bundle/test/…`，dist 里的 vendored 副本却没重建。与此同时执行者正在跑「终版整轮 14 判据」，于是 `make check` 的 `check-dist` 报 `❌ 陈旧: dist/dsh-flow-kit/vendor/flow-kit-bundle/test/test_l3_review_defects_2026_09.bats（内容与 … 不一致 → 请重建 dist）` ⇒ 三条本来绿的判据（T29 / T-FIX-01 / T-FIX-02，都要调 `make check`）**整轮 rc=1**。根因是**顺序**（Makefile 自己的报错里就写着「若改过 test/，先 make test-sync，再重建 dist」），不是判据缺陷；`bash package-dsh-plugin.sh` 后即恢复（终版整轮 rc=0）。
