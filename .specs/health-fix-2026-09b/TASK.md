@@ -386,7 +386,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     <`test/test_independent_review_model.bats`（:81-89 / :136-141 反向断言，缺「先断言文件存在」）>
     <`test/test_lessons_cleanup.bats`（AC-4 测试名 `AC-4: 模拟全量覆盖场景下 --validate exit = 0`，含 `skip`）>
     <`flow-kit-bundle/test/` 两份同名镜像>
-    <`package-flow-kit.sh`（只读 · `--validate` 的 SUT；**不在触碰清单**，不得修改）>
+    <`package-flow-kit.sh`（只读 · `--validate` 的 SUT；**T10 自身不得修改**。注：该文件在 **T11 修复轮 2** 依 **TD-048 用户裁决**被写入（Part C 补 `pre-push` stanza，`:134-136`）——授权与归属见下方「write_files 边界归属 → 显式例外」表；L2 阶段 5 R8 已订正本行）>
     <`.specs/health-fix-2026-09b/REQUIREMENT.md`（AC-7 Then 后两条 + R8 gap 现状澄清：`--validate` 干净态 exit=0）>
     <`.specs/health-fix-2026-09b/MINOR-DEFERRED.md`（C5 之外的 deferred 边界）>
   </read_files>
@@ -534,7 +534,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     ⑥ **运行时授权面（面约束 · 非步骤 · 阶段 3 L3 M4 归位）**：条件写面的**唯一权威定义**是本 task 的 verify 段中 `$FACE` 正则（3 类逐条精确路径）；
     仅当复扫另命中其中一类时才允许就地脱敏，并在 4-dev 日志留 `file:line` + 脱敏前后对照；残余命中落在面外（含禁动清单内）⇒ **停止并升级为新 task**。
     `.specs/health-fix-2026-09b/TASK.md` **在授权面内**（`$FACE` 第 1 类）：本 task 自身的 fixture 字面已在阶段 3 de-shape 为 `/home/<acct>/test` 形态，当前对 PAT 命中 **0 处**；若复扫再现命中 ⇒ 由本 task 就地 de-shape（语义中性），**不**把计划档排除出扫描面（排除会让冻结前的基线失去对计划档自身的覆盖 —— 阶段 3 L3 minor 的替代方案已评估并否决）。
-    **审查档排除面与 T17 门禁的排除表同源（阶段 3 L3 M8）**：两者都是「逐条精确路径」，且 T17 的 verify 断言「`.specs/health-fix-2026-09b/` 下**实际存在**的每一份审查档都在门禁排除表内」（完备性），故后续阶段新增审查档时：门禁侧在 T17 变红并被显式追加、本 task 侧在复扫时同步追加（同一规则、两处判定），不会静默漂移。
+    **审查档排除面与 T17 门禁的排除表同源（阶段 3 L3 M8；规则于阶段 5 修正 · L-149/TD-054）**：两者都是「逐条精确路径」。同源规则经阶段 5 实测由「集合完备」修正为**时间切点**：冻结的 1–3 是**唯一**豁免集（成文早于脱敏规则，原文含真实账号路径），**此后新增的审查档一律不豁免、必须被本方复扫与门禁双面扫过**。T17 的 verify 因此改判「豁免面**不得**超出冻结集 1–3」（新增档被追加进排除表 ⇒ 红；放宽须 ADR 裁决）。实证：2026-09-24 新增的 `INDEPENDENT-REVIEW-5.md` 未豁免 ⇒ 被 `make check-path-privacy` 判红 rc=2 并在就地 de-shape 后复绿（同一规则、两处判定，未静默漂移；旧「完备」规则会把同一处泄漏塞进豁免表 ⇒ 反而静默入库）。
     ⑦ **SUMMARY 面与前向规则（2026-09-23 主 agent 追加）**：`T*-SUMMARY.md` 属**执行者自撰散文**，其中自本机粘贴的绝对路径（`/home/<真实账号>/…`、`/Users/…`）必须 de-shape 为 `<repo>` / `$HOME` / `/home/<acct>/` 形态；**只做路径字面替换，不得改动 rc、命令、输出文本与数字等证据本身**。同理，**本 task 之后的每个 task 在其 SUMMARY 定稿前就地 de-shape**（不积压到 T13）；前向规则以 **L-129** 形式写入 `.specs/LESSONS.md`，由各执行者按「必读 LESSONS」条款继承。
   </action>
   <verify>
@@ -548,10 +548,15 @@ Wave 8 (收口 · 全量无退化)                  : T29
     # 与分支 1 可能命中同一行 ⇒ 统一 `sort -u` 去重后再计数（阶段 3 L3 m2）；`-H` 强制打印文件名（单文件时 grep 默认不打印文件名，会破坏下方按 file:line 的归因与排除表匹配）。
     uf=$(git ls-files -o --exclude-standard);
     if [ -n "$uf" ]; then u_hits=$(printf '%s\n' "$uf" | tr '\n' '\0' | xargs -0 grep -HnE "$PAT" 2>/dev/null); else u_hits=''; fi;
+    # 2026-09-24（阶段 5 · 主 agent 判据修复 · L-147 · TD-052）：产品门禁本体 `check-path-privacy.sh` 的头部注释
+    # **必然**含 PAT 字面 —— 它要在自证文档里说明「拼接构造的畸形探针（账号名 zz-path-probe）」这一双态判别力。
+    # 产品侧对这类文件按 D10′② 用 `SELF_EXCLUDE`（逐条精确路径）整文件排除；本判据**刻意不排除任何文件**
+    # （其职责正是覆盖产品的自排除面）⇒ 两者排除面不同源，只能在本判据内**按逐条精确字面**豁免该合成探针账号名。
+    # 禁止放宽为 `reference/*` 之类宽通配；真实账号形态与其他合成账号名仍一律被 PAT 命中（阶段 5 判别力注入实测）。
     hits=$( { git -c core.quotepath=false ls-files -z | xargs -0 grep -HnE "$PAT" 2>/dev/null; printf '%s\n' "$u_hits"; } \
             | sort -u \
             | grep -vE '^(\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-(1|2|3)\.md):' \
-            | grep -vE '/home/(user|ubuntu|\.\.\.)/' );
+            | grep -vE '/home/(user|ubuntu|\.\.\.|zz-path-probe)/' );
     n=$(printf '%s' "$hits" | grep -c .);
     if [ "$n" -ne 0 ]; then
       printf '%s\n' "$hits" | cut -c1-140;   # 可见性：逐条 file:line
@@ -568,7 +573,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     fi
     echo "✅ 脱敏完成：授权面外命中 = 0（tracked + 未 tracked 两面均已扫描）"
   </verify>
-  <done>AC-6 前置：排除表口径下「清单外命中 = 0」。**修复前基线（主 agent 2026-09-23 用本判据实测，共 14 行）**：`DESIGN.md` 1（`:215` 的 `/home/<acct>` 自造 fixture 字面）/ `T04-SUMMARY.md` 9（`:297` `:300`-`:305` `:314` `:316`）/ `T11-SUMMARY.md` 1（`:56`）/ `.specs/health/2026-09-22-FULL-SWEEP.md` 3（`:126` `:242` `:255`）；`REQUIREMENT` / `CHANGE` / `TASK` / `MINOR-DEFERRED` 各 0；审查档 40 = IR-1 22 + IR-2 18（按 D10′② 逐条精确路径豁免，协议禁改原文）。**未 tracked 面**（尚未 `git add` 的工件与同批健康档）由本 task 补扫后才可见 —— 原判据对该面完全失明（L-122 / L-129）。SUMMARY 的 10 行属下文 ⑦ 前向规则的存量债 ⇒ 就地脱敏、不豁免。满足 D10′①「脱敏先于冻结」</done>
+  <done>AC-6 前置：排除表口径下「清单外命中 = 0」。**修复前基线（主 agent 2026-09-23 用本判据实测，共 14 行）**：`DESIGN.md` 1（`:215` 的 `/home/<acct>` 自造 fixture 字面）/ `T04-SUMMARY.md` 9（`:297` `:300`-`:305` `:314` `:316`）/ `T11-SUMMARY.md` 1（`:56`）/ `.specs/health/2026-09-22-FULL-SWEEP.md` 3（`:126` `:242` `:255`）；`REQUIREMENT` / `CHANGE` / `TASK` / `MINOR-DEFERRED` 各 0；审查档 40 = IR-1 22 + IR-2 18（按 D10′② 逐条精确路径豁免，协议禁改原文）。**未 tracked 面**（尚未 `git add` 的工件与同批健康档）由本 task 补扫后才可见 —— 原判据对该面完全失明（L-122 / L-129）。SUMMARY 的 10 行属下文 ⑦ 前向规则的存量债 ⇒ 就地脱敏、不豁免。满足 D10′①「脱敏先于冻结」〔主 agent 2026-09-24 阶段 5 第 1 轮判据修复〕全量复跑实测 rc=1，命中源 = 产品门禁本体头部注释里的**拼接构造探针字面**（`:22-24`，T22 追加）—— 产品按 D10′② 对该文件整文件自排除，而本判据**刻意不排除任何文件** ⇒ 只能在本判据内按**逐条精确字面**豁免该合成账号名（`grep -vE '/home/(user|ubuntu|\.\.\.|zz-path-probe)/'`；**不**抄产品的整文件 `SELF_EXCLUDE`）⇒ rc=0；判别力二次注入实测保持：非面文件注入另一合成账号名 ⇒ rc=1 且指名 `sync-hooks.sh:382`、面内文件注入 ⇒ rc=1 走「清单外命中 = 1 ⇒ 就地脱敏」分支；L-147 / TD-052</done>
   <depends_on>T01</depends_on>
 </task>
 
@@ -730,12 +735,24 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ "$rc" -eq 1 ] || { printf '%s\n' "$out"; echo "🔴 两清单皆缺态 rc=$rc ≠ 1（fail-closed 未实现）"; exit 1; };
     printf '%s' "$out" | grep -q 'path-privacy-allowlist.txt' || { printf '%s\n' "$out"; echo "🔴 报文未指名缺失清单路径"; exit 1; };
     rm -rf "$_miss";
-    # 排除表完备性（阶段 3 L3 M8）：实际存在的审查档必须逐条列在门禁排除表内，否则后续阶段新增审查档会静默漂移
+    # 排除表边界（阶段 3 L3 M8 原意 + 阶段 5 定级裁决 · L-149 / TD-054）：
+    #   M8 要的是「门禁排除表与 T13 排除面**同源、不得静默漂移**」；同源的**规则**在阶段 5 被实测修正为
+    #   **时间切点**而非「集合完备」：冻结的历史审查档 1–3（成文早于脱敏规则、原文含真实账号路径）逐条精确豁免；
+    #   **此后新增的审查档一律不豁免** —— 它们正是脱敏泄漏的第一现场（2026-09-24 实测：
+    #   INDEPENDENT-REVIEW-5.md 未豁免 ⇒ 被本门禁判红 rc=2（清单外命中 1 条）并被就地 de-shape 后才入库；
+    #   若按旧「完备」规则把它塞进豁免表，同一处泄漏反而静默入库 ⇒ 判据会亲手弄瞎它本该保护的门禁）。
+    #   故本判据改判「豁免面**不得**超出冻结集」：新增审查档被追加进排除表时为红（放宽须 ADR 裁决 · TD-054）。
     n_ir=0; for f in $(ls .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-*.md 2>/dev/null | sort); do
       n_ir=$((n_ir+1));
-      grep -qF "$f" "$S" || { echo "🔴 排除表缺 $f（与 T13 的排除面漂移：审查档新增时须显式追加精确路径 —— 阶段 3 L3 M8）"; exit 1; };
+      case "$f" in
+        .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md|.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md|.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md) continue ;;
+      esac
+      grep -qF "$f" "$S" && { echo "🔴 审查档 $f 被纳入门禁排除表（豁免面不得超出冻结集 1–3；放宽须 ADR 裁决 · L-149/TD-054：审查档是脱敏第一现场，豁免即盲区）"; exit 1; };
     done;
-    [ "$n_ir" -ge 1 ] || { echo "🔴 未枚举到任何审查档（枚举面失效 ⇒ 判据空转）"; exit 1; };
+    [ "$n_ir" -ge 3 ] || { echo "🔴 枚举到的审查档不足 3 份（枚举面失效 ⇒ 判据空转）"; exit 1; };
+    for k in 1 2 3; do
+      grep -qF ".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-$k.md" "$S" || { echo "🔴 冻结豁免档 $k 不在排除表内（历史豁免面被静默收窄 ⇒ 门禁排除表与 T13 排除面不再同源）"; exit 1; };
+    done;
     # CHECK_REV 外部评估面双态（主 agent 2026-09-23 补 · L-131）：泄漏只存在于历史树、工作树干净 ⇒ rev 模式必须判红并给出扫描面与 file:line
     _cwd=$(pwd); _sbx2=$(mktemp -d /tmp/l3-rev-XXXXXX); git init -q "$_sbx2/r"; trap 'rm -rf "$_sbx2"' EXIT;
     mkdir -p "$_sbx2/r/flow-kit-bundle/flow-kit/reference";
@@ -857,23 +874,26 @@ Wave 8 (收口 · 全量无退化)                  : T29
     [ -e .git/hooks/pre-push ] || { echo "🔴 pre-push 未部署到夹具（T16 未完成）"; exit 1; };
     git remote add origin "$SBX/remote.git";
     for form in "push origin main" "push --all" "push --mirror"; do
-      out=$(git $form 2>&1); rc=$?;
+      rc=0; out=$(git $form 2>&1) || rc=$?;
       [ "$rc" -ne 0 ] || { printf '%s\n' "$out"; echo "🔴 形态 [$form] 未被拦截（rc=$rc）"; exit 1; };
       printf '%s' "$out" | grep -qE '(^|[^[:alnum:]_])main([^[:alnum:]_]|$)' || { printf '%s\n' "$out"; echo "🔴 形态 [$form] 未指名泄漏 ref（main）"; exit 1; };
     done;
-    out=$(git push origin --tags 2>&1); rc=$?;
+    rc=0; out=$(git push origin --tags 2>&1) || rc=$?;
     [ "$rc" -ne 0 ] || { printf '%s\n' "$out"; echo "🔴 形态 [push --tags] 未被拦截（rc=$rc）"; exit 1; };
     printf '%s' "$out" | grep -qE '(^|[^[:alnum:]_])v1([^[:alnum:]_]|$)' || { printf '%s\n' "$out"; echo "🔴 形态 [push --tags] 未指名泄漏 ref（v1）"; exit 1; };
     # 评估面判别子（主 agent 2026-09-23 补 · L-131）：工作树干净时，泄漏仅在 main 的历史树里 ⇒ 仍须被拒且指名 main
     git checkout -q develop;
-    out=$(git push --all 2>&1); rc=$?;
+    rc=0; out=$(git push --all 2>&1) || rc=$?;
     [ "$rc" -ne 0 ] || { printf '%s\n' "$out"; echo "🔴 工作树干净时泄漏分支被放行（评估面错位：扫了工作树而非被推送的树）"; exit 1; };
     printf '%s' "$out" | grep -qE '(^|[^[:alnum:]_])main([^[:alnum:]_]|$)' || { printf '%s\n' "$out"; echo "🔴 工作树干净时未指名 main（归因错位）"; exit 1; };
-    mv .git/hooks/pre-push "$SBX/pre-push.off"; git push origin main >/dev/null 2>&1; rc_off=$?; mv "$SBX/pre-push.off" .git/hooks/pre-push;
+    mv .git/hooks/pre-push "$SBX/pre-push.off"; rc_off=0; git push origin main >/dev/null 2>&1 || rc_off=$?; mv "$SBX/pre-push.off" .git/hooks/pre-push;
     [ "$rc_off" -eq 0 ] || { echo "🔴 归因对照失败：摘掉 hook 后泄漏 push 仍 rc=$rc_off（拦截来源不明）"; exit 1; };
     git -C "$SBX/remote.git" update-ref -d refs/heads/main 2>/dev/null || true;
     git checkout -q develop; git push origin develop || { echo "🔴 干净 ref（develop）被误拦"; exit 1; };
     git -C "$SBX/remote.git" rev-parse --verify --quiet refs/heads/develop >/dev/null || { echo "🔴 干净 ref 未真正到达远端"; exit 1; }
+    # 严格模式（`set -euo pipefail`）安全（L3 第 3 轮 major 4 · TD-057）：凡**期望非零**的调用一律
+    # 以 `rc=0; out=$(cmd 2>&1) || rc=$?`（或 `rc_x=0; cmd || rc_x=$?`）捕获，禁止 `out=$(cmd); rc=$?`
+    # —— 后者在 `set -e` 下于赋值处静默早退（rc=1 且无任何报文），与真红态不可区分。
   </verify>
   <done>AC-3：四种 push 形态下含泄漏的 ref 被拒且**报文指名该 ref**（`main` / `v1`）、**摘掉 hook 的归因对照**证明拦截确由 hook 产生、干净 ref 放行并真正到达远端（夹具自带 `Makefile` 桩 + 真实门禁脚本 + 已冻结权威清单，且桩在干净态绿/泄漏态红已自检）；四形态的失败分支均**打印实际报文**（可区分「hook 未拦截」与「其它 git 错误」）（修复前：无 pre-push 拦截 ⇒ 全部放行）；并有评估面判别子（HEAD=develop、工作树无泄漏时 `git push --all` 仍须被拒且指名 `main`）</done>
   <depends_on>T11, T12, T16, T17, T18, T21, T22, T23, T26</depends_on>
@@ -1337,6 +1357,8 @@ Wave 8 (收口 · 全量无退化)                  : T29
 | 6 个 DEST_ROOT 副本面 | AC-1 Then① 要求 + DESIGN §0.5.2「沿用 `sync-hooks.sh`」——由脚本写入，**禁止手工编辑副本** |
 | `.specs/CONTEXT.md`（探针临时写入后恢复） | AC-6① 的判据协议原文（探针注入 + 恢复）；失败分支亦先恢复 |
 | `/tmp/l3-*`、`/tmp/l2-ac2-*` 沙箱 fixture | 判据协议要求（NFR「会落盘的一律沙箱 `HOME`」；R2 风险缓解 ⑤），**仓库外**，不构成 write_files 越界 |
+| `package-flow-kit.sh` | **TD-048**（用户裁决「授权在本 change 内修」· 2026-09-23）→ T11 修复轮 2 在 Part C 拷贝段补 `pre-push` stanza（实测 `:134-136`；越界面由 `MINOR-DEFERRED.md` 349 / 597 记录）。**L-031 第 2 类（DESIGN §0.5.1 漏列但已改，授权在先）**——L2 阶段 5 R8 要求回写本表以闭合审计链 |
+| `flow-kit-bundle/lib/validate_staging.sh` | **TD-048 同源** → T11 修复轮 2 在覆盖清单补 `pre-push` 模式（实测 `:54`，+1/−1）。同属 L-031 第 2 类，授权来源与上一行一致 |
 
 ---
 
@@ -1355,7 +1377,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
 
 ### ② TASK.md vs `.specs/CONTEXT.md`「禁动清单」
 CONTEXT.md 禁动清单原文命中的条目逐条核对：
-- `package-flow-kit.sh` —— **不在任何 write_files**；T10 仅以 `bash package-flow-kit.sh --validate` 作为只读 SUT 调用。✅
+- `package-flow-kit.sh` —— **T10 仅以 `bash package-flow-kit.sh --validate` 作为只读 SUT 调用（不写）**；**但该文件在 T11 修复轮 2 依 TD-048 用户裁决被写入**（Part C 补 `pre-push` stanza，`:134-136`）—— 已登记于上方「显式例外」表；`flow-kit-bundle/lib/validate_staging.sh:54` 同源例外。（L2 阶段 5 **R8** 指出本行旧文案「不在任何 write_files ✅」与实测 diff 矛盾，已订正）
 - `flow-kit-bundle/lib/install_*.sh`（不允许外部直接 source）—— T06/T16 只改文件内容，**不新增外部 source 点**；T16 的沙箱验证走 `install.sh` 入口。✅
 - `test/` 目录不允许放非 `.bats` 文件 —— 四个 bats 任务只改既有 `.bats`，不新增文件。✅
 - `.flow-active.goal` 字段 / `RULES.md` R6/R3/R7 子段 / `~/.claude/tools/brooks-lint/node_modules/` / `~/.local/bin/*` shim / `regression-demos/*/check.sh` / `flow-kit-bundle.tar.gz` / `.gitignore` —— 均**未被任何 task 触碰**。✅
@@ -1421,6 +1443,147 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
 
 > 此区域由 review/integration 阶段自动追加，编号 `T-FIX-XX`。
 
+> **本轮追加（2026-09-24 · 用户裁决 option 1）**：阶段 5 外部 L3 审查连续两轮 `fail`，
+> 两条 major 属「实质性缺口」而非措辞 —— TD-053（三件生产件无常设回归网）、TD-059（阶段门对
+> 「存在但无效」的完成标记放行）。用户裁决 = **回退 4-dev 产 fix 任务，两条都修后重跑阶段 5**。
+> 编号沿用本节约定 `T-FIX-XX`，**不重排既有 wave**；两件均不改 AC-1..AC-8 的范围，
+> 属「使既有交付可信」的置信度补强（对应 L3 第 7 轮 M1/M2 的 fix 选项）。
+
 ```xml
-<!-- 占位 -->
+<task id="T-FIX-01" parallel="true" status="done" model-tier="top">
+  <name>TD-053 常设回归网：三件生产件（check-path-privacy / runtime-edit-guard / NFR 三态判据）的双态 bats</name>
+  <read_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（392 行；清单读序 = 常设 > change 副本 > 皆缺 ⇒ rc=1 且指名缺失路径；空清单 ⇒ 继续扫描且 rc=0；清单外命中 ⇒ rc=1 且报文含 file:line；自证行 = 扫描面/允许清单来源/允许清单 N 条/命中合计/清单外命中）>
+    <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（123 行；stdin JSON `{tool_name,tool_input.file_path}`；Write/Edit 相对路径 / `~user` / 空串 ⇒ rc=2；非写工具 ⇒ rc=0；项目外或维护源缺失 ⇒ rc=0；`~/.claude/(hooks|skills)/` 且维护源在 ⇒ rc=2 + redirect 报文）>
+    <`Makefile`（`:125` check-path-privacy · `:162` check-nfr-portability-internals 三态 rc∈{0,1,3} 经 `$NFR_RC_FILE` 回传 · `:247` 包装层 rc∈{0,1} 且把 3 映射为 `SKIP:` + exit 0 · `:71` test-sync · `:79` check-test-sync · `:346` check-dist）>
+    <`test/done-validation.bats`（既有 bats 风格模板）· `.specs/CONTEXT.md`（TD-053 原文）· `.specs/health-fix-2026-09b/TEST.md`（§4.4 缺口三条）>
+  </read_files>
+  <write_files>
+    <`test/test_path_privacy_gate.bats` · `test/test_runtime_edit_guard.bats` · `test/test_nfr_portability_gate.bats`（三件新增常设判据）>
+    <`flow-kit-bundle/test/`（`make test-sync` 单向同步产物，随源一并提交；不手改）>
+    <`dist/`（由 `bash package-dsh-plugin.sh` 重建，gitignored，不手改）>
+    <`.specs/STATE.md`（测试计数基线 976 → 实测新值）>
+  </write_files>
+  <action>
+    为三件「判定力只由 change 期判据承载」的生产件补**常设**回归网，每件至少一正一反双态：
+    ① `test/test_path_privacy_gate.bats`（在隔离夹具里驱动**真实脚本**：`mktemp -d` + `git init` + 夹具内 `flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt` + `.specs/health-fix-2026-09b/`）：
+    干净态 ⇒ rc=0 且自报 `清单外命中 0 条`；**拼接构造**的真名探针（`'/home/''zz-path-pr''obe/'`）⇒ rc=1 且输出含 `file:line`；两份清单皆缺 ⇒ rc=1 且报文指名缺失路径；空清单（0 条）⇒ rc=0 且自报 `允许清单 0 条`（空清单不得当错误、不得静默跳过扫描）；命中落在清单内 ⇒ rc=0；`/home/<user>/` 占位形态 ⇒ 不命中。
+    ② `test/test_runtime_edit_guard.bats`（stdin JSON 驱动真实 hook）：相对路径 ⇒ rc=2 + 报文含「无法解析为绝对路径」；`~user/x` ⇒ rc=2；空 `file_path` ⇒ rc=2；非 Write/Edit（如 Bash/Read）⇒ rc=0；夹具内建 `flow-kit-bundle/hooks/stop/x.sh` 后写 `~/.claude/hooks/stop/x.sh` ⇒ rc=2 + 报文含「维护源在」；同路径但夹具内无维护源 ⇒ rc=0（fail-open 边界）。
+    ③ `test/test_nfr_portability_gate.bats`（夹具仓 + 复制真实 `Makefile`，用 `FLOW_KIT_CHANGE_BASE=<sha>` 锚定）：相对锚点无 `.sh` 新增 ⇒ 内部 rc=3 且 stdout 含 `SKIP:`；新增 `.sh` 含 `sed -i` ⇒ 内部 rc=1 且 stderr 含 `file:line`；合规惯用法 `stat -c … || stat -f …` ⇒ 不误报（rc=0）；整行注释 `# sed -i` ⇒ 不误报；**包装层**把内部 3 映射为 exit 0 且 stdout 保留 `SKIP:`（SKIP ≠ PASS）。
+    夹具一律建在 `${TMPDIR:-/tmp}`、用例内不触碰工作树；`check-path-privacy` 用例必须在运行时**复制当前脚本**进夹具（⇒ 源被改动时判据会转红，回归网是活的）。
+    收尾：`make test-sync` ⇒ `npx bats test/` 记录新基线并写入 `.specs/STATE.md`；`bash package-dsh-plugin.sh` 重建 dist；`make check` 全绿；`make check-path-privacy` rc=0。
+    提交：`git add` **显式列路径**（含 `flow-kit-bundle/test/` 同步产物）+ `git commit -m "test(health-fix-2026-09b): T-FIX-01 TD-053 常设回归网（三件生产件双态 bats）" -- <路径…>`；禁用 `git add .`/`-A`、`--no-verify`、`git stash`。
+    提交后写 `.specs/health-fix-2026-09b/T-FIX-01-SUMMARY.md`（交付物 / 实跑输出原文 / 6 维自检 / 遗留），把本 task 的 `status="pending"` 改 `done` 并补 `<done>` 注记，并按 4-dev 协议用 `jq '.goal.task_progress += [{…}]'` 追加五字段（id/commit_sha/fix_rounds/deferred/completed_at）；SUMMARY 与 TASK.md 勾选留待主 agent 的 housekeeping 提交。
+  </action>
+  <verify>
+    # 判据修复（主 agent 2026-09-24 · 证据见 MINOR-DEFERRED「T-FIX-01 判据修复」/ T-FIX-01-SUMMARY 遗留①）：
+    # 原首行 `export LC_ALL=C` 会让**既有** test/test_l3_pipeline_fix.bats 的 UTF-8 边界用例
+    # （`:592` 用例 / `:609` iconv）在 HEAD 即红（**已登记 TD-051** 的 locale 敏感性缺陷，非新开 TD），
+    # 与本 task 交付物无关。已删除该 locale 覆盖（其余判据逐字不动），不改变任何断言强度。
+    rc=0;
+    F1=test/test_path_privacy_gate.bats; F2=test/test_runtime_edit_guard.bats; F3=test/test_nfr_portability_gate.bats;
+    for f in $F1 $F2 $F3; do [ -f "$f" ] || { echo "🔴 缺常设判据文件 $f"; rc=1; }; done;
+    [ $rc -eq 0 ] || exit 1;
+    grep -q 'check-path-privacy.sh' $F1 || { echo "🔴 $F1 未驱动真实脚本"; rc=1; };
+    grep -q 'runtime-edit-guard.sh' $F2 || { echo "🔴 $F2 未驱动真实 hook"; rc=1; };
+    grep -q 'check-nfr-portability' $F3 || { echo "🔴 $F3 未驱动真实 target"; rc=1; };
+    grep -qE 'status" -eq 2' $F2 || { echo "🔴 $F2 无拒绝态断言"; rc=1; };
+    grep -qE 'status" -eq 0' $F2 || { echo "🔴 $F2 无放行态断言"; rc=1; };
+    grep -qE 'status" -eq 1' $F1 || { echo "🔴 $F1 无拒绝态断言"; rc=1; };
+    grep -qE 'status" -eq 3|NFR_RC' $F3 || { echo "🔴 $F3 无 rc=3（未验证）断言"; rc=1; };
+    OUT=$(npx bats $F1 $F2 $F3 2>&1); brc=$?;
+    OKC=$(printf '%s\n' "$OUT" | grep -c '^ok '); NOTOK=$(printf '%s\n' "$OUT" | grep -c '^not ok ');
+    printf 'TAP: ok=%s not-ok=%s rc=%s\n' "$OKC" "$NOTOK" "$brc";
+    [ $brc -eq 0 ] && [ "$NOTOK" -eq 0 ] && [ "$OKC" -ge 18 ] || { printf '%s\n' "$OUT" | tail -25; echo "🔴 常设网本体未全绿（下限 18，实得 $OKC）"; rc=1; };
+    # 活性：把两件生产件打成恒绿桩 ⇒ 判据必须转红（fixture 运行时复制当前脚本 ⇒ 桩必被吃到）
+    cp flow-kit-bundle/flow-kit/reference/check-path-privacy.sh /tmp/tfix1-pp.bak;
+    cp flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh /tmp/tfix1-reg.bak;
+    printf '#!/bin/bash\nexit 0\n' > flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    printf '#!/bin/bash\nexit 0\n' > flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh;
+    if npx bats $F1 $F2 > /tmp/tfix1-stub.out 2>&1; then echo "🔴 恒绿桩下判据仍绿 ⇒ 常设网非活性"; rc=1; fi;
+    grep -q '^not ok' /tmp/tfix1-stub.out || { echo "🔴 桩下无 not ok 行"; rc=1; };
+    cp -f /tmp/tfix1-pp.bak flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    cp -f /tmp/tfix1-reg.bak flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh;
+    cmp -s flow-kit-bundle/flow-kit/reference/check-path-privacy.sh /tmp/tfix1-pp.bak || { echo "🔴 path-privacy 还原不一致"; rc=1; };
+    cmp -s flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh /tmp/tfix1-reg.bak || { echo "🔴 runtime-edit-guard 还原不一致"; rc=1; };
+    npx bats $F1 $F2 > /dev/null 2>&1 || { echo "🔴 还原后未回绿"; rc=1; };
+    make check-test-sync > /dev/null 2>&1 || { echo "🔴 test 双源不一致（未跑 make test-sync）"; rc=1; };
+    make check-dist > /dev/null 2>&1 || { echo "🔴 dist 未重建（check-dist 失败）"; rc=1; };
+    make check-path-privacy > /dev/null 2>&1 || { echo "🔴 check-path-privacy 不绿"; rc=1; };
+    make check > /tmp/tfix1-check.out 2>&1 || { tail -20 /tmp/tfix1-check.out; echo "🔴 make check 不绿"; rc=1; };
+    exit $rc
+  </verify>
+  <done>TD-053 收敛：三件生产件的判定力由 `test/` 树内的常设双态判据承载（path-privacy 6 态 / runtime-edit-guard 6 态 / NFR 三态 + 包装映射）；恒绿桩注入 ⇒ 判据转红（活性已证）；test 双源 + dist + `make check` 全绿；`.specs/STATE.md` 基线更新；**时点实测（T-FIX-01 执行者 2026-09-24）**：三文件 25 用例（F1 9 / F2 9 / F3 7）`1..25 · 0 not ok`；恒绿桩注入下 14 行 `not ok`（F1 九例全红 + F2 拒绝组全红 ⇒ 活性已证），`cmp` 还原一致后回绿；`npx bats test/` = 1001 ok / 0 not ok / 0 skip（`npx bats --count test/` = 1001，原 976 + 25）；`make check` 九门禁全绿（`✅ make check: 全部通过`）；`make test-sync` / `make check-test-sync` / `make check-dist` / `make check-path-privacy` 均 rc=0。**`<verify>` 原样跑 rc=1**：唯一红点 = 第 31 行 `make check`，根因是首行 `export LC_ALL=C` 与既有用例 `test/test_l3_pipeline_fix.bats:592` 冲突（LC_ALL=C 下 `not ok 646`，`:609` 的 `iconv: illegal input sequence at position 136`；宿主 `zh_CN.UTF-8` 与 `C.utf8` 下均绿，单文件隔离同样复现，工作树无任何生产件改动 ⇒ 预先存在，非本 task 引入）；最小偏离复跑（唯一差异：`export LC_ALL=C;` → `export LC_ALL=C.utf8;`，其余 31 行逐字不动）⇒ `rc=0` 全绿。详见 `.specs/health-fix-2026-09b/T-FIX-01-SUMMARY.md` ④ 偏离 ①；`fix_rounds=0`、`commit_sha=5ee4ebc`</done>
+  <depends_on>T29</depends_on>
+</task>
+
+<task id="T-FIX-02" parallel="false" status="pending" model-tier="top">
+  <name>TD-059 阶段门有效性：完成标记「存在」不再等于「有效」（Gate3 语义 + ADR-029 + 双态 bats）</name>
+  <read_files>
+    <`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（`:35 fk_independent_review_gate_active` 末行 `[[ ! -f "$done_marker" ]]` = 现行唯一判据；`:100 fk_validate_done_marker <done> <phase> <change_id> <write|transition>`；`:107-115` `phases_done` 短路；`MIN_MEANINGFUL_LINES=6`）>
+    <`flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh`（`:76` Gate1 path-guard · `:91` Gate3 `_gate_active_check` · `:97` Gate4 `_gate_done_validation` · `:107` Gate7 `_gate_deny_reason`）>
+    <`flow-kit-bundle/hooks/pre-tool-use/gate-helpers.sh`（`:174 _gate_active_check` return 0=门未开 ⇒ 放行 / 1=门开 ⇒ 继续；`:186 _gate_done_validation` 用 tier=transition）>
+    <同一函数的其余调用点（语义必须一致）：`flow-kit-bundle/hooks/stop/29-independent-review.sh:104`（tier=L3）· `31-auto-advance.sh:73` · `lib/flow-kit-artifacts.sh:111`>
+    <`.specs/adr/004-gate-return-value-semantics.md` · `005-gate-active-source-dependency.md`（ADR 写作范式与返回码契约）>
+    <`.specs/health-fix-2026-09b/reproduce-phase-gate.sh`（阶段 5 沙箱：A/B/B2/B3/C 五层，B2/B3 现记「缺口实证」）>
+    <`test/done-validation.bats` · `test/test_l2_l3_granular_gate.bats`（既有覆盖，修复后须同步订正且全绿）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（Gate3 语义 + 头部契约注释 `:24-34` 同步）>
+    <`.specs/adr/029-gate-marker-validity.md`（新增）>
+    <`test/test_review_gate_validity.bats`（新增 · 双态：空标记/缺键 ⇒ 拒；6 键有效 ⇒ 放行）>
+    <`test/done-validation.bats` / `test/test_l2_l3_granular_gate.bats`（按新语义订正；不得削弱覆盖面）>
+    <`.specs/CONTEXT.md`（TD-059 状态改为「本 change 内修复（T-FIX-02）」）>
+    <`flow-kit-bundle/test/` + 6 个 hooks 副本（`make test-sync` / `bash sync-hooks.sh`）+ `dist/`（重建）>
+  </write_files>
+  <action>
+    **最小语义修复**：`fk_independent_review_gate_active` 在标记**存在**时，必须调用 `fk_validate_done_marker "$done_marker" "$phase" "$change_id" transition` 判定有效性：无效 ⇒ 仍视为「gate 生效」（`return 0` ⇒ 拒绝）。**必须用 `transition` 而非 `write`**：只用 Tier-1 时，「6 键齐但 `L2_verdict` 与审查档 verdict 相悖」会被判有效 ⇒ Gate3 直接 `exit 0` 放行；`transition` 让该态落到 Gate4 被 Tier-2 拦下（Gate4 本就在同进程使用 `transition`，`fk_extract_l2_verdict` 可用性已被其验证）。
+    保持 `phases_done` 短路（历史 phase 不追溯）；Gate7 拒绝报文不变。
+    同步改写 `:24-34` 契约注释与 `:86` 行内注释为「存在**且有效**」；ADR-029 记录：变更前后语义、被拒三类标记（空/`touch`、缺键、值域非法）、`L2_verdict` 相悖态、`phases_done` 短路保持、以及**已知残余**（Tier-1 只验元数据、不验 `L3_artifact_hash` 是否对应当前工件 ⇒ 与 TD-042/TD-045 同源，留 v2）。
+    落地：`./sync-hooks.sh`（6 副本）+ `make test-sync` + 重建 dist + `make check` 全绿；行为双态须在 `test/test_review_gate_validity.bats` 里可复算（同一夹具、有/无有效标记、空 `touch` 标记、缺 `L3_verdict`、`L2_verdict` 相悖）。
+    ⚠️ 工具面约束（L-148）：本仓 PreToolUse path-guard 会拦**命令文本里出现 `.independent-review-*.done` 字面名**的调用 —— 写夹具时用拼接构造（如 `MARK=".independent-review-${PHASE}.done"`）或把逻辑放进脚本文件后再调用。
+    提交：`git add` 显式列路径（改动 hook + 新增 ADR + bats + 同步产物）+ `git commit -m "fix(health-fix-2026-09b): T-FIX-02 TD-059 阶段门有效性（无效标记必须拒绝 + ADR-029）" -- <路径…>`；禁用 `git add .`/`-A`、`--no-verify`、`git stash`。提交后写 `.specs/health-fix-2026-09b/T-FIX-02-SUMMARY.md`、勾选 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段；SUMMARY 与勾选留待主 agent 的 housekeeping 提交。
+  </action>
+  <verify>
+    # 判据修复（主 agent 2026-09-24 · 同 T-FIX-01）：原首行 `export LC_ALL=C` 会让**既有**
+    # `test/test_l3_pipeline_fix.bats:592` 的 UTF-8 边界用例在 HEAD 即红（**已登记 TD-051** 的
+    # locale 敏感性：`LC_ALL=C` 下 `:609` 的 `iconv -f utf-8 -o /dev/null` 把合法 UTF-8 判成非法，
+    # 末尾 `make check` 必红），与本 task 交付物无关。已删除该 locale 覆盖（其余判据逐字不动）。
+    set -u; rc=0;
+    HOOK="$PWD/flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh";
+    grep -q 'fk_validate_done_marker' flow-kit-bundle/hooks/stop/lib/done-validation.sh || { echo "🔴 Gate3 未接入有效性校验"; rc=1; };
+    bash -n flow-kit-bundle/hooks/stop/lib/done-validation.sh || { echo "🔴 done-validation.sh 语法错误"; rc=1; };
+    bash -n "$HOOK" || { echo "🔴 gate hook 语法错误"; rc=1; };
+    ls .specs/adr/029-*.md > /dev/null 2>&1 || { echo "🔴 缺 ADR-029"; rc=1; };
+    SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix2-XXXXXX"); trap 'rm -rf "$SBX"' EXIT; cd "$SBX" || exit 1;
+    git init -q .; git config user.email t@t; git config user.name t; git commit -q --allow-empty -m seed;
+    mkdir -p .specs/fix2-change; printf 'fixture\n' > .specs/fix2-change/TEST.md;
+    printf '%s\n' '{"change_id":"fix2-change","phase":"5","goal":{"current_phase":"5","phases_done":[],"gate_config":{"5-test":"both"},"auto_advance":false}}' > .flow-active;
+    printf '# 独立审查 · 阶段 5\n\n## L2 盲审（第 1 轮）\n\n**Verdict**: pass\n' > .specs/fix2-change/INDEPENDENT-REVIEW-5.md;
+    MARK=".specs/fix2-change/.independent-review-5.done";
+    probe() { printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"s\",\"cwd\":\"$SBX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m probe -- .specs/fix2-change/TEST.md\"}}" | bash "$HOOK" > gate.out 2>&1; echo $?; };
+    write_marker() { printf 'phase=5\nchange_id=fix2-change\nwritten_by=subagent\nL2_verdict=%s\nL3_verdict=pass\nartifacts=TEST.md,TASK.md\n' "$1" > "$MARK"; };
+    A=$(probe); [ "$A" = "2" ] || { echo "🔴 状态 A（无标记）期望 2 实得 $A"; rc=1; };
+    grep -q '独立 review gate' gate.out || { echo "🔴 状态 A 报文未命中"; rc=1; };
+    write_marker pass; B=$(probe); [ "$B" = "0" ] || { echo "🔴 状态 B（6 键有效标记）期望 0 实得 $B"; cat gate.out; rc=1; };
+    printf '# 独立审查 · 阶段 5\n\n## L2 盲审（第 1 轮）\n\n**Verdict**: fail\n' > .specs/fix2-change/INDEPENDENT-REVIEW-5.md;
+    B2=$(probe); [ "$B2" = "2" ] || { echo "🔴 状态 B2（标记 pass vs 审查档 fail）期望 2 实得 $B2 ⇒ TD-059 未修复"; rc=1; };
+    printf '# 独立审查 · 阶段 5\n\n## L2 盲审（第 1 轮）\n\n**Verdict**: pass\n' > .specs/fix2-change/INDEPENDENT-REVIEW-5.md;
+    : > "$MARK"; B3=$(probe); [ "$B3" = "2" ] || { echo "🔴 状态 B3（touch 空标记）期望 2 实得 $B3 ⇒ 存在性判定仍在"; rc=1; };
+    printf 'phase=5\nchange_id=fix2-change\nwritten_by=subagent\nL2_verdict=pass\nartifacts=TEST.md,TASK.md\n' > "$MARK";
+    B4=$(probe); [ "$B4" = "2" ] || { echo "🔴 状态 B4（缺 L3_verdict）期望 2 实得 $B4"; rc=1; };
+    rm -f .flow-active; C=$(probe); [ "$C" = "0" ] || { echo "🔴 状态 C（无 .flow-active）期望 0 实得 $C"; rc=1; };
+    printf 'A=%s B=%s B2=%s B3=%s B4=%s C=%s\n' "$A" "$B" "$B2" "$B3" "$B4" "$C";
+    OUT=$(npx bats test/test_review_gate_validity.bats 2>&1); brc=$?;
+    printf '%s\n' "$OUT" | grep -q '^not ok' && { printf '%s\n' "$OUT" | tail -20; echo "🔴 新增双态判据有失败项"; rc=1; };
+    [ $brc -eq 0 ] || { echo "🔴 新增双态判据 rc=$brc"; rc=1; };
+    make check-hooks-sync > /dev/null 2>&1 || { echo "🔴 hooks 副本未同步（跑 ./sync-hooks.sh）"; rc=1; };
+    make check-test-sync > /dev/null 2>&1 || { echo "🔴 test 双源不一致"; rc=1; };
+    make check-dist > /dev/null 2>&1 || { echo "🔴 dist 未重建"; rc=1; };
+    make check > /tmp/tfix2-check.out 2>&1 || { tail -20 /tmp/tfix2-check.out; echo "🔴 make check 不绿"; rc=1; };
+    exit $rc
+  </verify>
+  <done>TD-059 收敛：`fk_independent_review_gate_active` 以「存在**且有效**」为准（空 / 缺键 / 值域非法 / `L2_verdict` 相悖 ⇒ 仍拒绝）；五态沙箱实测 A=2 · B=0 · B2=2 · B3=2 · B4=2 · C=0；ADR-029 记录语义与残余；hooks 6 副本 + test 双源 + dist + `make check` 全绿</done>
+  <depends_on>T-FIX-01</depends_on>
+</task>
 ```
