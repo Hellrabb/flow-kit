@@ -27,7 +27,11 @@ unset _dv_dir
 #   tier="L2" → returns 0 only if L2 (sub-agent blind review) is active
 #   tier="L3" → returns 0 only if L3 (external model review) is active
 # Returns: 0 (true) = gate 生效（应阻止阶段推进）；1 (false) = 放行
-# gate 生效当且仅当：phase∈{1,2,3,5,6,7} 且 gate 开启 且 .specs/<id>/.independent-review-<phase>.done 不存在。
+# gate 生效当且仅当：phase∈{1,2,3,5,6,7} 且 gate 开启 且
+#   .specs/<id>/.independent-review-<phase>.done **不存在或无效**（ADR-029 · TD-059）。
+#   ⚠️ 「存在 ≠ 有效」：标记存在时须过 fk_validate_done_marker <done> <phase> <change_id> transition
+#   （Tier-1 元数据快校验 + Tier-2 与 INDEPENDENT-REVIEW-<phase>.md 的 L2_verdict 比对）；
+#   空/touch 标记、缺键、值域非法、L2_verdict 与审查档相悖 一律仍视为 gate 生效（拒绝）。
 # gate 开启的双源：.flow-active.goal.gate_config[<阶段名>] ∈ {L2,L3,both} 优先，
 #                 回退 <runtime-config>/stop-hook.json（.flow-kit on dsh，.claude legacy）
 #                 的 independent_review.phases 数组含该阶段名（视为 both）。
@@ -74,9 +78,15 @@ fk_independent_review_gate_active() {
     *) ;;  # tier="" → 任一层开启即通过
   esac
 
-  # gate 开启：done 标志存在则放行（return 1），不存在则 gate 生效（return 0）
+  # gate 开启：done 标志存在**且有效**才放行（return 1），否则 gate 生效（return 0）
+  # ADR-029（TD-059）：原先只看 `[[ -f ]]` ⇒ 任何同名文件（含 `touch` 空文件）都让 Gate3
+  # 先于 Gate4 放行，使 fk_validate_done_marker … transition 成为 commit 路径上的死路径。
   local done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
-  [[ ! -f "$done_marker" ]]
+  [[ -f "$done_marker" ]] || return 0
+  # 存在 ⇒ 必须过 transition（Tier-1 元数据 + Tier-2 一致性）才算「审查已完成」；
+  # 无效（rc=2）⇒ 门仍生效 ⇒ return 0（拒绝）。phases_done 短路在 fk_validate_done_marker 内保持。
+  fk_validate_done_marker "$done_marker" "$phase" "$change_id" transition || return 0
+  return 1
 }
 
 # ═══════════════════════════════════════════════════════════════════════
