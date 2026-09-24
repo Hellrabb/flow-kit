@@ -166,3 +166,11 @@ bats: 1023 ok / 0 not-ok / count=1023
 6. **未把脚本正文抄进 bats**：夹具运行时 `cp` 真实生产件进 `mktemp -d` 夹具。
 7. **探针字面量脱敏**：所有探针用拼接构造（如 `'/home/''zz-f3-pro''be/'`），
    未出现真实账号路径形态。
+
+## 补记（主 agent · 阶段 4 完成自检 · 2026-09-25）
+
+> 本任务经 fix 循环派发，SUMMARY 按 fix 派发契约结构（§1–§7）。以下三项由主 agent 在阶段 4 完成自检（6.0 八项）时补齐证据。
+
+- **越界检查（R6.5）**：`git show --numstat 6e39cfb` = 5 文件 **+491/−45**，全部落在任务块 `<write_files>` 面内；未触碰源面以外文件。`.specs/CONTEXT.md` +3 行是**主 agent 派发前**登记的 TD-062 / TD-063（路径限定提交的正常结果）。
+- **沿用既有抽象 grep（R6.4）**：① 判据侧新增 `mktemp_checked()`，与本文件既有 `mktemp` 用法族一致，未引入新依赖（纯 bash 3.2 + POSIX/coreutils）；② 测试复用 `test/test_path_privacy_gate.bats` 既有骨架（`run --separate-stderr` + 运行时复制真实生产件 + `PROBE` 字符串拼接脱敏）；③ 沿用既有常设清单读取顺序语义（change 副本 → 常设）。复核命令：`grep -n 'mktemp_checked\|PROBE=' flow-kit-bundle/flow-kit/reference/check-path-privacy.sh test/test_path_privacy_gate.bats | head`。
+- **6 维快查（测试衰退风险）**：① 断言强度 ✅（坏态断言 rc≠0 且报文指名原因；好态断言 rc=0 且命中归因 `file:line`）；② 覆盖 ✅（F1~F5 每面各「坏态 + 好态」两用例，共 +11）；③ 双态真实 ✅（活性重放：还原旧件 ⇒ 恰 7 例转红）；④ 独立性 ✅（各用例自建 `mktemp -d` 夹具，不依赖执行顺序）；⑤ 可复现 ✅（`<verify>` 由主 agent 独立复跑 rc=0；bats 与 `.specs/STATE.md` 基线同步）；⑥ 计数同步 ✅（1012 → 1023）。

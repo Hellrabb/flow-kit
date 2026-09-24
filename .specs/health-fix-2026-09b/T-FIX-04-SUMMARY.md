@@ -144,3 +144,12 @@ bats/门禁段无 🔴 输出（全 pass，静默）。
 - 未声称 git hooks 门禁生效（`core.hooksPath` 为空串）。
 - 未提交 SUMMARY（留主 agent housekeeping）。
 - 未勾 `TASK.md` 的 `status="done"` + `<done>`（留主 agent housekeeping，或本执行者收尾 —— 见下）。
+
+## 补记（主 agent · 阶段 4 完成自检 · 2026-09-25）
+
+> 本任务经 fix 循环派发。以下三项由主 agent 在阶段 4 完成自检（6.0 八项）时补齐证据。
+
+- **越界检查（R6.5）**：`git show --numstat 521b21c` = 5 文件 **+108/−18**，全部落在 `<write_files>` 面内。`.specs/CONTEXT.md` 2/1 = 主 agent 的 TD-065 行 + 执行者的 TD-029 标注；`.specs/STATE.md` 2/1 = 基线 1023 → 1025。
+- **沿用既有抽象 grep（R6.4）**：① 复用 `check_pair()` 既有控制流与 `ERRORS` 计数（仅新增 `COMPARED` 计数器）；② 测试复用 `test/test_check_gate_sync.bats` 既有夹具（自建 `mktemp -d` 全量复制 + 从 `PAIRS` 派生被隐藏样本）；③ `PAIRS_TOTAL` 常量单点化取代散落字面量。复核命令：`grep -n 'COMPARED\|PAIRS_TOTAL' flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`。
+- **6 维快查（测试衰退风险）**：① 断言强度 ✅（坏态断言 rc≠0 **且**汇总不得出现「✅ … 一致」；好态断言 rc=0 且覆盖度分母 = 实际比对对数）；② 覆盖 ✅（缺 prompt / 缺 skill / 好态三型）；③ 双态真实 ✅（活性重放：还原旧件 ⇒ `not ok 7` 恰 1 红）；④ 独立性 ✅（夹具自建，不依赖仓内状态）；⑤ 可复现 ✅（`<verify>` 由主 agent 独立复跑 rc=0；bats 与 STATE 同步）；⑥ 计数同步 ✅（1023 → 1025）。
+- **契约张力点**：`<done>` 模板的措辞与实现形态无关；本任务的判据缺陷归属与修复见 `.specs/health-fix-2026-09b/TASK.md` 的 T-FIX-04 `<verify>`（TD-065）。
