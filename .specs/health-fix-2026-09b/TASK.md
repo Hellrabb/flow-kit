@@ -1517,7 +1517,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T29</depends_on>
 </task>
 
-<task id="T-FIX-02" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-02" parallel="false" status="done" model-tier="top">
   <name>TD-059 阶段门有效性：完成标记「存在」不再等于「有效」（Gate3 语义 + ADR-029 + 双态 bats）</name>
   <read_files>
     <`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（`:35 fk_independent_review_gate_active` 末行 `[[ ! -f "$done_marker" ]]` = 现行唯一判据；`:100 fk_validate_done_marker <done> <phase> <change_id> <write|transition>`；`:107-115` `phases_done` 短路；`MIN_MEANINGFUL_LINES=6`）>
@@ -1555,7 +1555,11 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     bash -n flow-kit-bundle/hooks/stop/lib/done-validation.sh || { echo "🔴 done-validation.sh 语法错误"; rc=1; };
     bash -n "$HOOK" || { echo "🔴 gate hook 语法错误"; rc=1; };
     ls .specs/adr/029-*.md > /dev/null 2>&1 || { echo "🔴 缺 ADR-029"; rc=1; };
-    SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix2-XXXXXX"); trap 'rm -rf "$SBX"' EXIT; cd "$SBX" || exit 1;
+    # 判据修复（主 agent 2026-09-24 · 新登记 TD-060）：原判据进入沙箱后**未回仓根**，导致其后 6 步
+    # （新 bats / check-hooks-sync / check-test-sync / check-dist / make check）全在 `${TMPDIR:-/tmp}`
+    # 沙箱里跑（无 `test/`、无 `Makefile` ⇒ 恒 4 条 🔴 + `make: *** 没有规则可制作目标“check”`），
+    # 与交付物无关。已补 `REPO_ROOT="$PWD"` 与沙箱段末尾的 `cd "$REPO_ROOT"`；步骤与断言逐字不动。
+    REPO_ROOT="$PWD"; SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix2-XXXXXX"); trap 'rm -rf "$SBX"' EXIT; cd "$SBX" || exit 1;
     git init -q .; git config user.email t@t; git config user.name t; git commit -q --allow-empty -m seed;
     mkdir -p .specs/fix2-change; printf 'fixture\n' > .specs/fix2-change/TEST.md;
     printf '%s\n' '{"change_id":"fix2-change","phase":"5","goal":{"current_phase":"5","phases_done":[],"gate_config":{"5-test":"both"},"auto_advance":false}}' > .flow-active;
@@ -1574,6 +1578,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     B4=$(probe); [ "$B4" = "2" ] || { echo "🔴 状态 B4（缺 L3_verdict）期望 2 实得 $B4"; rc=1; };
     rm -f .flow-active; C=$(probe); [ "$C" = "0" ] || { echo "🔴 状态 C（无 .flow-active）期望 0 实得 $C"; rc=1; };
     printf 'A=%s B=%s B2=%s B3=%s B4=%s C=%s\n' "$A" "$B" "$B2" "$B3" "$B4" "$C";
+    cd "$REPO_ROOT" || exit 1;   # 判据修复（TD-060）：沙箱段结束 ⇒ 回到仓根再跑 bats / make
     OUT=$(npx bats test/test_review_gate_validity.bats 2>&1); brc=$?;
     printf '%s\n' "$OUT" | grep -q '^not ok' && { printf '%s\n' "$OUT" | tail -20; echo "🔴 新增双态判据有失败项"; rc=1; };
     [ $brc -eq 0 ] || { echo "🔴 新增双态判据 rc=$brc"; rc=1; };
@@ -1583,7 +1588,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix2-check.out 2>&1 || { tail -20 /tmp/tfix2-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done>TD-059 收敛：`fk_independent_review_gate_active` 以「存在**且有效**」为准（空 / 缺键 / 值域非法 / `L2_verdict` 相悖 ⇒ 仍拒绝）；五态沙箱实测 A=2 · B=0 · B2=2 · B3=2 · B4=2 · C=0；ADR-029 记录语义与残余；hooks 6 副本 + test 双源 + dist + `make check` 全绿</done>
+  <done>TD-059 收敛：`fk_independent_review_gate_active` 以「存在**且有效**」为准（空 / 缺键 / 值域非法 / `L2_verdict` 相悖 ⇒ 仍拒绝）；五态沙箱实测 A=2 · B=0 · B2=2 · B3=2 · B4=2 · C=0；ADR-029 记录语义与残余；hooks 6 副本 + test 双源 + dist + `make check` 全绿；**时点实测（T-FIX-02 执行者 2026-09-24）**：commit `6cff7a2`（5 文件 +472/−4：`done-validation.sh` 13/3 · ADR-029 63 · 两份 bats 197+197 · `STATE.md` 2/1）；五态沙箱实测 `A=2 B=0 B2=2 B3=2 B4=2 C=0`；`npx bats test/test_review_gate_validity.bats` = 11 ok；`npx bats test/` = **1012 ok / 0 not ok / 0 skip**（`--count` = 1012，原 1001 + 11，`.specs/STATE.md:48` 基线已更新）；`make check-hooks-sync` / `check-test-sync` / `check-dist` / `make check` 全 rc=0（`✅ make check: 全部通过`）。**`<verify>` 原样跑 rc=1**：五态行全对，唯一红点是判据自身第 12 行 `cd "$SBX"` 后未回仓根 ⇒ 第 30-36 行在 `${TMPDIR:-/tmp}` 沙箱里跑（无 `test/`、无 `Makefile`）；在仓根 cwd 补跑同 6 行全绿（判据未改动，见 `T-FIX-02-SUMMARY.md` ④ 偏离 ①）。既有 `test/done-validation.bats` / `test/test_l2_l3_granular_gate.bats` **无需订正**（逐一审计：前者直测 `fk_validate_done_marker`；后者 16 处调用从不创建标记 ⇒ 全为「无标记」态，新语义同结果）。`fix_rounds=0`、`commit_sha=6cff7a2`</done>
   <depends_on>T-FIX-01</depends_on>
 </task>
 ```

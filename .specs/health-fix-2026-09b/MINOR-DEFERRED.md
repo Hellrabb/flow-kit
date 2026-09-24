@@ -916,3 +916,48 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **TD-051 行已同步**（`.specs/CONTEXT.md`）：补记本次复发实例与判别式重放结果。
 
 **附：判据抽取陷阱**（本次调试耗时点）：`awk '/<task id="T-FIX-01"/,/<\/task>/'` 抽出的块里，`<done>` 正文含 `<verify>` **字面**（「**`<verify>` 原样跑 rc=1**」），因此非锚定的 `sed -n '/<verify>/,/<\/verify>/p'` 会在 `<done>` 处**重开区间**并把 `<depends_on>` / `</task>` 一并带出（36 行判据 → 38 行，末尾多出两行 ⇒ `bash -n` 报 `未预期的记号 "newline"`）。正确抽取 = 锚定整行：`sed -n '/^  <verify>$/,/^  <\/verify>$/p' | sed '1d;$d'`（或用 `awk '/<verify>/{if(!seen){f=1;seen=1};next} …'` 一次性状态机）。全仓其它 task 的 `<done>` 若也引用 `<verify>`/`</verify>` 字面，同样会踩这条。
+
+### T-FIX-01 主 agent 复核（十项契约 + 判据复跑 · 2026-09-24）
+
+| 复核项 | 实测 |
+|---|---|
+| 提交面 vs 报告 | `git show --numstat --oneline 5ee4ebc` = 7 files / **809 insertions(+) · 2 deletions(-)**，与执行者报告逐行一致；`test/` 三件与 `flow-kit-bundle/test/` 镜像成对出现 |
+| 工作树 = HEAD | `git diff HEAD --stat --`（六个 bats 路径）为空；生产件 `check-path-privacy.sh` / `runtime-edit-guard.sh` 与 HEAD 无差异（恒绿桩探针已完整还原） |
+| 台账条目 | `.flow-active.goal.task_progress` 长度 30，末条 = `{"id":"T-FIX-01","commit_sha":"5ee4ebc","fix_rounds":0,"deferred":[],"completed_at":"2026-09-24T15:49:08+08:00"}`；commit 时间 `15:47:48+08:00` ⇒ Δ = **80 s** ≤ 120 s |
+| 结构不变量 | `<task id=` 31 · `</task>` 31 · `</verify>` 31 · `<depends_on>` 31（`<verify>` 出现 33 次 = 31 个真标签 + 2 处`<done>` 正文内联引用，见上「抽取陷阱」）；`status="done"` 30 / 全 31（T-FIX-02 待执行） |
+| 冻结集 | 恰 5 个 `A `（`CHANGE.md` · `INDEPENDENT-REVIEW-1/2/3.md` · `REQUIREMENT.md`），未被本 task 提交拖入 |
+| 判据原样跑 | 判据修复后复跑 ⇒ **rc=0**，全日志仅 `TAP: ok=25 not-ok=0 rc=0`（31 步全绿，无任一步 🔴） |
+| 活性（恒绿桩） | `/tmp/tfix1-stub.out` = **14 行 `not ok`**（F1 九例全红 + F2 拒绝组红）⇒ 两件生产件被替换成 `exit 0` 时判据确实转红，回归网非自证 |
+| 双源一致 | `diff -rq test/ flow-kit-bundle/test/` 无输出（镜像逐字节一致）+ `make check-test-sync` rc=0 |
+| 判别式重放（locale） | `LC_ALL=C npx bats --filter 'UTF-8 boundary' test/test_l3_pipeline_fix.bats` ⇒ `not ok 1`（`iconv: illegal input sequence at position 136`）；`LC_ALL=C.utf8 …` ⇒ `ok 1` ⇒ 红绿由 locale 唯一决定，与三件新 bats 无关（TD-051） |
+| 门禁与计数 | `make check-path-privacy` rc=0（`允许清单 0 条` / `命中合计 0 条` / `清单外命中 0 条`）；`npx bats --count test/` = **1001**；`make check` = `✅ make check: 全部通过` |
+
+**结论**：`T-FIX-01` 十项复核全过（唯一修正 = 判据首行 locale 覆盖，已判为 TD-051 复发而非新缺陷）；room 内无残留（`git status --short` 无探针/临时件）。
+
+---
+
+## ✅ T-FIX-02 复核记录（主 agent 十项契约 + 判据复跑 + 活性重放 · 2026-09-24）
+
+**交付**：commit `6cff7a2` — `fix(health-fix-2026-09b): T-FIX-02 TD-059 阶段门有效性（无效标记必须拒绝 + ADR-029）`；5 文件 **+472 / −4**：`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（157 → **167** 行，13/3）· `.specs/adr/029-gate-marker-validity.md`（新增 63 行）· `test/test_review_gate_validity.bats` + `flow-kit-bundle/test/` 镜像（197 + 197 行）· `.specs/STATE.md`（2/1，基线 1001 → **1012**）。
+
+**语义（主 agent 逐行核对 `git show 6cff7a2 -- …done-validation.sh`）**：`fk_independent_review_gate_active` 由 `[[ ! -f "$done_marker" ]]` 改为 —— `[[ -f "$done_marker" ]] || return 0`（不存在 ⇒ 门生效 ⇒ 拒绝）→ `fk_validate_done_marker "$done_marker" "$phase" "$change_id" transition || return 0`（存在但无效 ⇒ 仍拒绝）→ `return 1`（放行）；返回码契约（0 = 门生效 / 1 = 放行，ADR-004）不变；`:24-38` 契约注释与行内注释同步为「存在**且有效**」；`phases_done` 短路与 Gate7 报文未动。
+
+**判据自身缺陷 ⇒ 判据修复（新登记 TD-060）**：`<verify>` 原样跑 = rc=1（五态行全对，其后 4 条 🔴：`新增双态判据 rc=1` / `hooks 副本未同步` / `test 双源不一致` / `dist 未重建` + `make: *** 没有规则可制作目标“check”`）。根因 = 判据进入 `mktemp -d` 沙箱后**未回仓根**，其后 6 步（新 bats / 4 条 `make`）全在 `${TMPDIR:-/tmp}` 里执行。执行者按「不改验收标准」原则未动判据、改以仓根 cwd 补跑同 6 行（全绿）并如实上报；主 agent 判定为**判据缺陷**（与 TD-051 同类：验收判据自身的环境假设错误），就地修复 = 补 `REPO_ROOT="$PWD"` 与沙箱段末尾 `cd "$REPO_ROOT"`（步骤与断言**逐字不动**）⇒ 修复后**原样复跑 rc=0**，全日志仅两行：`A=2 B=0 B2=2 B3=2 B4=2 C=0`（其后 `make check` = `✅ make check: 全部通过`）。
+
+| 复核项 | 实测 |
+|---|---|
+| 提交面 vs 报告 | `git show --numstat --oneline 6cff7a2` = 5 files +472/−4，与执行者报告逐行一致；`%H` = `6cff7a29d9b05ccd1867dd6dcc1f3a209d7906df`，tree = `add11ed80f9bc4c66c0bba178139f62df78f896c`，`%cI` = `2026-09-24T16:12:03+08:00` |
+| 工作树 = HEAD | `done-validation.sh` / ADR-029 / 两份 bats / `STATE.md` 与 HEAD 无差异（活性重放后已核对 md5 `1547fd867dd1cf65c279df6fba0b7a63`）；` M` 仅 4 件主 agent 文档（`CONTEXT.md` / `MINOR-DEFERRED.md` / `TASK.md`，`LESSONS.md` 已在 `0dfb08f`） |
+| 台账条目 | `.flow-active.goal.task_progress` 长度 **31**，末条 = `{"id":"T-FIX-02","commit_sha":"6cff7a2","fix_rounds":0,"deferred":[],"completed_at":"2026-09-24T16:12:09+08:00"}` ⇒ Δ = **6 s** ≤ 120 s |
+| 提交时间戳刷新（执行者披露） | 台账写入前对同内容提交做过一次 `git commit --amend -m <同 message> -- <同 5 路径>`（原 sha `0664ae2` 从未入台账/未对外报告 ⇒ 不触发 T09「sha 已入台账则不改 amend」）；**树哈希逐字节不变**（`add11ed8…`）、numstat/message 不变、暂存区未受影响（5 冻结工件仍 `A ` 未提交） |
+| 结构不变量 | `<task id=` / `</task>` / `</verify>` / `<depends_on>` 各 **31**；`status="done"` = **31 / 31**（两个 fix 任务均已勾选） |
+| 冻结集 | 恰 5 个 `A `（`CHANGE.md` · `INDEPENDENT-REVIEW-1/2/3.md` · `REQUIREMENT.md`），未被两个 fix 提交拖入 |
+| 判据原样跑 | 判据修复后复跑 ⇒ **rc=0**（五态行 `A=2 B=0 B2=2 B3=2 B4=2 C=0`） |
+| 活性重放（主 agent 独立执行） | 把生产件临时改回旧语义（`[[ ! -f "$done_marker" ]]`，7689 → 7444 B）⇒ `npx bats test/test_review_gate_validity.bats` rc=1 且**恰好 5 例转红**：`not ok 3 B2` · `not ok 4 B3` · `not ok 5 B4` · `not ok 6 B5` · `not ok 9 函数级`；`cp -p` 还原后 `git diff --exit-code` 干净、md5 复原 |
+| 真实驱动性 | `test/test_review_gate_validity.bats` 不复制 hook 逻辑：`unset HOOK_BASE_DIR PROJECT_ROOT` 后以 PreToolUse stdin JSON 驱动**仓内真实** `independent-review-gate.sh`（其自身 source `../stop/lib/common.sh` + `gate-*.sh` + `done-validation.sh`），断言口径 = hook 退出码（2 = deny / 0 = 放行）+ `run --separate-stderr` |
+| 副本一致性 + 双源 | `done-validation.sh` 的 3 份副本（`flow-kit-bundle/hooks/…` · `dist/dsh-flow-kit/hooks/…` · `dist/dsh-flow-kit/vendor/flow-kit-bundle/hooks/…`）md5 全等 + 均含新的 `transition` 调用；`make check-hooks-sync` / `check-test-sync` / `check-dist` / `check-path-privacy` 均 rc=0（privacy 清单外命中 0） |
+| 判别式（阶段门沙箱） | 主 agent 独立复跑订正后的 `.specs/health-fix-2026-09b/reproduce-phase-gate.sh` ⇒ **rc=0 / 0.51 s**：对照 0 门禁外直连 commit 可用 · A 拒绝且 HEAD 不变 · B 放行且 commit 真生效 · **B2/B3/B4 一律 rc=2**（报文含「禁止 git commit。」）· C 门不适用放行；汇总行含「修复前 B2/B3/B4 均是 rc=0，现收敛为 rc=2」的历史对照 |
+| ADR-029 内容 | Status/Date/Change · Context · Decision（`transition` 而非 `write` 的理由、返回码语义不变、`phases_done` 短路保持、Gate7 报文不变）· 「新语义下被拒的标记类别」(`:41`) · Consequences · 参考；残余 = Tier-1 不验 `L3_artifact_hash`（与 TD-042/TD-045 同源，留 v2） |
+| 既有测试 | 沿用执行者的逐条审计并抽查：`test/done-validation.bats` 直测 `fk_validate_done_marker`（函数语义未变）；`test/test_l2_l3_granular_gate.bats` 的 16+1 处调用**从不创建标记** ⇒ 全为「无标记」态，新语义同结果；全量 `npx bats test/` = **1012 ok / 0 not ok / 0 skip**（`--count` = 1012） |
+
+**结论**：`T-FIX-02` 十项复核全过（唯一修正 = 判据 cwd 泄漏，已登记 TD-060）；TD-059 的两条缺口（B2 口径相悖放行、B3 空标记放行）在沙箱与常设 bats 两个面上均闭合，且常设 bats 的活性已由主 agent 独立重放证明。
