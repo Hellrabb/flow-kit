@@ -1082,3 +1082,19 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | 10 | 语义核对（薄壳逐行） | ✅ | 新 wrapper（`Makefile:255-266`，13 行）= `mktemp` 两个临时件 → `export NFR_RC_FILE` → `bash -c 'make --no-print-directory check-nfr-portability-internals >"$NFR_OUT" 2>&1 \|\| true'` → `rc=$(cat "$NFR_RC" \|\| echo 2)` → 三态 `case`：`0` 原样 stdout · `3` → stdout + `exit 0`（SKIP 语义保留）· `1`/`*` → stderr + `exit 1`（`file:line` 归因通道不变）。判据正文唯一存在于 `check-nfr-portability-internals`（`Makefile:162-239`，79 行，本次**零改动**）；`grep -c '_report_viol() {' Makefile` = **1** ⇒ F8 复发会被常设用例 test 6 立判 |
 
 **张力点裁定（主 agent · 2026-09-25）**：任务块 `<done>` 模板写「`$(MAKE)` 递归」，实现取 `<action>` ② 明文允许的「**或等价的递归调用**」= `bash -c 'make --no-print-directory …'`。裁定**接受实现形态**，理由：① `<action>` 措辞已授权等价形态；② `<verify>` 断言 `make -n check-nfr-portability` 可解析 ⇒ 用 `$(MAKE)` 字面会触发 GNU make 的 `-n` 特例（含 `$(MAKE)` 的配方行在 `-n` 下仍被执行 ⇒ 子 make 带 `-n` ⇒ 判据体不执行 ⇒ `NFR_RC_FILE` 未写 ⇒ wrapper 读空 ⇒ `2` ⇒ Error 1 ⇒ rc=2）⇒ 该断言与 `$(MAKE)` 字面**互斥**；③ 真实运行语义等价已由 F3 七例（三态映射 · `SKIP:` 保留 · `file:line` 保留 · 空变更集 rc=3）与门禁全绿证成。已在 `TASK.md` 的 T-FIX-05 `<done>` 内就地标注该裁定。
+
+## ✅ 阶段 5 重验收口记录（fix 循环后 · L2 第 3 轮 + L3 第 12 轮 + REPRO5 · 2026-09-25）
+
+**范围**：阶段 6 审查 `verdict=fail`（2 🔴 F1/F2 + 6 🟡）⇒ 用户裁决回退 4-dev 执行 `T-FIX-03` / `T-FIX-04` / `T-FIX-05` ⇒ 重入 5-test 重验。
+
+| # | 项 | 结论 | 证据 |
+|---|----|------|------|
+| 1 | 复现器扩面 | ✅ | `.specs/health-fix-2026-09b/reproduce-5-test.sh` 192 → **198 行**：`DEFAULT_IDS` **17 条**（+`T-FIX-03`/`T-FIX-04`/`T-FIX-05`）· bats 基线串 1012 → **1025** · `--help` 范围改动态 |
+| 2 | REPRO5 判据面 | ✅ | **17/17 rc=0**（抽取行数 T05 12 · T06 22 · T11 7 · T13 34 · T17 73 · T19 36 · T20 3 · T22 20 · T24 18 · T26 30 · T27 19 · T29 15 · T-FIX-01 36 · T-FIX-02 42 · T-FIX-03 78 · T-FIX-04 44 · T-FIX-05 26） |
+| 3 | REPRO5 门禁面 | ✅ | **7/7 rc=0**：bats `--count` **1025** · `npx bats test/` ok=1025 / not ok=0 / skip=0 · `make check` **21✅/0❌** · privacy 清单外命中 **0** · NFR ×5 = 2.985/3.005/3.012/3.019/3.032 s（均值 **3.011 s = 60.2%** 预算 · nproc=32 · loadavg 7.64/7.86/7.83）· `package-flow-kit.sh --validate` 期望 315/实际 321/漏配 0/源缺失 0 · 阶段门沙箱六态全绿 |
+| 4 | L2 第 3 轮盲审 | ✅ **pass**（🔴 0 · 🟡 1 · 🟢 1） | 报告 `INDEPENDENT-REVIEW-5.md:652-797`；**F-1 🟡**「`T-FIX-05` 净 −42 行不可复算」= 把**提交级净值**写成 wrapper 级 + 同句 88/89 混用 ⇒ 已订正为「wrapper 配方 **89 → 13 行**（`awk` 范围法 · Δ−76）· 本提交 3 文件 **+35/−77 ⇒ 净 −42**」（三源一致：`<verify>` 输出 / `git show --numstat` / 索引）；**F-2 🟢**「`TD-055` 缺集中收口裁决行」⇒ `TEST.md:60` 新增「开放项集中收口」唯一裁决行 |
+| 5 | L3 第 12 轮复审 | ✅ **pass** | `[l3-review] re-review triggered for phase 5 (artifact hash 变更: 7f5a38105474 → 23e111323074)` ⇒ `L3 pass — .done written (phase 5, verdict=pass)`（`L3_RC=0`）；`WARNING: review file exceeds 50KB (96708 bytes)` 为既有阈值告警（`l3-api.sh:155`），非本轮新增 |
+| 6 | 阶段 5 自检 7 项 | ✅ 7/7 | ① `TEST.md` 存在（1162 行 / 169331 B）② §0 步骤 0 范围声明（含第 7 次执行行）③ 声明轮次均已执行 ④ 6 维测试衰退自检（§1.5 `:164`）⑤ `grep -c 'Coverage'` = 4 ⑥ 回归登记 `## 新增测试登记` `:421` + `## 回归保护` `:459` ⑦ `.flow-active` 关键字段在位（`phase=5` · `change_id=health-fix-2026-09b` · `updated_at=1790267149`） |
+| 7 | 收口提交 | ✅ | **`a702547`** `test(health-fix-2026-09b): 阶段 5 重验收口（REPRO5 判据 17/17 · 门禁 7/7 · L2 第 3 轮 + L3 第 12 轮 pass）` · 9 files **+5579/−50** |
+
+**过程偏差披露（冻结集 `A ` 态结束）**：收口提交 `a702547` 把 **5 件冻结工件**（`CHANGE.md` / `REQUIREMENT.md` / `INDEPENDENT-REVIEW-1/2/3.md`）**一并落库**（它们自阶段 1/2 起一直处于 `A ` 暂存态，本提交未带 pathspec ⇒ 索引整体入库）。**未造成内容变更**：五件字节数与历次复核记录**逐一相符**（**23693 / 55692 / 251278 / 294528 / 58985**；其中 `CHANGE.md` 的 21684 → 23693 为已披露的范围追加 `### 4d`），提交后 `git status --short` **为空**、`git diff a702547 -- <五件>` **为空**。**影响**：后续复核若沿用「冻结集恰 5 个 `A `」判据将不再成立（`A ` 态 → 已提交态），**判定词应改为「五件内容 == 冻结态（字节数 / sha256 相符）」**。
