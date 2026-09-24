@@ -22,7 +22,7 @@
 | **AC-5** 内部项目名不再出厂 | T07（双源 4 文件中性化）、T24（重建 0.2.0 / 删除 0.1.0）、T27（三面 `chisel` = 0 + bats 不退化） | `test/`、`flow-kit-bundle/test/`、逐个 `.tgz` 三面均 0 |
 | **AC-6** 前向脱敏有机器门禁 | T13（**工件脱敏先于基线冻结** = D10′①）、T17（门禁实现 + 排除表 + fail-closed 读序）、T18（`make check` 接线）、T20（pre-commit 源接线）、T21（**R8**：常设清单 + 副本 + 读序双态）、T22（**空基线自检**）、T23（**常设清单自身校验**）、T26（探针必须被抓住 + 自报↔落档 + 差分数） | 探针 fail 且指名路径；`清单外命中 0 条`；缺清单 ⇒ rc=1 且指名缺失路径 |
 | **AC-7** 四处假绿不再假绿 | T09（`test_combined_metric.bats` 恒真、`test_auto_checkpoint.bats` 断言错对象）、T10（`test_independent_review_model.bats` 先断言文件存在、`test_lessons_cleanup.bats` 去过期 skip） | 逐条「注入失败源 ⇒ 必须变红」+ 健康态仍绿 |
-| **AC-8** 无退化 | T28（NFR 兼容性判据落点 + `rc=3` 不得当绿灯）、T29（全量 `make check` / bats ≥973 / 三门口禁 / 变更集非空守卫） | 0 not ok；三道副本一致性门禁 0 漂移 |
+| **AC-8** 无退化 | T28（NFR 兼容性判据落点 + `rc=3` 不得当绿灯）、T29（全量 `make check` / bats ≥1009 / 三门口禁 / 变更集非空守卫） | 0 not ok；三道副本一致性门禁 0 漂移 |
 
 ---
 
@@ -1226,11 +1226,11 @@ Wave 8 (收口 · 全量无退化)                  : T29
     unset LC_ALL; [ -n "${LANG:-}" ] || export LANG=C.UTF-8;   # 主 agent 裁决 2026-09-24（L-146）：LC_ALL=C 不得泄漏进 bats 子进程 —— glibc iconv 在 LC_CTYPE=C 下拒绝合法多字节 UTF-8（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale）⇒ 环境脏导致的假红，非产品回归；对应登记 TD-051
     outf=$(mktemp); npx bats test/ --formatter tap > "$outf" 2>&1; b_rc=$?;
     b_ok=$(grep -cE '^ok [0-9]+' "$outf"); b_no=$(grep -cE '^not ok [0-9]+' "$outf");
-    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-24 T29 收口实测 rc=0 / 976 ok / 0 not ok，skip 计入 ok 行）";
+    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（当前基线 2026-09-24 T-FIX-02 收口实测 rc=0 / 1012 ok / 0 not ok，skip 计入 ok 行；地板 = 基线 − 3）";
     grep -E '^not ok [0-9]+' "$outf" | head -5; rm -f "$outf";
-    { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 973 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; }
+    { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 1009 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; }
   </verify>
-  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-24 T29 收口实测 976 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）；**判据作用域修复（主 agent · L-146 · TD-051）**：首版 `<verify>` 的 `export LC_ALL=C` 泄漏进 `npx bats` ⇒ 环境脏导致的假红（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale），已收窄作用域并回写本工件 ⇒ 判据 rc=0、`bats: rc=0 ok=976 not-ok=0`〔主 agent 复核 2026-09-24 · 十项 + 活性探针〕</done>
+  <done>AC-1①（归档面）+ AC-5①：逐个归档 `eval-echo=0` / `chisel=0` 且非 0 时判据必须非零退出；源测试 0 命中；bats 不退化 = TAP 行断言 `^not ok` 计数 0 且 `^ok` 计数 ≥ 973 且 rc=0（基线 2026-09-24 T29 收口实测 976 ok / 0 not ok；修复前实测：两档各 2 处 eval-echo、0.2.0 六处 chisel）；**判据作用域修复（主 agent · L-146 · TD-051）**：首版 `<verify>` 的 `export LC_ALL=C` 泄漏进 `npx bats` ⇒ 环境脏导致的假红（`test/test_l3_pipeline_fix.bats:609` 的 `iconv -f utf-8 -o /dev/null` 目标字符集取自 locale），已收窄作用域并回写本工件 ⇒ 判据 rc=0、`bats: rc=0 ok=976 not-ok=0`〔主 agent 复核 2026-09-24 · 十项 + 活性探针〕；**判据地板订正（主 agent 2026-09-24 · 阶段 5 重入）**：`^ok` 地板 **973 → 1009**（= 当前基线 1012 − 3，与原 976/973 同余量；原地板按 976 标定，TD-053/T-FIX-01/02 后基线已 1012，旧地板允许 39 例静默消失 ⇒ 回归网被削弱）。仅改地板数字与 echo 描述串，断言结构与判据步骤未改。</done>
   <depends_on>T24</depends_on>
 </task>
 
@@ -1288,7 +1288,7 @@ Wave 8 (收口 · 全量无退化)                  : T29
     <（无仓内文件：只跑门禁与全量 bats；失败 ⇒ 回到对应 task 修复）>
   </write_files>
   <action>
-    跑全量质量门禁并留档：`make check` 全绿（含两道新门禁）、`npx bats test/` ≥ **973 ok / 0 not ok**、
+    跑全量质量门禁并留档：`make check` 全绿（含两道新门禁）、`npx bats test/` ≥ **1009 ok / 0 not ok**（地板 = 基线 1012 − 3）、
     `check-test-sync` / `check-hooks-sync` / `check-dist` 仍 0 漂移。
     **必须显式处理 NFR 兼容性判据的三态**：变更集为空时它以 `exit 3`（SKIP）呈现 —— **不得把 SKIP 当绿灯**，
     故先用 `.change-base` 锚点断言变更集非空（守卫与 A 案同锚点）。
@@ -1301,16 +1301,16 @@ Wave 8 (收口 · 全量无退化)                  : T29
     make check || { echo "🔴 make check 未全绿"; exit 1; };
     outf=$(mktemp); npx bats test/ --formatter tap > "$outf" 2>&1; b_rc=$?;
     b_ok=$(grep -cE '^ok [0-9]+' "$outf"); b_no=$(grep -cE '^not ok [0-9]+' "$outf");
-    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（基线 2026-09-24 T29 收口实测 rc=0 / 976 ok / 0 not ok；skip 计入 ok 行）";
+    echo "bats: rc=$b_rc ok=$b_ok not-ok=$b_no（当前基线 2026-09-24 T-FIX-02 收口实测 rc=0 / 1012 ok / 0 not ok；skip 计入 ok 行；地板 = 基线 − 3）";
     grep -E '^not ok [0-9]+' "$outf" | head -5; rm -f "$outf";
-    { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 973 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; };
+    { [ "$b_rc" -eq 0 ] && [ "$b_no" -eq 0 ] && [ "$b_ok" -ge 1009 ]; } || { echo "🔴 bats 回归（rc=$b_rc not-ok=$b_no ok=$b_ok）"; exit 1; };
     make check-test-sync >/dev/null && make check-hooks-sync >/dev/null && make check-dist >/dev/null || { echo "🔴 三道副本一致性门禁漂移"; exit 1; };
     BASE8="${FLOW_KIT_CHANGE_BASE:-$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}";
     [ -n "$BASE8" ] || { echo "🔴 AC-8：变更起点锚点未落档，无法判定变更集非空"; exit 1; };
     FILES=$( { git -c core.quotepath=false diff --name-only "$BASE8"; git -c core.quotepath=false ls-files -o --exclude-standard; } | grep -E '\.sh$' | sort -u );
     [ -n "$FILES" ] || { echo "🔴 AC-8 时点变更集为空（相对锚点 $BASE8）⇒ 兼容性判据 rc=3（未验证），不得当作通过"; exit 1; }
   </verify>
-  <done>AC-8：`make check` 全绿、bats ≥973 ok / 0 not ok、三道副本一致性门禁 0 漂移、变更集非空（`rc=3` 未被当绿灯）；**时点实测（主 agent 复核 2026-09-24 · 十项 + 活性探针）**：判据自工件本体重抽 15 行原样实跑 rc=0（`make check` 全绿含新增三道门禁、`bats: rc=0 ok=976 not-ok=0`）、变更集非空守卫以 `FLOW_KIT_CHANGE_BASE=HEAD` 实测 rc=1（非恒绿）、四处陈旧口径订正均未改断言结构；`fix_rounds=0`、`commit_sha=88f7a0c`</done>
+  <done>AC-8：`make check` 全绿、bats ≥973 ok / 0 not ok、三道副本一致性门禁 0 漂移、变更集非空（`rc=3` 未被当绿灯）；**时点实测（主 agent 复核 2026-09-24 · 十项 + 活性探针）**：判据自工件本体重抽 15 行原样实跑 rc=0（`make check` 全绿含新增三道门禁、`bats: rc=0 ok=976 not-ok=0`）、变更集非空守卫以 `FLOW_KIT_CHANGE_BASE=HEAD` 实测 rc=1（非恒绿）、四处陈旧口径订正均未改断言结构；`fix_rounds=0`、`commit_sha=88f7a0c`；**判据地板订正（主 agent 2026-09-24 · 阶段 5 重入）**：`^ok` 地板 **973 → 1009**（= 当前基线 1012 − 3，与原 976/973 同余量；原地板按 976 标定，TD-053/T-FIX-01/02 后基线已 1012，旧地板允许 39 例静默消失 ⇒ 回归网被削弱）。仅改地板数字与 echo 描述串，断言结构与判据步骤未改。</done>
   <depends_on>T08, T14, T15, T19, T20, T22, T23, T25, T26, T27, T28</depends_on>
 </task>
 ```

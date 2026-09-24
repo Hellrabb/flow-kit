@@ -16,6 +16,13 @@
 #
 # 约束：bash 3.2（macOS）兼容；不使用 GNU-only 工具（无 timeout / 无 declare -A / 无 mapfile）；
 #       判据夹具一律建在 mktemp -d 下，不改动仓库跟踪面（dist/ 为 gitignore 面，T24/T27 只读扫描）。
+#
+# 第 5 次执行（REPRO4 · 阶段 5 重入复跑 · 2026-09-24）：
+#   · 判据面 12 → 14：纳入阶段 4 的两个 fix 任务 `T-FIX-01`（TD-053 常设回归网 · commit 5ee4ebc）
+#     与 `T-FIX-02`（TD-059 阶段门有效性 · ADR-029 · commit 6cff7a2）；两者判据均已按 TD-051/TD-060
+#     修复后回写权威副本 TASK.md，本脚本仍为**原样抽取 + 字面执行**。
+#   · 门禁面 [F] 由「缺口实证」转为**闭合态**：无效完成标记 B2（口径相悖）/ B3（touch 空）/ B4（缺
+#     `L3_verdict`）一律 rc=2；健康层 A/B/C 不变。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -23,14 +30,14 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --criteria-only) MODE=criteria ;;
     --gates-only)    MODE=gates ;;
     --only)          shift; DEFAULT_IDS=$(printf '%s' "${1:-}" | tr ',' ' ') ;;
-    -h|--help)       sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help)       sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "未知参数: $1（用 --help 查看用法）" >&2; exit 2 ;;
   esac
   shift
@@ -97,7 +104,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 976 ok / 0 not ok，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1012 ok / 0 not ok，skip 计入 ok 行）"
 
   echo
   echo "== [B] make check（全门禁）=="
@@ -138,12 +145,12 @@ run_gates() {
   fi
 
   echo
-  echo "== [F] 阶段门沙箱复现（UAT ③ 的可运行等价复现 · TD-058/TD-059）=="
+  echo "== [F] 阶段门沙箱复现（UAT ③ 的可运行等价复现 · 六态全绿 · TD-059 已闭合 · ADR-029）=="
   pg="$ROOT/.specs/health-fix-2026-09b/reproduce-phase-gate.sh"
   if [ -f "$pg" ]; then
     bash "$pg" > "$LOG_DIR/phase-gate.txt" 2>&1; grc=$?
     sed 's/^/       /' "$LOG_DIR/phase-gate.txt"
-    emit_gate "阶段门沙箱复现" "$grc" "健康层 A/B/C ✅ · 缺口层 B2/B3 ⚠️（TD-059，非通过项）· 原文 $LOG_DIR/phase-gate.txt"
+    emit_gate "阶段门沙箱复现" "$grc" "健康层 A/B/C ✅ · 无效标记 B2/B3/B4 一律 rc=2 ✅（TD-059 已闭合 · ADR-029 · commit 6cff7a2）· 原文 $LOG_DIR/phase-gate.txt"
   else
     emit_gate "阶段门沙箱复现" 1 "缺 .specs/health-fix-2026-09b/reproduce-phase-gate.sh"
   fi

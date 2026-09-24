@@ -779,6 +779,12 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-154 · 交付窗口内的「冻结」是硬约束：改了 `test/` 之后不按 `make test-sync` → 重建 dist 的顺序收尾，会让**别人的整轮回执凭空变红**
+
+**现象（2026-09-24 · 阶段 5 终版复跑）**：主 agent 为修 G-T04-1/G-T04-2（`l3-prompt.sh` 文案）改了 `test/test_l3_review_defects_2026_09.bats`，并各自跑通了 `check-hooks-sync` / `check-test-sync` / `check-dist`；但那次 `check-dist` 通过是在 `make test-sync` **之前**跑的 —— 随后 `make test-sync` 更新了 `flow-kit-bundle/test/…`，dist 里的 vendored 副本却没重建。与此同时执行者正在跑「终版整轮 14 判据」，于是 `make check` 的 `check-dist` 报 `❌ 陈旧: dist/dsh-flow-kit/vendor/flow-kit-bundle/test/test_l3_review_defects_2026_09.bats（内容与 … 不一致 → 请重建 dist）` ⇒ 三条本来绿的判据（T29 / T-FIX-01 / T-FIX-02，都要调 `make check`）**整轮 rc=1**。根因是**顺序**（Makefile 自己的报错里就写着「若改过 test/，先 make test-sync，再重建 dist」），不是判据缺陷；`bash package-dsh-plugin.sh` 后即恢复（终版整轮 rc=0）。
+
+**定式**：① 任何「改 test/ 或改 hooks/」的收尾序列固定为 **`make test-sync` → `bash package-dsh-plugin.sh` → `make check-hooks-sync check-test-sync check-dist`**，且三步必须都跑在**最后一次**源面改动之后（只跑对其中一步等于没跑）；② 派子 agent 跑整轮回执前先**声明冻结**（freeze）：主 agent 停止一切源面写入，回执只对声明时的树有效 —— 本次的红点就是「回执跑到一半树被改」的代价，好在执行者如实归档而没有伪绿；③ 回执日志必须记 `HEAD` + 树状态，否则事后无法区分「产品缺陷」与「窗口污染」；④ 凡间接依赖 `make check` 的判据都会**连带**受 dist 新鲜度影响 —— 归因时先看 `check-dist` 一行，别先怀疑被测实现。
+
 ### L-153 · 抽取判据块必须**锚定整行标签**：正文里出现 `<verify>` 字面会让非锚定区间重开，把标签之外的行混进被执行的脚本
 
 **现象（2026-09-24 · 阶段 4 复核 T-FIX-01 时）**：`awk '/<task id="T-FIX-01"/,/<\/task>/' TASK.md | sed -n '/<verify>/,/<\/verify>/p' | sed '1d;$d' > judge.sh` 抽出 **38 行**（判据本体只有 36 行），末尾多出 `  <depends_on>T29</depends_on>` 与 `  </task>` ⇒ `bash -n judge.sh` 报 `未预期的记号 "newline" 附近有语法错误`。根因：该 task 的 `<done>` 正文里引用了标签字面（「**`<verify>` 原样跑 rc=1**」），而 `sed` 的 `addr1,addr2` 区间**每次匹配到 addr1 都会重开** ⇒ 在 `<done>` 行重新开区间；真标签是**整行** `  <verify>`（两个空格缩进、独占一行），普通子串匹配既会误命中正文，也分不清开闭标签。
