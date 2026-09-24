@@ -45,8 +45,9 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 976 ok / 0 not ok / 0 skip（TAP plan 1..976；2026-09-24 health-fix-2026-09b T29 全量实测）`
-  > 口径订正（2026-09-24 health-fix-2026-09b T29 收口实测）：当前基线 **976 ok / 0 not ok / 0 skip**（原「973 ok / 0 not ok / 1 skip」已过时——既有 test_lessons_cleanup.bats:137 的 AC-4 skip 已在本 change 前序 task 闭合，不再 skip）。
+- **test_framework**: `bats-core 1.13.0 (npx) · 1001 ok / 0 not ok / 0 skip（TAP plan 1..1001；2026-09-24 health-fix-2026-09b T-FIX-01 全量实测）`
+  > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-01 收口实测）：**1001 ok / 0 not ok / 0 skip** = T29 基线 976 + TD-053 常设回归网 25 例（test_path_privacy_gate.bats 9 + test_runtime_edit_guard.bats 9 + test_nfr_portability_gate.bats 7）；`npx bats --count test/` 同步为 1001。
+  > 口径订正（2026-09-24 health-fix-2026-09b T29 收口实测）：T29 时点基线为 **976 ok / 0 not ok / 0 skip**（原「973 ok / 0 not ok / 1 skip」已过时——既有 test_lessons_cleanup.bats:137 的 AC-4 skip 已在本 change 前序 task 闭合，不再 skip）。
 - **ci_cd**: `未检测到`
 
 ---
