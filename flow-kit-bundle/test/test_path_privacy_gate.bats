@@ -350,7 +350,7 @@ teardown() {
 # ---- F20（🟡 mktemp 失败必须立即终止 · 无冗余报文）双态 ----
 # 阶段 6 深审 F-20：mktemp_checked() 内 exit 1 位于命令替换中 ⇒ 只退子 shell，
 # 脚本继续（变量退化为空串，产生 3 条冗余 🔴 mktemp 失败）。
-# fix：函数改 return 1 + 三调用点 || exit 1 ⇒ 坏 TMPDIR 下恰 1 条 mktemp 报文且立即 exit 1。
+# fix：函数改 return 1 + 4 处调用点（含汇总段 TMP_ALLOWLIST_KEYS）|| exit 1 ⇒ 坏 TMPDIR 下恰 1 条 mktemp 报文且立即 exit 1。
 
 @test "F20 坏态：TMPDIR 不可用 ⇒ rc≠0 且「mktemp 失败」报文恰 1 次（立即终止、无冗余）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
