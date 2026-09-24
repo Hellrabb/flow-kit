@@ -235,6 +235,10 @@ teardown() {
   reported=$(printf '%s\n' "$output" | grep -oE '候选文件[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
   real=$(git -C "$FIXTURE" ls-files | wc -l | tr -d ' ')
   [ "${reported:-x}" = "$real" ]
+  # F18（阶段 6 深审 · 用户裁决 option ② 仅措辞）：扫描面措辞精确化，
+  # 标注拦截面对象 = git index（已 add / 已提交），untracked 不在面内。
+  # 旧措辞「工作树」误导读者以为未 add 的未忽略文件也在面内（态 G2 假绿是措辞问题，非链断）。
+  [[ "$output" == *"扫描面: 工作树（git index：已 add / 已提交）"* ]]
 }
 
 # ---- F3（🟡 二进制策略单点）双态 ----
@@ -303,4 +307,72 @@ teardown() {
   # 清理后不得残留本门禁的临时文件（按 mktemp 前缀 tmp. 计数前后相等）
   after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l | tr -d ' ')
   [ "$after" -le "$before" ]
+}
+
+# ---- F19（🟡 0 实际扫描 ≠ 干净 · 自排除后空面 fail-closed）双态 ----
+# 阶段 6 深审 F-19：候选枚举（自排除前）计数 N，扫描循环 is_self_exclude 跳过 ⇒
+# 若 tracked 全部命中 SELF_EXCLUDE，scan_file 实际调用 0 次却仍报「清单外命中 0 条」+ ✅ + rc=0。
+# fix：新增 SCANNED_COUNT（实际 scan_file 次数），自证含「实际扫描 M 个」，
+# M=0 && N>0 ⇒ fail-closed rc=1 且不打印「清单外命中 0 条」/「✅」。
+
+@test "F19 坏态：tracked 全部命中 SELF_EXCLUDE ⇒ rc≠0 且自证含「实际扫描 0 个」且不打印清单外命中 0 条/✅（0 扫描 ≠ 干净）" {
+  # 夹具仓 tracked 全为 SELF_EXCLUDE 成员：SUT（#1）+ 常设允许清单（#2）。
+  # 两者必然含 PAT 字面（脚本自引用 / 允许清单格式说明），必须从扫描面排除。
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "$SUT_REL" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"实际扫描 0 个"* ]]
+  [[ "$output" != *"清单外命中 0 条"* ]]
+  [[ "$output" != *"✅"* ]]
+}
+
+@test "F19 好态：候选面含至少 1 个非自排除文件 ⇒ rc=0 且自证含「实际扫描 M 个」（M ≥ 1）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"实际扫描"* ]]
+  local scanned reported real
+  scanned=$(printf '%s\n' "$output" | grep -oE '实际扫描[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  reported=$(printf '%s\n' "$output" | grep -oE '候选文件[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  real=$(git -C "$FIXTURE" ls-files | wc -l | tr -d ' ')
+  # 实际扫描数 ≥ 1（docs/notes.md 未被自排除），且 ≤ 候选数（自排除只减不增）
+  [ "${scanned:-0}" -ge 1 ]
+  [ "${scanned:-0}" -le "${reported:-0}" ]
+  # 候选文件数仍与 git ls-files 一致（F2 #14 不变量不变）
+  [ "${reported:-x}" = "$real" ]
+}
+
+# ---- F20（🟡 mktemp 失败必须立即终止 · 无冗余报文）双态 ----
+# 阶段 6 深审 F-20：mktemp_checked() 内 exit 1 位于命令替换中 ⇒ 只退子 shell，
+# 脚本继续（变量退化为空串，产生 3 条冗余 🔴 mktemp 失败）。
+# fix：函数改 return 1 + 三调用点 || exit 1 ⇒ 坏 TMPDIR 下恰 1 条 mktemp 报文且立即 exit 1。
+
+@test "F20 坏态：TMPDIR 不可用 ⇒ rc≠0 且「mktemp 失败」报文恰 1 次（立即终止、无冗余）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
+
+  BAD_TMPDIR="${TEST_TMPDIR}/no-such-dir-f20"
+  run --separate-stderr run_sut_env TMPDIR="$BAD_TMPDIR"
+  [ "$status" -ne 0 ]
+  local cnt
+  cnt=$(printf '%s\n' "$stderr" | grep -c 'mktemp 失败' || true)
+  [ "$cnt" -eq 1 ]
+}
+
+@test "F20 好态：正常 TMPDIR ⇒ 无 mktemp 失败报文且 rc=0（正常路径未被误伤）" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"mktemp 失败"* ]]
+  [[ "$output" == *"清单外命中 0 条"* ]]
 }

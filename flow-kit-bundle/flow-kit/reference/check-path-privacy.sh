@@ -43,6 +43,24 @@
 #   F5：临时文件单点 —— 全脚本只剩一个 EXIT trap，统一 TMP_FILES 清单。
 # 规范环境行为零变更（干净 rc=0 / 命中 rc=1 归因 file:line:content）。
 # ============================================================================
+# T-FIX-06 深审 🟡 收敛（阶段 6 REVIEW §0′.4 F-19/F-20 · 2026-09-25）：
+# ----------------------------------------------------------------------------
+# F19：自证行原本只报候选枚举计数 N（自排除前）；若 tracked 全部落在 SELF_EXCLUDE
+#   6 条内，scan_file 实际调用 0 次却仍打印「清单外命中 0 条」+ ✅ + rc=0（0 实际扫描
+#   与干净同形 · ADR-027 ②③ fail-closed）。fix：新增 SCANNED_COUNT（scan_file 真实
+#   调用次数），自证行并列两个数 —— 「候选文件 N 个」（枚举 · 不变 · #14 断言它与
+#   git ls-files 一致）+「实际扫描 M 个」（自排除后）；M=0 && N>0 ⇒ fail-closed rc=1
+#   且不打印「清单外命中 0 条」/「✅」。
+# F20：mktemp_checked() 内 exit 1 位于命令替换中 ⇒ 只退子 shell、脚本继续（变量退化
+#   为空串，产生 3 条冗余 🔴 mktemp 报文）。fix：函数改 return 1（stderr 报文原样
+#   保留），4 个调用点（3 初始化 + 1 汇总段 TMP_ALLOWLIST_KEYS）改 `|| exit 1`
+#   ⇒ 坏 TMPDIR 下恰 1 条 mktemp 报文且立即 exit 1。
+# F18（用户裁决 option ② 仅措辞 · 零行为变更）：SCAN_SURFACE 旧值「工作树」误导读者
+#   以为未 add 的未忽略文件也在扫描面内（态 G2：`git rm --cached` 后文件仍在磁盘、
+#   untracked ⇒ rc=0 是措辞误导，非拦截链断 —— 提交动作必然把文件带进 index ⇒
+#   拦截面 = 被拦截对象 ADR-027）。fix：措辞精确化为「工作树（git index：已 add /
+#   已提交）」，5 处打印共用单变量 ⇒ 单点改动，不给 git ls-files 加 --others。
+# ============================================================================
 set -uo pipefail
 
 # ----------------------------------------------------------------------------
@@ -110,24 +128,29 @@ mktemp_checked() {
   if [ $rc -ne 0 ] || [ -z "$out" ]; then
     echo "🔴 无法完成扫描：mktemp 失败（TMPDIR=${TMPDIR:-未设置}）" >&2
     echo "   位置: check-path-privacy.sh:mktemp_checked（候选枚举/命中暂存）" >&2
-    exit 1
+    return 1
   fi
   printf '%s\n' "$out"
 }
-TMP_ALLOWLIST=$(mktemp_checked)
-TMP_CANDIDATES=$(mktemp_checked)
-TMP_HITS=$(mktemp_checked)
+# F20 fix（阶段 6 深审）：mktemp_checked 在命令替换中被调用，旧版内 `exit 1`
+# 只退子 shell、脚本继续（变量退化为空串，产生 3 条冗余 🔴 mktemp 报文）。
+# 改为 `return 1` 后调用点须显式 `|| exit 1` 以立即终止主脚本（bash 3.2 兼容，
+# 不用 local -n / nameref）。三处初始化调用点 + 汇总段 TMP_ALLOWLIST_KEYS 共 4 处。
+TMP_ALLOWLIST=$(mktemp_checked) || exit 1
+TMP_CANDIDATES=$(mktemp_checked) || exit 1
+TMP_HITS=$(mktemp_checked) || exit 1
 TMP_FILES="$TMP_ALLOWLIST $TMP_CANDIDATES $TMP_HITS"
 
 # ----------------------------------------------------------------------------
 # 评估面选择：CHECK_REV 外部指定（L-131 · ADR-027 拦截面 = 被拦截对象）
 # ----------------------------------------------------------------------------
-# 缺省（CHECK_REV 空）⇒ 扫本地工作树（git ls-files / grep 工作树内容）。
+# 缺省（CHECK_REV 空）⇒ 扫本地工作树内 git index（已 add / 已提交）的 tracked 文件
+# （git ls-files = index + 已提交，不含未 add 的未忽略文件；grep 工作树内容）。
 # CHECK_REV 非空 ⇒ 评估面切换为该 rev 的树。
 #   pre-push 的拦截对象是「被推送的 ref 树」，不是本地工作树 —— 工作树干净时
 #   泄漏提交会被整批放行（L-131）。CHECK_REV 可能是**注解 tag 对象**的 sha
 #   （pre-push 对 tag 推送给的是 tag 对象 sha），故先解析为 commit 再用。
-SCAN_SURFACE='工作树'
+SCAN_SURFACE='工作树（git index：已 add / 已提交）'
 RESOLVED_REV=''
 
 if [ -n "${CHECK_REV:-}" ]; then
@@ -274,7 +297,7 @@ if [ -n "$RESOLVED_REV" ]; then
     exit 1
   fi
 else
-  # 工作树模式：候选 = tracked 文件（git ls-files，不含 .git 内部）
+  # 工作树模式：候选 = tracked 文件（git ls-files = index + 已提交，不含未 add 的未忽略文件；不含 .git 内部）
   # 非 git 目录时 git ls-files rc≠0 ⇒ 此处直接 fail-closed（F2 第一型）
   if ! git ls-files -- > "$TMP_CANDIDATES" 2>/dev/null; then
     echo "🔴 无法完成扫描：git ls-files 失败（非 git 目录或 git 不可用）" >&2
@@ -347,6 +370,10 @@ is_self_exclude() {
 # bash 3.2 兼容：不用 mapfile / declare -A；用 while read + 子 shell。
 HITS_OUT_OF_ALLOWLIST=0
 HITS_TOTAL=0
+# F19 fix（阶段 6 深审）：实际扫描计数 = scan_file 真实调用次数（自排除后）。
+# 旧版自证行只报候选枚举计数 N（自排除前）；若 tracked 全部命中 SELF_EXCLUDE，
+# scan_file 实际调用 0 次却仍打印「清单外命中 0 条」+ ✅ + rc=0（0 实际扫描 ≠ 干净）。
+SCANNED_COUNT=0
 
 # 逐命中占位符判定（L-133 修复 · 2026-09-23 主 agent 探针发现漏报）：
 # 一行可能含多个 `/home/<name>/` 命中；旧实现 `extract_username` 用贪婪 sed 只取
@@ -456,11 +483,26 @@ scan_file() {
 }
 
 # 逐候选文件扫描（跳过自排除清单）
+# F19：在自排除判定之后、scan_file 之前递增 SCANNED_COUNT，以记录实际扫描次数。
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   is_self_exclude "$f" && continue
+  SCANNED_COUNT=$((SCANNED_COUNT + 1))
   scan_file "$f"
 done < "$TMP_CANDIDATES"
+
+# F19（阶段 6 深审）：0 实际扫描 ≠ 干净 —— 候选面经自排除后为空（N>0 但 M=0）
+# 时不得打印「清单外命中 0 条」/「✅」+ rc=0（假绿），须 fail-closed。
+if [ "$SCANNED_COUNT" -eq 0 ] && [ "$CANDIDATE_COUNT" -gt 0 ]; then
+  echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
+  echo "   扫描面: ${SCAN_SURFACE}"
+  echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
+  echo "   允许清单 ${ALLOWLIST_COUNT} 条"
+  echo "   候选文件 ${CANDIDATE_COUNT} 个"
+  echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "🔴 候选面经自排除后为空，无法判定（0 实际扫描 ≠ 干净 · ADR-027 ②③ fail-closed）"
+  exit 1
+fi
 
 # ----------------------------------------------------------------------------
 # 汇总：允许清单内 vs 清单外（F3 · line 字段数字断言 · F5 · TMP_FILES 单点）
@@ -471,7 +513,7 @@ HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null) || HITS_TOTAL=0
 
 # 允许清单条目集（剥注释 → 只留 file:line 前缀）存临时文件
 # F5：TMP_ALLOWLIST_KEYS 登记进 TMP_FILES（单一 EXIT trap 覆盖）
-TMP_ALLOWLIST_KEYS=$(mktemp_checked)
+TMP_ALLOWLIST_KEYS=$(mktemp_checked) || exit 1
 TMP_FILES="$TMP_ALLOWLIST $TMP_CANDIDATES $TMP_HITS $TMP_ALLOWLIST_KEYS"
 # F4：剥注释用同一 IS_COMMENT_OR_BLANK_RE（口径单点）
 grep -vE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/null \
@@ -512,13 +554,17 @@ while IFS=: read -r f l c; do
 done < "$TMP_HITS"
 
 # ----------------------------------------------------------------------------
-# 自证输出（AC-6 · 自证式：打印条数 + file:line 归因 · F2 · 候选文件数）
+# 自证输出（AC-6 · 自证式：打印条数 + file:line 归因 · F2 · 候选文件数 · F19 · 实际扫描数）
 # ----------------------------------------------------------------------------
+# F19：自证含两个计数 —— 「候选文件 N 个」（枚举 · 自排除前）与「实际扫描 M 个」
+# （scan_file 真实调用次数 · 自排除后）。两者差值 = 自排除命中的候选数；
+# M=0 且 N>0 时由上方 fail-closed 分支拦截（不得走到此处）。
 echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
 echo "   扫描面: ${SCAN_SURFACE}"
 echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
 echo "   允许清单 ${ALLOWLIST_COUNT} 条"
 echo "   候选文件 ${CANDIDATE_COUNT} 个"
+echo "   实际扫描 ${SCANNED_COUNT} 个"
 echo "   命中合计 ${HITS_TOTAL} 条（含占位符排除后）"
 echo "   清单外命中 ${HITS_OUT_OF_ALLOWLIST} 条"
 if [ "$HITS_OUT_OF_ALLOWLIST" -gt 0 ]; then
