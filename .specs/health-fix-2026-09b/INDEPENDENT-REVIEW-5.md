@@ -809,56 +809,154 @@ L2 本轮 🔴 为 0，两条发现均属表述层，**未发现任何 AC 夸大
 
 **处置后状态**：`TEST.md` **1162 行**，改动仅上述 F-1 / F-2 两处（1 行新增 + 2 处文字订正）⇒ 以该版本送 L3 第 12 轮复审。
 
+## L2 盲审（第 4 轮 · 阶段 5 第 2 轮 fix 循环后复审）
+
+**审查标识**：change-id `health-fix-2026-09b` · 阶段 5（5-test）· 独立 L2 盲审第 4 轮 · 第 2 轮 fix 循环后复审 · 2026-09-25 · 审查员 = 独立子 agent（本机脱敏：仓库根记 `<repo>`，本机探针路径用合成形态描述，绝不写出完整真名形态）。
+
+**审查对象**：主审工件 = `TEST.md`（第 8 次执行 = 第 2 轮 fix 循环后重验 · HEAD `26d5d7b` · 1214 行）。参考工件（只读）= `REQUIREMENT.md`（AC-1..AC-8 原文）· `TASK.md`（29 + 5 条任务判据 + T17 夹具 + T-FIX-06 verify 块）· `PHASE5-RECEIPTS.md`（§P = 第 8 次执行原始回执 · §0 索引）· `REVIEW.md`（阶段 6 第 2 轮深审 · F-18/F-19/F-20 来源）· `MINOR-DEFERRED.md`（已缓释条目）· `INDEPENDENT-REVIEW-5.md`（本阶段历轮 L2/L3 审查档）。
+
+**可读复跑证据路径**：`/tmp/p6b/repro7-run.txt`（第 8 次执行全量日志 · 判据 stdout 落 `/tmp/fk-reproduce-5-r7/out_<ID>.txt`）· `/tmp/p6b/repro6-run.txt`（修复前 · HEAD `2afb0e2` · 2 红：T17 rc=1 / T-FIX-06 rc=2）· `/tmp/p6b/tfix6-verify-rerun.txt`（T-FIX-06 判据独立复跑）。
+
+**改动面**：`git diff 26d5d7b^..26d5d7b`（本轮判据/工具面订正 · 6 文件 +503/-12）· `git diff 421640a^..421640a`（T-FIX-06 生产件修复 · `check-path-privacy.sh` +64 / `test_path_privacy_gate.bats` ×2 +72）。
+
+**独立性声明**：本轮以独立子 agent 身份盲审，仅接受指定工件为唯一输入；未接受主 agent 自评 / 草稿 / 概述 / 辩护，亦未在本轮发现任何此类注入。审查过程仓库只读（未 `git add` / `commit` / `checkout` / `stash`，未运行全量 `make check` / `npx bats test/`）；探针仅写 `/tmp/l2p5r4/`；单条判据复跑用 `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only <ID>`。
+
 ---
 
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-25 01:25）
+### A. 阶段 5 checklist 逐项核对
 
-> 自动生成于 2026-09-25 01:25。由 l3-review.sh 写入。
+| # | checklist 项 | 核对结论 | 证据定位 |
+|---|---|---|---|
+| C1 | AC 覆盖（每 AC ≥ 1 测试用例） | ✅ 达标 | `TEST.md` §1.1 AC 矩阵（`:46-56`）：AC-1=T05 · AC-2=T06 · AC-3=T11/T17/T19 · AC-4=T13 · AC-5=T24/T27+check-dist · AC-6=T20/T22/T23/T25/T26+24 bats（T-FIX-06 后） · AC-7=T15/T17+4 假绿文件 · AC-8=T29。8/8 AC 均有覆盖。 |
+| C2 | 5 轮金字塔（功能/性能/安全/兼容/可观测） | ✅ 达标 | `TEST.md` §0（`:46-66`）轮次演进表第 8 行列全 5 面；§2.2 NFR 性能面（`:252-271`）；`check-path-privacy.sh` 安全面自证；§1.3 兼容性（bats 3.2/4.4 双环境）；隐私自证行 = 可观测面。 |
+| C3 | 功能轮 AC 100% 覆盖 | ✅ 达标 | C1 已核 8/8 AC；本轮无新增 AC 缺口。 |
+| C4 | UAT 可脚本化（Given/When/Then） | ✅ 达标 | `reproduce-5-test.sh`（206 行 · 18 判据 `DEFAULT_IDS`）= 可复算 UAT 脚本；`/tmp/p6b/repro7-run.txt` 独立复跑 REPRO7_RC=0。 |
+| C5 | 回归无退化 | ✅ 达标 | bats 1029（有效 1028 · 1 TD-033 mock）≥ 第 7 次 1025 ≥ 第 6 次 1023；三件常设 bats 24+9+7=40 全在；NFR 均值 3.077s=61.5% ≤ 5s 预算。 |
+| C6 | 修代码优先（主 agent 每条 🔴/🟡 给 Fixed in/Tech-debt/Not-applicable） | ✅ 达标 | `TEST.md` §阶段5发现表（`:496-548`）#41 TD-066 / #42 TD-067 均标 `Fixed in: TASK.md` / `Fixed in: reproduce-5-test.sh`，均标「非生产件回归」，经本轮 git diff 独立核验属实（见 §B-4）。 |
+
+---
+
+### B. 数字面自洽性核对（独立复算）
+
+| # | 数字断言 | 主审来源 | 独立复算 | 一致 |
+|---|---|---|---|---|
+| N1 | 判据 18/18 rc=0 | `TEST.md` §0 行 8 · D-9-1 · §P-1 | `/tmp/p6b/repro7-run.txt`：T05..T29 + T-FIX-01..06 共 18 条 rc=0；REPRO7_RC=0 | ✅ |
+| N2 | 门禁 7/7 rc=0 | `TEST.md` D-9-2 · §P-2 | `/tmp/p6b/repro7-run.txt`：bats/make-check/privacy/NFR/validate/phase-gate 六态全绿 + check-dist；§P-2 列 7 项 | ✅ |
+| N3 | bats --count = 1029（有效 1028） | `TEST.md` §1.3（`:111-150`）· D-9-2 | `npx bats --count test/` → 1029；TD-033 mock 1 条 ⇒ 有效 1028 | ✅ |
+| N4 | 三件常设 bats = 24+9+7=40 | `TEST.md` §1.3 | `test_path_privacy_gate.bats` 24 @test + `test_runtime_edit_guard.bats` 9 + `test_nfr_portability_gate.bats` 7 = 40 | ✅ |
+| N5 | NFR 均值 3.077s = 61.5% | `TEST.md` §2.2 · D-9-2 | 5 次 3.146/3.050/3.051/3.127/3.011 → 均值 3.077s；3.077/5.0=61.5%（python3 核算） | ✅ |
+| N6 | validate 期望315/实际321/漏配0/源缺失0 | `TEST.md` D-9-2 · §P-2 | `package-flow-kit.sh --validate` → 期望315/实际321/漏配0/源缺失0 | ✅ |
+| N7 | T17 verify 块 = 74 行（TD-066：73→74） | `TEST.md` D-9-1 · §P-1 | `reproduce-5-test.sh --criteria-only --only T17` 抽取 = 74 行（+1 benign README.md 夹具） | ✅ |
+| N8 | T-FIX-06 verify 块 = 41 行（TD-067：43→41） | `TEST.md` D-9-1 · §P-1 | 整行锚定抽取 = 41 行；旧内联子串抽取 = 47 行（`<action>` 正文含 `<verify>` 字面量致多 6 行废件）⇒ TD-067 修复属实 | ✅ |
+| N9 | `check-path-privacy.sh` = 594 行（T-FIX-06 后） | `TEST.md` 阶段5发现 #34（T-FIX-03：392→548）隐含 T-FIX-06 后增长 | `wc -l` = 594；`git diff 421640a` +64 行（F-19 SCANNED + F-20 mktemp + F-18 措辞） | ✅（注：TEST.md 未显式记 594，但 D-9-1 T-FIX-06 抽取行数隐含生产件已改） |
+| N10 | HEAD 26d5d7b 改动面 = 6 文件 +503/-12 | `TEST.md` D-9 前置 | `git diff 26d5d7b^..26d5d7b --stat`：CONTEXT.md/MINOR-DEFERRED.md/REVIEW.md/T-FIX-06-SUMMARY.md/TASK.md/reproduce-5-test.sh，未触生产件 ✓ | ✅ |
+| N11 | T-FIX-06 = 421640a 改动面 = 4 文件 +201/-10 | `TEST.md` D-9 前置 | `git diff 421640a^..421640a --stat`：check-path-privacy.sh(+64)/test_path_privacy_gate.bats×2(+72)/STATE.md | ✅ |
+
+---
+
+### C. F-19/F-20 真闭合核验（T-FIX-06 = 421640a）
+
+**F-19（自排除后候选面归零仍报 ✅）**：`check-path-privacy.sh` 在 421640a 新增 `SCANNED_COUNT`（`:376` 初始化、`:490` `scan_file` 前递增、`:496-505` `SCANNED_COUNT==0 && CANDIDATE_COUNT>0` fail-closed rc=1 且不打印 ✅）。自证行（`:566-567`）并列 `候选文件 ${CANDIDATE_COUNT} 个` + `实际扫描 ${SCANNED_COUNT} 个`。`test_path_privacy_gate.bats:318` F19 坏态（tracked 全命中 SELF_EXCLUDE ⇒ rc≠0 且自证含「实际扫描 0 个」且不打印清单外命中 0 条/✅）+ `:331` F19 好态（M≥1 ⇒ rc=0）。**闭合属实。**
+
+**F-20（临时件不可用 ⇒ 机械故障被折成「0 命中」）**：`check-path-privacy.sh` 在 421640a 将 `mktemp_checked()` 内 `exit 1` 改 `return 1`（`:131`），4 个调用点（`:143`/`:144`/`:145`/`:516`）加 `|| exit 1`。`test_path_privacy_gate.bats:355` F20 坏态（TMPDIR 不可用 ⇒ rc≠0 且「mktemp 失败」报文恰 1 次）+ `:369` F20 好态（正常 TMPDIR ⇒ 无 mktemp 失败报文且 rc=0）。**闭合属实。**
+
+**F-18（SCAN_SURFACE 措辞精确化 · 用户裁决 option ② 仅措辞零行为变更）**：`check-path-privacy.sh` `SCAN_SURFACE='工作树'` → `'工作树（git index：已 add / 已提交）'`（`:140`）。`test_path_privacy_gate.bats:238` 注释引证 F18 措辞精确化。**闭合属实（措辞面）。**
+
+---
+
+### D. TD-066/TD-067 诚实度核验
+
+**TD-066（#41 · T17 CHECK_REV 对照夹具候选面全自排除）**：`git diff 26d5d7b` 显示 T17 `<verify>` 块在 `TASK.md` 内补 1 个 benign `README.md` 夹具文件 ⇒ tracked 不再全属 SELF_EXCLUDE ⇒ 候选 N≥1 / 实际扫描 M≥1 ⇒ T-FIX-06 fail-closed 不再误红。**判据面修复（TASK.md），非生产件回归。** 诚实度属实。
+
+**TD-067（#42 · 抽取器未整行锚定）**：`git diff 26d5d7b` 显示 `reproduce-5-test.sh` `extract_verify()` 由内联子串匹配改为整行锚定（`:63-71`）。旧法在 T-FIX-06 `<action>` 正文（含 `<verify>` 字面量）处提前起抽 ⇒ 43 行废件 + 解析错误；新法整行锚定 ⇒ 41 行正确抽取。**工具面修复（reproduce-5-test.sh），非生产件回归。** 诚实度属实。
+
+**修复前对照**：`/tmp/p6b/repro6-run.txt`（HEAD `2afb0e2`）确认 2 红：T17 rc=1（73 行 · 「🔴 工作树模式在干净树上未 rc=0」）+ T-FIX-06 rc=2（43 行废件 · 「未找到命令」/「</action>」解析错误）。`/tmp/p6b/repro7-run.txt`（HEAD `26d5d7b`）确认 18/18 绿。修复真实。
+
+---
+
+### E. AC 判定核验
+
+AC-1..AC-7 = 通过（7 项）；AC-8 = ⚠️ 条件通过（仅静态面 · TD-055 macOS `open` 未实机验证）。`TEST.md` §1.1（`:46-56`）· §0 第 8 行 · §4.4 四处交叉引用均一致表述「7 通过 + AC-8 条件通过仅静态面」，**未将 AC-8 读成全通过**。执行面（18 判据 + 7 门禁）全绿 ≠ AC 全通过 —— 此区分在主审工件中保持准确，无夸大。
+
+---
+
+### F. 独立发现（4 要素 + severity）
+
+### 🟢 R1 · 隐私自证回执与生产件不自洽：§P-3c 漏列 F-19 三行自证
+**Severity**: 🟢 Minor
+**Symptom**: `PHASE5-RECEIPTS.md` §P-3c（第 8 次执行回执 · `== [C] check-path-privacy 自证面 ==`）打印隐私自证 5 行：`扫描面` / `允许清单来源` / `命中合计 0 条` / `清单外命中 0 条` / `✅ 清单外命中 0 条`。但生产件 `check-path-privacy.sh:562-569`（commit `421640a`，HEAD `26d5d7b` 时未再改）在 happy path 打印 **7 行**，多出 `允许清单 ${ALLOWLIST_COUNT} 条`（`:565`）、`候选文件 ${CANDIDATE_COUNT} 个`（`:566`）、`实际扫描 ${SCANNED_COUNT} 个`（`:567`）。§P-3c 的 F-18 措辞（`工作树（git index：已 add / 已提交）`）在场，但 F-19 的三行自证缺席 —— 两者同属 commit `421640a`，回执不应割裂。`/tmp/p6b/repro7-run.txt` 同样只显示 5 行。
+**Source**: 阶段 5 checklist C4（UAT 可脚本化 · 回执须忠实复现生产件输出）+ C5（回归无退化 · 回执须可独立复核）。`TEST.md` §1.1 AC-6 行（`:55`）与 §阶段5发现 #41 声称 T-FIX-06 已加「失败面自证（候选 N / 实际扫描 M / 自排除 N−M）」，但回执未展示该三数 ⇒ 回执与主审断言不自洽。
+**Consequence**: 不影响生产件（`check-path-privacy.sh` 自证行正确，`make check-path-privacy` 实跑打印 7 行含 `候选文件 N 个` + `实际扫描 M 个`）。但回执失真 ⇒ 后续审查者无法据回执独立复核 F-19 闭合，须重跑生产件才能确认；回执作为「可复算证据」的可信度下降。长期：若主 agent 习惯性裁剪回执，未来 F-19 类 fail-closed 退化可能在回执层被掩盖。
+**Remedy**: 重跑 `make check-path-privacy` 并将完整 7 行自证（含 `允许清单 N 条` + `候选文件 N 个` + `实际扫描 M 个`）原样贴回 §P-3c，替换现有 5 行截断版；同时在 §P-3c 标注「原始 stdout 见 `/tmp/fk-reproduce-5-r7/privacy.txt`」。或在 §P-3c 加一行说明「N/M 两行因 CANDIDATE_COUNT/SCANNED_COUNT 在该次运行的实际值见 §P-6 原文」。属 🟢 Minor，不进 fix 循环，建议记入 `MINOR-DEFERRED.md`。
+
+---
+
+### G. 阶段 5 checklist 总判定
+
+- AC 覆盖 8/8（AC-8 条件通过仅静态面 · 准确表述）✅
+- 5 轮金字塔全在 ✅
+- 功能轮 AC 100% 覆盖 ✅
+- UAT 可脚本化（`reproduce-5-test.sh` · REPRO7_RC=0）✅
+- 回归无退化（1029 ≥ 1025 ≥ 1023 · NFR 61.5%）✅
+- 修代码优先（#41/#42 均 Fixed in + 非生产件回归标签 · 经 git diff 核验属实）✅
+- F-19/F-20/F-18 真闭合（生产件 + 24 bats 双态）✅
+- TD-066/TD-067 诚实（判据/工具面 · 非生产回归）✅
+- 数字面 18/18 · 7/7 · 1029 · 3.077s · 315/321 全自洽 ✅
+- 唯一缺口：§P-3c 回执漏列 F-19 三行自证（🟢 Minor · 回执层 · 非生产件）
+
+**Verdict**: pass
+
+
+---
+
+## 主 agent 响应（阶段 5 · L2 第 4 轮盲审 · 2026-09-25）
+
+**Verdict 接受：`pass`。** 唯一发现 🟢 R1（回执 `§P-3c` 漏印 F-19 三行自证）**主 agent 坐实并当场订正**；根因比 R1 的描述更靠前一层，属**证据/工具面**缺陷而非「回执贴错」：
+
+1. **坐实根因**：`reproduce-5-test.sh:145` 的显示正则为 `grep -E '扫描面|允许清单来源|命中合计|清单外命中'` —— 只列 4 类字段 ⇒ 门禁面 `[C]` 段**永远**只印 5 行，把 `T-FIX-06` 新增的 `允许清单 N 条` / `候选文件 N 个` / `实际扫描 M 个` 三行裁掉（与 TD-065 / TD-067 同族：**证据与工具面不得裁剪被审输出**）。
+2. **原始证据完好**：`/tmp/fk-reproduce-5-r7/privacy.txt`（553 B · 第 8 次执行当次产生 · `[D]` 的 5 次计时把 stdout 丢 `/dev/null`，不覆写该文件）含完整 7 行 —— `允许清单 0 条` / `候选文件 1595 个` / `实际扫描 1589 个` 在场。`§P-3c` 已按该文件**全文重贴**并标注原始路径与产生时点，附 `TD-068` 订正说明。
+3. **处置（不改判据、不改生产件 ⇒ 不进 fix 循环）**：
+   - ① 复现器显示正则补入 3 字段（`:145`）——**显示面 · 不改 rc 与判定面**（`privacy.txt` 与 `emit_gate` 的 rc 串均不受影响），并同步头部第 8 次执行注记；
+   - ② 登记 **`TD-068`**（`.specs/CONTEXT.md:615` · 与 TD-065 / TD-067 同族）；
+   - ③ 连带订正同一根因的**描述面残留**：`TEST.md:418` 「自证行四要素」→「七要素」（并补 `扫描面: 工作树（git index：已 add / 已提交）` 的现行措辞）· `TEST.md:119` 一处陈旧计数 `1025` → `1029`（行数不变 · 无行号漂移）；
+   - ④ R1 与 `TD-068` 写入 `MINOR-DEFERRED.md`（本节下方同轮记录）。
+4. **对 L2 结论面有无影响**：无。订正均落在外层证据链（回执贴文 / 复现器显示过滤 / 报告描述），`TEST.md` 的判定面数字（18/18 · 7/7 · 1029/1028 · NFR 3.077 = 61.5% · validate 315/321）与 `REPRO7_RC=0` 未变；订正后 `bash -n` 复检通过。
+
+**L3 处置**：L2 第 4 轮 = `pass` ⇒ 按门禁顺序进入 **L3 第 13 轮**（外部模型复审第 8 次执行证据面 + 判据哈希）。
+
+---
+
+## 主 agent 响应（阶段 5 · L3 第 13 轮 · 2026-09-25）
+
+**L3 第 13 轮 = pass**（判定体 `"critical":[]`）。三条 major / 三条 minor **全部命中本 change 已登记并留待阶段 7 闭环的既有技术债**，无新增发现：
+
+| L3 判定 | 既有登记 | 处置 |
+| --- | --- | --- |
+| major 1 = 行/分支覆盖率无任何数据 | `TD-061`（`.specs/CONTEXT.md`） | 已登记 · 阶段 7 triage |
+| major 2 = 独立安全工具面 0/10 | `TD-056` | 已登记 · 阶段 7 triage |
+| major 3 = macOS 实机未验证（AC-8 仅静态面） | `TD-055` | 已登记 · 阶段 7 triage |
+| minor 1 = 1 条 mock 用例（有效 1028 / 收集 1029） | `TD-033` | 已登记 |
+| minor 2 = 无 CI 常设触发 | `TD-053` 家族 | 已登记 |
+| minor 3 = 判据/工具在测试执行期内被修改 | `TD-066` / `TD-067`（同轮内**已披露**：`TASK.md` T17 夹具订正 + 抽取器整行锚定 + `TEST.md` 附录 D-9） | 已登记 |
+
+**信封字节账**：`完整 303899 B → 实送 299999 B（丢弃 1%）`。丢弃的是**尾部** = `=== T-FIX-05-SUMMARY.md ===` 段末约 900 B + 整段 `=== T-FIX-06-SUMMARY.md ===`（补充产物各 3000 B 预算叠加后超出总量上限）；**主审面 `TEST.md`（181036 B）完整送达**，`T01…T29` / `T-FIX-01…04` 摘要亦完整 ⇒ 判定面不受影响。上限来源 = 主 agent 侧 `FLOW_KIT_L3_MAX_ARTIFACT_BYTES=300000`（工具默认 80000）。
+
+**提高上限重审被守卫跳过**：`bash /tmp/p6b/l3-run-14.sh pass`（上限 400000）⇒ `[l3-review] skipping L3 for phase 5 (artifact hash 不变 + ## L3 段非空)`。**不为此改动 `TEST.md`** —— 为过审而人为改工件哈希等于制造「倒因为果」的伪证据；改为在工件内如实披露（本节 + `PHASE5-RECEIPTS.md` §Q）+ 登记 **`TD-069`**（上限提升不能触发重审 · 截断仅 stderr 告警 · 无补救路径）。
+
+**握手件核验**：`.specs/health-fix-2026-09b/.independent-review-5.done` = 7 行 / 379 B（`phase=5` · `change_id=health-fix-2026-09b` · `written_by=pre-tool-use-gate` · `L2_verdict=pass` · `L3_verdict=pass` · `L3_summary=…` · `artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md`）⇒ Tier-1 ✅（≥6 行 · 6 键齐 · 值域合法 · `artifacts` 含逗号）；Tier-2 ✅（`fk_extract_l2_verdict` 在**L2 层**取最后一次 `Verdict:` = 第 4 轮 `pass`，与标记一致 ⇒ 门禁判「门已开**且有效**」）。
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-25 04:40）
+
+> 自动生成于 2026-09-25 04:40。由 l3-review.sh 写入。
 
 ### 审查结论
 
 ```json
-{
-  "critical": [],
-  "major": [
-    {
-      "file": "TEST.md §1.1 / §4.4",
-      "issue": "AC-8 跨 OS 兼容性验收缺少 macOS 实机证据，仅静态判据通过，TD-055 仍开放。",
-      "why": "AC-8 的核心是跨 OS 兼容性（特别是 macOS/bash 3.2），但报告自认未在 macOS 实机运行，静态判据（make check-nfr-portability）不足以证明实际兼容性，导致该 AC 只能算“有条件通过”，并非完整验收通过。",
-      "fix": "在 macOS 环境实际跑测试并提供机器证据；若无法提供，应将 AC-8 明确标记为“部分通过”并保持 TD-055 开放，而不能在矩阵中读作全通过。"
-    },
-    {
-      "file": "TEST.md §3.4 / §3.5",
-      "issue": "安全测试工具面 0/10，独立安全工具全部缺失（semgrep/gitleaks/trufflehog/trivy/codeql MISSING，npm audit ENOLOCK），安全实现面未验证。",
-      "why": "第 3 轮安全测试仅依赖模式 grep + shellcheck + 自研门禁，报告自己也声明“安全实现面 = 未验证，不构成 AC 通过面证据”。OWASP A01–A09 全部标 ⚠️，说明安全验收并未真正完成，存在较大未覆盖面。",
-      "fix": "引入并执行至少一项独立安全扫描工具（如 semgrep、gitleaks），或将安全未验证项正式降级为未通过并纳入后续迭代，不能以“替代面”充抵工具面证据。"
-    },
-    {
-      "file": "TEST.md §1.3 / §回归保护",
-      "issue": "覆盖率无任何数据：无 kcov/bashcov，行/分支覆盖率“无测量工具”，无法评估覆盖率是否达标。",
-      "why": "审查重点明确问“覆盖率是否达标”，但报告既没有行覆盖率数字，也没有分支覆盖率，只以“AC 覆盖 + 收集面=执行面”替代。缺少量化覆盖率意味着无法证明关键分支/路径被充分测试，测试完备性存疑。",
-      "fix": "在 CI/本地接入 bash 覆盖率工具（如 kcov/bashcov）并产出覆盖率报告；或明确说明该项目不进覆盖率考核，否则覆盖率项应判为未达标。"
-    }
-  ],
-  "minor": [
-    {
-      "file": "TEST.md §1.7",
-      "issue": "多条判据（T17/T19/T-FIX-01/T-FIX-02/T27/T29/T-FIX-04）在测试执行期间被修改并回写 TASK.md，虽然报告提供了台账，但判据稳定性值得关注。",
-      "why": "判据是验收标准，多次修改容易让人质疑“测试通过”是否始终对应原始需求；虽然报告称无一条属“判红即改绿”，但外部审查者仍难独立确认每次修改都只是修复判据自身缺陷。",
-      "fix": "尽可能在测试开始前冻结判据；若必须修改，应增加更严格的评审（如第三方独立复核）并明确每处修改对验收结论的影响面。"
-    },
-    {
-      "file": "TEST.md 全文",
-      "issue": "报告包含第 1–7 次执行的历史/当前结果混排，且多处数字（976/1012/1025）需要依赖时点前缀区分，阅读与核对成本较高。",
-      "why": "虽然报告已尽量用“时点标记规则”解释，但历史记录与当前基线交错出现，可能造成误读（尤其是旧数字被误认为当前值）。",
-      "fix": "在最终报告中只保留当前基线数值，历史过程移到附录或明确用表格区分“历史证据”与“当前结论”。"
-    }
-  ],
-  "verdict": "pass",
-  "summary": "测试报告对 AC-1..AC-8 均有覆盖且提供了大量可复算证据，UAT 可复现，回归测试已补全，主要问题在于 AC-8 缺少 macOS 实机验证、安全工具面 0/10、覆盖率无数据，均属重大但未构成致命缺陷，故判 pass。"
-}
+{"critical":[],"major":[{"file":"TEST.md §1.3 / §回归保护 / TD-061","issue":"行/分支覆盖率没有任何数据：工件明确写“本机无 kcov/bashcov ⇒ 行覆盖率 / 分支覆盖率无任何数据”，并以“AC 覆盖数 + bats 收集数”替代；TD-061 仍开放。","why":"覆盖率是否达标无法从工件验证；报告自己也承认不是 0% 而是“无测量工具”。在验收要求关注覆盖率时，这属于未验证项，不能作为覆盖达标证据。","fix":"安装并接线 kcov/bashcov，实跑并附行/分支覆盖率原始回执；或在需求/验收文件中明确 bash/bats 项目不要求行覆盖率，并给出可复算的等价覆盖门槛。"},{"file":"TEST.md §3.4 / §3.5 / TD-056","issue":"独立安全工具面 0/10：semgrep、gitleaks、trufflehog、trivy、codeql 均 MISSING，npm audit 因 ENOLOCK 不可用；工件声明“第 3 轮安全实现面 = 未验证（无独立安全工具），不构成 AC 通过面证据”。","why":"工具级安全扫描完全缺失，OWASP/依赖/秘钥等安全面只能依赖 grep、shellcheck 和自研门禁的“替代面”，无法证明无独立安全工具可发现的问题。","fix":"在具备工具的环境补跑 gitleaks/semgrep/trivy/codeql 与 npm audit（先引入 lockfile），附原始输出；或将该安全工具验收面正式移出本 change 范围并由需求方/阶段 7 裁决。"},{"file":"TEST.md §1.1 / §4.4 / TD-055","issue":"AC-8 的 macOS 实机兼容性未验证：只有 Linux 静态判据 make check-nfr-portability，工件将 AC-8 判定为“有条件通过（仅静态面）”，TD-055 仍开放。","why":"bash 3.2/macOS 的 locale、iconv、内建命令差异无法仅靠静态判据证明；跨 OS 兼容性验收缺少实机证据，不能读作 AC-8 全通过。","fix":"在 macOS 实机或 runner 上运行 make check、npx bats、check-nfr-portability 并附 TAP/回执；若本 change 不覆盖，需显式将 AC-8 拆为“Linux 通过 + macOS 未验收”并交由阶段 7 闭环。"}],"minor":[{"file":"TEST.md §1.3 / §1.5 / TD-033","issue":"仍存在 1 条 mock 用例：test_gate_config_presets.bats 自陈模拟 resolve_gate_config()，从不 source 生产实现；报告因此将有效用例计为 1028 而非 1029。","why":"该 mock 若被后续作为 gate_config 语义回归证据会掩盖真实实现变化；当前报告已将其排除出 AC 结论面，风险可控但债仍在。","fix":"将 mock 重写为 source 真实生产实现的回归用例，并重新确认 AC-4 证据面。"},{"file":"TEST.md §回归保护 / §0","issue":"无 CI：所有门禁与 bats 均为本机手工/脚本执行，常设回归保护没有服务器端自动触发。","why":"本机执行结果可重复性强，但缺少 CI 后“提交即跑”的长期保护，未来变更可能绕过门禁。","fix":"增加 CI workflow，至少运行 make check 与 reproduce-5-test.sh，并保留原始日志作为验收证据。"},{"file":"TEST.md §1.7 / 附录 D-9","issue":"最终 18/18 rc=0 是在第 8 次执行中修正 T17 夹具（TD-066）与抽取器（TD-067）之后取得的；判据/工具在测试执行期间有修改。","why":"修改判据或工具后再复跑全绿，存在“测到绿”而非“产品绿”的外部核验风险；工件已披露，但独立复核仍需要原始红因输出。","fix":"将 TD-066/TD-067 修改前的红态 stdout 与产品缺陷归因完整附入可见工件，并保留冻结判据版本的整轮复跑记录供复核。"}],"verdict":"pass","summary":"测试矩阵、UAT 可复现性与回归测试面较扎实，但覆盖率无数据、安全工具面 0/10、macOS 实机未验证仍是开放 major，须交阶段 7 闭环；无 critical，故判 pass。"}
 ```
 
-L3_artifact_hash: 23e111323074f878877d6d042c90126fcd3a9ffda00ad8bc5e423eefbcb488da
+L3_artifact_hash: 0db9f23df9c9be71044e954a88568cceb35ed87e585871841f2f278551d2819a
 
 <!-- /L3-SECTION -->

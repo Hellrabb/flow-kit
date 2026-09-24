@@ -44,6 +44,8 @@
 #   · `extract_verify()` 改为**整行锚定**抽取（TD-067 · L-153 族复发：`<action>` 正文里的 `<verify>`
 #     字样会把行内子串匹配的抽取起点拉进 action 段 ⇒ 废件被记成判据失败 rc=2）。
 #   · 判据面 18 条 / 门禁面 7 项与第 7 次执行同构；基线仍 1029 ok / 0 not ok。
+#   · 门禁面 [C] 自证行显示正则补入 `允许清单 N 条` / `候选文件 N 个` / `实际扫描 M 个` 三列（TD-068：旧正则
+#     只匹配 4 类字段，把 T-FIX-06 新增的 F-19 计数裁掉 ⇒ 回执 §P-3c 与生产件输出不自洽；rc 与判定面不变）。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -142,7 +144,7 @@ run_gates() {
   echo "== [C] check-path-privacy 自证面 =="
   priv="$LOG_DIR/privacy.txt"
   make check-path-privacy > "$priv" 2>&1; prc=$?
-  grep -E '扫描面|允许清单来源|命中合计|清单外命中' "$priv" | sed 's/^/       /'
+  grep -E '扫描面|允许清单|候选文件|实际扫描|命中合计|清单外命中' "$priv" | sed 's/^/       /'
   emit_gate "check-path-privacy" "$prc" "$(grep -E '清单外命中' "$priv" | tail -1)"
 
   echo

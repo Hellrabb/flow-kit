@@ -1147,3 +1147,23 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 - **T-FIX-06 🔴 rc=2** —— `v_T-FIX-06.sh: 行 1: T-FIX-06-SUMMARY.md: 未找到命令` · `command substitution: 行 2: 未预期的记号 "newline" 附近有语法错误` · `行 2: \`</action>'`。`reproduce-5-test.sh` 的 `extract_verify()` 按**行内子串**匹配 `<verify>`，而 T-FIX-06 的 `<action>` 正文含 `<verify>` 字样 ⇒ 抽取起点被拉进 action 段，产出「散文 + `</action>` + 判据正文」的 **43 行**废件（真判据 41 行）。⇒ 登记 **TD-067**（🟡 · L-153 族复发 · 未锚定的标签抽取）；订正为**整行锚定**（`^[[:space:]]*<verify>[[:space:]]*$` / `^[[:space:]]*</verify>[[:space:]]*$`）；复抽 ⇒ **41 行 · 首行 `set -u; rc=0;` · `bash -n` 通过**。抽取器缺陷本身属「判据/工具与权威文本的耦合面失配」，与 TD-065 / TD-066 同族，三者均已登记 v2 静态检查项。
 - **门禁面 7/7 ✅ rc=0** —— bats `--count` 1029 · `bats test/` ok=1029 / not-ok=0 · `make check` 21 ✅ / 0 ❌ · `check-path-privacy` 清单外命中 0（自证面含「候选文件 N 个 / 实际扫描 M 个」）· NFR ×5 = 2.997 / 3.006 / 3.115 / 3.103 / 3.112 s（均值 **3.067 s = 61.3%** · nproc=32 · loadavg 9.50/8.91/9.23）· `package-flow-kit.sh --validate` 漏配 0 / 源缺失 0 · 阶段门沙箱六态 A/B/C ✅ + B2/B3/B4 一律 rc=2 ✅（历史对照行仍在）。
 - **结论**：REPRO6 `REPRO6_RC=1` 由两条**判据/工具面**缺陷导致，与 `check-path-privacy.sh` / `check-gate-sync.sh` / `Makefile` 的修复行为无关；订正后重跑 **REPRO7（第 8 次执行）** 作为阶段 5 的权威全脸。TD-066 / TD-067 已登记于 `.specs/CONTEXT.md:613-614`。
+
+
+---
+
+## 🔎 阶段 5 重验（第 4 轮）· L2 第 4 轮盲审 R1 处置（`TD-068` · 2026-09-25）
+
+第 8 次执行（REPRO7）交付后派发 L2 第 4 轮盲审（subagent `0ab4c599` · `qwen-token-plan-cn`/`glm-5.2`），结论 **`pass`**，1 条 🟢：
+
+| 项 | 发现 | severity | 处置 | 状态 |
+|---|---|---|---|---|
+| R1 | 回执 `§P-3c` 的隐私自证面只贴 **5 行**，漏 `允许清单 N 条` / `候选文件 N 个` / `实际扫描 M 个`（即 `T-FIX-06` F-19 的两个计数） | 🟢 Minor（回执层 · 非生产件） | 根因 = 复现器门禁面 `[C]` 的显示正则白名单过窄（`reproduce-5-test.sh:145` 只匹配 4 类字段）⇒ ① 正则扩到 7 字段；② `§P-3c` 按原始 `/tmp/fk-reproduce-5-r7/privacy.txt`（553 B · 7 行）全文重贴 + 标注原始路径；③ 登记 **`TD-068`**（`.specs/CONTEXT.md:615`）；④ 连带订正 `TEST.md:418`「自证行四要素」→「七要素」、`TEST.md:119` 陈旧计数 `1025` → `1029` | ✅ 已在 L3 第 13 轮前订正（显示面/贴文/描述面 · 不改 rc 与判定面 · 不进 fix 循环） |
+
+**判定面影响**：无 —— `REPRO7_RC=0`、18/18 判据、7/7 门禁、bats 1029/1028、NFR 3.077 s = 61.5%、validate 315/321 全部未变；`privacy.txt` 原始内容自产生起未被任何订正改动。
+
+## 🧾 阶段 5 门禁面（第 2 轮 fix 循环后）· TD-069 登记（2026-09-25）
+
+| 项 | 内容 | severity | 处置 | 状态 |
+| --- | --- | --- | --- | --- |
+| `TD-069` | L3 信封被上限截断（`303899B → 299999B`，丢尾部 1%）**只在 stderr 告警**，且提高 `FLOW_KIT_L3_MAX_ARTIFACT_BYTES` 后重审被守卫跳过（`artifact hash 不变`）⇒ 无补救路径、工件上不可见 | 🟡（工具/证据面 · 非生产件） | 在 `INDEPENDENT-REVIEW-5.md` 主 agent 响应节与 `PHASE5-RECEIPTS.md` §Q-3 写明字节账与被丢内容（补充产物尾部，主审面 `TEST.md` 完整送达）；**不为此改动 `TEST.md`**；v2 = 截断落工件 + 守卫把截断纳入重跑条件 + 总量自动分配 | ✅ 已披露并登记（`.specs/CONTEXT.md:616`） |
+| `R1`（L2 第 4 轮） | 回执 `§P-3c` 只贴 5 行自证，漏 F-19 三行计数 | 🟢（回执层） | 复现器显示正则 4→7 字段 + `§P-3c` 全文重贴 + `TEST.md:119`/`:418` 连带订正 + `TD-068` | ✅ 已订正（L3 前） |
