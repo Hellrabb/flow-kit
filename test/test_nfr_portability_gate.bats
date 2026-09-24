@@ -113,6 +113,19 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"SKIP:"* ]]
   [[ "$output" != *"✅"* ]]
+  # ── 钉住断言（T-FIX-05 / F8 去重）────────────────────────────────────────
+  # 判据正文必须唯一存在于 check-nfr-portability-internals，wrapper 为薄壳。
+  # 若判据正文被复制回 wrapper，下列断言立即转红（去重未生效 / 复发）。
+  # 判据特征串 _report_viol() { 在整份 Makefile 中只能出现 1 次（唯一判据源）。
+  local _viol_cnt
+  _viol_cnt="$(grep -c '_report_viol() {' "$MAKEFILE_SRC")"
+  [ "$_viol_cnt" -eq 1 ] || \
+    { echo "🔴 F8：_report_viol() { 在 Makefile 中出现 $_viol_cnt 次（预期 1，判据正文已复制回 wrapper）"; false; }
+  # wrapper recipe 行数（verify 口径：awk '/^check-nfr-portability:/,/^$/'）必须 < 30（薄壳）。
+  local _wrap_lines
+  _wrap_lines="$(awk '/^check-nfr-portability:/,/^$/' "$MAKEFILE_SRC" | wc -l)"
+  [ "$_wrap_lines" -lt 30 ] || \
+    { echo "🔴 F8：wrapper recipe 仍 $_wrap_lines 行（预期 < 30，判据正文未删除）"; false; }
 }
 
 @test "违规变更集上包装层不放过：make 非零退出且 stderr 保留 file:line 归因" {
