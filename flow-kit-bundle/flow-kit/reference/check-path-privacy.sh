@@ -159,6 +159,27 @@ register_tmp "$TMP_HITS_DEDUP"
 # 不能用 `$(git grep --null ...)`（否则 NUL 丢失 ⇒ 无法解析）。
 TMP_GREP_RAW=$(mktemp_checked) || exit 1
 register_tmp "$TMP_GREP_RAW"
+# T-FIX-12 NFR 回归（阶段 5 第 9 次执行）：index 侧内容面批量化。
+# 旧实现（T-FIX-07）每候选一次 `git grep --cached -- "$file"` ⇒ 1594 次 git 进程
+# 启动（sys 从 2.12 s 涨到 11.19 s，单次约 11 s = NFR ≤5 s 预算的 221.6%）。
+# fix：进入候选扫描循环**之前**做**一次**不带 pathspec 的
+# `git grep --cached -naE --null "$PAT"`（全 index 一次扫完，约 0.05 s）落
+# `TMP_INDEX_CACHE_RAW`，由 `parse_grep_null_filtered` 解析后统一 `record_hit`
+# 记入 TMP_HITS（保留 R3-2 去重）；INDEX_SIDE_COUNT = 非自排除唯一命中路径数。
+# 语义等价：--cached 命中仍判红（清单外命中归因 file:line）；R3-1/R3-2/R3-30 不回退。
+TMP_INDEX_CACHE_RAW=$(mktemp_checked) || exit 1
+register_tmp "$TMP_INDEX_CACHE_RAW"
+# T-FIX-12 ②：磁盘缺失候选的对象类型探测批量化（替代逐候选 `git cat-file -t`）。
+# 磁盘缺失候选数通常极少（真仓 0）；仅在真实出现时做一次 `git cat-file
+# --batch-check`（喂 `:path` 列表）落 `TMP_DISKMISS_MAP`（`<path>\0<type>\0` 每条），
+# scan_file 的 else 分支按路径精确匹配取值，避免逐候选 git 进程。
+TMP_DISKMISS_MAP=$(mktemp_checked) || exit 1
+register_tmp "$TMP_DISKMISS_MAP"
+# T-FIX-12：INDEX_SIDE_COUNT 已见路径集（非自排除唯一命中路径去重表）。
+# parse_grep_null_filtered 用 grep -qxF 查表实现「首次见到该路径才 +1」
+# （bash 3.2 无关联数组）。每行一个路径，去重靠 grep 精确匹配。
+TMP_INDEX_SEEN=$(mktemp_checked) || exit 1
+register_tmp "$TMP_INDEX_SEEN"
 
 # ----------------------------------------------------------------------------
 # 评估面选择：CHECK_REV 外部指定（L-131 · ADR-027 拦截面 = 被拦截对象）
@@ -522,6 +543,54 @@ parse_grep_null() {
   done < "$infile"
 }
 
+# T-FIX-12 NFR 回归：带自排除过滤的批量解析器。
+# 解析 git grep --null 全量输出（全 index 一次扫完，取代旧实现逐候选
+# `git grep --cached -- "$file"`），对每条命中：
+#   - 路径属 SELF_EXCLUDE ⇒ 跳过（旧实现在候选循环里 `is_self_exclude` 先
+#     continue，每候选 git grep 根本不跑 ⇒ 等价于自排除路径的 index 命中不
+#     记入；批量解析必须复现此口径，否则自排除文件的 PAT 字面被当泄漏 ⇒ 假红）。
+#   - 非自排除 ⇒ `record_hit` 记入 TMP_HITS（保留 R3-2 去重）+ 计入
+#     INDEX_SIDE_COUNT（非自排除唯一命中路径数）。
+# INDEX_SIDE_COUNT 口径：与旧实现 `if [ -s "$TMP_GREP_RAW" ]; then
+# INDEX_SIDE_COUNT++` 完全一致 —— 一个文件有 ≥1 条 index 命中即 +1，且仅对
+# 非自排除候选（自排除在候选循环 continue 前不进 scan_file）。用已见路径集
+# TMP_INDEX_SEEN 去重（bash 3.2 无关联数组 ⇒ grep -qxF 精确匹配查表）。
+# $1 = 输入文件路径；$2 = rev 前缀（--cached 模式为空，rev 模式为 RESOLVED_REV）。
+parse_grep_null_filtered() {
+  local infile="$1" rev_prefix="$2"
+  local prefix path line content
+  while IFS= read -r -d '' prefix; do
+    [ -n "$rev_prefix" ] && prefix="${prefix#"${rev_prefix}:"}"
+    path="$prefix"
+    IFS= read -r -d '' line || line=''
+    IFS= read -r content || content=''
+    # 自排除路径跳过（复现候选循环 continue 的等价口径）
+    is_self_exclude "$path" && continue
+    record_hit "$path" "$line" "$content"
+    # INDEX_SIDE_COUNT = 非自排除唯一命中路径数（首次见到该路径才 +1）
+    if ! grep -qxF "$path" "$TMP_INDEX_SEEN" 2>/dev/null; then
+      printf '%s\n' "$path" >> "$TMP_INDEX_SEEN"
+      INDEX_SIDE_COUNT=$((INDEX_SIDE_COUNT + 1))
+    fi
+  done < "$infile"
+}
+
+# T-FIX-12 ②：从磁盘缺失候选类型映射取某路径的 index 侧对象类型。
+# 批量预扫描阶段对「磁盘缺失且 tracked」的候选做一次 `git cat-file
+# --batch-check`（喂 `:path` 列表），输出按行 `<sha> <type> <size>`，落
+# `TMP_DISKMISS_MAP` 为 `<path>\0<type>\0` 每条（NUL 分隔，便于含 : / 空格 /
+# 非 ASCII 路径精确匹配，避免裸 : 切坏）。本函数按路径精确取类型。
+# $1 = 候选路径；stdout = 类型字符串（blob / commit / ...）或空（未登记）。
+lookup_diskmiss_type() {
+  local target="$1" p t
+  while IFS= read -r -d '' p; do
+    IFS= read -r -d '' t || t=''
+    [ "$p" = "$target" ] && { printf '%s' "$t"; return 0; }
+  done < "$TMP_DISKMISS_MAP"
+  printf ''
+  return 1
+}
+
 scan_file() {
   local file="$1"
   local lineno line uname
@@ -550,7 +619,14 @@ scan_file() {
     # 旧实现只读磁盘 ⇒ staged 泄漏 + 工作树改干净 ⇒ rc=0 假绿（index 仍含泄漏）。
     # 正解：index 侧 git grep --cached + 磁盘侧 grep，两者命中并集（同一 file:line:content 去重）。
     # 文件缺失（deleted tracked）⇒ 不可读候选，计数 UNREADABLE_COUNT（动作③，不再静默跳过）。
-    local raw_disk grc_disk grc_index
+    #
+    # T-FIX-12 NFR 回归：index 侧内容面已批量化（进入候选循环**之前**做一次
+    # 全 index `git grep --cached`，由 parse_grep_null_filtered 统一 record_hit +
+    # 计 INDEX_SIDE_COUNT）。本函数工作树分支**不再**每候选调用 `git grep --cached
+    # -- "$file"`（旧 T-FIX-07 实现的 1594 次 git 进程 ⇒ 单次 ~11 s = NFR 预算
+    # 221.6%）；index 侧命中此时已在 TMP_HITS 中（与磁盘侧命中同一去重表），本函数
+    # 仅负责磁盘侧 + 磁盘缺失候选的 index 侧类型探测（同样已批量化）。
+    local raw_disk grc_disk
     # 磁盘侧
     raw_disk=''
     if [ -f "$file" ]; then
@@ -569,8 +645,12 @@ scan_file() {
       # 维持 fail-closed（动作③：两侧皆不可得才不可读）。
       # 旧实现（R3-2 动作③）：磁盘缺失即无条件 UNREADABLE_COUNT++ ⇒ 已跟踪未 staged
       # 删除的干净候选被判「不可读」⇒ 整门禁过严红（且 index 侧泄漏被 exit 1 遮住）。
+      #
+      # T-FIX-12 ②：逐候选 `git cat-file -t ":$file"` 改为查批量预扫描映射表
+      # TMP_DISKMISS_MAP（磁盘缺失候选集合做一次 `git cat-file --batch-check`）。
+      # 语义不变：idx_type=blob ⇒ 内容面由 index 侧覆盖；否则 UNREADABLE_COUNT++。
       local idx_type
-      idx_type=$(git cat-file -t ":$file" 2>/dev/null)
+      idx_type=$(lookup_diskmiss_type "$file")
       if [ "$idx_type" = blob ]; then
         echo "ℹ️ 磁盘缺失但 index 侧可读：${file}（内容面按 index 扫描）"
       else
@@ -580,17 +660,9 @@ scan_file() {
 "
       fi
     fi
-    # index 侧（git grep --cached --null，--cached 必须在首个非选项参数前；
-    # --null 输出含 NUL ⇒ 落临时文件而非命令替换）
-    : > "$TMP_GREP_RAW"
-    git grep --cached -naE --null "$PAT" -- "$file" > "$TMP_GREP_RAW" 2>/dev/null
-    grc_index=$?
-    if [ "$grc_index" -ge 2 ]; then
-      echo "🔴 无法完成扫描：git grep --cached 失败（file=${file}）" >&2
-      echo "   位置: check-path-privacy.sh:grep-worktree-index" >&2
-      exit 1
-    fi
-    # R3-31：成功读取（磁盘或 index 任一可读）⇒ 计入 SCANNED_COUNT
+    # R3-31：成功读取（磁盘或 index 任一可读）⇒ 计入 SCANNED_COUNT。
+    # index 侧命中此时已在 TMP_HITS（批量预扫描 record_hit，保留 R3-2 去重）；
+    # 磁盘可读或 index blob 可得均算成功读取。
     SCANNED_COUNT=$((SCANNED_COUNT + 1))
     # 磁盘侧命中（grep -naE 输出 `line:content`，路径用 $file）
     local hitline l c
@@ -601,13 +673,95 @@ scan_file() {
         record_hit "$file" "$l" "$c"
       done
     fi
-    # index 侧命中（git grep --cached --null 输出 `<path>\0<line>\0<content>\n`）
-    if [ -s "$TMP_GREP_RAW" ]; then
-      INDEX_SIDE_COUNT=$((INDEX_SIDE_COUNT + 1))
-      parse_grep_null "$TMP_GREP_RAW" ''
-    fi
+    # index 侧命中已由候选循环前的批量预扫描 parse_grep_null_filtered 统一
+    # record_hit 记入 TMP_HITS（含 R3-2 去重 + INDEX_SIDE_COUNT 计数）。
+    # 旧实现的 `:654-676` 逐候选 git grep --cached + parse_grep_null 已移除。
   fi
 }
+
+# ----------------------------------------------------------------------------
+# T-FIX-12 NFR 回归：index 侧内容面批量化（进入候选扫描循环前一次性预扫描）
+# ----------------------------------------------------------------------------
+# 旧实现（T-FIX-07）：scan_file 工作树分支每候选调用一次
+# `git grep --cached -naE --null "$PAT" -- "$file"` ⇒ 1594 次 git 进程启动，
+# sys 时间从 2.12 s 涨到 11.19 s，单次 ~11 s = NFR ≤5 s 预算的 221.6%。
+#
+# fix：进入候选循环**之前**做一次不带 pathspec 的全 index 扫描：
+#   1. `git grep --cached -naE --null "$PAT"`（无 pathspec ⇒ 全 index 一次扫完，
+#      微基准 ~0.05 s）落 TMP_INDEX_CACHE_RAW。
+#   2. parse_grep_null_filtered 解析：自排除路径跳过（复现候选循环 continue
+#      口径）；非自排除路径 record_hit 记入 TMP_HITS（保留 R3-2 去重）+
+#      计 INDEX_SIDE_COUNT（非自排除唯一命中路径数）。
+#   3. 磁盘缺失候选类型探测同样批量化：先扫一遍候选构造「磁盘缺失 + tracked」
+#      集合，对该集合做一次 `git cat-file --batch-check`（喂 `:path` 列表），
+#      解析输出落 TMP_DISKMISS_MAP（`<path>\0<type>\0` 每条），供 scan_file
+#      工作树分支磁盘缺失腿查表取值。
+#
+# 语义等价（违反即判红）：--cached 命中仍判红（清单外命中归因 file:line）；
+# R3-1（非 ASCII / 含 "/\ 名必须真扫）· R3-2（泄漏已 add、工作树改干净 ⇒
+# 必须判红）· R3-30（rev 模式同样判红）三条判别式不回退；自证四数口径不变。
+# bash 3.2 兼容（禁 declare -A / mapfile / readarray）。
+if [ -z "$RESOLVED_REV" ]; then
+  # —— index 侧批量预扫描 ——
+  : > "$TMP_INDEX_CACHE_RAW"
+  : > "$TMP_INDEX_SEEN"
+  git grep --cached -naE --null "$PAT" > "$TMP_INDEX_CACHE_RAW" 2>/dev/null
+  grc_index=$?
+  if [ "$grc_index" -ge 2 ]; then
+    echo "🔴 无法完成扫描：git grep --cached 失败（批量 index 侧预扫描）" >&2
+    echo "   位置: check-path-privacy.sh:grep-index-batch" >&2
+    exit 1
+  fi
+  # rc=1（无匹配）⇒ TMP_INDEX_CACHE_RAW 空 ⇒ parse_grep_null_filtered 不记命中（语义同旧）
+  if [ -s "$TMP_INDEX_CACHE_RAW" ]; then
+    parse_grep_null_filtered "$TMP_INDEX_CACHE_RAW" ''
+  fi
+  # —— 磁盘缺失候选类型探测批量化 ——
+  # 预扫候选面构造「磁盘缺失且 tracked」集合（真仓 0；fixture 可能非 0）。
+  # 对该集合做一次 `git cat-file --batch-check`，解析输出按候选序落
+  # TMP_DISKMISS_MAP（`<path>\0<type>\0` 每条，NUL 分隔便于含 : / 空格 /
+  # 非 ASCII 路径精确匹配）。集合为空 ⇒ 跳过 batch-check（省一次 git 调用）。
+  : > "$TMP_DISKMISS_MAP"
+  DM_INPUT=$(mktemp_checked) || exit 1
+  register_tmp "$DM_INPUT"
+  dm_count=0
+  while IFS= read -r -d '' dm_f; do
+    [ -z "$dm_f" ] && continue
+    is_self_exclude "$dm_f" && continue
+    if [ ! -f "$dm_f" ]; then
+      printf ':%s\n' "$dm_f" >> "$DM_INPUT"
+      dm_count=$((dm_count + 1))
+    fi
+  done < "$TMP_CANDIDATES"
+  if [ "$dm_count" -gt 0 ]; then
+    DM_BC_RAW=$(mktemp_checked) || exit 1
+    register_tmp "$DM_BC_RAW"
+    # --batch-check 输出每行 `<sha> <type> <size>`，按输入序逐行对应（行序守恒）。
+    if ! git cat-file --batch-check < "$DM_INPUT" > "$DM_BC_RAW" 2>/dev/null; then
+      echo "🔴 无法完成扫描：git cat-file --batch-check 失败（磁盘缺失候选类型探测）" >&2
+      echo "   位置: check-path-privacy.sh:cat-file-batch-check" >&2
+      rm -f "$DM_BC_RAW"
+      exit 1
+    fi
+    # 按行序对应 DM_INPUT 的 `:path` 与 DM_BC_RAW 的 `<sha> <type> <size>`。
+    # 取第 2 字段为类型；path 用 DM_INPUT 行（剥前导 `:`）。落 NUL 终止记录。
+    # 双 FD 并行读取（bash 3.2 兼容：FD 3、4 互不影响；行序一一对应）。
+    exec 3<"$DM_INPUT"
+    exec 4<"$DM_BC_RAW"
+    while IFS= read -r dm_in <&3; do
+      IFS= read -r dm_bc <&4 || dm_bc=''
+      [ -z "$dm_in" ] && continue
+      # dm_in 形如 `:path`；剥前导 `:`
+      dm_path="${dm_in#:}"
+      # dm_bc 形如 `<40-hex-sha> <type> <size>`；取第 2 字段
+      dm_type=$(printf '%s\n' "$dm_bc" | awk '{print $2}')
+      printf '%s\0%s\0' "$dm_path" "$dm_type" >> "$TMP_DISKMISS_MAP"
+    done
+    exec 3<&-
+    exec 4<&-
+    rm -f "$DM_BC_RAW"
+  fi
+fi
 
 # 逐候选文件扫描（跳过自排除清单）
 # F19：在自排除判定之后、scan_file 之前递增 SCANNED_COUNT，以记录实际扫描次数。
