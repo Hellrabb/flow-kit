@@ -46,6 +46,9 @@
 #   · 判据面 18 条 / 门禁面 7 项与第 7 次执行同构；基线仍 1029 ok / 0 not ok。
 #   · 门禁面 [C] 自证行显示正则补入 `允许清单 N 条` / `候选文件 N 个` / `实际扫描 M 个` 三列（TD-068：旧正则
 #     只匹配 4 类字段，把 T-FIX-06 新增的 F-19 计数裁掉 ⇒ 回执 §P-3c 与生产件输出不自洽；rc 与判定面不变）。
+#   · 阶段 4 第 3 轮 fix 循环（阶段 6 第 3 轮裁决回退 4-dev · T-FIX-07 ~ T-FIX-11，处置 R3 系列 5🔴+13🟡
+#     与 R4-1）：判据面 18 → 23，逐个纳入 T-FIX-07（复核面）~ T-FIX-11（磁盘缺失但 index 侧可读）；
+#     基线 1029 → 待第 9 次执行实测（T-FIX-08 已把源码面推到 1047，T-FIX-09/10/11 追加后再定值）。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -53,7 +56,7 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10 T-FIX-11"
 
 while [ $# -gt 0 ]; do
   case "$1" in

@@ -1268,6 +1268,8 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 - ⑥ `PATH` 影子 `diff`（恒 `exit 2`）⇒ rc=**0** + `✅ 校验对 3/14 一致` ⇒ 坐实 **R3-20**（`diff_out=$(diff … || true)` 把 rc=2 折算为「无差异 ⇒ 一致」）⇒ 修复后必须 rc≠0 + 具名 🔴。
 ⇒ 六腿在修复前均为「应有的红/异常」，判据具判别力；修复后应全绿。
 
+**2026-09-25 复核（主 agent 二次空跑）**：从 `TASK.md:2227-2284` 重新抽取 legs ①–⑥ 存为 `/tmp/tfix10-preflight.sh` 空跑，输出与上表逐条一致（①`校验对 3/14 一致` 绿 · ②基线夹具绿 · ③`🔴 R3-18：未具名 prompt 侧` · ④`🔴 R3-18：未具名 skill 侧` · ⑤空集合 rc=1 / 20 行 / 无汇总无 🔴 · ⑥影子 `diff` rc=0 + `✅ 校验对 3/14 一致`），`PREFLIGHT-RC=1` ⇒ 判别力复现成立，判据无需再订正。
+
 **预检同时修掉的三处/五处判据自身缺陷**：T-FIX-09（`FXRUN()` 内 `NRC=$?` 落在 `$( )` 子 shell ⇒ 外层 `set -u` 下未绑定 ⇒ 必红；`tracked` 腿夹具不提交 ⇒ 样本不在 `git diff --name-only "$BASE"` 面内（假通过）；R3-22 夹具样本为 untracked 而全量模式只扫 tracked ⇒ 必红）已登记 **TD-072**；T-FIX-10（`wc -l > 0` 恒真、夹具缺 3 对 PCSC 载体、`chmod 000` 目标未创建、空预设只清一侧、静态 `grep 'skill 侧'` 修复前即命中）已登记 **TD-073**。
 
 ## 🔴 T-FIX-08 RED 回执（执行者 `18e2e1c9` · **修复前**实测 · 2026-09-25 · `/tmp` 夹具）
@@ -1284,3 +1286,74 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | 基线 | `bats 1029 ok / 0 not-ok`（未变） | — |
 
 **留档说明**：本回执在**修复前**取得；其中 pre-push / pre-commit / 安装器 / README 的修复已由该执行者在崩溃前落盘（**未提交**，见同批 `MINOR-DEFERRED.md` 的 T-FIX-08 复核记录），因此上述 RED 现在**只能靠旧版本复现** —— 复现方式：`git worktree add /tmp/<dir> 4275d8f`（**禁用 `git stash`**）。④a/④b 两条是 pre-commit 侧证据；④ 场景对应块内 `<verify>` 的场景④。
+
+## ✅ T-FIX-08 复核记录（主 agent 独立复跑 `pre-push` 七腿 + 提交面核对 · 2026-09-25）
+
+**提交面**（权威来源 `git show --stat 2f01f39`）：`2f01f3975b2056c2b16f6db6cdcab7e3f7b3a5a2`（%cI `2026-09-25T15:09:52+08:00`）· 12 files / **536 insertions(+) & 22 deletions(-)** · 路径全部落在 `<write_files>` 内，**无**冻结件 / `REVIEW.md` / `MINOR-DEFERRED.md` / `TASK.md` / `LESSONS.md` / `CONTEXT.md` ✅ · `npx bats --count test/` = **1047** ✅（`make check-test-sync` 双源一致）· 台账条目 `{id:T-FIX-08, commit_sha:2f01f39…, fix_rounds:0, deferred:[], completed_at:2026-09-25T15:10:12+08:00}`（Δ=20 s）位于 `.flow-active.goal.task_progress`（37 条）✅。
+
+**逐文件行数不一致（🟢 回执质量问题 · 已登记 L-163）**：回执与 `T-FIX-08-SUMMARY.md` §3 声称 `check-path-privacy.sh +53`、`.specs/STATE.md +10/-2`、`test_path_privacy_gate.bats +57`、`test_archive_commit_gate.bats +44`、`OPENCODE-INSTALL.md +6`；`git show --stat` 实为 **`+23` / `+3/-2` / `+65` / `+75` / `+5`**（总数 536/22 一致 ⇒ 分解失真）。以 `git show --stat` 为准。
+
+**独立复跑（主 agent 自建夹具 · `/tmp` · 探针 `P='/home/''zz-probe-g/leak.txt'` · 钩子按部署形态置于 `<fx>/.git/hooks/pre-push`，随包检查器按 `install_hooks.sh` 的部署路径置于 `<fx>/.git/reference/`）**：
+
+| 腿 | 场景 | rc | 关键原文 |
+| A | 无 Makefile · 无检查器 · 干净推送 | **0** | `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` + `ℹ️ 项目 Makefile 未声明 check 目标：跳过` |
+| B | 无 Makefile · 无检查器 · **含泄漏** | **0** | 同 A（fail-open 但显式提示） |
+| C | 无 Makefile · 检查器+清单已部署 · **含泄漏** | **1** | `允许清单来源: <fx>/.git/hooks/../reference/path-privacy-allowlist.txt` · `候选 2 / 扫描 2 / index 侧 0 / 不可读 0` · `清单外命中 1 条` · `leak.sh:1: echo <探针路径>/leak.txt`（原文为拼接形探针，此处按 L-137 脱敏；门禁面实测时由夹具生成） · `🔴 拒绝推送 refs/heads/main：该 ref 含路径隐私泄漏` |
+| D | 同 C 但干净 | **0** | `候选 1 / 扫描 1 / 不可读 0 / 命中合计 0` · `✅ 清单外命中 0 条` |
+| E | 检查器在但**清单缺失**（部分部署）· 含泄漏 | **0** | `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`（措辞与实际原因不符） |
+| F | 纯删除推送（local sha 全 0） | **0** | `ℹ️ 纯删除推送：跳过内容扫描` |
+| G | 畸形 stdin（仅 1 字段） | **1** | `🔴 拒绝推送 refs/heads/main：pre-push stdin 行缺 local sha（畸形输入），fail-closed 拒绝` |
+
+**结论**：R3-14（消费者项目回退 + 目标守卫 + 纯删除 + 每 sha 只扫一次）、R3-17（恢复路径提示）、R3-21（jq 前置预检 + 文档）、R3-23（去重）**均修复**；腿 C/D 证明回退不是「一律跳过」，而是**真的会跑随包检查器并拦住泄漏** ✅。
+
+**本轮新增（主 agent 独立复跑发现）**：
+- **R4-2 🟡** —— `bundle` 模式下检查器可用但 `path-privacy-allowlist.txt` 缺失时（部分部署：旧版安装器 / 手工 symlink / 半拷贝目录）：① 打印的 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` **与实际原因不符**（检查器明明在）；② 该形态下含泄漏推送 **rc=0 放行**（腿 E）。缓解：T-FIX-08 的 (c)③ 让安装器把「检查器 + 清单」作为一对部署 ⇒ 正统路径不会出现该形态；**已安装旧版钩子**的消费者需重跑安装器（`install.sh --update`）才会获得随包检查器。
+- **R4-3 🟢** —— 自证行打印的允许清单来源是**未归一化**的逻辑路径（腿 C：`<fx>/.git/hooks/../reference/path-privacy-allowlist.txt`），可读性略差（非缺陷）。
+
+**建议处置**：R4-2 提交用户在 4→5 收费门处裁决（本 change 内追加修复 vs 阶段 7 triage）；R4-3 记 MINOR-DEFERRED 不修。
+
+## 🧩 契约修订留痕：`T-FIX-09`（主 agent 飞行中复核 · 2026-09-25）
+
+主 agent 在 `T-FIX-09` 执行者（subagent `3e9e62f3-e0ea-4c8e-a489-1e7d7915291e`）**尚未收工**时只读复核 `git diff Makefile`，坐实三处确凿缺陷并在**同一批内**下发订正（避免白跑一轮）：
+
+1. **`_cb_first="$$1"` 应为 `"$$_cf"`** —— 现写法下 `_cb_first` 恒为 `bash -c` 的第 1 个位置参数（空）⇒ `cat ""` 失败 ⇒ `BASE` 仍空 ⇒ 静默退化为「全量模式」，真仓唯一锚点 `.specs/health-fix-2026-09b/.change-base` 被忽略。
+2. **`$$_cb_list$$_cf$$"\0"` 里的 `$"\0"` 不是 NUL 字节** —— `$"…"` 是 bash 的 locale 翻译引号，拼进去的是字面两字符 `\0`，随后 `tr "\000" "\n"` 切不开 ⇒ 计数与取首项都不可靠。
+3. **死代码** —— `while … < <(printf|grep -c . >/dev/null; printf|tr …)` 整段被紧随其后的 `_cb_n=$$(…)` 覆盖。
+
+另追加一条**设计订正**（同一批完成）：`.specs/*/.change-base` 多于 1 个时**不要**直接 🔴 —— `find -mindepth 2 -maxdepth 2` 会把**每个活跃 change 目录**都算进来，下一个 change 一落地就会让所有人的 `make check` 变红；改为先用 `.flow-active` 的 `change_id` 定位 `.specs/<id>/.change-base`（并打印一行 `ℹ️ 锚点来源: …` 便于自证），定位不到才：唯一 1 个 ⇒ 用它；≥2 个 ⇒ `🔴 检测到 N 个 .specs/*/.change-base 锚点且无法从 .flow-active 定位（需手动设置 FLOW_KIT_CHANGE_BASE）` + `_write_rc 1`；0 个 ⇒ 全量模式。判据相应追加两条腿（活跃锚点优先 ⇒ rc=0 且输出含 `锚点来源`；`.flow-active` 指向不存在的 id 且存在 2 个锚点 ⇒ 🔴 + rc≠0）。
+
+**实测背景（主 agent 真仓 · 供判据语义参考）**：`.specs/*/.change-base` 现为 **1 个**且**已 tracked**（`git ls-files --error-unmatch` ✅；`git check-ignore -v` 不忽略）。全量模式在本仓 tracked `*.sh`（104 个）上会命中 BAN 19 处 / TMOUT 14 处（原件见 **TD-074**：分发件里无守卫的 `declare -A` / `mapfile` / `sed -i` / GNU `timeout`）⇒ 全量模式「本就该红」是 fail-closed 的正确后果（R3-22 的意图），不是判据缺陷；夹具腿须用干净 `.sh` 夹具，勿在真仓断言全量模式 rc=0。
+
+## ✅ T-FIX-09 复核记录（主 agent 独立复跑 21 项夹具腿 · 2026-09-25）
+
+**提交面**（权威来源 `git show --stat 81c920e`）：`81c920e61101f599bf9e29f7ec5bc3dbe429a887`（%cI `2026-09-25T16:43:29+08:00`）· 4 files / **+309 / −27**：`.specs/STATE.md` ±3 · `Makefile` +119/−26 · `test/test_nfr_portability_gate.bats` +107 · `flow-kit-bundle/test/test_nfr_portability_gate.bats` +107（镜像）。路径全部落在 `<write_files>` 内，**无**冻结件 / REVIEW / MINOR-DEFERRED / TASK / LESSONS / CONTEXT ✅ · `npx bats --count test/` = **1054**（1047 → +7 条回归钉）✅ · `grep -c 'health-fix-2026-09b' Makefile` = **0** ✅（TD-062 同族的 change-id 字面量已从常设件清除）。台账：`.flow-active.task_id` = `T-FIX-09`、`updated_at` = `1790325860`（数值 epoch ✓）、`.goal.task_progress` 末条 `{"id":"T-FIX-09","commit_sha":"81c920e…","fix_rounds":0,"deferred":[],"completed_at":1790325860}`；commit epoch 1790325809 ⇒ **Δ = 51 s ≤ 120 s** ✅。
+
+**独立复跑（主 agent 自建夹具 `/tmp/p6c/verify-tfix09b.sh`，不复用执行者判据）· 21/21 PASS**：
+
+| 腿 | 场景 | 期望 | 实测 |
+|---|---|---|---|
+| L0 | 真仓 `make check-nfr-portability` | rc=0 · 打印 `ℹ️ 锚点来源: .specs/health-fix-2026-09b/.change-base` · 不得出现「全量模式」 | ✅ 三项均满足 |
+| L1 | R3-15 `realpath .`（新增 tracked `.sh` 第 2 行） | rc≠0 + 归因 `leak.sh:2` | ✅ rc=2 + `leak.sh:2` |
+| L1c/L1d | 违规输出流向 | 细节走 **stderr**，stdout 不混入 | ✅（包装层 `1>&2` 分支） |
+| L2 | R3-16 tracked 名含空格 `sub/sp ace.sh` | rc≠0 + 归因含空格路径 | ✅ rc=2 + `sub/sp ace.sh:1` |
+| L3 | R3-16 untracked `sp ace.sh` | rc≠0 + 归因 | ✅ rc=2 + `sp ace.sh:1` |
+| L4ab | 双锚点 + `.flow-active` 指向 `chg-b`（chg-a 会红 · chg-b 无新增） | 选中 chg-b ⇒ rc=0 且打印 `SKIP:` | ✅ 来源行 `.specs/chg-b/.change-base` + rc=0 + `SKIP:` |
+| L4cd | `.flow-active` 指向不存在 id | rc≠0 + 具名 🔴 | ✅ rc=2 + `🔴 检测到 2 个 .specs/*/.change-base 锚点且无法从 .flow-active 定位（需手动设置 FLOW_KIT_CHANGE_BASE）` |
+| L5 | 无锚点 + 脏/净夹具 | 打印「全量模式」；脏 ⇒ rc≠0、净 ⇒ rc=0 | ✅ rc=2 / rc=0（**真扫描**，非静默跳过） |
+| L6 | `FLOW_KIT_CHANGE_BASE=<B>` 显式锚点 | 生效且不退化为全量模式 | ✅ rc=2 |
+
+**三条 R3 独立坐实修复**：R3-15（`awk -v P` 吞 `\b` 的失明面 ⇒ 改 `ENVIRON["P"]` + 两侧非标识字符类别，10/10 token 可判）、R3-16（`for f in $(…)` 词拆 ⇒ 改 `while IFS= read -r -d ""` + `git -z`，tracked 与 untracked 两面都覆盖且归因保留空格路径）、R3-22（change-id 字面量 ⇒ `FLOW_KIT_CHANGE_BASE` → `.flow-active` → 通配（1=用+打印来源 / ≥2=具名 🔴 / 0=全量模式），真仓 `grep -c` = 0）。
+
+**本轮新增观察（主 agent 独立复跑发现）**：
+- **R4-4 🟡（判据运输面）**：`check-nfr-portability-internals` 的判定**不经退出码**（rc 全部写进 `NFR_RC_FILE`，目标自身恒 0，仅把详情打到 stdout/stderr）—— 直接调用它（新写的回执脚本 / 只读探针 / 未来包装改动）会得到 **rc=0 + 无违规输出**，与「通过」同形。本 change 的复核夹具首版即踩此坑（首轮 5 PASS / 14 FAIL 全因调用了 `-internals`；改用包装层后 21/21，且首轮输出为空这一现象与「锚点解析失效」极像，易误导）。缓解：包装层 + 头注释已写明；建议 v2 在目标名或首行输出加 `（判定经 NFR_RC_FILE 传递，勿直接调用）`。**不阻塞本 change**（`make check` 走包装层 ✓，ADR-028 R1 的二值包装正是为此）。
+- **R4-5 🟢（空预设语义）**：R3-19 的处置（空集合 ⇒ 具名 🔴 + `ERRORS`）在真仓不可达（两侧预设集合非空），仅夹具可触发 ⇒ 无回归风险。
+- **L-164（纪律沉淀）**：「函数内赋值 + `$( )` 调用」家族（TD-072 同型）在**主 agent 自己的复核夹具**里再次踩中 ⇒ 跨子 shell 传值必须走文件；另附「含 `*` 的字面串断言必须 `grep -qF`」。见 `.specs/LESSONS.md`。
+
+**结论**：T-FIX-09 **验收通过**（提交面干净 + 三条 R3 独立坐实 + 21/21 夹具腿绿）；新增 R4-4 🟡 / R4-5 🟢 记入阶段 7 triage。
+
+**全量门禁与套件证据（主 agent 独立复跑 · 2026-09-25）**：
+
+- `npx bats test/`（16:46 启动 · T-FIX-10 尚未动工）⇒ `ok 1054` / `not ok 0`，**套件全绿** ✅；`npx bats --count test/` = **1054** ✅（与 `.specs/STATE.md` 基线一致）。
+- 16:53 的 `make check` 出现红：`❌ bats: some tests failed` + `make: *** [Makefile:11：test] 错误 1`。**归因：并发假红，非 T-FIX-09 回归** —— 该次运行与 T-FIX-10 执行者的**在飞行编辑**重叠（同期 `git status` 显示 ` M flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（+86/−16），正是 `test_check_gate_sync.bats` 的被测件）⇒ 以 T-FIX-10 落地后重跑的 `make check` 为准。
+- 现场产物：`/tmp/p6c/make-check-tfix09.out`（本次 `make check` 全文）、`/tmp/p6c/bats-full.out`（如需复跑定位）。
+- **R4-6 🟡（`make test` 可诊断性 + 重复运行 · `Makefile:8-11`）**：`@npx bats test/ --formatter tap 2>&1 | tail -3` 无论成败都只打印 TAP **末 3 行**，随后 `@npx bats test/ > /dev/null 2>&1 && … || { echo "❌ bats: some tests failed"; exit 1; }` 才是唯一判定 ⇒ **失败用例 id 被隐藏**（本次只看到「some tests failed」，必须手工重跑 `npx bats test/` 才能定位），且套件被**跑两遍**（约 2× 时长、吞吐浪费）；另 `| tail -3` 的管道退出码恒 0，第一行不承担任何判定。建议 v2：失败时打印 `not ok` 行集合（`grep -E '^not ok'`）并去掉第一遍空转。**不阻塞本 change**，记入阶段 7 triage。

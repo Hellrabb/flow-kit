@@ -2300,3 +2300,89 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done></done>
   <depends_on>T-FIX-09</depends_on>
 </task>
+<task id="T-FIX-11" parallel="false" status="pending" model-tier="top">
+  <name>阶段 6 第 3 轮复核新增 🟡 R4-1（用户裁决「本 change 内修」）—— 已跟踪文件「未 staged 删除」被误判「不可读候选」⇒ 过严红；口径对齐「候选面=index、内容面=index ∪ 工作树」</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/MINOR-DEFERRED.md`「T-FIX-07 复核记录」中的 R4-1 段（主 agent 夹具实测：新件 候选 3 / 扫描 2 / 不可读 1 / rc=1；旧件 ✅ rc=0）与本文件 T-FIX-11 `<verify>` 的四腿预检原文（① 删未 staged·干净 rc=1 且 `不可读候选 1 个`；② index 版本含泄漏 rc=1（停在 fail-closed，未打印命中行）；③ gitlink 候选 rc=1 且 `git cat-file -t :submod` = `commit`、`:base.sh` = `blob`；④ 磁盘可读·干净 rc=0 且 `不可读候选 0 个`）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（`scan_file()` 工作树模式：磁盘侧 `[ -f "$file" ]` 为假则无条件 `UNREADABLE_COUNT++`（`grep -n 'UNREADABLE_COUNT' ` 见 `:452`/`:566`/`:620`/`:627`/`:634`/`:635`/`:718`/`:729`）；index 侧 `git grep --cached -naE --null`；`FLOW_KIT_PRIVACY_ALLOWLIST` 旋钮 `:193-238`）>
+    <`test/test_path_privacy_gate.bats`（27 例；T-FIX-08 新增的「覆盖旋钮」三例为基准）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`>
+    <`test/test_path_privacy_gate.bats` + `flow-kit-bundle/test/test_path_privacy_gate.bats`（`make test-sync`；新增断言优先追加进既有用例）>
+    <`.specs/STATE.md`（bats 基线计数行；仅当计数变化时）> · `dist/`（重建）>
+  </write_files>
+  <action>
+    **目标：把「候选面 = index、内容面 = index ∪ 工作树」的口径落到「不可读」判定上 —— 磁盘缺失但 index 侧仍是 blob 的候选不得被误判为「不可读候选」而让整门禁变红（R4-1 过严）；同时**不得**因此放宽真正的不可读候选。**
+    ① **判定改为「内容面两侧皆不可得才 fail-closed」**：工作树模式 `scan_file()` 中，磁盘侧 `[ -f "$file" ]` 为假时，先探测 index 侧对象类型 —— `git cat-file -t ":$file" 2>/dev/null` 输出为 `blob` ⇒ 内容面由既有 index 侧 `git grep --cached` 覆盖（该腿逐字不变），**不**递增 `UNREADABLE_COUNT`，并打印一行 `ℹ️ 磁盘缺失但 index 侧可读：<file>（内容面按 index 扫描）`；否则（类型非 blob / 探测失败）⇒ 维持现状：`UNREADABLE_COUNT++` + `UNREADABLE_DETAILS` 追加 + 既有 `🔴 不可读候选 N 个（缺失/不可读 ⇒ fail-closed，不得折算为干净）`。
+    ② **禁止写成「磁盘缺失即跳过」**：index 侧内容面（`git grep --cached -naE --null`）必须**无条件**保留；gitlink（mode 160000）候选项必须仍然判红（预检：`git cat-file -t :submod` = `commit` ⇒ 走 fail-closed）。
+    ③ **计数口径自洽**：`SCANNED_COUNT` 语义保持「内容面至少一侧可读」；「不可读候选」只统计**两侧皆不可得**者；自证四数（候选 / 扫描 / index 侧 / 不可读）不得回退为「静默折算成干净」。
+    ④ **测试**：在 `test/test_path_privacy_gate.bats` 追加 3 例（优先追加进既有用例）：(a) 已跟踪文件未 staged 删除且内容干净 ⇒ rc=0 且 `不可读候选 0 个`；(b) 同一删除态但 index 版本含泄漏 ⇒ rc≠0 且 `清单外命中 [1-9]`（内容面未被跳过）；(c) gitlink 候选（`git update-index --add --cacheinfo 160000,<sha>,sub`）⇒ rc≠0（真正的不可读仍 fail-closed）。
+    **TDD/判别式**：先在**修复前**跑出红（(a) 腿必红）并贴原文，再改至全绿并贴原文；夹具一律 `mktemp -d` 隔离，探针串**拼接构造**（L-137，如 `P='/home/''zz-probe-d/leak.txt'`），**禁止在真仓落任何探针**；夹具跑扫描器时用 `FLOW_KIT_PRIVACY_ALLOWLIST` 指向真仓清单（绝对路径），**不得**依赖 CWD 读序。
+    **判据自身缺陷**：若 `<verify>` 或既有用例夹具本身有缺陷（TD-060/TD-065/TD-066/TD-072/TD-073 族），**停下原样上报**。
+    **只读与写面纪律（L-161）**：开工与收工各贴一次 `git status --porcelain` 与 `git diff --cached --stat`；除 `<write_files>` 外不得写仓库内任何文件（含 `.git/config`）；夹具只允许写在 `/tmp`。本仓 `core.hooksPath` 为空 ⇒ 不得声称「提交时钩子已校验」。
+    收尾与提交同 T-FIX-03（`make test-sync` → `package-dsh-plugin.sh` → 三一致性门禁 → `make check`；显式 `git add` 路径；`git commit -m "fix(health-fix-2026-09b): T-FIX-11 不可读候选判定与 index 内容面口径（R4-1）" -- <路径…>`）；提交后写 `T-FIX-11-SUMMARY.md`、勾 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段（`completed_at` **必须在提交之后**且 Δ ≤ 120 s）。
+  </action>
+  <verify>
+    set -u; rc=0;
+    R=$(pwd);
+    S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    AL="$R/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
+    bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
+    P='/home/''zz-probe-d/leak.txt';
+    # 夹具：git 仓 + 已提交文件（可含泄漏）+ 覆写清单旋钮（绝对路径，避免 CWD 读序依赖）
+    FXM2() {  # $1=仓库内相对路径 $2=内容（提交进 index） $3=del|keep（提交后是否从磁盘删除）
+      FX=$(mktemp -d); ( cd "$FX" && git init -q . >/dev/null 2>&1 );
+      mkdir -p "$FX/$(dirname "$1")"; printf '%s\n' "$2" > "$FX/$1";
+      ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
+      if [ "$3" = del ]; then rm -f "$FX/$1"; fi
+      return 0;
+    }
+    FXR() { ( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); }
+    # ① R4-1 主腿（修复前必红）：已跟踪文件未 staged 删除、内容干净 ⇒ 候选面(index)仍列它，但不得判「不可读候选」
+    FXM2 'sub/clean.sh' 'echo clean' del; OUT=$(FXR); SRC=$?;
+    printf '   （诊断）① 删未 staged·干净 rc=%s\n' "$SRC";
+    [ "$SRC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R4-1：删掉已跟踪文件仍被判「不可读候选」⇒ 过严红未修"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q '不可读候选 0 个' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R4-1：自证「不可读候选」不为 0"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q 'index 侧可读' || echo "ℹ️ 未见「磁盘缺失但 index 侧可读」提示行（若实现选择静默兜底，请在 SUMMARY 说明）";
+    rm -rf "$FX";
+    # ② 不回退控制：同删除态但 index 版本含泄漏 ⇒ 内容面必须仍被 index 侧扫描并判红（修复前后都应 rc≠0）
+    FXM2 'sub/leak.sh' "echo $P" del; OUT=$(FXR); SRC=$?;
+    printf '   （诊断）② 删未 staged·index 含泄漏 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R4-1②：删除态下 index 侧泄漏未被检出（内容面被跳过）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -qE '清单外命中 [1-9]' || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R4-1②：未打印非零的「清单外命中 N 条」"; rc=1; };
+    rm -rf "$FX";
+    # ③ 不回退控制：候选在 index 侧为 gitlink（无 blob）⇒ 两侧皆不可得 ⇒ 必须仍 fail-closed（修复前后都应 rc≠0）
+    FX=$(mktemp -d); ( cd "$FX" && git init -q . >/dev/null 2>&1 ); printf 'echo base\n' > "$FX/base.sh";
+    ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
+    SH=$( cd "$FX" && git rev-parse HEAD );
+    ( cd "$FX" && git update-index --add --cacheinfo 160000,"$SH",submod >/dev/null 2>&1 );
+    [ "$( cd "$FX" && git cat-file -t :submod 2>/dev/null )" = commit ] || echo "ℹ️ 夹具 gitlink 类型探测异常（判据③的前提）";
+    OUT=$(FXR); SRC=$?;
+    printf '   （诊断）③ gitlink 候选 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R4-1③：无 blob 候选被静默放过（fail-closed 被过度放宽）"; rc=1; };
+    rm -rf "$FX";
+    # ④ 基线绿腿：磁盘可读 + 干净 ⇒ rc=0（防夹具自身带红）
+    FXM2 'sub/clean.sh' 'echo clean' keep; OUT=$(FXR); SRC=$?;
+    printf '   （诊断）④ 磁盘可读·干净 rc=%s\n' "$SRC";
+    [ "$SRC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R4-1④：基线绿腿失败（夹具或实现有问题）"; rc=1; };
+    rm -rf "$FX";
+    # ⑤ 常设网 + 真实仓 + 三一致性 + 总门禁
+    OUT1=$(npx bats test/test_path_privacy_gate.bats 2>&1); brc=$?;
+    printf '%s\n' "$OUT1" | grep -q '^not ok' && { printf '%s\n' "$OUT1" | grep '^not ok' | head -5; echo "🔴 隐私门禁常设网有失败项"; rc=1; };
+    [ $brc -eq 0 ] || { echo "🔴 test_path_privacy_gate.bats rc=$brc"; rc=1; };
+    make check-path-privacy > /tmp/tfix11-priv.out 2>&1 || { tail -10 /tmp/tfix11-priv.out; echo "🔴 真实仓 check-path-privacy 不绿"; rc=1; };
+    grep -q '不可读候选 0 个' /tmp/tfix11-priv.out || echo "ℹ️ 真实仓「不可读候选」非 0（若工作树确有删除态文件，请在 SUMMARY 说明）";
+    FULL=$(npx bats test/ 2>&1); frc=$?;
+    printf '%s\n' "$FULL" | grep -q '^not ok' && { printf '%s\n' "$FULL" | grep '^not ok' | head -5; rc=1; };
+    [ $frc -eq 0 ] || { echo "🔴 全量套件 rc=$frc"; rc=1; };
+    echo "bats: $(printf '%s\n' "$FULL" | grep -cE '^ok [0-9]+') ok / $(printf '%s\n' "$FULL" | grep -cE '^not ok [0-9]+') not-ok / count=$(npx bats --count test/)";
+    make check-hooks-sync > /dev/null 2>&1 || { echo "🔴 hooks 副本未同步"; rc=1; };
+    make check-test-sync  > /dev/null 2>&1 || { echo "🔴 test 双源不一致"; rc=1; };
+    make check-dist       > /dev/null 2>&1 || { echo "🔴 dist 未重建"; rc=1; };
+    make check > /tmp/tfix11-check.out 2>&1 || { tail -20 /tmp/tfix11-check.out; echo "🔴 make check 不绿"; rc=1; };
+    exit $rc
+  </verify>
+  <done></done>
+  <depends_on>T-FIX-08</depends_on>
+</task>
