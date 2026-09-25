@@ -138,3 +138,110 @@ teardown() {
   [[ "$stderr" == *"Error 1"* || "$stderr" == *"错误 1"* ]]
   [[ "$stderr" =~ seed\.sh:3: ]]
 }
+
+# ── T-FIX-09 回归钉（R3-15 / R3-16 / R3-22）──────────────────────────────
+# 三类历史失明回归钉：realpath 词边界失明（R3-15）、空格文件名词拆跳过（R3-16）、
+# 锚点硬编码/全量模式退化（R3-22）。每例对应一个曾被假绿放过的夹具腿。
+
+@test "R3-15：新增行含 realpath ⇒ 内部 rc=1（词边界修复后不再假绿）" {
+  # 修复前：\brealpath\b 经 awk -v 被解释成退格 ⇒ realpath 永不命中（假绿 rc=0）。
+  # 修复后：(^|[^[:alnum:]_])realpath([^[:alnum:]_]|$) + ENVIRON["P"] ⇒ 必须判红。
+  seed_append 'p=$(realpath .)'
+  run --separate-stderr run_internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$stderr" =~ seed\.sh:3: ]]
+  [[ "$stderr" == *"realpath"* ]]
+}
+
+@test "R3-16：未跟踪含空格文件名 ⇒ 内部 rc=1（不再词拆跳过）" {
+  # 修复前：for _f in $(git ls-files -o) 把 "sp ace.sh" 词拆成 sp + ace.sh 两段，
+  #   两段皆「不存在 ⇒ 跳过」⇒ 仍打印 ✅（假绿）。
+  # 修复后：git ls-files -oz + while read -d "" ⇒ 空格名完整枚举 ⇒ 判红。
+  printf '#!/bin/bash\nmapfile -t xs < /dev/null\n' > "$FIXTURE/sp ace.sh"
+  run --separate-stderr run_internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$stderr" == *"sp ace.sh"* ]]
+  [[ "$stderr" == *"mapfile"* ]]
+}
+
+@test "R3-16：已跟踪含空格文件名的新增行 ⇒ 内部 rc=1（不再词拆跳过）" {
+  # 修复前：tracked 面 for _f in $(git diff --name-only) 同样词拆 ⇒ 假绿。
+  # 修复后：git diff -z --name-only + while read -d "" ⇒ 判红。
+  mkdir -p "$FIXTURE/sub"
+  printf '#!/bin/bash\necho base\n' > "$FIXTURE/sub/sp ace.sh"
+  git -C "$FIXTURE" add -- "sub/sp ace.sh"
+  git -C "$FIXTURE" commit -q -m "add spaced"
+  printf 'mapfile -t xs < /dev/null\n' >> "$FIXTURE/sub/sp ace.sh"
+  git -C "$FIXTURE" add -- "sub/sp ace.sh"
+  git -C "$FIXTURE" commit -q -m "probe"
+  # 重新设 BASE_SHA 指向 probe 的父提交（含空格文件已入库但未加违规）
+  BASE_SHA="$(git -C "$FIXTURE" rev-parse HEAD~1)"
+  run --separate-stderr run_internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$stderr" == *"sub/sp ace.sh"* ]]
+  [[ "$stderr" == *"mapfile"* ]]
+}
+
+@test "R3-22：无锚点且无 FLOW_KIT_CHANGE_BASE ⇒ 全量模式（不退化 SKIP）" {
+  # 修复前：BASE 硬编码 .specs/health-fix-2026-09b/.change-base，归档后路径消失
+  #   ⇒ SKIP + exit 0 ⇒ 永久静默未验证。
+  # 修复后：无锚点 ⇒ 全量模式（打印「全量模式」措辞，而非 SKIP）。
+  # seed.sh 仅含 t=$(mktemp)（不违规）⇒ 全量模式扫后 rc=0（通过），但关键是
+  #   必须打印「全量模式」措辞（而非 SKIP: …未验证）。
+  rm -f "$RC_FILE"
+  run --separate-stderr env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
+    check-nfr-portability-internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "0" ]
+  [[ "$output" == *"全量模式"* ]]
+  [[ "$output" != *"SKIP"* ]]
+}
+
+@test "R3-22：全量模式扫到 tracked 违规行 ⇒ rc=1（fail-closed）" {
+  # 全量模式下 seed.sh 的现有行若含禁构 ⇒ 必须判红（fail-closed，符合 R3-22 意图）。
+  printf 'mapfile -t xs < /dev/null\n' >> "$FIXTURE/seed.sh"
+  git -C "$FIXTURE" add -- seed.sh
+  git -C "$FIXTURE" commit -q -m "add violation"
+  rm -f "$RC_FILE"
+  run --separate-stderr env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
+    check-nfr-portability-internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$stderr" == *"seed.sh"* ]]
+  [[ "$stderr" == *"mapfile"* ]]
+}
+
+@test "R3-22：.flow-active 指向锚点 ⇒ 选中该锚点（锚点来源可见）" {
+  # 多锚点场景：.flow-active 的 change_id 决定用哪个 .change-base，
+  #   而非「≥2 个就红」。打印「锚点来源: .specs/<id>/.change-base」便于自证。
+  mkdir -p "$FIXTURE/.specs/change-a" "$FIXTURE/.specs/change-b"
+  printf '%s\n' "$BASE_SHA" > "$FIXTURE/.specs/change-a/.change-base"
+  printf '%s\n' "$BASE_SHA" > "$FIXTURE/.specs/change-b/.change-base"
+  printf '{\n  "change_id": "change-a",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+  seed_append 'mapfile -t xs < /dev/null'
+  git -C "$FIXTURE" add -- seed.sh
+  git -C "$FIXTURE" commit -q -m "probe"
+  rm -f "$RC_FILE"
+  run --separate-stderr env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
+    check-nfr-portability-internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$output" == *"锚点来源: .specs/change-a/.change-base"* ]]
+}
+
+@test "R3-22：多锚点且 .flow-active 指向不存在 id ⇒ rc=1 具名（不静默）" {
+  # .flow-active 指向不存在的 change_id + 恰好 2 个 .change-base ⇒ 必须红 + 具名。
+  mkdir -p "$FIXTURE/.specs/change-a" "$FIXTURE/.specs/change-b"
+  printf '%s\n' "$BASE_SHA" > "$FIXTURE/.specs/change-a/.change-base"
+  printf '%s\n' "$BASE_SHA" > "$FIXTURE/.specs/change-b/.change-base"
+  printf '{\n  "change_id": "change-zzz-nonexist",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+  rm -f "$RC_FILE"
+  run --separate-stderr env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
+    check-nfr-portability-internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  [[ "$output" == *"检测到 2 个"* ]]
+}

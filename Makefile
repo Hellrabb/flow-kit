@@ -117,7 +117,7 @@ check-gate-sync:
 	@echo "🔍 make check-gate-sync: prompt↔skill 协议一致性检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
 
-# ── check-path-privacy: 路径隐私门禁（health-fix-2026-09b · AC-6）──
+# ── check-path-privacy: 路径隐私门禁（AC-6）──
 # 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh（T17 定稿）承载，
 #   target 只负责接线进 check: 先决条件并暴露失败 rc。
 # 二值退出（0=通过 / 1=清单外命中≠0 或 fail-closed）；常设允许清单 T21 落档前预期 rc=1。
@@ -126,7 +126,7 @@ check-path-privacy:
 	@echo "🔍 make check-path-privacy: 路径隐私（允许清单外命中 / fail-closed）检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
 
-# ── check-nfr-portability: NFR 兼容性判据（health-fix-2026-09b · AC-8 NFR 侧 · T28）──
+# ── check-nfr-portability: NFR 兼容性判据（AC-8 NFR 侧 · T28）──
 # 设计依据：DESIGN §1 D8 F2（落点裁决）、§3 退出码模型、§9.3 包装契约；REQUIREMENT NFR 兼容性判据；
 #   ADR-028 决策 3（三态 + make 层映射）。
 # 为什么是 Makefile recipe 内联而非 .sh 脚本（D8 F2 自排除边界 · 强制）：
@@ -162,13 +162,18 @@ check-path-privacy:
 check-nfr-portability-internals:
 	@bash -euo pipefail -c ' \
 		_write_rc() { [ -n "$${NFR_RC_FILE:-}" ] && printf "%s\n" "$$1" > "$$NFR_RC_FILE" || true; }; \
-		_report_viol() { \
-			_pat="$$1"; _hdr="$$2"; \
-			_found=0; \
-			for _f in $$(git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); do \
-				[ -e "$$_f" ] || continue; \
-				_tf=$$(mktemp); \
-				git -c core.quotepath=false diff -U0 "$$BASE" -- "$$_f" 2>/dev/null | awk -v FN="$$_f" -v P="$$_pat" -v TF="$$_tf" '\'' \
+		_scan_tracked_file() { \
+			_f="$$1"; _tf="$$2"; \
+			if [ "$$BASE" = "FULL" ]; then \
+				awk -v FN="$$1" -v TF="$$2" '\'' \
+					{ c=NR; line=$$0; \
+					if (line ~ /^[[:space:]]*#/) { next } \
+					gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", line); \
+					if (line ~ ENVIRON["P"]) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } } \
+					END { if (found) print "1" > TF } \
+				'\'' "$$_f"; \
+			else \
+				git -c core.quotepath=false diff -U0 "$$BASE" -- "$$_f" 2>/dev/null | awk -v FN="$$1" -v TF="$$2" '\'' \
 					BEGIN { c=0; found=0 } \
 					/^@@/ { match($$0, /\+[0-9]+/); c = substr($$0, RSTART+1, RLENGTH-1)+0; next } \
 					/^\+\+\+/ { next } \
@@ -176,19 +181,42 @@ check-nfr-portability-internals:
 						line = substr($$0, 2); \
 						if (line ~ /^[[:space:]]*#/) { c++; next } \
 						gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", line); \
-						if (line ~ P) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } \
+						if (line ~ ENVIRON["P"]) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } \
 						c++ \
 					} \
 					END { if (found) print "1" > TF } \
 				'\''; \
-				[ -s "$$_tf" ] && _found=1; \
-				rm -f "$$_tf"; \
-			done; \
-			for _nf in $$(git -c core.quotepath=false ls-files -o --exclude-standard 2>/dev/null | grep -E "\.sh$$" || true); do \
+			fi; \
+		}; \
+		_report_viol() { \
+			_pat="$$1"; _hdr="$$2"; \
+			_found=0; \
+			export P="$$1"; \
+			if [ "$$BASE" = "FULL" ]; then \
+				while IFS= read -r -d "" _f; do \
+					case "$$_f" in *.sh) ;; *) continue;; esac; \
+					[ -e "$$_f" ] || continue; \
+					_tf=$$(mktemp); \
+					_scan_tracked_file "$$_f" "$$_tf"; \
+					[ -s "$$_tf" ] && _found=1; \
+					rm -f "$$_tf"; \
+				done < <(git -c core.quotepath=false ls-files -z -- "*.sh" 2>/dev/null || true); \
+			else \
+				while IFS= read -r -d "" _f; do \
+					case "$$_f" in *.sh) ;; *) continue;; esac; \
+					[ -e "$$_f" ] || continue; \
+					_tf=$$(mktemp); \
+					_scan_tracked_file "$$_f" "$$_tf"; \
+					[ -s "$$_tf" ] && _found=1; \
+					rm -f "$$_tf"; \
+				done < <(git -c core.quotepath=false diff -z --name-only "$$BASE" -- "*.sh" 2>/dev/null || true); \
+			fi; \
+			while IFS= read -r -d "" _nf; do \
+				case "$$_nf" in *.sh) ;; *) continue;; esac; \
 				[ -e "$$_nf" ] || continue; \
-				_hits=$$(awk -v P="$$_pat" '\'' \
+				_hits=$$(awk '\'' \
 					/^[[:space:]]*#/ { next } \
-					{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ P) printf "%d:%s\n", NR, $$0 } \
+					{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ ENVIRON["P"]) printf "%d:%s\n", NR, $$0 } \
 				'\'' "$$_nf" 2>/dev/null || true); \
 				if [ -n "$$_hits" ]; then \
 					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
@@ -198,23 +226,56 @@ check-nfr-portability-internals:
 					done; \
 					_found=1; \
 				fi; \
-			done; \
+			done < <(git -c core.quotepath=false ls-files -oz --exclude-standard 2>/dev/null || true); \
+			unset P; \
 			[ "$$_found" = "1" ] && { printf "%s\n" "$$_hdr" >&2; return 0; } || return 1; \
 		}; \
-		BASE="$${FLOW_KIT_CHANGE_BASE:-$$(cat .specs/health-fix-2026-09b/.change-base 2>/dev/null || true)}"; \
+		BASE="$${FLOW_KIT_CHANGE_BASE:-}"; \
 		if [ -z "$$BASE" ]; then \
-			echo "SKIP: 变更起点锚点缺失（.change-base 不存在且 \$$FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证"; \
-			_write_rc 3; exit 0; \
+			_active_id=""; \
+			if [ -f .flow-active ]; then \
+				while IFS= read -r _line; do case "$$_line" in *\"change_id\"*) _v=$${_line#*\"change_id\"}; _v=$${_v#*:}; _v=$${_v#*\"}; _v=$${_v%%\"*}; _active_id="$$_v"; break;; esac; done < .flow-active 2>/dev/null || true; \
+			fi; \
+			_cb_pick=""; \
+			if [ -n "$$_active_id" ] && [ -f ".specs/$$_active_id/.change-base" ]; then \
+				_cb_pick=".specs/$$_active_id/.change-base"; \
+				echo "ℹ️ 锚点来源: $$_cb_pick"; \
+			else \
+				_cb_n=0; _cb_first=""; \
+				while IFS= read -r -d "" _cf; do \
+					_cb_n=$$((_cb_n+1)); \
+					if [ -z "$$_cb_first" ]; then _cb_first="$$_cf"; fi; \
+				done < <(find .specs -mindepth 2 -maxdepth 2 -name ".change-base" -print0 2>/dev/null || true); \
+				if [ "$$_cb_n" -gt 1 ]; then \
+					echo "🔴 检测到 $$_cb_n 个 .specs/*/.change-base 锚点且无法从 .flow-active 定位（需手动设置 FLOW_KIT_CHANGE_BASE）"; _write_rc 1; exit 0; \
+				elif [ "$$_cb_n" = "1" ]; then \
+					_cb_pick="$$_cb_first"; \
+					echo "ℹ️ 锚点来源: $$_cb_pick"; \
+				fi; \
+			fi; \
+			if [ -n "$$_cb_pick" ]; then \
+				BASE=$$(cat "$$_cb_pick" 2>/dev/null || true); \
+			fi; \
 		fi; \
-		if ! git -c core.quotepath=false rev-parse --verify --quiet "$${BASE}^{commit}" >/dev/null 2>&1; then \
+		if [ -z "$$BASE" ]; then \
+			echo "ℹ️ 无变更起点锚点：全量模式（扫描全部 tracked .sh 的现有行）"; \
+			BASE="FULL"; \
+		fi; \
+		if [ "$$BASE" = "FULL" ]; then :; \
+		elif ! git -c core.quotepath=false rev-parse --verify --quiet "$${BASE}^{commit}" >/dev/null 2>&1; then \
 			echo "🔴 FLOW_KIT_CHANGE_BASE 不是有效 commit: $$BASE"; _write_rc 1; exit 0; \
 		fi; \
-		ADDED=$$(git -c core.quotepath=false diff -U0 "$$BASE" -- "*.sh" | grep -E "^\+" | grep -v "^+++" || true); \
-		NEWF=$$(git -c core.quotepath=false ls-files -o --exclude-standard | grep -E "\.sh$$" || true); \
+		if [ "$$BASE" = "FULL" ]; then \
+			ADDED=$$(git -c core.quotepath=false ls-files -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); \
+			NEWF=$$(git -c core.quotepath=false ls-files -o --exclude-standard | grep -E "\.sh$$" || true); \
+		else \
+			ADDED=$$(git -c core.quotepath=false diff -U0 "$$BASE" -- "*.sh" | grep -E "^\+" | grep -v "^+++" || true); \
+			NEWF=$$(git -c core.quotepath=false ls-files -o --exclude-standard | grep -E "\.sh$$" || true); \
+		fi; \
 		if [ -z "$$ADDED" ] && [ -z "$$NEWF" ]; then \
 			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
 		fi; \
-		BAN="declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|\\brealpath\\b|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; \
+		BAN="declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|(^|[^[:alnum:]_])realpath([^[:alnum:]_]|$$)|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; \
 		if _report_viol "$$BAN" "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
@@ -222,8 +283,14 @@ check-nfr-portability-internals:
 		if _report_viol "$$TMOUT" "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）："; then \
 			_write_rc 1; exit 0; \
 		fi; \
-		CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
-			| grep -E "\.sh$$" | sort -u | grep -v "^$$" || true ); \
+		if [ "$$BASE" = "FULL" ]; then \
+			CHK=$$(git -c core.quotepath=false ls-files -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); \
+			NEWF=$$(printf "%s" "$$NEWF" | grep -E "\.sh$$" || true); \
+			CHK="$${CHK}$$NEWF"; \
+		else \
+			CHK=$$( { git -c core.quotepath=false diff --name-only "$$BASE" -- "*.sh"; printf "%s\n" "$$NEWF"; } \
+				| grep -E "\.sh$$" | sort -u | grep -v "^$$" || true ); \
+		fi; \
 		if [ -n "$$CHK" ]; then \
 			SYN_FAIL=0; \
 			while IFS= read -r fe; do \
