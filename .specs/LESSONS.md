@@ -779,6 +779,18 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-167 · `<verify>` 里会 `cd` 进夹具的命令，被测件路径必须绝对化（TD-060 第三次复发）
+
+**情境**：`health-fix-2026-09b` 阶段 4 的 T-FIX-11 `<verify>` 在仓库根定义 `S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;`（相对路径），紧接着 `FXR() { ( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); }` 把 cwd 切进 mktemp 夹具仓 ⇒ 找不到被测件，四腿全部 rc=127（TD-076）。执行者按 L-166 未自行放宽判据，用绝对路径跑通后主动上报。
+
+**教训**：① 写 `<verify>` 先分类「这条命令的 cwd 还是仓库根吗」——凡 `( cd "$FX" && … )` 这类改变 cwd 的写法，被测件、允许清单、锚点、探针一律以 `R=$(pwd)` 前缀绝对化；② 判据的**首跑必须由主 agent 自己在夹具环境跑一遍**（本次主 agent 预检只在「真仓」语义下复核，没覆盖 `cd` 之后的腿）；③ 执行者上报判据缺陷时，主 agent 要像处理实现缺陷一样：登记 TD + 写教训 + 就地修判据（不改语义），并在复核记录里留痕，而不是只回一句「知道了」。
+
+
+### L-166 · 判据「缺陷」必须先读原文再动手：截断显示 + 前缀 replace 会制造出不存在的缺陷
+
+**情境**：`health-fix-2026-09b` 阶段 4 收口 T-FIX-10 时，主 agent 逐行打印该任务 `<verify>` 以核对断言对象，用的是 `repr(l[:110])`。第 ⑥ 腿原文 `OUT=$( cd "$FX" && PATH="$FX/bin:$PATH" bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh 2>&1 ); SRC=$?;` 恰好**被截断在 110 字符**，看起来漏了 `SRC=$?` ⇒ 误判为「陈旧 rc 变量」缺陷；随后 `replace(pat, pat+' SRC=$?;')` 的 `pat` 只匹配到 `);` 前缀（更长的真实文本没被消费）⇒ 判据被改成 `); SRC=$?; SRC=$?;`，第二个 `SRC=$?` 取到的是**上一条赋值语句的 rc=0** ⇒ 复跑当场变红，并报出假的「R3-20 diff 机械故障被折算为一致（rc=0）」，一度被当成生产件回退。
+
+**教训**：① 断言某行「缺少某片段」之前必须看**该行全文**（`grep -n` 原文 / `awk` 打印整行），不得据截断或加宽显示的片段下结论；② 就地改判据前先 `git show <sha>:<file>`（或 `git diff`）对照已提交版本，确认是「补缺」而非「重复」；③ 用前缀 `replace` 补片段会让已存在文本叠加 ⇒ 补片段一律用**整行锚点**，并对结果做幂等断言（`count(新)==1` 且 `count(旧)==0`）；④ 判据变红先怀疑**自己刚做的改动**，再怀疑被测件回退。
 ### L-165 · 全量门禁变红时，第一步先看 `git status --porcelain`（并发执行者可能正在改被测件）
 
 **情境**：`health-fix-2026-09b` 阶段 4，主 agent 在 T-FIX-10 执行者（subagent）**在飞行**时复跑 `make check`，得到 `❌ bats: some tests failed`（`Makefile:11`）—— 看上去像 T-FIX-09 的回归。`git status --porcelain` 立刻显示 ` M flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（+86/−16），而这正是 `test_check_gate_sync.bats` 的被测件 ⇒ 执行者正在编辑它 ⇒ **并发假红**。

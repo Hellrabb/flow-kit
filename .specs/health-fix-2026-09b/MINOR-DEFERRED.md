@@ -1357,3 +1357,48 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 - 16:53 的 `make check` 出现红：`❌ bats: some tests failed` + `make: *** [Makefile:11：test] 错误 1`。**归因：并发假红，非 T-FIX-09 回归** —— 该次运行与 T-FIX-10 执行者的**在飞行编辑**重叠（同期 `git status` 显示 ` M flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（+86/−16），正是 `test_check_gate_sync.bats` 的被测件）⇒ 以 T-FIX-10 落地后重跑的 `make check` 为准。
 - 现场产物：`/tmp/p6c/make-check-tfix09.out`（本次 `make check` 全文）、`/tmp/p6c/bats-full.out`（如需复跑定位）。
 - **R4-6 🟡（`make test` 可诊断性 + 重复运行 · `Makefile:8-11`）**：`@npx bats test/ --formatter tap 2>&1 | tail -3` 无论成败都只打印 TAP **末 3 行**，随后 `@npx bats test/ > /dev/null 2>&1 && … || { echo "❌ bats: some tests failed"; exit 1; }` 才是唯一判定 ⇒ **失败用例 id 被隐藏**（本次只看到「some tests failed」，必须手工重跑 `npx bats test/` 才能定位），且套件被**跑两遍**（约 2× 时长、吞吐浪费）；另 `| tail -3` 的管道退出码恒 0，第一行不承担任何判定。建议 v2：失败时打印 `not ok` 行集合（`grep -E '^not ok'`）并去掉第一遍空转。**不阻塞本 change**，记入阶段 7 triage。
+
+## ✅ T-FIX-10 复核记录（主 agent 独立复跑 37 腿夹具 + 判据原样复跑 + 提交面核对 · 2026-09-25）
+
+**提交面**（`git show --stat d840a12`）：3 files changed, **197 insertions(+), 16 deletions(-)** —— `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` +93/−16、`test/test_check_gate_sync.bats` +60、`flow-kit-bundle/test/test_check_gate_sync.bats` +60（双源同步）；`%cI` = `2026-09-25T17:09:10+08:00`；**无**冻结件 / `REVIEW.md` / `MINOR-DEFERRED.md` / `TASK.md` / `LESSONS.md` / `CONTEXT.md` 混入 ✓。`npx bats --count test/` = **1058** ✓（= T-FIX-09 基线 1054 + 4 例判别式）。
+
+**台账**：`.flow-active.goal.task_progress` 末项 = `{"id":"T-FIX-10","commit_sha":"d840a12edae2563f42b76b3fa60aeba9ad37ff3e","fix_rounds":0,"deferred":[],"completed_at":1790327360}`，commit epoch 1790327350 ⇒ **Δ=10 s** ✓（≤120）；`.flow-active.task_id = T-FIX-10`、`updated_at = 1790327360`（数字 epoch ✓）。
+
+**主 agent 独立夹具（37 腿 · `/tmp/p6c/verify-tfix10.sh`）⇒ 37 PASS / 0 FAIL**：L0 静态（4 条）· L1 真仓 rc=0 + 覆盖度 `校验对 3/14 一致` · L2 完整夹具基线绿 · L3/L4 单侧漂移（prompt / skill）具名正确且**不误报对侧**、行数差 = 注入行数 · L5 双向 `both` 侧具名 + 计数差 = 注入净差 · L6 两侧预设同空 ⇒ rc≠0 + 具名「预设集合为空」+ 无 ✅ + **仍有汇总行**（未静默中止）· L7 一侧为空 ⇒ rc≠0 + 无 ✅ · L8 PATH 影子 `diff`（恒 rc=2）⇒ rc≠0 + 具名 🔴 + **不得打印任何 ✅**（校验对 / 预设名两条都断言）· L9 缺一对载体回归 ⇒ 具名 `MISSING`（T-FIX-04 未削弱）· L10 无 `.git` 夹具不退化为 0 命中假绿。修复前对 HEAD 版生产件同夹具为 **19 PASS / 15 FAIL**（存 `/tmp/p6c/tfix10-pre-fix.txt`），三条 finding 各自被精确复现（R3-18 恒打印 prompt 侧、R3-19 无汇总无具名、R3-20 rc=0 且打印 ✅）。
+
+**判据原样复跑**：抽取 `TASK.md` 中 T-FIX-10 `<verify>` 全文（72 行）为 `/tmp/p6c/verify-tfix10-task.sh` 原样执行 ⇒ **rc=0**，六腿诊断：真实仓 rc=0 · 基线夹具 rc=0 · prompt 侧漂移 rc=1 · skill 侧漂移 rc=1 · 空预设集合 rc=1（输出 25 行，非静默中止）· diff rc=2 面 rc=1；`bats: 1058 ok / 0 not-ok / count=1058`；`make check` **全部通过** ✅。产物：`/tmp/p6c/tfix10-task-verify2.out`、`/tmp/tfix10-check.out`。
+
+**过程事故（主 agent 自伤 · 已回退 · 已记 L-166）**：复核时用 `repr(l[:110])` 逐行打印 `<verify>`，第 ⑥ 腿恰被**截断在 110 字符**（原文末尾本就有 `SRC=$?;`），据此误判为「陈旧 rc 变量」缺陷，并用前缀 `replace` 就地补片段 ⇒ 判据变成 `); SRC=$?; SRC=$?;`，第二个 `SRC=$?` 取到的是上一条赋值语句的 rc=0 ⇒ 复跑报出**假的** `🔴 R3-20：diff 机械故障被折算为「一致」（rc=0）`（真凶是主 agent 的改动，不是被测件回退）。处置：① `git show f3c418f:…TASK.md` 对照整行确认原文无缺陷；② 回退该行（现与 HEAD 逐字一致）；③ 撤回误登记的 TD-076 行（`.specs/CONTEXT.md` 已还原到与 HEAD 相同）；④ L-166 改写为「判据缺陷必须先读**整行原文**、补片段用整行锚点并做幂等断言、判据变红先怀疑自己刚做的改动」。**结论：T-FIX-10 无判据缺陷，无新增 TD。**
+
+**残余观察（阶段 7 triage）**：
+- **R4-7 🟡（静态判据脆弱 · `TASK.md` T-FIX-10 `<verify>` 静态腿）**：`grep -qE 'diff_out.*\|\| true'` 本意只覆盖 `diff_out=$(diff … || true)`，却会误命中同一行内**消费** `diff_out` 的语句 ⇒ T-FIX-10 执行者只能靠**重构代码**（`count_lines()` 辅助函数 + `set +e/set -e` 块）把两者拆到不同行来满足判据，判据事实上成了「实现形态约束」而非「语义约束」，未来任何一次正当写法调整都可能再次触发。建议 v2：删除该静态腿（行为腿已是主力判据），或改成逐行检查「含 `diff_out=` 的赋值行不得同时含 `|| true`」。**不阻塞本 change**。
+
+**结论**：T-FIX-10 **验收通过**（提交面干净 + 三条 R3 独立坐实 + 37/37 夹具腿 + 判据原样复跑 rc=0 + make check 全绿）；新增 R4-7 🟡 记入阶段 7 triage。
+
+## ✅ T-FIX-11 复核记录（主 agent 独立夹具 16 腿 + 判据原样复跑 + 提交面核对 · 2026-09-25）
+
+**提交面核对**：`git show --stat 38f3a38` = 6 files / **+283 −8** —— `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` +16/−3 · `test/test_path_privacy_gate.bats` +56 · `flow-kit-bundle/test/test_path_privacy_gate.bats` +56（test-sync 镜像）· `.specs/STATE.md` +3/−1（基线 1058→1061）· `.specs/health-fix-2026-09b/TASK.md` +4/−4（`status="done"` + `<done>`）· `.specs/health-fix-2026-09b/T-FIX-11-SUMMARY.md` +148（新建）；**无**冻结件/`REVIEW.md`/`MINOR-DEFERRED.md`/`INDEPENDENT-REVIEW-*.md`/`LESSONS.md`/`CONTEXT.md` 等禁用路径 ✅。`npx bats --count test/` = **1061** ✅。台账 `{"id":"T-FIX-11","commit_sha":"38f3a38e470afec7b15f9baee7eb0c9cdb0dfdd7","fix_rounds":0,"deferred":[],"completed_at":1790330769}`；commit epoch 1790330765 ⇒ **Δ=4 s** ✅；`.flow-active.task_id=T-FIX-11`、`updated_at=1790330769`、`phase=4`、`task_progress` 41 条 ✅。
+
+**主 agent 独立夹具 16 腿 ⇒ 16 PASS / 0 FAIL**（修复前对 HEAD 版 = **10 PASS / 5 FAIL**，存底 `/tmp/p6c/tfix11-pre-fix.txt`；夹具 `/tmp/p6c/verify-tfix11.sh`，探针拼接构造）：
+
+| 腿 | 断言 | 修复前 | 修复后 |
+|---|---|---|---|
+| P0a/P0b | 真仓 `make check-path-privacy` rc=0 且「清单外命中 0 条」 | ✅/✅ | ✅/✅ |
+| P1a | 已跟踪未 staged 删除 · 内容干净 ⇒ rc=0 | 🔴（过严红） | ✅ |
+| P1b | 同场景「不可读候选 0 个」 | 🔴（=1） | ✅ |
+| P1c | 打印 `ℹ️ 磁盘缺失但 index 侧可读：<file>` | — | ✅ |
+| P2a/P2b/P2c | 同删除态但 index 含泄漏 ⇒ rc≠0 + 「清单外命中 [1-9]」+ 归因 `sub/leak.sh` | ✅/🔴（内容面被遮）/— | ✅/✅/✅ |
+| P3a/P3b | gitlink（index 侧 = `commit`，非 blob）⇒ rc≠0 + 「不可读候选 N 个」fail-closed | ✅/✅ | ✅/✅ |
+| P4a/P4b | staged-only 泄漏（工作树干净）⇒ rc≠0 + 命中计数非零（T-FIX-08 面未回归） | ✅/✅ | ✅/✅ |
+| P5a/P5b/P5c/P5d | 两个磁盘缺失候选（一干净一泄漏）⇒ rc≠0 + 只归因 `s/bad.sh` + 干净件不得被报为命中 + 不可读 0 | ✅/✅/🔴/🔴 | ✅/✅/✅/✅ |
+
+**P5c 断言口径（主 agent 自证，避免把夹具伪影当缺陷）**：修复前该腿红是**真误报** —— 干净件 `s/ok.sh` 出现在 `🔴 不可读候选 1 个` 名单里；修复后它只出现在提示行 `ℹ️ 磁盘缺失但 index 侧可读：s/ok.sh（内容面按 index 扫描）`（action ① 要求打印，bats T-FIX-11① 也断言该行）。故把断言从「文件名不得出现」收窄为「不得出现 `file:line` 命中归因」（`grep -qE 's/ok\.sh:[0-9]'`）；P5 全量输出为证：唯一命中行是 `s/bad.sh:1: echo <PROBE>/leak.txt`。
+
+**判据原样复跑**（抽取 T-FIX-11 `<verify>` 58 行 → `/tmp/p6c/verify-tfix11-task.sh`）⇒ **rc=0**：四腿诊断 ① `rc=0` / ② `rc=1` / ③ `rc=1` / ④ `rc=0`；`bats: 1061 ok / 0 not-ok / count=1061`；`make check` **21 ✅ / 0 ❌**（`✅ make check: 全部通过`）；真仓 `check-path-privacy` 自证 —— 候选 **1599** / 实际扫描 **1593** / index 侧 **13** / 不可读候选 **0** / 命中合计 **0** / 清单外命中 **0**。
+
+**判据自身缺陷（TD-076 · 执行者上报 + 主 agent 确认并就地修）**：`TASK.md:2329` 用相对路径 `S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;`，而 `:2341` `FXR() { ( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); }` 会切进 mktemp 夹具仓 ⇒ **四腿全部 rc=127**（TD-060 同族）。执行者按 L-166 **未自行放宽**，改用绝对路径跑通并在回执第 6 节上报。主 agent 已就地修为 `S="$R/flow-kit-bundle/flow-kit/reference/check-path-privacy.sh";`（`R=$(pwd)` 原已在判据首行定义，语义不变），复跑 rc=0 ✅；教训 **L-167**。
+
+**正向证据（门禁自证 · 端到端）**：执行者初次提交 `70ca047` 的 `T-FIX-11-SUMMARY.md` 内含探针字面（`/home/…/leak.txt` 两行），被**本任务刚修好的 index 侧内容面**（`git show :file` / `git grep --cached`）当场检出并拒绝提交 ⇒ `git commit --amend` 去标识化为 `<PROBE>/leak.txt` 后重提交，SHA `70ca047` → `38f3a38`（旧提交为悬挂对象、不可达 ⇒ 不入 push）。这正是「磁盘缺失 ≠ 内容面可跳过」在真实工作流里生效的证据。
+
+**结论**：T-FIX-11 ✅ **通过** —— R4-1 过严红已修；index 侧内容面逐字保留且无条件执行；gitlink 与非 blob 仍 fail-closed；T-FIX-08 的 staged-only 面未回归；判据自身缺陷已就地修正并留痕。**无新增 🟡 遗留**。
+

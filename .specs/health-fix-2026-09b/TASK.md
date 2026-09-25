@@ -2326,7 +2326,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <verify>
     set -u; rc=0;
     R=$(pwd);
-    S=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh;
+    S="$R/flow-kit-bundle/flow-kit/reference/check-path-privacy.sh";
     AL="$R/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
     bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
     P='/home/''zz-probe-d/leak.txt';
