@@ -7,6 +7,11 @@
 - opencode ≥ 1.18（已自带 skills 系统支持）
 - Node.js ≥ 18（仅 brooks-lint 工具链需要）
 - npm（仅安装 hooks 桥接插件时需要）
+- **jq**（硬前置）：flow-kit hooks 合并 `settings.json` 需要 jq。安装器入口会预检 jq，缺失则具名报错并退出。安装：
+  - macOS: `brew install jq`
+  - Debian/Ubuntu: `sudo apt-get install jq`
+  - Fedora/RHEL: `sudo dnf install jq`
+  - 其他: https://jqlang.github.io/jq/download/
 
 ## 快速安装
 

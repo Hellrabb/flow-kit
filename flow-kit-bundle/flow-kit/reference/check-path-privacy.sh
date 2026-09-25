@@ -190,8 +190,29 @@ fi
 # 常设路径优先；常设缺则读 change 副本；两者皆缺 ⇒ exit 1 并指名（不得放行）。
 # F1 fix：`cp -- … "$TMP_ALLOWLIST"` 必须断言 rc —— 坏 TMPDIR 链路上 cp 先于
 # mktemp 报错被吞（mktemp 成功但 cp 写入失败 ⇒ 清单副本为空 ⇒ 后续校验全假绿）。
+# R3-14 (c)① 允许清单来源覆盖旋钮（ADR-022 消费者项目随包解析）：
+#   FLOW_KIT_PRIVACY_ALLOWLIST 非空 ⇒ 读该路径（优先级最高，覆盖常设/change 读序）；
+#   文件不存在 / 不可读 ⇒ fail-closed exit 1 并指名路径（不得当空清单放行）。
+#   未设置（空）⇒ 现有读序逐字不变（常设 > change > 缺失 ⇒ exit 1）。
+#   设计目的：hook 回退调用随包检查器时，由 hook 自身位置推导出随包
+#   reference/path-privacy-allowlist.txt 并导出此变量，使消费者项目（常设/change
+#   皆无）也能用随包清单完成内容扫描，CWD 保持项目根。
 ALLOWLIST_SOURCE=''
-if [ -f "$ALLOWLIST_PERSISTENT" ]; then
+if [ -n "${FLOW_KIT_PRIVACY_ALLOWLIST:-}" ]; then
+  if [ ! -f "$FLOW_KIT_PRIVACY_ALLOWLIST" ]; then
+    echo "🔴 允许清单缺失（fail-closed，FLOW_KIT_PRIVACY_ALLOWLIST 指定的路径不存在）："
+    echo "   覆盖路径: ${FLOW_KIT_PRIVACY_ALLOWLIST}"
+    echo "   扫描面: ${SCAN_SURFACE}"
+    exit 1
+  fi
+  if ! cp -- "$FLOW_KIT_PRIVACY_ALLOWLIST" "$TMP_ALLOWLIST" 2>/dev/null; then
+    echo "🔴 无法完成扫描：cp 写入允许清单副本失败（FLOW_KIT_PRIVACY_ALLOWLIST）" >&2
+    echo "   位置: check-path-privacy.sh:cp-allowlist-override" >&2
+    echo "   来源: ${FLOW_KIT_PRIVACY_ALLOWLIST}" >&2
+    exit 1
+  fi
+  ALLOWLIST_SOURCE="$FLOW_KIT_PRIVACY_ALLOWLIST"
+elif [ -f "$ALLOWLIST_PERSISTENT" ]; then
   if ! cp -- "$ALLOWLIST_PERSISTENT" "$TMP_ALLOWLIST" 2>/dev/null; then
     echo "🔴 无法完成扫描：cp 写入允许清单副本失败（常设路径）" >&2
     echo "   位置: check-path-privacy.sh:cp-allowlist-persistent" >&2

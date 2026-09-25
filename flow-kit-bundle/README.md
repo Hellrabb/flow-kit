@@ -20,6 +20,15 @@
 - 技能包装器来自: ~/.claude/skills/flow-*/
 - brooks-lint 插件来自: https://github.com/hyhmrright/brooks-lint (v1.3.0)
 
+## 依赖
+
+- **jq**（硬前置）：flow-kit hooks 合并 `settings.json` 需要 jq。安装器入口会预检 jq，缺失则具名报错并退出。安装：
+  - macOS: `brew install jq`
+  - Debian/Ubuntu: `sudo apt-get install jq`
+  - Fedora/RHEL: `sudo dnf install jq`
+  - 其他: https://jqlang.github.io/jq/download/
+- **Node.js ≥ 18**（可选）：brooks-lint 插件需要 Node.js；缺失时跳过 brooks-lint 安装。
+
 ## 安装
 
 ```bash

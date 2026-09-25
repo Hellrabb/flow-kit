@@ -177,3 +177,78 @@ EOF
   readlink "$tmp_repo/.git/hooks/pre-commit" | grep -q 'pre-commit/pre-commit.sh'
   rm -rf "$tmp_repo"
 }
+
+# ── T-FIX-08: pre-push/pre-commit 消费者项目回退守卫（R3-14/R3-23）──
+
+@test "pre-push.sh: syntax valid (bash -n) · T-FIX-08" {
+  run bash -n "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "pre-push.sh: resolve_reference_dir 回退到随包检查器（R3-14(a)）" {
+  grep -q 'resolve_reference_dir' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  grep -q 'reference/check-path-privacy.sh' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-push.sh: makefile_has_target 目标存在性守卫（R3-14(b)）" {
+  grep -q 'makefile_has_target' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  grep -q '项目 Makefile 未声明 check 目标' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-push.sh: 纯删除推送跳过（R3-14② · ADR-027②）" {
+  grep -q '纯删除推送' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-push.sh: 每 sha 只扫一次（R3-23 去重）" {
+  grep -q 'scanned_shas' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  grep -q '已扫描过该 sha' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-push.sh: 三者皆不可得 ⇒ 跳过且不改 rc（R3-14(c)④）" {
+  grep -q '未找到可用的路径隐私检查器' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-push.sh: 导出 FLOW_KIT_PRIVACY_ALLOWLIST 指向随包清单（R3-14(c)②）" {
+  grep -q 'FLOW_KIT_PRIVACY_ALLOWLIST' "$HOOK_BASE_DIR/pre-push/pre-push.sh"
+}
+
+@test "pre-commit.sh: 回退到随包检查器（R3-14 消费者项目回退）" {
+  grep -q 'resolve_reference_dir' "$HOOK_BASE_DIR/pre-commit/pre-commit.sh"
+  grep -q 'reference/check-path-privacy.sh' "$HOOK_BASE_DIR/pre-commit/pre-commit.sh"
+  grep -q 'FLOW_KIT_PRIVACY_ALLOWLIST' "$HOOK_BASE_DIR/pre-commit/pre-commit.sh"
+}
+
+@test "pre-commit.sh: 三者皆不可得 ⇒ 跳过且不改 rc（R3-14(c)④）" {
+  grep -q '未找到可用的路径隐私检查器' "$HOOK_BASE_DIR/pre-commit/pre-commit.sh"
+}
+
+@test "install_hooks.sh: 随包检查器部署到 reference/ 目录（R3-14(c)③）" {
+  grep -q 'ref_dst_dir' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
+  grep -q 'check-path-privacy.sh' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
+  grep -q 'path-privacy-allowlist.txt' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
+}
+
+@test "install_hooks.sh: R3-17 恢复路径提示（备份路径 + cp 回滚命令）" {
+  grep -q '恢复路径' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
+  grep -q 'cp -f' "$BATS_ROOT/flow-kit-bundle/lib/install_hooks.sh"
+}
+
+@test "install.sh: jq 硬前置预检（R3-21）" {
+  grep -q 'check_jq' "$BATS_ROOT/flow-kit-bundle/install.sh"
+  grep -q 'jq' "$BATS_ROOT/flow-kit-bundle/install.sh"
+}
+
+@test "README.md: jq 前置依赖写明（R3-21）" {
+  grep -q 'jq' "$BATS_ROOT/flow-kit-bundle/README.md"
+}
+
+@test "OPENCODE-INSTALL.md: jq 前置依赖写明（R3-21）" {
+  grep -q 'jq' "$BATS_ROOT/flow-kit-bundle/OPENCODE-INSTALL.md"
+}
+
+@test "check-path-privacy.sh: FLOW_KIT_PRIVACY_ALLOWLIST 覆盖旋钮（R3-14(c)①）" {
+  local sut="$BATS_ROOT/flow-kit-bundle/flow-kit/reference/check-path-privacy.sh"
+  grep -q 'FLOW_KIT_PRIVACY_ALLOWLIST' "$sut"
+  # fail-closed 且指名路径
+  grep -q 'fail-closed.*FLOW_KIT_PRIVACY_ALLOWLIST' "$sut"
+}

@@ -118,6 +118,22 @@ check_node() {
   fi
 }
 
+# ── check_jq ───────────────────────────────────────────────────────────
+# R3-21（T-FIX-08）：jq 是 flow-kit hooks 的硬前置（install_hooks.sh 合并
+# settings.json 需要 jq）。在安装器入口预检 jq：缺 ⇒ 具名报错 + 安装提示 + 非零退出。
+# 不重复 install_hooks.sh:173-180 的 fail-closed，只做入口前置（更早失败、报错更清晰）。
+check_jq() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ 缺少依赖 jq：jq 是 flow-kit hooks 的硬前置（install_hooks 合并 settings.json 需要 jq）" >&2
+    echo "   安装 jq：" >&2
+    echo "     macOS:    brew install jq" >&2
+    echo "     Debian/Ubuntu: sudo apt-get install jq" >&2
+    echo "     Fedora/RHEL:   sudo dnf install jq" >&2
+    echo "     其他:     https://jqlang.github.io/jq/download/" >&2
+    exit 1
+  fi
+}
+
 # ── 解析参数 ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -144,6 +160,13 @@ done
 if [ -z "$MODE" ]; then
   echo "❌ 必须指定 --global 或 --project <path>"
   usage
+fi
+
+# ── jq 硬前置预检（R3-21 · T-FIX-08）──────────────────────────────────
+# 在任何 hook 部署动作之前。缺 jq ⇒ 具名报错 + 非零退出。
+# --update 模式（版本比对，不部署 hook）不需要 jq，故跳过预检。
+if [ "$MODE" != "update" ] && [ "${NO_HOOKS:-false}" != "true" ]; then
+  check_jq
 fi
 
 # ── 平台解析 + 路径变量初始化 ────────────────────────────────────────

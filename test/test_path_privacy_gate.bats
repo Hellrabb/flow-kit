@@ -376,3 +376,68 @@ teardown() {
   [[ "$output" != *"mktemp 失败"* ]]
   [[ "$output" == *"清单外命中 0 条"* ]]
 }
+
+# ============================================================================
+# T-FIX-08 允许清单来源覆盖旋钮 FLOW_KIT_PRIVACY_ALLOWLIST（R3-14 (c)①）
+# 覆盖生效 / 覆盖路径不可读 ⇒ fail-closed 且指名 / 未设置时读序逐字不变。
+# 双态镜像：test/ 与 flow-kit-bundle/test/ 同步（make test-sync）。
+# ============================================================================
+
+# 覆盖路径（夹具内绝对路径，与常设/change 副本不同源）。
+run_sut_override() {
+  local override="$1"
+  ( cd "$FIXTURE" && FLOW_KIT_PRIVACY_ALLOWLIST="$override" bash "$SUT_REL" )
+}
+
+@test "T-FIX-08 覆盖生效：FLOW_KIT_PRIVACY_ALLOWLIST 指向自定义清单 ⇒ 读覆盖清单（不回退常设/change）" {
+  # 常设清单登记 probe（若被误读 ⇒ rc=0 假绿）；覆盖清单为空（若被读 ⇒ rc=1 真红）。
+  # 预期：覆盖生效 ⇒ 读空清单 ⇒ 真泄漏 rc=1（覆盖优先级高于常设）。
+  mkfile "docs/notes.md" "纯文本\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "probe.txt:1 # 常设登记（若被读 ⇒ rc=0 假绿）\n"
+  mkfile "$ALLOW_CHANGE_REL" "probe.txt:1 # change 登记\n"
+  stage "docs/notes.md" "probe.txt" "$ALLOW_REL" "$ALLOW_CHANGE_REL"
+
+  local override="$FIXTURE/custom-allowlist.txt"
+  printf '# 覆盖清单（空）\n\n' > "$override"
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"允许清单来源: $override"* ]]
+  [[ "$output" == *"允许清单 0 条"* ]]
+  [[ "$output" == *"清单外命中 1 条"* ]]
+  # 不得读到常设或 change 来源（覆盖优先级最高）
+  [[ "$output" != *"允许清单来源: $ALLOW_REL"* ]]
+  [[ "$output" != *"允许清单来源: $ALLOW_CHANGE_REL"* ]]
+}
+
+@test "T-FIX-08 覆盖 fail-closed：FLOW_KIT_PRIVACY_ALLOWLIST 指向不存在路径 ⇒ rc=1 且指名该路径" {
+  mkfile "docs/notes.md" "纯文本\n"
+  mkfile "$ALLOW_REL" "# 常设在位（但覆盖优先级更高，不应被读）\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  local override="$FIXTURE/no-such-allowlist.txt"
+  # 不创建该文件 ⇒ 覆盖路径不存在
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"允许清单缺失"* ]]
+  [[ "$output" == *"fail-closed"* ]]
+  [[ "$output" == *"$override"* ]]
+  [[ "$output" != *"✅"* ]]
+}
+
+@test "T-FIX-08 未设置读序不变：FLOW_KIT_PRIVACY_ALLOWLIST 未设 ⇒ 读序逐字不变（常设 > change > 缺失）" {
+  # 未设置覆盖旋钮 ⇒ 现有读序逐字不变：常设在位 ⇒ 读常设（即使 change 也在位）。
+  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "$ALLOW_REL" "probe.txt:1 # 常设登记\n"
+  mkfile "$ALLOW_CHANGE_REL" "# 空基线（若被误读 ⇒ rc=1）\n"
+  stage "probe.txt" "$ALLOW_REL" "$ALLOW_CHANGE_REL"
+
+  # 显式 unset（确保未设置，而非继承空）
+  run --separate-stderr run_sut_env -u FLOW_KIT_PRIVACY_ALLOWLIST
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"允许清单来源: $ALLOW_REL"* ]]
+  [[ "$output" == *"清单外命中 0 条"* ]]
+  [[ "$output" != *"允许清单来源: $ALLOW_CHANGE_REL"* ]]
+}

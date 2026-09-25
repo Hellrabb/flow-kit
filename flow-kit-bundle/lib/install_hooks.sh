@@ -160,6 +160,17 @@ deploy_pre_push() {
   # 6. 部署断言（DESIGN D3 item 5）：产物可执行
   [ -x "$target" ] || { echo "🔴 pre-push 部署后不可执行: $target" >&2; return 1; }
   echo "   ✅ pre-push symlink → $target"
+
+  # 7. 恢复路径提示（R3-17）：若备份了既有物，打印备份文件路径 + cp 回滚命令，
+  #    使被覆盖的既有 hook 可原位恢复（不引入同意门，ADR-022 有意设计）。
+  if [ -e "$bak" ] || [ -e "${bak}.linktarget" ]; then
+    echo "   ℹ️ pre-push 恢复路径：如需回滚，执行："
+    if [ -e "${bak}.linktarget" ]; then
+      echo "      cp -f \"\$(cat '${bak}.linktarget')\" '$target'   # 恢复原 symlink 指向"
+    elif [ -e "$bak" ]; then
+      echo "      cp -f '$bak' '$target'   # 恢复既有 pre-push 内容"
+    fi
+  fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -262,6 +273,23 @@ install_hooks() {
 
   deploy_pre_commit
   deploy_pre_push
+
+  # ── 随包路径隐私检查器部署（R3-14 (c)③ · T-FIX-08）──────────────────
+  # 把 flow-kit/reference/check-path-privacy.sh 与 path-privacy-allowlist.txt
+  # 一并装到已安装 hooks 目录旁的 reference/（<hook_dst>/../reference/），
+  # 使 pre-push/pre-commit hook「由 hook 自身位置推导」在已部署的消费者项目
+  # 里也能解析到随包检查器与允许清单（hook 推导路径：HOOK_DIR/../reference/）。
+  local ref_src_dir="$SCRIPT_DIR/flow-kit/reference"
+  local ref_dst_dir="${hook_dst%/hooks}/reference"
+  if [ -f "$ref_src_dir/check-path-privacy.sh" ]; then
+    mkdir -p "$ref_dst_dir"
+    install_file "$ref_src_dir/check-path-privacy.sh" "$ref_dst_dir/check-path-privacy.sh"
+    chmod +x "$ref_dst_dir/check-path-privacy.sh" 2>/dev/null || true
+    if [ -f "$ref_src_dir/path-privacy-allowlist.txt" ]; then
+      install_file "$ref_src_dir/path-privacy-allowlist.txt" "$ref_dst_dir/path-privacy-allowlist.txt"
+    fi
+    echo "   ✅ 随包检查器部署 → ${ref_dst_dir}/check-path-privacy.sh"
+  fi
 
   # ── flow-kit-l2-reviewer agent（DESIGN D6）─────────────────────────
   # 仅 opencode 平台安装：claude 平台不装（CC 用 subagent_type 原生派发 L2 审查）

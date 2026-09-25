@@ -45,7 +45,8 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 1029 ok / 0 not ok / 0 skip（TAP plan 1..1029；2026-09-25 health-fix-2026-09b T-FIX-06 全量实测）`
+- **test_framework**: `bats-core 1.13.0 (npx) · 1047 ok / 0 not ok / 0 skip（TAP plan 1..1047；2026-09-25 health-fix-2026-09b T-FIX-08 全量实测）`
+  > 基线演进（2026-09-25 health-fix-2026-09b T-FIX-08 收口实测）：**1047 ok / 0 not ok / 0 skip** = T-FIX-06 基线 1029 + T-FIX-08 路径隐私覆盖旋钮 3 例（test_path_privacy_gate.bats：覆盖生效 · 覆盖 fail-closed 指名 · 未设置读序不变）+ T-FIX-08 消费者项目 hook 回退守卫 15 例（test_archive_commit_gate.bats：pre-push 7 · pre-commit 2 · install_hooks 2 · install.sh/README/OPENCODE jq 3 · check-path-privacy 覆盖旋钮 1）；`npx bats --count test/` 同步为 1047。
   > 基线演进（2026-09-25 health-fix-2026-09b T-FIX-06 收口实测）：**1029 ok / 0 not ok / 0 skip** = T-FIX-04 基线 1025 + T-FIX-06 隐私门禁 0 实际扫描 fail-closed + mktemp 立即终止双态判据 4 例（test_path_privacy_gate.bats：F19 坏态/好态 2 · F20 坏态/好态 2）；`npx bats --count test/` 同步为 1029。
   > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-04 收口实测）：**1025 ok / 0 not ok / 0 skip** = T-FIX-03 基线 1023 + T-FIX-04 check-gate-sync 缺对不得报全绿双态判据 2 例（test_check_gate_sync.bats：F6 好态完整夹具 rc=0 + 坏态缺一对 skill rc≠0 且不打印 ✅ 一致）；`npx bats --count test/` 同步为 1025。
   > 基线演进（2026-09-24 health-fix-2026-09b T-FIX-03 收口实测）：**1023 ok / 0 not ok / 0 skip** = T-FIX-02 基线 1012 + T-FIX-03 隐私门禁 fail-open 收敛双态判据 11 例（test_path_privacy_gate.bats：F1 坏态/好态 2 · F2 坏态①/坏态②/好态 3 · F3 坏态/好态 2 · F4 坏态/好态 2 · F5 静态/好态 2）；`npx bats --count test/` 同步为 1023。
