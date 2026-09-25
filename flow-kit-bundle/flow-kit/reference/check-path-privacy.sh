@@ -106,14 +106,21 @@ TMP_ALLOWLIST=''
 TMP_CANDIDATES=''
 TMP_HITS=''
 TMP_ALLOWLIST_KEYS=''
-TMP_FILES=''
+# R3-4 fix：清理清单改普通数组 + "${TMP_FILES[@]}"（bash 3.2 兼容，禁 mapfile/nameref），
+# TMPDIR 含空格时 cleanup 不再词分裂残留。
+TMP_FILES=()
 cleanup() {
   local f
-  for f in $TMP_FILES; do
+  for f in "${TMP_FILES[@]}"; do
     [ -n "$f" ] && rm -f "$f" 2>/dev/null
   done
 }
 trap cleanup EXIT
+# R3-5 fix：register_tmp 将临时文件登记进清理清单数组；所有 mktemp 站点（含
+# 早期失败路径）均经此登记，避免早期 mktemp 成功而后继失败时已建件未清理。
+register_tmp() {
+  TMP_FILES+=("$1")
+}
 
 # ----------------------------------------------------------------------------
 # F1 · mktemp rc 断言（机械故障 ⇒ 必须非 0）
@@ -136,10 +143,22 @@ mktemp_checked() {
 # 只退子 shell、脚本继续（变量退化为空串，产生 3 条冗余 🔴 mktemp 报文）。
 # 改为 `return 1` 后调用点须显式 `|| exit 1` 以立即终止主脚本（bash 3.2 兼容，
 # 不用 local -n / nameref）。三处初始化调用点 + 汇总段 TMP_ALLOWLIST_KEYS 共 4 处。
+# R3-5 fix：每个 mktemp 成功后立即登记进清理清单（而非末尾批量赋值），
+# 早期 mktemp 失败路径上已建件也会被同一 EXIT trap 清理。
 TMP_ALLOWLIST=$(mktemp_checked) || exit 1
+register_tmp "$TMP_ALLOWLIST"
 TMP_CANDIDATES=$(mktemp_checked) || exit 1
+register_tmp "$TMP_CANDIDATES"
 TMP_HITS=$(mktemp_checked) || exit 1
-TMP_FILES="$TMP_ALLOWLIST $TMP_CANDIDATES $TMP_HITS"
+register_tmp "$TMP_HITS"
+# R3-2 fix：index ∪ 磁盘并集去重表（record_hit 用）。
+TMP_HITS_DEDUP=$(mktemp_checked) || exit 1
+register_tmp "$TMP_HITS_DEDUP"
+# R3-30/R3-7/R3-2 fix：git grep --null 原始输出捕获临时文件。
+# bash 命令替换 `$(...)` 会剥离 NUL 字节 ⇒ git grep --null 输出必须落临时文件，
+# 不能用 `$(git grep --null ...)`（否则 NUL 丢失 ⇒ 无法解析）。
+TMP_GREP_RAW=$(mktemp_checked) || exit 1
+register_tmp "$TMP_GREP_RAW"
 
 # ----------------------------------------------------------------------------
 # 评估面选择：CHECK_REV 外部指定（L-131 · ADR-027 拦截面 = 被拦截对象）
@@ -212,6 +231,14 @@ fi
 # 校验器与计数器共用，使仅含 `<!-- … -->` 或 `#` 注释的清单在自证行里口径一致。
 # 旧实现校验器 `:144-147` 同时认 `#` 与 `<!--`，计数器 `:198`/`:341` 只认 `#` ⇒
 # `<!-- … -->` 行被计为有效条目，自证行「允许清单 N 条」虚高。
+#
+# R3-8 fix（阶段 6 第 3 轮）：尾随 `<!-- … -->` 注释口径统一。
+# 旧 ERE `^[[:space:]]*(#|<!--|$)` 只认「整行以 # 或 <!-- 开头」的注释行；
+# 但 `core=${line%%#*}` 只剥首个 # 尾随注释，不剥 `<!-- … -->` 尾随注释 ⇒
+# `file:line <!-- 理由 -->` 行 core 残留 `file:line <!-- 理由 -->` ⇒ after
+# 非纯数字 ⇒ 格式违例假红。fix：注释口径统一到同一 ERE —— 前导 `#`/`<!--`/
+# 空行（整行注释）由 IS_COMMENT_OR_BLANK_RE 判定；尾随注释（# 或 <!--…-->）
+# 在 core 剥离阶段一并剥除（见 validate_allowlist_format 与键提取两处）。
 IS_COMMENT_OR_BLANK_RE='^[[:space:]]*(#|<!--|$)'
 
 validate_allowlist_format() {
@@ -228,8 +255,13 @@ validate_allowlist_format() {
     if printf '%s\n' "$line" | grep -qE "$IS_COMMENT_OR_BLANK_RE"; then
       continue
     fi
-    # 剥尾随理由注释（首个 # 起，含前导空格）再判 `file:line`
+    # 剥尾随理由注释：先剥 `<!-- … -->`（整段含尖括号），再剥首个 # 起，再去前后空白
+    # R3-8 fix：尾随 `<!-- … -->` 注释与 `#` 注释口径统一（避免 `file:line <!-- 理由 -->` 被判违例）
     core=${line%%#*}
+    # 剥尾随 `<!-- … -->`：若 core 仍含 `<!--`，截到 `<!--` 之前
+    case "$core" in
+      *'<!--'*) core="${core%%<!--*}" ;;
+    esac
     core=${core%"${core##*[![:space:]]}"}  # 去尾随空白
     core=${core#"${core%%[![:space:]]*}"}   # 去前导空白
     # core 现应为 `<路径>:<行号>`：含冒号、冒号后纯数字、冒号前非空
@@ -281,7 +313,18 @@ fi
 # 此处 ALLOWLIST_COUNT=0 = 文件**存在**但有效条目为 0（合法的空基线态），
 # 与上方 `exit 1` 的「文件缺失（fail-closed）」严格区分：缺失 ⇒ rc=1，
 # 空基线 ⇒ 继续扫描、不跳过、不报错；0 条不阻塞扫描（见下方自证行与 exit 0）。
-ALLOWLIST_COUNT=$(grep -cvE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/null) || ALLOWLIST_COUNT=0
+# R3-6 fix：grep -c rc=2（机械出错）不得折算成 0（否则清单键集空 ⇒ 假红）。
+# rc=0 ⇒ 正常计数；rc=1 ⇒ 0 匹配（打印 0）；rc≥2 ⇒ fail-closed exit 1。
+ALLOWLIST_COUNT=$(grep -cvE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/null)
+case $? in
+  0) ;;
+  1) ALLOWLIST_COUNT=0 ;;
+  *)
+    echo "🔴 无法完成扫描：grep 统计清单条目失败（清单机械出错 · rc≥2）" >&2
+    echo "   位置: check-path-privacy.sh:allowlist-count" >&2
+    exit 1
+    ;;
+esac
 
 # ----------------------------------------------------------------------------
 # 枚举候选文件（扫描面 = git ls-files，不扫 .git 内部 · F1 · rc 断言）
@@ -291,7 +334,9 @@ ALLOWLIST_COUNT=$(grep -cvE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/nu
 # 输出 0 行 ⇒ rc 断言抓不到这一型，只能靠下方 F2 的候选数断言兜住。
 if [ -n "$RESOLVED_REV" ]; then
   # rev 模式：候选 = 该 rev 树的全部文件
-  if ! git ls-tree -r --name-only "$RESOLVED_REV" -- > "$TMP_CANDIDATES" 2>/dev/null; then
+  # R3-1/R3-30 fix：git ls-tree -z 输出 NUL 分隔路径，避免 core.quotePath=true
+  # 时非 ASCII / 含 "/\ 字符的路径被 C 引号化 ⇒ 下方 read -r -d '' 逐条取原样。
+  if ! git ls-tree -r -z --name-only "$RESOLVED_REV" -- > "$TMP_CANDIDATES" 2>/dev/null; then
     echo "🔴 无法完成扫描：git ls-tree 失败（rev=${RESOLVED_REV}）" >&2
     echo "   位置: check-path-privacy.sh:ls-tree" >&2
     exit 1
@@ -299,7 +344,8 @@ if [ -n "$RESOLVED_REV" ]; then
 else
   # 工作树模式：候选 = tracked 文件（git ls-files = index + 已提交，不含未 add 的未忽略文件；不含 .git 内部）
   # 非 git 目录时 git ls-files rc≠0 ⇒ 此处直接 fail-closed（F2 第一型）
-  if ! git ls-files -- > "$TMP_CANDIDATES" 2>/dev/null; then
+  # R3-1 fix：git ls-files -z 输出 NUL 分隔路径，避免 core.quotePath 引号化。
+  if ! git ls-files -z -- > "$TMP_CANDIDATES" 2>/dev/null; then
     echo "🔴 无法完成扫描：git ls-files 失败（非 git 目录或 git 不可用）" >&2
     echo "   位置: check-path-privacy.sh:ls-files" >&2
     exit 1
@@ -313,7 +359,12 @@ fi
 # index / 空 rev）与「全部干净」同形（都输出「命中合计 0 条 ✅」⇒ rc=0）。
 # fix：自证行含「候选文件 N 个」并与 git ls-files 计数一致；N=0 ⇒
 # fail-closed exit 1 + `🔴 候选面为空，无法判定`。
-CANDIDATE_COUNT=$(grep -c . "$TMP_CANDIDATES" 2>/dev/null) || CANDIDATE_COUNT=0
+# R3-1/R3-30 fix：候选数改按 NUL 计数（git ls-files -z / ls-tree -z 输出），
+# 与 git ls-files 计数一致（#14 断言口径不变，改用 NUL 计数比较）。
+CANDIDATE_COUNT=0
+while IFS= read -r -d '' f; do
+  CANDIDATE_COUNT=$((CANDIDATE_COUNT + 1))
+done < "$TMP_CANDIDATES"
 if [ "$CANDIDATE_COUNT" -eq 0 ]; then
   echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
   echo "   扫描面: ${SCAN_SURFACE}"
@@ -373,7 +424,13 @@ HITS_TOTAL=0
 # F19 fix（阶段 6 深审）：实际扫描计数 = scan_file 真实调用次数（自排除后）。
 # 旧版自证行只报候选枚举计数 N（自排除前）；若 tracked 全部命中 SELF_EXCLUDE，
 # scan_file 实际调用 0 次却仍打印「清单外命中 0 条」+ ✅ + rc=0（0 实际扫描 ≠ 干净）。
+# R3-31 fix（阶段 6 第 3 轮）：SCANNED_COUNT 改在 scan_file 内部成功读取后才计数；
+# 另增 UNREADABLE_COUNT（缺失/不可读候选）与 INDEX_SIDE_COUNT（index 侧命中条数），
+# 自证行并列四数（候选 N / 实际扫描 M / index 侧 I / 不可读 U）。
 SCANNED_COUNT=0
+UNREADABLE_COUNT=0
+INDEX_SIDE_COUNT=0
+UNREADABLE_DETAILS=''
 
 # 逐命中占位符判定（L-133 修复 · 2026-09-23 主 agent 探针发现漏报）：
 # 一行可能含多个 `/home/<name>/` 命中；旧实现 `extract_username` 用贪婪 sed 只取
@@ -402,97 +459,136 @@ EOF
   [ "$any_real" -eq 0 ]
 }
 
+# 记命中到 TMP_HITS 的辅助：归一化为 NUL 分隔的三段 `<path>\0<line>\0<content>\0`，
+# 避免含 : 文件名被汇总循环的 `IFS=:` 切坏（R3-7）。
+# 同一 file:line:content 在 index∪磁盘并集时只记一次（去重）。
+record_hit() {
+  local path="$1" line="$2" content="$3"
+  # F3：line 字段必须匹配 ^[0-9]+$，否则按不可归因命中单列并 fail-closed
+  case "$line" in
+    ''|*[!0-9]*)
+      printf '%s\0?\0%s\0' "$path" "$content" >> "$TMP_HITS"
+      return
+      ;;
+  esac
+  # 逐命中占位符判定（L-133）：仅当该行**全部**命中都是占位符才跳过
+  if line_all_hits_placeholder "$content"; then
+    return
+  fi
+  # R3-2 去重：index 侧与磁盘侧同一 file:line:content 只记一次。
+  # 用临时去重表（已记 key 集合）。为避免重复扫，先查 grep -qxF。
+  if ! grep -qxF "${path}:${line}$(printf '\t')${content}" "$TMP_HITS_DEDUP" 2>/dev/null; then
+    printf '%s\t%s\n' "${path}:${line}" "$content" >> "$TMP_HITS_DEDUP"
+    printf '%s\0%s\0%s\0' "$path" "$line" "$content" >> "$TMP_HITS"
+  fi
+}
+
+# R3-7/R3-30 fix：解析 git grep --null 输出（从临时文件读取，保留 NUL）。
+# git grep --null 格式：`<path>\0<line>\0<content>\n`（每条命中三段，NUL 分隔 path/line，
+# 换行分隔不同命中）。rev 模式前缀为 `<rev>:<path>`，--cached 模式仅为 `<path>`。
+# 按 NUL 取 path → line → content，避免含 : 文件名被裸 : 切坏（R3-7）。
+# $1 = 输入文件路径；$2 = rev 前缀（可为空，--cached 模式）。
+parse_grep_null() {
+  local infile="$1" rev_prefix="$2"
+  local prefix path line content
+  while IFS= read -r -d '' prefix; do
+    # 剥 <rev>: 前缀（rev 模式），--cached 模式 rev_prefix 为空 ⇒ 无操作
+    [ -n "$rev_prefix" ] && prefix="${prefix#"${rev_prefix}:"}"
+    path="$prefix"
+    IFS= read -r -d '' line || line=''
+    IFS= read -r content || content=''
+    record_hit "$path" "$line" "$content"
+  done < "$infile"
+}
+
 scan_file() {
   local file="$1"
   local lineno line uname
-  # rev 模式：用 git grep -nE -a 在该 rev 树检索；工作树模式：读文件内容 grep -aE。
   if [ -n "$RESOLVED_REV" ]; then
-    # git grep 输出前缀 = `<rev>:<path>:<line>:<content>`；剥 <rev>: 前缀再归因。
-    # F3：统一 -a（把二进制当文本匹配 + 按行归因，两模式同一策略）。
+    # rev 模式：git grep 在该 rev 树检索（读 blob 内容，对磁盘态免疫 · INDEPENDENT-REVIEW-6 ③）。
+    # R3-30/R3-7 fix：git grep --null 输出落临时文件（bash `$(...)` 剥 NUL ⇒ 不能用命令替换），
+    # 格式 `<rev>:<path>\0<line>\0<content>\n`，按 NUL 取 path → line → content ⇒
+    # 含 : 的文件名不会被裸 : 切坏（R3-7），引号化路径不再被当 pathspec 字面量（R3-30）。
+    # F3：统一 -a（把二进制当文本匹配 + 按行归因）。
     # F1：git grep rc≠0 且有 stderr ⇒ fail-closed；rc=1（无匹配）⇒ 静默跳过。
-    local raw ggrc
-    raw=$(git grep -nEa "$PAT" "$RESOLVED_REV" -- "$file" 2>/dev/null)
+    local ggrc
+    : > "$TMP_GREP_RAW"
+    git grep -naE --null "$PAT" "$RESOLVED_REV" -- "$file" > "$TMP_GREP_RAW" 2>/dev/null
     ggrc=$?
     if [ "$ggrc" -ge 2 ]; then
       echo "🔴 无法完成扫描：git grep 失败（rev=${RESOLVED_REV} file=${file}）" >&2
       echo "   位置: check-path-privacy.sh:git-grep" >&2
       exit 1
     fi
-    [ "$ggrc" -ne 0 ] && [ -z "$raw" ] && return 0
-    [ -z "$raw" ] && return 0
-    printf '%s\n' "$raw" | while IFS= read -r hitline; do
-      # 剥 <rev>: 前缀 → 形如 `<path>:<line>:<content>`
-      local stripped
-      stripped="${hitline#"${RESOLVED_REV}:"}"
-      # 拆 path:line:content
-      local p l c
-      p="${stripped%%:*}"
-      local rest="${stripped#*:}"
-      l="${rest%%:*}"
-      c="${rest#*:}"
-      # F3：line 字段必须匹配 ^[0-9]+$，否则按不可归因命中单列并 fail-closed
-      case "$l" in
-        ''|*[!0-9]*)
-          printf '%s:?:%s\n' "$p" "$c" >> "$TMP_HITS"
-          ;;
-        *)
-          # 逐命中占位符判定（L-133）：仅当该行**全部**命中都是占位符才跳过
-          if line_all_hits_placeholder "$c"; then
-            continue
-          fi
-          # 记命中（外部文件写入需在子 shell 外可见 ⇒ 用追加到 TMP_HITS）
-          printf '%s:%s:%s\n' "$p" "$l" "$c" >> "$TMP_HITS"
-          ;;
-      esac
-    done
+    # R3-31：成功读取 ⇒ 计入 SCANNED_COUNT（先增后扫改为成功读取后才计数）。
+    SCANNED_COUNT=$((SCANNED_COUNT + 1))
+    [ ! -s "$TMP_GREP_RAW" ] && return 0
+    parse_grep_null "$TMP_GREP_RAW" "$RESOLVED_REV"
   else
-    # 工作树模式：文件可能不存在（deleted）⇒ 跳过
-    [ -f "$file" ] || return 0
-    # F3：统一 -a（把二进制当文本匹配 + 按行归因，与 rev 模式同一策略）。
-    # grep -nE 输出 `line:content`；逐行处理。
-    # F1：grep rc=1（无匹配）⇒ 静默跳过；rc≥2（出错）⇒ fail-closed exit 1。
-    local raw grc
-    raw=$(grep -naE "$PAT" "$file" 2>/dev/null)
-    grc=$?
-    if [ "$grc" -ge 2 ]; then
-      echo "🔴 无法完成扫描：grep 检索失败（file=${file}）" >&2
-      echo "   位置: check-path-privacy.sh:grep-worktree" >&2
+    # 工作树模式：R3-2 fix —— 内容面 = index ∪ 磁盘并集（去重）。
+    # 旧实现只读磁盘 ⇒ staged 泄漏 + 工作树改干净 ⇒ rc=0 假绿（index 仍含泄漏）。
+    # 正解：index 侧 git grep --cached + 磁盘侧 grep，两者命中并集（同一 file:line:content 去重）。
+    # 文件缺失（deleted tracked）⇒ 不可读候选，计数 UNREADABLE_COUNT（动作③，不再静默跳过）。
+    local raw_disk grc_disk grc_index
+    # 磁盘侧
+    raw_disk=''
+    if [ -f "$file" ]; then
+      raw_disk=$(grep -naE "$PAT" "$file" 2>/dev/null)
+      grc_disk=$?
+      if [ "$grc_disk" -ge 2 ]; then
+        echo "🔴 无法完成扫描：grep 检索失败（file=${file}）" >&2
+        echo "   位置: check-path-privacy.sh:grep-worktree-disk" >&2
+        exit 1
+      fi
+    else
+      # 动作③：缺失/不可读候选不再静默 return 0 ⇒ 计数 UNREADABLE_COUNT + fail-closed
+      UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
+      UNREADABLE_DETAILS="${UNREADABLE_DETAILS}${file}
+"
+    fi
+    # index 侧（git grep --cached --null，--cached 必须在首个非选项参数前；
+    # --null 输出含 NUL ⇒ 落临时文件而非命令替换）
+    : > "$TMP_GREP_RAW"
+    git grep --cached -naE --null "$PAT" -- "$file" > "$TMP_GREP_RAW" 2>/dev/null
+    grc_index=$?
+    if [ "$grc_index" -ge 2 ]; then
+      echo "🔴 无法完成扫描：git grep --cached 失败（file=${file}）" >&2
+      echo "   位置: check-path-privacy.sh:grep-worktree-index" >&2
       exit 1
     fi
-    [ "$grc" -ne 0 ] && [ -z "$raw" ] && return 0
-    [ -z "$raw" ] && return 0
-    printf '%s\n' "$raw" | while IFS= read -r hitline; do
-      local l c
-      l="${hitline%%:*}"
-      c="${hitline#*:}"
-      # F3：line 字段必须匹配 ^[0-9]+$，否则按不可归因命中单列并 fail-closed
-      case "$l" in
-        ''|*[!0-9]*)
-          printf '%s:?:%s\n' "$file" "$c" >> "$TMP_HITS"
-          ;;
-        *)
-          # 逐命中占位符判定（L-133）：仅当该行**全部**命中都是占位符才跳过
-          if line_all_hits_placeholder "$c"; then
-            continue
-          fi
-          printf '%s:%s:%s\n' "$file" "$l" "$c" >> "$TMP_HITS"
-          ;;
-      esac
-    done
+    # R3-31：成功读取（磁盘或 index 任一可读）⇒ 计入 SCANNED_COUNT
+    SCANNED_COUNT=$((SCANNED_COUNT + 1))
+    # 磁盘侧命中（grep -naE 输出 `line:content`，路径用 $file）
+    local hitline l c
+    if [ -n "$raw_disk" ]; then
+      printf '%s\n' "$raw_disk" | while IFS= read -r hitline; do
+        l="${hitline%%:*}"
+        c="${hitline#*:}"
+        record_hit "$file" "$l" "$c"
+      done
+    fi
+    # index 侧命中（git grep --cached --null 输出 `<path>\0<line>\0<content>\n`）
+    if [ -s "$TMP_GREP_RAW" ]; then
+      INDEX_SIDE_COUNT=$((INDEX_SIDE_COUNT + 1))
+      parse_grep_null "$TMP_GREP_RAW" ''
+    fi
   fi
 }
 
 # 逐候选文件扫描（跳过自排除清单）
 # F19：在自排除判定之后、scan_file 之前递增 SCANNED_COUNT，以记录实际扫描次数。
-while IFS= read -r f; do
+# R3-1/R3-30 fix：read -r -d '' 逐条取 NUL 分隔路径（git ls-files -z / ls-tree -z）。
+# R3-31 fix：SCANNED_COUNT 改在 scan_file 内部成功读取后才计数（此处不再预增）。
+while IFS= read -r -d '' f; do
   [ -z "$f" ] && continue
   is_self_exclude "$f" && continue
-  SCANNED_COUNT=$((SCANNED_COUNT + 1))
   scan_file "$f"
 done < "$TMP_CANDIDATES"
 
 # F19（阶段 6 深审）：0 实际扫描 ≠ 干净 —— 候选面经自排除后为空（N>0 但 M=0）
 # 时不得打印「清单外命中 0 条」/「✅」+ rc=0（假绿），须 fail-closed。
+# R3-31 fix：实际扫描 M 由 scan_file 内部成功读取后计数；M=0 && N>0 仍 fail-closed
+# （T-FIX-06 F-19 语义不回退）。
 if [ "$SCANNED_COUNT" -eq 0 ] && [ "$CANDIDATE_COUNT" -gt 0 ]; then
   echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
   echo "   扫描面: ${SCAN_SURFACE}"
@@ -500,26 +596,62 @@ if [ "$SCANNED_COUNT" -eq 0 ] && [ "$CANDIDATE_COUNT" -gt 0 ]; then
   echo "   允许清单 ${ALLOWLIST_COUNT} 条"
   echo "   候选文件 ${CANDIDATE_COUNT} 个"
   echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "   不可读候选 ${UNREADABLE_COUNT} 个"
   echo "🔴 候选面经自排除后为空，无法判定（0 实际扫描 ≠ 干净 · ADR-027 ②③ fail-closed）"
   exit 1
 fi
 
+# R3-2 动作③：不可读候选（缺失/不可读）>0 ⇒ fail-closed（不得把「读不到」折算成「干净」）。
+# 旧实现 :450 静默 `return 0` 把 deleted tracked 当干净跳过 ⇒ 假绿。
+if [ "$UNREADABLE_COUNT" -gt 0 ]; then
+  echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
+  echo "   扫描面: ${SCAN_SURFACE}"
+  echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
+  echo "   允许清单 ${ALLOWLIST_COUNT} 条"
+  echo "   候选文件 ${CANDIDATE_COUNT} 个"
+  echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "   不可读候选 ${UNREADABLE_COUNT} 个"
+  echo "🔴 不可读候选 ${UNREADABLE_COUNT} 个（缺失/不可读 ⇒ fail-closed，不得折算为干净）"
+  printf '%s' "$UNREADABLE_DETAILS" | sed 's/^/   /'
+  exit 1
+fi
+
 # ----------------------------------------------------------------------------
-# 汇总：允许清单内 vs 清单外（F3 · line 字段数字断言 · F5 · TMP_FILES 单点）
+# 汇总：允许清单内 vs 清单外（F3 · line 字段数字断言 · F5 · TMP_FILES 单点 · R3-7 NUL 解析）
 # ----------------------------------------------------------------------------
 # 允许清单每行 `file:line`（可能带 ` # 理由`）；取 `file:line` 前缀做集合比对。
 # 命中行的归因 = `file:line`；查它是否在允许清单内。
-HITS_TOTAL=$(grep -c . "$TMP_HITS" 2>/dev/null) || HITS_TOTAL=0
+# R3-7 fix：TMP_HITS 改 NUL 分隔三段 `<path>\0<line>\0<content>\0`，汇总循环
+# 用 `read -r -d ''` 按 NUL 取字段，避免含 : 文件名被 `IFS=:` 切坏。
+HITS_TOTAL=0
+while IFS= read -r -d '' _hit_f; do
+  HITS_TOTAL=$((HITS_TOTAL + 1))
+  IFS= read -r -d '' _hit_l || _hit_l=''
+  IFS= read -r -d '' _hit_c || _hit_c=''
+done < "$TMP_HITS"
 
 # 允许清单条目集（剥注释 → 只留 file:line 前缀）存临时文件
 # F5：TMP_ALLOWLIST_KEYS 登记进 TMP_FILES（单一 EXIT trap 覆盖）
 TMP_ALLOWLIST_KEYS=$(mktemp_checked) || exit 1
-TMP_FILES="$TMP_ALLOWLIST $TMP_CANDIDATES $TMP_HITS $TMP_ALLOWLIST_KEYS"
-# F4：剥注释用同一 IS_COMMENT_OR_BLANK_RE（口径单点）
-grep -vE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/null \
-  | sed -E 's/[[:space:]]*#.*$//' \
-  | sed -E 's/[[:space:]]*$//' \
-  > "$TMP_ALLOWLIST_KEYS"
+register_tmp "$TMP_ALLOWLIST_KEYS"
+# R3-3 fix：键提取与校验器共用同一剥空白口径 —— 校验器（:233-234）去前导空白，
+# 键提取旧实现只剥尾随空白（不剥前导）⇒ 缩进条目键带前导空格 ⇒ 精确匹配失败 ⇒ 假红。
+# fix：键提取管道末尾加 `sed -E 's/^[[:space:]]+//'` 去前导空白，与校验器一致。
+# R3-6 fix：管道 rc 断言 —— grep -vE rc=2 折算空集 ⇒ 假红；管道出错 ⇒ fail-closed。
+# R3-8 fix：注释剥除口径统一 —— 先剥 `<!-- … -->`（尾随整段），再剥 `#`，再去尾随/前导空白。
+if ! grep -vE "$IS_COMMENT_OR_BLANK_RE" "$TMP_ALLOWLIST" 2>/dev/null \
+     | sed -E 's/<!--[^>]*>//g' \
+     | sed -E 's/[[:space:]]*#.*$//' \
+     | sed -E 's/[[:space:]]+$//' \
+     | sed -E 's/^[[:space:]]+//' \
+     > "$TMP_ALLOWLIST_KEYS" 2>/dev/null; then
+  rc_keys=${PIPESTATUS[0]}
+  if [ "$rc_keys" -ge 2 ]; then
+    echo "🔴 无法完成扫描：grep 提取清单键失败（rc≥2）" >&2
+    echo "   位置: check-path-privacy.sh:allowlist-keys" >&2
+    exit 1
+  fi
+fi
 
 count_in_allowlist() {
   local key="$1"
@@ -531,7 +663,11 @@ count_in_allowlist() {
 OUT_OF_ALLOWLIST_DETAILS=''
 UNATTRIBUTABLE_HITS=0
 UNATTRIBUTABLE_DETAILS=''
-while IFS=: read -r f l c; do
+# R3-7 fix：汇总循环用 NUL 分隔读 TMP_HITS 三段（path/line/content），
+# 避免含 : 文件名被 `IFS=:` 切坏。
+while IFS= read -r -d '' f; do
+  IFS= read -r -d '' l || l=''
+  IFS= read -r -d '' c || c=''
   [ -z "$f" ] && continue
   # F3：line 字段必须匹配 ^[0-9]+$；不匹配（二进制告警行 / 不可归因命中）⇒
   # 按不可归因命中单列并 fail-closed
@@ -556,6 +692,9 @@ done < "$TMP_HITS"
 # ----------------------------------------------------------------------------
 # 自证输出（AC-6 · 自证式：打印条数 + file:line 归因 · F2 · 候选文件数 · F19 · 实际扫描数）
 # ----------------------------------------------------------------------------
+# R3-31 fix（阶段 6 第 3 轮）：自证行改四数 —— 候选 N（枚举·自排除前）/ 实际扫描 M
+# （scan_file 内部成功读取后才计数·自排除后）/ index 侧 I（git grep --cached 命中条数）/
+# 不可读 U（缺失/不可读候选）。M=0 && N>0 仍 fail-closed（T-FIX-06 F-19 语义不回退）。
 # F19：自证含两个计数 —— 「候选文件 N 个」（枚举 · 自排除前）与「实际扫描 M 个」
 # （scan_file 真实调用次数 · 自排除后）。两者差值 = 自排除命中的候选数；
 # M=0 且 N>0 时由上方 fail-closed 分支拦截（不得走到此处）。
@@ -565,6 +704,8 @@ echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
 echo "   允许清单 ${ALLOWLIST_COUNT} 条"
 echo "   候选文件 ${CANDIDATE_COUNT} 个"
 echo "   实际扫描 ${SCANNED_COUNT} 个"
+echo "   index 侧 ${INDEX_SIDE_COUNT} 条"
+echo "   不可读候选 ${UNREADABLE_COUNT} 个"
 echo "   命中合计 ${HITS_TOTAL} 条（含占位符排除后）"
 echo "   清单外命中 ${HITS_OUT_OF_ALLOWLIST} 条"
 if [ "$HITS_OUT_OF_ALLOWLIST" -gt 0 ]; then
