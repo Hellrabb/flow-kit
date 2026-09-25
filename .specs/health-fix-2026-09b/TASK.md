@@ -2386,3 +2386,104 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>commit 见回执 · R4-1 过严红修复：scan_file 磁盘缺失时先探 `git cat-file -t ":$file"`，blob ⇒ 不递增 UNREADABLE_COUNT 且打印「ℹ️ 磁盘缺失但 index 侧可读」（index 侧 git grep --cached 逐字不变）；非 blob/探测失败/gitlink 仍 fail-closed · 新增 3 条 bats 判别式（T-FIX-11①②③）· bats 基线 1058→1061 · make check 全绿 · 四腿夹具全绿。已知偏差：`<verify>` 静态块用相对路径 `S=flow-kit-bundle/...` + `cd "$FX" && bash "$S"` ⇒ rc=127 找不到文件（判据自身路径缺陷，未放宽；主 agent 夹具与我自建夹具均用绝对路径 S 跑通，意图与四腿判据一致）。</done>
   <depends_on>T-FIX-08</depends_on>
 </task>
+
+<task id="T-FIX-12" parallel="false" status="done" model-tier="top">
+  <name>阶段 5 第 9 次执行新发现 🔴 NFR 预算回归（`REQUIREMENT.md:495`：`make check-path-privacy` 单次 ≤ 5 秒）—— T-FIX-07 把 index 侧内容面改成「每候选一次 `git grep --cached`」⇒ 实测 10.741/10.885/10.783/11.510/11.469 s（均值 11.078 s = 预算 221.6%，超限 2.2×）；批量化 index 侧扫描恢复 ≤5 s，且不得削弱 R3-1/R3-2/R3-30 覆盖</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/REQUIREMENT.md:495`（NFR 原文：「新增门禁 `make check-path-privacy` 单次运行 ≤ 5 秒」）· `.specs/health-fix-2026-09b/TEST.md:248`（判据：「单次运行 ≤ 5 秒 …… 验证手段 = `time` 实测并记入 TEST.md，超阈值即未满足」）· `TEST.md:261-269`（历次实测基线 2.842–3.146 s = 预算 57–61.5%，均判定达标；「绝对阈值、不做负载折算」口径由 `TEST.md:265` 确立）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（热点：`:586` `git grep --cached -naE --null "$PAT" -- "$file"` —— **每候选一次 git 进程**（T-FIX-07 引入）；`:573` `git cat-file -t ":$file"` —— 每「磁盘缺失」候选一次（T-FIX-11 引入）；`:509-520` `parse_grep_nul`：`--cached` 模式记录格式 `<path>\0<line>\0<content>\n`，rev 模式前缀 `<rev>:<path>`（可复用的现成解析器）；`:604` index 侧命中计数与去重；`:730` 自证四数输出）>
+    <`test/test_path_privacy_gate.bats`（34 例；T-FIX-07 新增的 3 条判别式 = R3-1 非 ASCII/引号名真扫 · R3-2 index-only 泄漏判红 · R3-30 rev 模式同样；T-FIX-11 新增 3 例不可读候选口径）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（仅批量化改造 + 必要注释；判据语义不变）>
+    <`test/test_path_privacy_gate.bats` + `flow-kit-bundle/test/test_path_privacy_gate.bats`（`make test-sync`；只允许**新增**用例，不得删改既有 34 例判据）>
+    <`.specs/STATE.md`（bats 基线计数行；仅当计数变化时）> · `dist/`（重建）>
+  </write_files>
+  <action>
+    **目标：把「index 侧内容面」的 git 调用次数从 O(候选数) 降到 O(1)（或 O(候选数/批)，且常数极小），使 `make check-path-privacy` 单次实测回到 ≤5 s 预算内；语义与判据强度**逐字不变**。**
+    ① **推荐改法（有界次数批处理）**：脚本进入扫描循环**之前**做**一次** `git grep --cached -naE --null "$PAT"`（**不带 pathspec** ⇒ 全 index 一次扫完）落盘到临时文件（经既有 `register_tmp` 登记清理）；随后 `scan_file()` 的 index 侧腿改为**从该缓存按候选路径取值**（缓存记录格式与 `:509-520` `parse_grep_nul` 一致 ⇒ 优先复用同一解析器；按 `<path>\0` 精确切分，注意 NUL 安全与路径含 `:`/空格/非 ASCII 的情形）。若实现选择分批（每批 ≤N 个 pathspec），必须贴出「批次数 × 单批耗时」证据且总耗时 ≤ 预算的 60%。
+    ② **`git cat-file -t` 探测同样按需批量化**：仅在「磁盘缺失」候选真实出现时才需要类型探测；若可合并为一次 `git cat-file --batch-check`（喂 `:path` 列表）则采用；否则保持逐条但**不得**在磁盘可读的常规路径上增加任何 git 调用。
+    ③ **语义等价硬约束（违反即判红）**：`--cached` 命中仍是判红来源（`:604` 计数 + `清单外命中 N 条` 输出 + 归因行 `file:line`）；R3-1（非 ASCII / 含 `"`/`\` 名必须真扫）· R3-2（泄漏已 add、工作树干净 ⇒ 必须 rc≠0）· R3-30（`CHECK_REV`/rev 模式同样判红）三条**判别式必须仍绿**；自证四数（候选 / 实际扫描 / index 侧 / 不可读）口径不得回退；bash 3.2 兼容（禁 `declare -A`/`mapfile`/`readarray`）。
+    ④ **性能判据（本次验收核心）**：修复前先贴红（`time make check-path-privacy` ≥10 s 起，可用 `TIMEFORMAT='real=%R user=%U sys=%S'`），修复后贴 5 次实测，**逐次** real ≤5 s 且打印均值与预算百分比；**不做负载折算**（`TEST.md:265` 已确立绝对阈值口径）。
+    ⑤ **测试**：新增用例优先追加进既有用例；如需新增独立用例，请覆盖「批量化后 index 侧命中仍被逐条计数且带 `file:line`」这一行为（防「一次扫描 ⇒ 命中归属丢失」）。既有 34 例一律不得改动判据。
+    ⑥ **文档**：`TEST.md` 的 NFR 段与本 change 的 receipts 由**主 agent** 记录第 9/10 次执行实测值；执行者只需在 `T-FIX-12-SUMMARY.md` 贴修复前后 5 次实测原文。
+    **TDD/判别式**：先跑出红并贴原文（修复前 ≥10 s），再改至全绿并贴原文；夹具一律 `mktemp -d` 隔离，探针串**拼接构造**（L-137，如 `P='/home/''zz-probe-d/leak.txt'`），**禁止在真仓落任何探针**；夹具跑扫描器时用 `FLOW_KIT_PRIVACY_ALLOWLIST` 指向真仓清单（绝对路径），不得依赖 CWD 读序。
+    **判据自身缺陷**：若 `<verify>` 或既有用例夹具本身有缺陷（TD-060/TD-065/TD-066/TD-072/TD-073 族），**停下原样上报**，不得自行放宽。
+    **只读与写面纪律（L-161）**：开工与收工各贴一次 `git status --porcelain` 与 `git diff --cached --stat`；除 `<write_files>` 外不得写仓库内任何文件（含 `.git/config`、`.specs/health-fix-2026-09b/reproduce-5-test.sh` —— 后者是主 agent 写面）；夹具只允许写在 `/tmp`。本仓 `core.hooksPath` 为空 ⇒ 不得声称「提交时钩子已校验」，收尾一律**手工**跑门禁。
+    收尾与提交同 T-FIX-03（`make test-sync` → `package-dsh-plugin.sh` / `package-flow-kit.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check`；显式 `git add` 路径；`git commit -m "fix(health-fix-2026-09b): T-FIX-12 隐私门禁 index 侧扫描批量化（NFR ≤5s 预算回归）" -- <路径…>`；`-m` 必须在 `--` 之前）；提交后写 `T-FIX-12-SUMMARY.md`、勾 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段（`completed_at` **必须在提交之后**且 Δ ≤ 120 s）。
+  </action>
+  <verify>
+    set -u; rc=0;
+    R=$(pwd);
+    S="$R/flow-kit-bundle/flow-kit/reference/check-path-privacy.sh";
+    AL="$R/flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt";
+    bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
+    P='/home/''zz-probe-d/leak.txt';
+    # ① NFR 预算主腿（本任务的验收核心）：5 次 `time make check-path-privacy` 逐次 ≤5 s
+    TIMEFORMAT='real=%R user=%U sys=%S'; i=1; nfr_bad=""; nfr_sum=0; nfr_max=0;
+    while [ "$i" -le 5 ]; do
+      t=$( { time make check-path-privacy >/dev/null 2>&1; } 2>&1 | tr '\n' ' ' );
+      secs=$(printf '%s' "$t" | sed -n 's/.*real=\([0-9.][0-9.]*\).*/\1/p');
+      printf '   （NFR）run %s: %s\n' "$i" "$t";
+      [ -n "$secs" ] || { nfr_bad="$nfr_bad run$i(无法解析)"; i=$((i+1)); continue; };
+      [ "$(awk -v s="$secs" 'BEGIN{print (s>5)?1:0}')" -eq 1 ] && nfr_bad="$nfr_bad run$i(${secs}s)";
+      nfr_max=$(awk -v a="$nfr_max" -v b="$secs" 'BEGIN{print (b>a)?b:a}');
+      nfr_sum=$(awk -v a="$nfr_sum" -v b="$secs" 'BEGIN{printf "%.3f", a+b}');
+      i=$((i + 1));
+    done;
+    nfr_mean=$(awk -v s="$nfr_sum" 'BEGIN{printf "%.3f", s/5}');
+    nfr_pct=$(awk -v m="$nfr_mean" 'BEGIN{printf "%.1f", m*20}');
+    printf '   ⇒ max %ss · 均值 %ss = 预算 %s%%（绝对阈值 ≤5s，不做负载折算）\n' "$nfr_max" "$nfr_mean" "$nfr_pct";
+    [ -z "$nfr_bad" ] || { echo "🔴 NFR 预算超限：${nfr_bad# }（REQUIREMENT.md:495 / TEST.md:248：超阈值即未满足）"; rc=1; };
+    # ② R3-1 不回退：非 ASCII / 引号名必须真扫（含泄漏即判红；两份夹具：非 ASCII 名 / ASCII 名对照）
+    FXM() { # $1=文件名 $2=内容
+      FX=$(mktemp -d); ( cd "$FX" && git init -q . >/dev/null 2>&1 );
+      printf '%s\n' "$2" > "$FX/$1";
+      ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
+      OUT=$( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); SRC=$?;
+      rm -rf "$FX";
+    }
+    FXM 'naïve-ünïcode.sh' "echo $P"; printf '   （诊断）② 非 ASCII 名 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-1 回退：非 ASCII 文件名未被扫描 ⇒ 假绿"; rc=1; };
+    FXM 'ascii-control.sh' "echo $P"; printf '   （诊断）② 对照 ASCII 名 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 判据②对照腿异常（ASCII 名含探针却 rc=0）"; rc=1; };
+    # ③ R3-2 不回退：泄漏已 git add、工作树改干净 ⇒ 必须判红（index 侧内容面未被批量化吞掉）
+    FX=$(mktemp -d); ( cd "$FX" && git init -q . >/dev/null 2>&1 );
+    printf 'echo clean\n' > "$FX/s.sh"; printf 'echo clean\n' > "$FX/leak.sh";
+    ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
+    printf '%s\n' "echo $P" > "$FX/leak.sh";                 # ① 工作树写入探针
+    ( cd "$FX" && git add leak.sh >/dev/null 2>&1 );          # ② index 收下探针（HEAD 仍干净）
+    printf 'echo clean\n' > "$FX/leak.sh";                    # ③ 工作树改回干净 ⇒ 泄漏只存于 index
+    ( cd "$FX" && git show :leak.sh | grep -q 'zz-probe-d' ) || echo "   ℹ️ 夹具状态异常：index 未含探针（判据③前提）";
+    grep -q 'zz-probe-d' "$FX/leak.sh" && echo "   ℹ️ 夹具状态异常：工作树仍含探针（判据③前提）";
+    OUT=$( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); SRC=$?; rm -rf "$FX";
+    printf '   （诊断）③ index-only 泄漏 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-2 回退：index 侧泄漏未被检出 ⇒ index 侧内容面被批量化跳过"; rc=1; };
+    printf '%s\n' "$OUT" | grep -qE '清单外命中 [1-9]' || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-2 回退：未打印非零「清单外命中 N 条」"; rc=1; };
+    # ④ 基线绿腿 + 真实仓
+    FX=$(mktemp -d); ( cd "$FX" && git init -q . >/dev/null 2>&1 ); printf 'echo clean\n' > "$FX/clean.sh";
+    ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
+    OUT=$( cd "$FX" && FLOW_KIT_PRIVACY_ALLOWLIST="$AL" bash "$S" 2>&1 ); SRC=$?; rm -rf "$FX";
+    printf '   （诊断）④ 干净夹具 rc=%s\n' "$SRC";
+    [ "$SRC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 基线绿腿失败"; rc=1; };
+    make check-path-privacy > /tmp/tfix12-priv.out 2>&1 || { tail -10 /tmp/tfix12-priv.out; echo "🔴 真实仓 check-path-privacy 不绿"; rc=1; };
+    grep -E '候选文件|实际扫描|命中合计|清单外命中' /tmp/tfix12-priv.out | sed 's/^/   /';
+    # ⑤ 常设网：隐私套件（既有 34 例判据不得被改弱）+ 全量套件
+    POUT=$(npx bats test/test_path_privacy_gate.bats 2>&1); prc=$?;
+    printf '%s\n' "$POUT" | grep -q '^not ok' && { printf '%s\n' "$POUT" | grep '^not ok' | head -5; echo "🔴 隐私门禁常设网有失败项"; rc=1; };
+    [ $prc -eq 0 ] || { echo "🔴 test_path_privacy_gate.bats rc=$prc"; rc=1; };
+    printf '   （诊断）⑤ 隐私套件 %s ok / %s not-ok\n' "$(printf '%s\n' "$POUT" | grep -cE '^ok [0-9]+')" "$(printf '%s\n' "$POUT" | grep -cE '^not ok [0-9]+')";
+    FULL=$(npx bats test/ 2>&1); frc=$?;
+    printf '%s\n' "$FULL" | grep -q '^not ok' && { printf '%s\n' "$FULL" | grep '^not ok' | head -5; rc=1; };
+    [ $frc -eq 0 ] || { echo "🔴 全量套件 rc=$frc"; rc=1; };
+    echo "bats: $(printf '%s\n' "$FULL" | grep -cE '^ok [0-9]+') ok / $(printf '%s\n' "$FULL" | grep -cE '^not ok [0-9]+') not-ok / count=$(npx bats --count test/)";
+    # ⑥ 三一致性 + 总门禁
+    make check-hooks-sync > /dev/null 2>&1 || { echo "🔴 hooks 副本未同步"; rc=1; };
+    make check-test-sync  > /dev/null 2>&1 || { echo "🔴 test 双源不一致"; rc=1; };
+    make check-dist       > /dev/null 2>&1 || { echo "🔴 dist 未重建"; rc=1; };
+    make check > /tmp/tfix12-check.out 2>&1 || { tail -20 /tmp/tfix12-check.out; echo "🔴 make check 不绿"; rc=1; };
+    exit $rc
+  </verify>
+  <done>已完成（commit c177fbac8ffe8c24a989fa5d6bb9ac9574fb2fa3）。修复前 5 次 NFR 实测 real=11.070/10.864/10.775/10.846/10.860 s（均值 ~11.083 s = 预算 221.7%，sys 远高于 user 确认 git 进程启动开销）；修复后 5 次 real=3.722/3.562/3.489/3.664/3.581 s（均值 3.604 s = 预算 72.1%，sys 从 ~11.2 s 降至 ~2.4 s）。R3-1（非 ASCII 名 naïve-ünïcode.sh rc=1）/ R3-2（index-only 泄漏 rc=1 + 清单外命中≥1）/ R3-30（rev 模式，bats 套件覆盖）三判别式不回退；自证四数口径不变（候选 1600 / 实际扫描 1594 / index 侧 13 / 不可读 0）。隐私 bats 30 ok / 0 not-ok；全量 bats 1061 ok / 0 not-ok；make check 21 项全绿。详见 T-FIX-12-SUMMARY.md。</done>
+  <depends_on>T-FIX-07</depends_on>
+</task>
