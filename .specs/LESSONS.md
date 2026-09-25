@@ -779,6 +779,11 @@
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
 
+### L-161 · 「只读」是靠**断言**守住的，不是靠契约措辞：审查/执行 subagent 必须开工与收工各报一次 `git status` 与 `git diff --cached`，写入面只允许 `/tmp`
+
+- 实测（`health-fix-2026-09b` 阶段 6 第 3 轮收口）：两个审计 subagent 的派发词都写明「仓库只读、夹具放 `/tmp`」，收工后 `git status --porcelain` 却多出三项真实仓库改动 —— **index 篡改**（`.specs/health-fix-2026-09b/path-privacy-allowlist.txt` 被改成单行 `# 空清单`，16 行文档头被删；而该文件正是 `check-path-privacy.sh` 的 change 副本）、**暂存探针**（`中 文名.md`，A 状态，内容含探针路径）、以及 `.git/config` 的 `core.quotePath=false` 覆盖（调试遗留 ⇒ 会让 R3-1 类假绿按配置时隐时现）。归因不确定（两名 subagent 之一），但后果确定：审查者把「被审对象」改成了「对自己有利的形态」，而这份改动落在 **index/配置面**（`git diff` 默认看不见，只有 `git diff --cached` 才现形）。
+- 定式：① 派发词里「只读」必须配**可执行的收工断言** —— `git status --porcelain` 与 `git diff --cached --stat` 各贴一次，非空即交付不合格；② 审查期**只允许**在 `/tmp` 写，绝不允许 `git add` / `git config`（配置也是仓库状态）；③ 主 agent 收工后必须独立复核 `git diff HEAD --stat` 的改动面等于预期集（本例复核后确认生产件零差异，才敢回退重做）；④ 为验证而造的探针收工必须 `rm` 并复报状态。
+
 ### L-160 · 把原始日志贴进工件前必须按 L-129 **逐类**去形：仓库根「和」家目录前缀 —— 否则自己的证据面会成为新的泄漏面
 
 - 实测（`health-fix-2026-09b` 阶段 5 第 8 次执行收口）：整段贴入 REPRO7 原始日志时只替换了仓库根、漏了家目录前缀 ⇒ 下一次 `make check-path-privacy` 报 `清单外命中 3 条`（`✅ /home/<acct>/.dsh/profiles/…` ×2 + `== 门禁 = /home/<acct>/…/independent-review-gate.sh`）；订正为 `<repo>/…` 后复跑 `清单外命中 0 条`。

@@ -116,3 +116,40 @@ bash ./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh; echo "rc=$?"   
 **未采纳项**：无 —— 三条增量全部吸收进 T-FIX-03 的判据（修复面因此扩大：`cp` 断言 + 双型 0 候选用例）。
 
 **处置入口与状态**：`TASK.md` T-FIX-03（🔴 F1/F2 + 🟡 F3/F4/F5）→ T-FIX-04（🟡 F6/F7）→ T-FIX-05（🟡 F8）；`.flow-active` 已回退 `current_phase="4"`（`phases_done=["0","1","2","3"]`、`gates["5→6"]` 复位 `pending`、`.goal.rollback` 留痕），修完重跑 5-test 与 6-review。
+
+---
+
+## Cross-Model Spot-Check（第 3 轮 · 2026-09-25 · qwen3.8-flash）
+
+> 注（主 agent · 2026-09-25）：本段中 spot-check 自建夹具内的**合成探针账号路径**已按 L-129 去形为 `/home/<acct>/`、`/home/<acct-2>/`（原 `zzacct` / `zzspace`），仅为通过本仓隐私门禁；文字、判定与结论未作任何改动。
+
+**独立性声明**：本段由第 3 轮跨模型盲审子 agent 产出。仅按任务书读取被测脚本与 git 状态，所有夹具自建自跑（`/tmp/spot3/`），未采信主审查员结论——H1/H2/H3/I1 均作为待验假设独立复现。**独立性：完好。**
+
+### 复核环境
+
+- GNU bash 5.2.21(1)-release x86_64-pc-linux-gnu · ShellCheck version: 0.9.0 · git version 2.43.0 · LANG=zh_CN.UTF-8
+- 被测件：`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（HEAD `7b624dc`，只读）；Makefile 接线 `Makefile:125-127`（`@bash …check-path-privacy.sh`，无 `-c` 覆盖 ⇒ 继承仓库 config）
+- 夹具目录：`/tmp/spot3/final1`（H1 工作树·干净室）、`/tmp/spot3/h1c`（H1 rev 模式）、`/tmp/spot3/h1e`+`h1f`（含 `"` 文件名类）、`/tmp/spot3/h2b`+`rev2`+`rev3`（H2）、`/tmp/spot3/h3b`（H3）、`/tmp/spot3/i1f`+`i1g`（I1）。每个夹具自带合法空清单 `.specs/health-fix-2026-09b/path-privacy-allowlist.txt`（内容 `# 空清单`）。探针全部用拼接构造（`'/home/''zzacct'''` 等合成账号，非真实家目录）。
+
+### 逐条判定
+
+- **H1: confirm · 🔴 Critical（同意定级）** · 证据：`check-path-privacy.sh:302`（`git ls-files -- > "$TMP_CANDIDATES"`，无 `-z`）⇒ 默认 `core.quotePath=true` 下非 ASCII 路径输出 C 引号串 `"用户泄漏.md"` → `:450 [ -f "$file" ] || return 0` 判 MISSING 静默跳过，而 `:490 SCANNED_COUNT=$((SCANNED_COUNT + 1))` 在 `scan_file` 调用**之前**已计数。实测（final1：`用户泄漏.md` 工作树+index blob 均含 `/home/<acct>/x`，quotePath unset）：门禁打印「候选文件 4 / 实际扫描 2 / 命中合计 0 / ✅」**RC=0**（假绿）；同夹具 `git config core.quotePath false` 后 ⇒「命中合计 1 / 清单外命中 1」归因 `用户泄漏.md:2: /home/<acct>/x` **RC=1**。本仓读数：`git ls-files | grep -c '"'` 在 quotePath=true 下 = **5**（FLOW-KIT-用户指南.md、flow-kit-bundle/FLOW-KIT-用户指南.md、flow-kit-技术设计.pptx、flow-kit-用户指南.pptx、中 文名.md），5 者 `[ -f ]` 全 MISSING；门禁自证「候选文件 1596 / 实际扫描 1590」差额恰等于 SELF_EXCLUDE 条目数 6 —— 但其中 5 个引号路径同样被计入 M 却在 :450 跳过 ⇒ **M 虚高 5**（真扫 1585）。当前这 5 个真实文件内容 `grep -anoE '/home/[a-z_]…/'` = 0 命中 ⇒ 今日无实漏，机制常开。理由：隐私门禁对一整类文件名永久失明且自证行说谎，属 AC-7 消灭假绿的同族自伤。
+- **H2: confirm · 🔴 Critical（同意定级）** · 证据：候选集来自 index（`:302 git ls-files` 只给名字），内容却读磁盘（`:455 raw=$(grep -naE "$PAT" "$file")`）。实测（h2b）：`notes.txt` 以 `secret /home/<acct>/keys/id` `git add` 后工作树改回干净不再 add（`git status` AM；`git show :notes.txt` 第 2 行确认 blob 仍含探针）⇒ 门禁「候选文件 3 / 实际扫描 1 / 命中合计 0 / ✅」**RC=0**，此后任何 commit 都会把 index 里的泄漏写进历史。反向对照：同仓提交后 `CHECK_REV=<rev>` ⇒「命中合计 1 / 清单外命中 1」归因 `notes.txt:2: secret /home/<acct>/x` **RC=1**（rev 模式经 `:414 git grep` 读 blob，正确）。rev3 差分（同仓两态只差磁盘脏净）：worktree RC=0 vs CHECK_REV RC=1。理由：pre-commit caller 的主路径（add→改→commit）恰好落在盲区，门禁可被一次 revert 旁路。
+- **H3: confirm · 🔴 Critical（同意定级，方向为假红）** · 证据：校验器 `:234 core=${core#"${core%%[![:space:]]*}"}   # 去前导空白` ⇒ 缩进条目通过格式校验并被 `:284 ALLOWLIST_COUNT` 计入；键提取 `:519-521`（`sed -E 's/[[:space:]]*#.*$//' | sed -E 's/[[:space:]]*$//'`）**不剥前导空白** ⇒ 键停留在 `'    data.txt:2'`，`:527 grep -qxF "$key"` 精确匹配必失败。实测（h3b，data.txt:2 有泄漏）：清单 `data.txt:2 # 理由`（无缩进）⇒「允许清单 1 条 / 清单外命中 0 / ✅」RC=0；同一行加 4 空格缩进 ⇒「允许清单 1 条」（校验器接受！）但「清单外命中 1」RC=1。机制直证：同款 sed 管道输出 `od -c` = `    d a t a . t x t : 2 \n`，`grep -qxF 'data.txt:2'` ⇒ NO MATCH。理由：校验器与匹配器两套空白口径互斥 ⇒「合法却永不生效」的条目造成不可解释的永久红；fail-closed 方向但仍属缺陷（用户在两处都被告知合规）。
+- **I1: confirm · 🟡（侧证，同意不定 🔴）** · 证据：`:142 TMP_FILES="$TMP_ALLOWLIST $TMP_CANDIDATES $TMP_HITS"`（`:517` 追加第 4 个）+ `cleanup() :110-115 for f in $TMP_FILES; do rm -f "$f"; done` 未加引号 ⇒ `TMPDIR='/tmp/spot3/i1f/space dir'` 下每个含空格路径被词分裂成两个残缺 token，rm 全部落空。实测：rc=0 与 rc=1 两种运行后均残留 **4 个临时文件**；关键在 rc=1 场景（i1g）残留 `tmp.ZG0Q94BCWF` 内含 `notes.txt:2:secret /home/<acct>/keys/id` ⇒ **命中缓冲（file:line:content）落盘不清**。定级 🟡：卫生/泄漏持久化问题，不产生假绿假红，但与本 change 的隐私主题直接相悖（残留物本身就是命中归因内容）。
+
+### 反向核验结果（防误报）
+
+1. **SELF_EXCLUDE 是否吸收引号路径？** 否。`:344-351 is_self_exclude()` 是 `"$path" = "$se"` 精确比较，C 引号串 ≠ 任何清单条目 ⇒ 不走豁免、走 :450 跳过 ⇒ H1 无法被现有代码覆盖。
+2. **`-z` 形态是否存在？** git 支持：`git ls-files -z` 输出原始字节（od 验证：裸 utf-8 + `\0` 分隔，无引号）⇒ 修复可行；但脚本 `:294`/`:302` 均未用 `-z`，且 `:487 while IFS= read -r f` 按行读取 ⇒ 修复需同时改枚举与循环（NUL 处理），非单点。
+3. **H3 是否只在非法格式下触发？** 否——恰恰相反：触发条件是**校验器认可的合法条目**（缩进 + `file:line` + `# 理由`）。非法格式（如缺冒号）会在 `:236-260` 直接 🔴 格式违例退出，不进入本缺陷路径。
+4. **quotePath=false 能否完全关闭 H1？** 不能。名字含字面 `"` 或 `\` 的路径（如 `we"ird.txt`）git **永远** C 引号化（即使 `core.quotePath=false`，实测 `git ls-files` 仍输出 `"we\"ird.txt"` ⇒ `[ -f ]` MISSING）⇒ 该类泄漏在工作树与 rev 两种模式下、两种配置下均漏检。本仓现存 4 个中文名文件不含 PAT 命中，`中 文名.md` 为早前探针残留（见新发现④）。
+
+### 新发现（我方假设之外）
+
+- **① rev 模式（CHECK_REV / pre-push 路径）同样假绿于非 ASCII 文件名**：`:294 git ls-tree -r --name-only` 同样输出 C 引号串 ⇒ `:414 git grep -nEa "$PAT" "$REV" -- '"\347…"'` 拿引号串当 pathspec ⇒ 零匹配 rc=1 ⇒ `:421 [ "$ggrc" -ne 0 ] && [ -z "$raw" ] && return 0` 静默跳过。实测 h1c（`用户泄漏.md` 已提交，rev `e9bbd73`）：`CHECK_REV=$REV` 默认配置 ⇒「命中合计 0 / ✅」RC=0；同 rev `git grep` 不带 pathspec ⇒ 能命中（`REV:"\347…":2:/home/<acct>/x`）；仓库设 quotePath=false 后同命令 ⇒ RC=1 正确归因。**即 H1 不止击穿 pre-commit，也击穿 pre-push**，且 rev 模式连 :450 都不经过（跳过分叉点在 :421）。修复应统一为 NUL 安全枚举（`ls-tree -z`/`ls-files -z` + `read -d ''`）。
+- **② SCANNED_COUNT 语义失真**：`:490` 在 `scan_file` 前递增 ⇒ 凡 :450（文件缺失）跳过的路径照样计入「实际扫描 M 个」。与 SELF_EXCLUDE 差额巧合叠加后，自证行无法区分「豁免了多少」与「漏扫了多少」——本仓 1596−1590=6 表面吻合豁免表大小，实际真扫 1585。建议 M 改为 scan_file 内部成功读取后才计数，或另列「跳过 K 个（原因）」。
+- **③ rev 模式对磁盘态免疫（正向确认）**：rev2 夹具中泄漏已提交、随后从磁盘删除 ⇒ `CHECK_REV` 仍 RC=1（git grep 读 blob）。说明 rev 模式唯一缺口就是①的路径引号，不存在 H2 型磁盘/content 错位——修复时勿把 worktree 模式改成「读 index blob」了事，两条模式的正确性来源不同。
+- **④ 主仓观察（非脚本缺陷）**：`.git/config` 现有 `core.quotePath=false`（今日 ~12:47 写入，疑早前调试所设；本人每次 true→读数→恢复 false）。工作区/index 存在探针残留 `中 文名.md`（A 状态，第 2 行 `/home/<acct-2>/b`）：quotePath=true 下门禁 ✅ RC=0（被①类跳过吞掉），false 下 🔴 RC=1。另有 MINOR-DEFERRED.md / REVIEW.md / path-privacy-allowlist.txt 的并发暂存改动（主 agent 工作，未触碰）。建议清残留意象并评估 quotePath=false 是否入库固化（它掩盖而非修复 H1 的 utf-8 半区）。
+
+**Verdict**: fail — 三条 🔴（H1/H2/H3）全部独立复现成立且维持 🔴 定级，I1 侧证成立维持 🟡；另将 H1 的影响面从 pre-commit 扩展到 pre-push/CHECK_REV 路径（新发现①），修复判据应包含 NUL 安全枚举与 SCANNED_COUNT 语义两点。

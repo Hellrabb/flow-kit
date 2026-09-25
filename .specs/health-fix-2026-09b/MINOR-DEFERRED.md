@@ -1167,3 +1167,31 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | --- | --- | --- | --- | --- |
 | `TD-069` | L3 信封被上限截断（`303899B → 299999B`，丢尾部 1%）**只在 stderr 告警**，且提高 `FLOW_KIT_L3_MAX_ARTIFACT_BYTES` 后重审被守卫跳过（`artifact hash 不变`）⇒ 无补救路径、工件上不可见 | 🟡（工具/证据面 · 非生产件） | 在 `INDEPENDENT-REVIEW-5.md` 主 agent 响应节与 `PHASE5-RECEIPTS.md` §Q-3 写明字节账与被丢内容（补充产物尾部，主审面 `TEST.md` 完整送达）；**不为此改动 `TEST.md`**；v2 = 截断落工件 + 守卫把截断纳入重跑条件 + 总量自动分配 | ✅ 已披露并登记（`.specs/CONTEXT.md:616`） |
 | `R1`（L2 第 4 轮） | 回执 `§P-3c` 只贴 5 行自证，漏 F-19 三行计数 | 🟢（回执层） | 复现器显示正则 4→7 字段 + `§P-3c` 全文重贴 + `TEST.md:119`/`:418` 连带订正 + `TD-068` | ✅ 已订正（L3 前） |
+
+## 🟢 阶段 6 第 3 轮 · 只读深审未处置项（R3-M1 ~ R3-M6 · 交阶段 7 triage · 2026-09-25）
+
+> 被审 revision **`7b624dc`**（fix 循环后快照）。来源 = 独立审计 subagent `dcf10215-ce85-4f97-895b-d6fd540c92b9`（隐私门禁对抗式审计：14 项已验证无问题 + 3 🔴 + 5 🟡 + 5 🟢）、审计 subagent `3ac72cc1-1d41-49e5-a8ce-afc6848d09ac`（其余 12 个生产件回归面）与主 agent 亲验。🔴/🟡 的分级、机制与亲验见 `REVIEW.md` §0″.4；本表只记 **🟢**（不阻塞、进阶段 7 triage）。
+
+| ID | 内容 | severity | 位置 | 处置建议 |
+| --- | --- | --- | --- | --- |
+| `R3-M1` | 死条件：`[ "$ggrc" -ne 0 ] && [ -z "$raw" ] && return 0` 被紧随其后的 `[ -z "$raw" ] && return 0` 完全包含；`:462`/`:463` 同型重复 | 🟢（R4 偶然复杂） | `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:421`、`:462-463` | accept —— 删除冗余分支，零行为变更 |
+| `R3-M2` | 无用符号：`local lineno line uname` 三者在 `scan_file` 内从未使用（`uname` 还遮蔽 `uname(1)`）；`HITS_TOTAL=0` 在初始化后立即被覆盖 | 🟢（R4） | 同上 `:372`、`:407` | accept —— 清理 |
+| `R3-M3` | 文档漂移：`path-privacy-allowlist.txt:8` 的自述计数口径 `grep -cvE '^[[:space:]]*(#\|$)'` ≠ 脚本 `IS_COMMENT_OR_BLANK_RE`（`:215`，含 `<!--`） | 🟢（R6 文档面） | `flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt:8` vs `check-path-privacy.sh:215` | accept —— 同步口径或直接写「口径见脚本 `:215`」 |
+| `R3-M4` | shellcheck 0.9.0 对该文件报 4× SC2317（info，`cleanup()` 由 `trap` 调用属误报）；`make lint` 只判 error 级（`Makefile` 的 `grep -ci error`）⇒ lint 绿；若升到 warning 级会红 | 🟢（工具面） | `check-path-privacy.sh`（`cleanup` 定义处） | accept —— 升 warning 级时加 `# shellcheck disable=SC2317` |
+| `R3-M5` | 自证行措辞：失败态/零命中态下「命中合计 N 条」与 `✅`/`🔴` 并列时的语义边界（本 change 已在 F-19 收口），余下属措辞一致性 | 🟢（R6） | 自证行 `:562-569` 等 | accept —— 措辞统一，无判定影响 |
+| `R3-M6` | **主 agent 观察**：自证块在 6 个站点手工重贴（`扫描面` 打印站 `:162`/`:195`/`:267`/`:319`/`:498`/`:563`；`实际扫描` 仅 `:502`/`:567`）⇒ 字段集变更需多点同步（F-19 修复即须改 2 处） | 🟢（R3 知识重复） | `check-path-privacy.sh` 同名 `echo` 块 | accept —— 可提取 `emit_self_cert`（按可用计数参数化）；现状各站点按上下文打印子集，非相互矛盾 |
+
+**审计侧未覆盖面（保留为阶段 7 triage 输入）**：20 例 bats 未由审计端实跑（任务禁跑 `npx bats`，主 agent 侧另行复跑）· macOS/BSD 真机行为（与 `TD-055` 同族）· 清单 CRLF 行尾 · `git log --all` 历史 rev 是否曾有泄漏落在被静默跳过的 4 个非 ASCII 文件（与 `TD-061` 覆盖数据缺失同族）· hook 端到端真跑（`git commit`/`git push` 被任务禁止，按 `pre-commit.sh:33 → Makefile:127` 调用链 + 夹具等价性推断）。
+
+## 🟢 阶段 6 第 3 轮 · 审计 #2（其余 12 生产件面）未处置项（R3-24 ~ R3-29 · 交阶段 7 triage · 2026-09-25）
+
+> 来源 = 独立审计 subagent `3ac72cc1-1d41-49e5-a8ce-afc6848d09ac`（审计 ID 对照：M1→R3-24 … M6→R3-29）。该审计的 3 🔴（C1/C2/C3）与 6 🟡（含 C4 降为设计有意）见 `REVIEW.md` §0″.4.B；本表只记 **🟢**（不阻塞、进阶段 7 triage）。
+
+| ID | 内容 | severity | 位置 | 处置建议 |
+| --- | --- | --- | --- | --- |
+| `R3-24`（审计 M1） | `set -- $line` 未加引号 ⇒ 畸形两字段行含 glob 字符时会在 cwd 展开、拒绝报文里的 ref 名失真（判定不受影响，`$2` 仍进 `CHECK_REV`；实测单字段畸形行 ⇒ fail-closed rc=1，行为正确） | 🟢（R1/R4） | `flow-kit-bundle/hooks/pre-push/pre-push.sh:24` | accept —— 改 `read -r local_ref local_sha _ <<< "$line"`（仅静态推断，未构造展开复现） |
+| `R3-25`（审计 M2） | `strip_front_matter()` 定义在 `check_pair()` 函数体内 ⇒ 首次调用后泄漏为全局符号，隐式依赖「先调用一次」 | 🟢（R5 依赖失序） | `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh:88` | accept —— 提到文件顶层 |
+| `R3-26`（审计 M3） | `runtime-edit-guard.sh` 去掉 `eval` 后的行为差异：字面 `$HOME/x` 与 `~user/x` 由「可展开」变为 exit 2（fail-closed，无安全回归）；`~`、`~/x/y`、绝对路径、含空格路径仍接受 | 🟢（R1/R6） | `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（路径解析段） | accept —— 如需兼容 `$HOME/` 前缀可 `case` 再剥一层 |
+| `R3-27`（审计 M4） | ADR 预算魔法数 `18000`/`5000` 在同一段内联 5 处，`_adr_budget` 只覆盖其中两处 ⇒ 改预算需手抄 | 🟢（R3/R5） | `flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:353`、`:362`、`:367-369` | accept —— 抽 `_ADR_BUDGET_TOTAL` / `_ADR_BUDGET_PER_FILE` |
+| `R3-28`（审计 M5） | 孤儿白名单：`sync-hooks.sh` 的 case 模式 `stop/lib/*.sh` 被 `stop/*.sh` 涵盖（shellcheck SC2221/SC2222，**既有**，本次仅追加 `pre-push/*.sh`） | 🟢（R4/R5） | `sync-hooks.sh:290` | accept —— 删冗余分支或加注释说明 |
+| `R3-29`（审计 M6） | 登记册跨文件一致性：`.specs/CONTEXT.md:589` 的 TD-048 行仍写「Part C 拷贝段无 pre-push stanza」（`package-flow-kit.sh:131-136` 已补）、`:605` 的 TD-059 行仍标 🔴（`done-validation.sh:84-89` 已修，TD-064 行已同步为 🔴→🟢） | 🟢（R5/R2） | `.specs/CONTEXT.md:589`、`:605` | **本 change 收口时顺手更新这两行**（登记册自身在审计面外，仅作提示） |
