@@ -1903,7 +1903,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-05</depends_on>
 </task>
 
-<task id="T-FIX-07" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-07" parallel="false" status="done" model-tier="top">
   <name>阶段 6 第 3 轮 🔴 R3-1/R3-2/R3-30 —— 隐私门禁三个假绿面（引号化路径 / index×磁盘错位 / rev 模式）+ 同文件 6 🟡 + R3-31 自证语义</name>
   <read_files>
     <`.specs/health-fix-2026-09b/REVIEW.md` §0″.4.A（R3-1…R3-13 全文）与 §0″.6（🔴 表 + 每条修复判据）>
@@ -2018,7 +2018,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix7-check.out 2>&1 || { tail -20 /tmp/tfix7-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done></done>
+  <done>T-FIX-07 已完成：三个假绿面（R3-1/R3-2/R3-30）+ 6 🟡 + R3-31 全部修复，verify EXIT=0，bats 1029 ok / 0 not ok，make check 全绿。修复提交 20847e1。详见 T-FIX-07-SUMMARY.md。</done>
   <depends_on>T-FIX-06</depends_on>
 </task>
 
