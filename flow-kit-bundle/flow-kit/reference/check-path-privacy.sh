@@ -562,10 +562,23 @@ scan_file() {
         exit 1
       fi
     else
-      # 动作③：缺失/不可读候选不再静默 return 0 ⇒ 计数 UNREADABLE_COUNT + fail-closed
-      UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
-      UNREADABLE_DETAILS="${UNREADABLE_DETAILS}${file}
+      # R4-1 fix（阶段 6 第 3 轮 T-FIX-11）：口径对齐「候选面=index、内容面=index ∪ 工作树」。
+      # 磁盘缺失时先探 index 侧对象类型 —— `git cat-file -t ":$file"` 输出 `blob` ⇒
+      # 内容面由既有 index 侧 `git grep --cached` 覆盖（下方逐字不变），不递增
+      # UNREADABLE_COUNT；否则（非 blob / 探测失败 / gitlink mode 160000 ⇒ `commit`）
+      # 维持 fail-closed（动作③：两侧皆不可得才不可读）。
+      # 旧实现（R3-2 动作③）：磁盘缺失即无条件 UNREADABLE_COUNT++ ⇒ 已跟踪未 staged
+      # 删除的干净候选被判「不可读」⇒ 整门禁过严红（且 index 侧泄漏被 exit 1 遮住）。
+      local idx_type
+      idx_type=$(git cat-file -t ":$file" 2>/dev/null)
+      if [ "$idx_type" = blob ]; then
+        echo "ℹ️ 磁盘缺失但 index 侧可读：${file}（内容面按 index 扫描）"
+      else
+        # 两侧皆不可得（非 blob / 探测失败 / gitlink）⇒ 不可读候选 + fail-closed
+        UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
+        UNREADABLE_DETAILS="${UNREADABLE_DETAILS}${file}
 "
+      fi
     fi
     # index 侧（git grep --cached --null，--cached 必须在首个非选项参数前；
     # --null 输出含 NUL ⇒ 落临时文件而非命令替换）

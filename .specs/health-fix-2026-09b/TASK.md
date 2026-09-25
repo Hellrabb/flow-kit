@@ -2200,7 +2200,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-08</depends_on>
 </task>
 
-<task id="T-FIX-10" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-10" parallel="false" status="done" model-tier="top">
   <name>阶段 6 第 3 轮 🟡 R3-18/R3-19/R3-20 —— `check-gate-sync.sh` 漂移定位张冠李戴 + `grep -c` 空集在 `set -e` 下静默中止 + `diff` rc=2 折算为「无差异」</name>
   <read_files>
     <`.specs/health-fix-2026-09b/REVIEW.md` §0″.4.B（R3-18/R3-19/R3-20 全文与主 agent 实测）>
@@ -2297,10 +2297,10 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix10-check.out 2>&1 || { tail -20 /tmp/tfix10-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done></done>
+  <done>commit d840a12 · R3-18/R3-19/R3-20 三处判据可信度修复 + 4 条 bats 判别式（R3-18A/R3-18B/R3-19/R3-20）· bats 基线 1054→1058 · make check 全绿 · verify 六腿全红转绿。已知偏差：verify 静态 grep `diff_out.*\|\| true` 过宽（误命中消费行），通过引入 count_lines 辅助函数隔离 rc 规避，未削弱 verify。</done>
   <depends_on>T-FIX-09</depends_on>
 </task>
-<task id="T-FIX-11" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-11" parallel="false" status="done" model-tier="top">
   <name>阶段 6 第 3 轮复核新增 🟡 R4-1（用户裁决「本 change 内修」）—— 已跟踪文件「未 staged 删除」被误判「不可读候选」⇒ 过严红；口径对齐「候选面=index、内容面=index ∪ 工作树」</name>
   <read_files>
     <`.specs/health-fix-2026-09b/MINOR-DEFERRED.md`「T-FIX-07 复核记录」中的 R4-1 段（主 agent 夹具实测：新件 候选 3 / 扫描 2 / 不可读 1 / rc=1；旧件 ✅ rc=0）与本文件 T-FIX-11 `<verify>` 的四腿预检原文（① 删未 staged·干净 rc=1 且 `不可读候选 1 个`；② index 版本含泄漏 rc=1（停在 fail-closed，未打印命中行）；③ gitlink 候选 rc=1 且 `git cat-file -t :submod` = `commit`、`:base.sh` = `blob`；④ 磁盘可读·干净 rc=0 且 `不可读候选 0 个`）>
@@ -2383,6 +2383,6 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix11-check.out 2>&1 || { tail -20 /tmp/tfix11-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done></done>
+  <done>commit 见回执 · R4-1 过严红修复：scan_file 磁盘缺失时先探 `git cat-file -t ":$file"`，blob ⇒ 不递增 UNREADABLE_COUNT 且打印「ℹ️ 磁盘缺失但 index 侧可读」（index 侧 git grep --cached 逐字不变）；非 blob/探测失败/gitlink 仍 fail-closed · 新增 3 条 bats 判别式（T-FIX-11①②③）· bats 基线 1058→1061 · make check 全绿 · 四腿夹具全绿。已知偏差：`<verify>` 静态块用相对路径 `S=flow-kit-bundle/...` + `cd "$FX" && bash "$S"` ⇒ rc=127 找不到文件（判据自身路径缺陷，未放宽；主 agent 夹具与我自建夹具均用绝对路径 S 跑通，意图与四腿判据一致）。</done>
   <depends_on>T-FIX-08</depends_on>
 </task>

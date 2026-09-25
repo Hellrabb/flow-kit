@@ -441,3 +441,59 @@ run_sut_override() {
   [[ "$output" == *"清单外命中 0 条"* ]]
   [[ "$output" != *"允许清单来源: $ALLOW_CHANGE_REL"* ]]
 }
+
+# T-FIX-11（R4-1）：已跟踪文件「未 staged 删除」被误判「不可读候选」⇒ 过严红。
+# 口径对齐「候选面 = index、内容面 = index ∪ 工作树」—— 磁盘缺失但 index 侧仍是 blob
+# ⇒ 不得递增 UNREADABLE_COUNT；index 侧 git grep --cached 逐字不变。
+# 三例夹具一律 mktemp 隔离、探针拼接构造（L-137）、覆盖旋钮指向空清单（避免 CWD 读序依赖）。
+@test "T-FIX-11①：已跟踪未 staged 删除且内容干净 ⇒ rc=0 且「不可读候选 0 个」（R4-1 过严红修复）" {
+  mkfile "sub/clean.sh" "echo clean\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  stage "sub/clean.sh" "$ALLOW_REL"
+  # 提交进 index（建立 blob），再从磁盘删（不 git rm ⇒ 删除态未 staged）
+  git -C "$FIXTURE" commit -qm base
+  rm -f "$FIXTURE/sub/clean.sh"
+
+  local override="$FIXTURE/empty-allowlist.txt"
+  printf '# 空覆盖清单\n' > "$override"
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"不可读候选 0 个"* ]]
+  [[ "$output" == *"清单外命中 0 条"* ]]
+  # 磁盘缺失但 index 侧可读的提示行（实现选择打印则断言；若静默兜底也接受）
+  [[ "$output" == *"磁盘缺失但 index 侧可读"* ]]
+}
+
+@test "T-FIX-11②：同删除态但 index 版本含泄漏 ⇒ rc≠0 且「清单外命中 [1-9]」（内容面未被跳过）" {
+  mkfile "sub/leak.sh" "echo ${PROBE}leak.txt\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空，泄漏须判红）\n"
+  stage "sub/leak.sh" "$ALLOW_REL"
+  git -C "$FIXTURE" commit -qm base
+  rm -f "$FIXTURE/sub/leak.sh"
+
+  local override="$FIXTURE/empty-allowlist.txt"
+  printf '# 空覆盖清单\n' > "$override"
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -ne 0 ]
+  # 内容面必须仍被 index 侧 git grep --cached 扫描并打印非零命中
+  [[ "$output" =~ 清单外命中\ [1-9] ]]
+}
+
+@test "T-FIX-11③：gitlink 候选（mode 160000 无 blob）⇒ rc≠0（真正不可读仍 fail-closed）" {
+  mkfile "base.sh" "echo base\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  stage "base.sh" "$ALLOW_REL"
+  git -C "$FIXTURE" commit -qm base
+  local sha
+  sha="$(git -C "$FIXTURE" rev-parse HEAD)"
+  # 加入 gitlink 候选（git cat-file -t :submod => commit，非 blob）
+  git -C "$FIXTURE" update-index --add --cacheinfo 160000,"$sha",submod
+
+  local override="$FIXTURE/empty-allowlist.txt"
+  printf '# 空覆盖清单\n' > "$override"
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -ne 0 ]
+}
