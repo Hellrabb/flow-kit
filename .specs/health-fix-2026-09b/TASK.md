@@ -2029,19 +2029,21 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（`:48` 直调 `make check-path-privacy`；`:59` 无条件 `make check`；头部契约注释）>
     <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（`:32-36` 调 Makefile 目标；`:5` 自陈的守卫只覆盖 `make test`/npx 可见性）>
     <`flow-kit-bundle/lib/install_hooks.sh`（`:75-89` `deploy_pre_commit` 的同意门 · `:122-163` `deploy_pre_push`（注释明写「备份后覆盖…禁止照抄 deploy_pre_commit」= DESIGN D3/ADR-022 有意设计）· `:173-180` jq 硬前置 fail-closed）>
-    <`install.sh` · `flow-kit-bundle/README.md:36`（`install.sh --project <path>` 消费者路径）· `OPENCODE-INSTALL.md`>
+    <`flow-kit-bundle/install.sh` · `flow-kit-bundle/README.md:36`（`install.sh --project <path>` 消费者路径）· `flow-kit-bundle/OPENCODE-INSTALL.md`>
   </read_files>
   <write_files>
     <`flow-kit-bundle/hooks/pre-push/pre-push.sh` + `flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（**改后必须 `./sync-hooks.sh` 同步 6 副本**）>
-    <`flow-kit-bundle/lib/install_hooks.sh` · `install.sh` · `flow-kit-bundle/README.md` · `OPENCODE-INSTALL.md`>
+    <`flow-kit-bundle/lib/install_hooks.sh` · `flow-kit-bundle/install.sh` · `flow-kit-bundle/README.md` · `flow-kit-bundle/OPENCODE-INSTALL.md`>
     <`test/test_archive_commit_gate.bats`（+ 既有 pre-push/pre-commit 相关 bats；新增断言优先追加进既有用例）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（**仅**新增允许清单来源覆盖旋钮 `FLOW_KIT_PRIVACY_ALLOWLIST`；不得改动扫描面/候选枚举/命中口径/自证行） + `test/test_path_privacy_gate.bats` + `flow-kit-bundle/test/test_path_privacy_gate.bats`（双源镜像，+3 例：覆盖生效 · 覆盖路径缺失 fail-closed · 未设置时读序不变）>
     <`.specs/STATE.md`（bats 基线计数行；仅当计数变化时）> · `dist/`（重建）>
   </write_files>
   <action>
     **目标：消费者项目里「该拦的拦、不该拦的不拦」——把「调本仓才有的 Makefile 目标」改成「自行解析检查器 + 显式存在性守卫」。**
     ① **R3-14（🔴）**：`pre-push.sh:48` 与 `pre-commit.sh:32-36` 直接调 `make check-path-privacy`，而 `flow-kit-bundle/` 里根本没有 Makefile ⇒ 消费者项目（`install.sh --project`）**拒一切 push/commit**。修法（两条必须同时成立）：**(a) 解析检查器** —— 先看项目 Makefile 是否**声明**了 `check-path-privacy` 目标（`grep -qE '^check-path-privacy[[:space:]]*:' Makefile` 或 `make -n check-path-privacy` 成功且非空），有则用项目目标；无则**回退到随包携带的 `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`**（路径由 hook 自身位置推导，不得写死绝对路径）⇒ 门禁在消费者项目**仍然有效**（不是静默跳过）。**(b) 目标存在性守卫** —— `:59` 的无条件 `make check` 改为「仅当项目 Makefile 声明 `check` 时才跑」，否则打印一行明确的跳过理由（`ℹ️ 项目 Makefile 未声明 check 目标：跳过`）且不改变 rc。**纯删除推送**（`local_sha` 全 0）⇒ 跳过内容扫描并打印 `ℹ️ 纯删除推送：跳过内容扫描`，rc=0（ADR-027②：删除不引入新泄漏）。
+**(c) 允许清单随包解析（契约补充 · 主 agent 阶段 4 判定）** —— 原契约缺口：随包检查器的允许清单读序是 **CWD 相对路径**（`flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt` > `.specs/health-fix-2026-09b/path-privacy-allowlist.txt`，`check-path-privacy.sh:94-98` / `:193-214`），消费者项目两者皆无 ⇒ `🔴 允许清单缺失（fail-closed）` exit 1；而检查器读**文件内容**时用的是 CWD 相对磁盘路径（`:536-541`）⇒「清单可见」与「内容可读」在消费者项目里互斥（主 agent 亲验：CWD=`<project>/.git/**` 时清单可解析但全部候选记为不可读 ⇒ rc=1）。故照 (a) 直接回退，`<verify>` 场景①（无 Makefile + 干净推送）**必然 rc≠0，判据不可满足**。修法：① 给检查器加**允许清单来源覆盖旋钮** `FLOW_KIT_PRIVACY_ALLOWLIST`（优先级最高；未设置 ⇒ 现有读序逐字不变；设置但文件不存在/不可读 ⇒ fail-closed 并指名该路径）；② hook 回退调用随包检查器时导出 `FLOW_KIT_PRIVACY_ALLOWLIST="<随包 reference 目录>/path-privacy-allowlist.txt"`（路径由 hook 自身位置推导，不得写死绝对路径），CWD 保持项目根；③ **随包件必须真的随包**：`install_hooks.sh`（或 `install.sh`）部署钩子时把 `flow-kit/reference/check-path-privacy.sh` 与 `flow-kit/reference/path-privacy-allowlist.txt` 一并装到已安装 hooks 目录旁（如 `<hook_dst>/../reference/`），使「由 hook 自身位置推导」在**已部署的消费者项目**里也能解析；④ 三者皆不可得（项目未声明目标 + 随包检查器不可得）⇒ 打印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` 且**不改变 rc**（显式跳过，不得静默）。**契约修订留痕**：本段与 `write_files` 的检查器/bats 两行为派发后补入（原契约不可满足），修订理由与亲验证据随本 change 的 `MINOR-DEFERRED.md` 复核记录留档。
     ② **R3-17（🟡 · 不引入同意门）**：`deploy_pre_push` 保持有意的不询问语义，但补一行**恢复路径提示**（备份文件路径 + `cp` 回滚命令），使被覆盖的既有 hook 可原位恢复。
-    ③ **R3-21（🟡）**：jq 是 `lib/install_hooks.sh:173-180` 的硬前置（fail-closed），但 `README.md`/`OPENCODE-INSTALL.md`/`install.sh` 均无提及 ⇒ 在安装器入口做显式预检（缺 jq ⇒ 具名报错并给安装提示）+ 文档写明依赖与安装命令。
+    ③ **R3-21（🟡）**：jq 是 `lib/install_hooks.sh:173-180` 的硬前置（fail-closed），但 `flow-kit-bundle/README.md`/`flow-kit-bundle/OPENCODE-INSTALL.md`/`flow-kit-bundle/install.sh` 均无提及 ⇒ 在安装器入口做显式预检（缺 jq ⇒ 具名报错并给安装提示）+ 文档写明依赖与安装命令。 **契约修订留痕**：本段与 `<verify>` 第 9 行的 `install.sh`、以及 `OPENCODE-INSTALL.md` 均为**路径前缀遗漏**（仓根无 `install.sh`，真件是 `flow-kit-bundle/install.sh`；原判据只能靠「在仓根新建一个假安装器」满足 ⇒ 判据自身缺陷，同 TD-065/TD-066/TD-067 族，已登记 **TD-071**），主 agent 在阶段 4 派发后订正为 `flow-kit-bundle/install.sh`（`<verify>` 目标路径同步订正，断言语义与场景数不变）。
     ④ **R3-23（🟡）**：现按 ref 逐条**全量重扫** ⇒ 同一 push 多 ref 时重复扫描；改为「先收集本次 push 涉及的全部 changed paths（一次 `git diff --name-only <remote_sha>..<local_sha>` 或等价），再对去重后的文件集**扫描一次**」，并保留 fail-closed（收集失败即拒绝）。
     **TDD/判别式**：先在**修复前**跑出红（逐条贴 `not ok` 原文与命令；R3-14 的四个夹具场景必须有原文），再改至全绿并贴原文；夹具一律 `mktemp -d` 隔离（`git init` + 仅 `Makefile` 或空仓 + 泄漏/干净两态），探针串**拼接构造**（L-137），**禁止在真仓落任何探针**。
     **不得削弱既有保护**：改后「泄漏必须被拦」的坏态（有 Makefile 与无 Makefile 两种项目形态）都必须 rc≠0 —— 若为了「不拒一切」而把门禁变成静默放行，视为未完成。
@@ -2058,7 +2060,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     grep -q 'reference/check-path-privacy.sh' "$PP" || { echo "🔴 R3-14：pre-push 未回退到随包检查器"; rc=1; };
     grep -qE 'check-path-privacy[[:space:]]*:|Makefile' "$PC" || { echo "🔴 R3-14：pre-commit 未做目标存在性判定"; rc=1; };
     grep -q '纯删除推送' "$PP" || { echo "🔴 R3-14②：未区分纯删除推送"; rc=1; };
-    grep -qE 'jq' install.sh || { echo "🔴 R3-21：install.sh 未做 jq 预检"; rc=1; };
+    grep -qE 'jq' flow-kit-bundle/install.sh || { echo "🔴 R3-21：flow-kit-bundle/install.sh 未做 jq 预检"; rc=1; };
     grep -qE 'jq' flow-kit-bundle/README.md || { echo "🔴 R3-21：README 未写 jq 前置"; rc=1; };
     # 场景① 无 Makefile 项目 + 干净推送 ⇒ rc=0（修复前：make 报 target 不存在 + 拒绝）
     FX=$(mktemp -d); mkdir -p "$FX/docs"; printf 'clean\n' > "$FX/docs/a.md";
@@ -2130,6 +2132,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ③ **R3-22（🟡 永久门禁里的变更锚点硬编码）**：`:204` 把本 change 的 `.specs/health-fix-2026-09b/.change-base` 写死进**永久** Makefile ⇒ 本 change 归档后该路径消失，门禁退化为 `SKIP: 变更起点锚点缺失…未验证`（`:206-207`）+ 包装层 `3) … exit 0` ⇒ 永久**静默未验证**。修法：`BASE` 解析顺序 = `FLOW_KIT_CHANGE_BASE` → 通配发现（`.specs/*/.change-base`，取唯一命中；多命中即 🔴 具名）→ **全量模式**（打印 `ℹ️ 无变更起点锚点：全量模式（扫描全部 tracked .sh 的现有行）` 并真正执行扫描，而不是 SKIP）；`Makefile` 内**不得**再出现任何 change id 字面量（`grep -c 'health-fix-2026-09b' Makefile` 必须为 0）。「未验证」只允许出现在确实无法执行扫描时（如 git 不可用），且必须保持可见输出。
     **TDD/判别式**：先在**修复前**跑出红（至少贴 `realpath` 正面控制与 `sp ace.sh` 两例的原文），再改至全绿并贴原文；夹具一律 `mktemp -d` 隔离（`cp Makefile` 进夹具 + `git init` + 一次基线 commit），探针串**拼接构造**（L-137），**禁止在真仓落任何探针**。
     **判据自身缺陷**：若 `<verify>` 或既有用例夹具本身有缺陷（TD-060/TD-065/TD-066 族），**停下原样上报**。
+    **判据修订留痕（主 agent · 阶段 4 派发前预检）**：本 `<verify>` 曾含三处缺陷 —— ① `FXRUN()` 内的 `NRC=$?` 在 `OUT=$(FXRUN)` 的**子 shell** 里赋值 ⇒ 外层 `set -u` 下 `$NRC` 未绑定 ⇒ 判据必红；② `tracked` 面夹具只改文件**不提交** ⇒ `BASE` 仍指向改动前提交、diff 面看不到样本 ⇒ 该腿实际测的是 untracked 面（假通过）；③ R3-22 全量模式夹具把违规样本放成 **untracked**，而全量模式按设计只扫 tracked ⇒ 判据必红。三处均已订正：`FXRUN` 只返回状态、三个调用点改 `OUT=$(FXRUN); NRC=$?;`，`tracked` 面追加 `probe` 提交，`BASESHA` 在探针落盘**前**捕获，R3-22 样本入库（已登记 **TD-072**）。
     **只读与写面纪律（L-161）**：开工与收工各贴一次 `git status --porcelain` 与 `git diff --cached --stat`；除 `<write_files>` 外不得写仓库内任何文件（含 `.git/config`）；夹具只允许写在 `/tmp`。本仓 `core.hooksPath` 为空 ⇒ 不得声称「提交时钩子已校验」。
     收尾与提交同 T-FIX-03（`make test-sync` → `package-dsh-plugin.sh` → 三一致性门禁 → `make check`；显式 `git add` 路径；`git commit -m "fix(health-fix-2026-09b): T-FIX-09 NFR 禁构面与文件名面（R3-15/R3-16/R3-22）" -- <路径…>`）；提交后写 `T-FIX-09-SUMMARY.md`、勾 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段（`completed_at` **必须在提交之后**且 Δ ≤ 120 s）。
   </action>
@@ -2145,20 +2148,25 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
       ( cd "$FX" && git init -q . >/dev/null 2>&1 );
       printf 'echo base\n' > "$FX/sub/base.sh";
       ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
-      if [ "$3" = tracked ]; then printf '\n%s\n' "$2" >> "$FX/$1"; else printf '%s\n' "$2" > "$FX/$1"; fi
       BASESHA=$( cd "$FX" && git rev-parse HEAD );
+      if [ "$3" = tracked ]; then
+        printf '\n%s\n' "$2" >> "$FX/$1";
+        ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm probe >/dev/null 2>&1 );
+      else
+        printf '%s\n' "$2" > "$FX/$1";
+      fi
     }
-    FXRUN() { ( cd "$FX" && FLOW_KIT_CHANGE_BASE="$BASESHA" make --no-print-directory check-nfr-portability 2>&1 ); NRC=$?; }
+    FXRUN() { ( cd "$FX" && FLOW_KIT_CHANGE_BASE="$BASESHA" make --no-print-directory check-nfr-portability 2>&1 ); }
     # ① R3-15 正面控制：10 个禁构 token 逐个必须红（修复前 realpath 那例是 ✅ 假绿）
     for tok in 'mapfile -t a < /dev/null' 'readarray -t a < /dev/null' 'declare -A m' 'realpath .' 'readlink -f .' 'stat -c %s .' 'sed -i s/a/b/ x' 'grep -P "a" x' 'find . -printf "%p\n"' 'timeout 5 true'; do
-      FXM 'sub/base.sh' "$tok" tracked; OUT=$(FXRUN);
+      FXM 'sub/base.sh' "$tok" tracked; OUT=$(FXRUN); NRC=$?;
       [ "$NRC" -ne 0 ] || { echo "🔴 R3-15：禁构「$tok」未被判红（正面控制失败）"; rc=1; };
       rm -rf "$FX";
     done
-    FXM 'sp ace.sh' 'mapfile -t a < /dev/null' untracked; OUT=$(FXRUN);
+    FXM 'sp ace.sh' 'mapfile -t a < /dev/null' untracked; OUT=$(FXRUN); NRC=$?;
     [ "$NRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-16：含空格文件名的 untracked 面被跳过（仍报 ✅）"; rc=1; };
     rm -rf "$FX";
-    FXM 'sub/sp ace.sh' 'mapfile -t a < /dev/null' tracked; OUT=$(FXRUN);
+    FXM 'sub/sp ace.sh' 'mapfile -t a < /dev/null' tracked; OUT=$(FXRUN); NRC=$?;
     [ "$NRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-16：含空格文件名的 tracked 面被跳过"; rc=1; };
     rm -rf "$FX";
     # ② R3-22：夹具内不存在 .specs/*/.change-base 且未设 FLOW_KIT_CHANGE_BASE ⇒ 必须走全量模式且真扫出违规
@@ -2167,6 +2175,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     printf 'echo base\n' > "$FX/sub/base.sh";
     ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm base >/dev/null 2>&1 );
     printf 'mapfile -t a < /dev/null\n' > "$FX/sub/newmath.sh";
+    ( cd "$FX" && git add -A >/dev/null 2>&1 && git -c user.email=a@b -c user.name=a commit -qm probe >/dev/null 2>&1 ); # 全量模式按设计只扫 tracked ⇒ 样本必须入库
     OUT=$( cd "$FX" && make --no-print-directory check-nfr-portability 2>&1 ); NRC=$?;
     printf '   （诊断）R3-22 全量模式 rc=%s\n' "$NRC";
     [ "$NRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-22：锚点缺失时退化为未验证/假绿"; rc=1; };
@@ -2210,6 +2219,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ③ **R3-18（漂移定位张冠李戴）**：`:114-144` 无论实际是哪一侧变，都打印「（prompt 侧内容漂移）」⇒ 读者被误导。修法：逐侧判定并具名输出，格式固定为 `🔴 漂移 <pair>：<prompt|skill|both> 侧内容不一致（prompt <n> 行 vs skill <m> 行）`；两侧都不同 ⇒ `both`。
     **TDD/判别式**：先在**修复前**跑出红（三条各贴原文：空 presets 静默中止 / `diff` rc=2 仍报一致 / 仅 skill 侧改动却报 prompt 侧漂移），再改至全绿并贴原文；夹具一律 `mktemp -d` 隔离，样本**从被测数据派生**（TD-065），探针串拼接构造（L-137），**禁止在真仓落任何探针**。
     **判据自身缺陷**：若 `<verify>` 或既有用例夹具本身有缺陷，**停下原样上报**。
+    **判据修订留痕（主 agent · 阶段 4 派发前预检）**：本 `<verify>` 原含**五处非判别性**缺陷（修复前后同为绿）—— ① `wc -l > 0` 恒真（脚本首行即打印标题）⇒ 抓不到 R3-19 的静默中止；② 夹具只 `cp 4-dev.md`（非 PCSC 对成员）⇒ 三对载体缺失 ⇒ 提前 `🔴 DRIFT` 掩盖后续断言；③ R3-20 夹具 `chmod 000` 的目标在此夹具里**未创建**（被 `2>/dev/null || true` 吞）⇒ `diff` 从未返回 rc=2；④ 空预设夹具只清 `SKILL.md` 一侧 ⇒ 集合不等 ⇒ 走 DRIFT 分支，到不了 `:196` 计数行；⑤ 静态 `grep 'skill 侧'` 在修复前即命中。现已重写为：完整夹具生成器 `FXB()`（3 对 PCSC 载体 + `skills/flow/SKILL.md` + `test/test_gate_config_presets.bats`）+ 基线绿腿（不绿即打印「判据前置失败」）· R3-18 双向反向控制 · R3-19 两侧集合同时清空并断言「汇总行或具名 🔴」· R3-20 改用 PATH 影子 `diff`（恒 rc=2）并断言 rc≠0 + 具名 🔴（同 TD-073 登记）。
     **只读与写面纪律（L-161）**：开工与收工各贴一次 `git status --porcelain` 与 `git diff --cached --stat`；除 `<write_files>` 外不得写仓库内任何文件（含 `.git/config`）；夹具只允许写在 `/tmp`。本仓 `core.hooksPath` 为空 ⇒ 不得声称「提交时钩子已校验」。
     收尾与提交同 T-FIX-03（`make test-sync` → `package-dsh-plugin.sh` → 三一致性门禁 → `make check`；显式 `git add` 路径；`git commit -m "fix(health-fix-2026-09b): T-FIX-10 check-gate-sync 判据可信度（R3-18/R3-19/R3-20）" -- <路径…>`）；提交后写 `T-FIX-10-SUMMARY.md`、勾 `status="done"` + `<done>` 注记、追加 `task_progress` 五字段（`completed_at` **必须在提交之后**且 Δ ≤ 120 s）。
   </action>
@@ -2218,33 +2228,61 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     S=flow-kit-bundle/flow-kit/reference/check-gate-sync.sh;
     bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
     grep -qE 'grep -c \. \|\| true|wc -l' "$S" || { echo "🔴 R3-19：preset 计数仍可能在 set -e 下中止"; rc=1; };
-    grep -qE 'diff_out.*\|\| true' "$S" && { echo "🔴 R3-20：diff 的 rc 仍被 \|\| true 吞掉"; rc=1; };
+    grep -qE 'diff_out.*\|\| true' "$S" && { echo "🔴 R3-20：diff 的 rc 仍被 || true 吞掉"; rc=1; };
     grep -q 'skill 侧' "$S" || { echo "🔴 R3-18：未逐侧具名（缺 skill 侧 字样）"; rc=1; };
-    # ① 真实仓正常面：必须 rc=0 且打印「校验对 3/14 一致」（17 预设）
+    # ① 真实仓正常面：rc=0 且必须打印覆盖度「校验对 3/14 一致」
     OUT=$(bash "$S" 2>&1); SRC=$?;
     printf '   （诊断）真实仓 rc=%s\n' "$SRC";
     [ "$SRC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 真实仓 check-gate-sync 不绿"; rc=1; };
-    # ② R3-19 夹具：skill 侧 presets 段被清空 ⇒ 不得静默中止（无 🔴 无输出 rc=1）
-    FX=$(mktemp -d);
-    mkdir -p "$FX/flow-kit-bundle/flow-kit/reference" "$FX/flow-kit-bundle/flow-kit/prompts" "$FX/flow-kit-bundle/skills/flow-dev";
-    cp "$S" "$FX/flow-kit-bundle/flow-kit/reference/";
-    cp flow-kit-bundle/flow-kit/prompts/4-dev.md "$FX/flow-kit-bundle/flow-kit/prompts/" 2>/dev/null || true;
-    printf 'name: flow-dev\n' > "$FX/flow-kit-bundle/skills/flow-dev/SKILL.md";
-    OUT=$( cd "$FX" && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh 2>&1 ); SRC=$?;
-    printf '   （诊断）R3-19 空 presets rc=%s 输出行数=%s\n' "$SRC" "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')";
-    [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" -gt 0 ] || { echo "🔴 R3-19：夹具下无任何输出（静默中止仍存在）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q '校验对 3/14 一致' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 真实仓未打印覆盖度「校验对 3/14 一致」"; rc=1; };
+    # 夹具生成器：完整复制门禁读取的全部载体（3 对 PCSC + gate-config 两侧）⇒ 基线必须为绿
+    FXB() {
+      FX=$(mktemp -d);
+      mkdir -p "$FX/flow-kit-bundle/flow-kit/reference" "$FX/flow-kit-bundle/flow-kit/prompts" "$FX/flow-kit-bundle/skills" "$FX/flow-kit-bundle/test";
+      cp "$S" "$FX/flow-kit-bundle/flow-kit/reference/";
+      cp flow-kit-bundle/flow-kit/prompts/A-evolve.md flow-kit-bundle/flow-kit/prompts/I-intel-scan.md flow-kit-bundle/flow-kit/prompts/L-restyle.md "$FX/flow-kit-bundle/flow-kit/prompts/";
+      for sk in flow-evolve flow-intel flow-restyle flow; do mkdir -p "$FX/flow-kit-bundle/skills/$sk"; cp "flow-kit-bundle/skills/$sk/SKILL.md" "$FX/flow-kit-bundle/skills/$sk/"; done
+      cp flow-kit-bundle/test/test_gate_config_presets.bats "$FX/flow-kit-bundle/test/";
+    }
+    FXS() { ( cd "$FX" && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh 2>&1 ); }
+    # ② 基线：完整夹具必须绿（红了即为「判据前置失败」，后续腿无效）
+    FXB; OUT=$(FXS); SRC=$?;
+    printf '   （诊断）基线夹具 rc=%s\n' "$SRC";
+    [ "$SRC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 基线夹具不绿（判据前置失败，夹具与真仓不同源）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q '校验对 3/14 一致' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 基线夹具未打印 3/14"; rc=1; };
     rm -rf "$FX";
-    # ③ R3-20 夹具：让 diff 的一方不可读 ⇒ 必须 🔴 且 rc≠0（不得报一致）
-    FX=$(mktemp -d);
-    mkdir -p "$FX/flow-kit-bundle/flow-kit/reference" "$FX/flow-kit-bundle/flow-kit/prompts" "$FX/flow-kit-bundle/skills/flow-dev";
-    cp "$S" "$FX/flow-kit-bundle/flow-kit/reference/";
-    cp flow-kit-bundle/flow-kit/reference/check-gate-sync.sh "$FX/flow-kit-bundle/flow-kit/reference/" 2>/dev/null || true;
-    chmod 000 "$FX/flow-kit-bundle/flow-kit/prompts/4-dev.md" 2>/dev/null || true;
-    OUT=$( cd "$FX" && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh 2>&1 ); SRC=$?;
-    printf '   （诊断）R3-20 diff 故障面 rc=%s\n' "$SRC";
-    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-20：diff 机械故障被折算为「一致」"; rc=1; };
-    chmod 644 "$FX/flow-kit-bundle/flow-kit/prompts/4-dev.md" 2>/dev/null || true; rm -rf "$FX";
-    # ④ 常设网 + 全量套件 + 三一致性 + 总门禁
+    # ③ R3-18 反向控制 A：仅 prompt 侧多一行 ⇒ 必须具名 prompt 侧，且不得误报 skill 侧
+    FXB; printf '\nX-DRIFT-PROMPT-ONLY\n' >> "$FX/flow-kit-bundle/flow-kit/prompts/A-evolve.md";
+    OUT=$(FXS); SRC=$?;
+    printf '   （诊断）prompt 侧漂移 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-18：prompt 侧漂移未被判红"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q 'prompt 侧内容不一致' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-18：未具名 prompt 侧（缺「prompt 侧内容不一致」）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q 'skill 侧内容不一致' && { echo "🔴 R3-18：prompt 侧漂移被误报为 skill 侧"; rc=1; };
+    rm -rf "$FX";
+    # ④ R3-18 反向控制 B：仅 skill 侧多一行 ⇒ 必须具名 skill 侧，且不得误报 prompt 侧
+    FXB; printf '\nX-DRIFT-SKILL-ONLY\n' >> "$FX/flow-kit-bundle/skills/flow-evolve/SKILL.md";
+    OUT=$(FXS); SRC=$?;
+    printf '   （诊断）skill 侧漂移 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-18：skill 侧漂移未被判红"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q 'skill 侧内容不一致' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-18：未具名 skill 侧（缺「skill 侧内容不一致」）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q 'prompt 侧内容不一致' && { echo "🔴 R3-18：skill 侧漂移被误报为 prompt 侧"; rc=1; };
+    rm -rf "$FX";
+    # ⑤ R3-19：两侧预设集合**同时为空且相等** ⇒ 才会走到计数行；修复前 \`grep -c .\` 在 set -e 下静默中止（无汇总、无 🔴）
+    FXB;
+    printf 'name: flow\n' > "$FX/flow-kit-bundle/skills/flow/SKILL.md";
+    : > "$FX/flow-kit-bundle/test/test_gate_config_presets.bats";
+    OUT=$(FXS); SRC=$?;
+    printf '   （诊断）空预设集合 rc=%s 输出行数=%s\n' "$SRC" "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')";
+    printf '%s\n' "$OUT" | grep -qE '── 校验汇总 ──|🔴' || { printf '%s\n' "$OUT" | tail -6; echo "🔴 R3-19：空集合下静默中止（既无汇总行也无具名 🔴）"; rc=1; };
+    rm -rf "$FX";
+    # ⑥ R3-20：PATH 影子 \`diff\`（恒 rc=2）⇒ 机械故障不得被折算为「一致」
+    FXB; mkdir -p "$FX/bin"; printf '#!/bin/sh\nexit 2\n' > "$FX/bin/diff"; chmod +x "$FX/bin/diff";
+    OUT=$( cd "$FX" && PATH="$FX/bin:$PATH" bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh 2>&1 ); SRC=$?;
+    printf '   （诊断）diff rc=2 面 rc=%s\n' "$SRC";
+    [ "$SRC" -ne 0 ] || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-20：diff 机械故障被折算为「一致」（rc=0）"; rc=1; };
+    printf '%s\n' "$OUT" | grep -q '🔴' || { printf '%s\n' "$OUT" | tail -8; echo "🔴 R3-20：diff rc=2 未产生具名 🔴"; rc=1; };
+    rm -rf "$FX";
+    # ⑦ 常设网 + 全量套件 + 三一致性 + 总门禁
     OUT1=$(npx bats test/test_check_gate_sync.bats 2>&1); brc=$?;
     printf '%s\n' "$OUT1" | grep -q '^not ok' && { printf '%s\n' "$OUT1" | grep '^not ok' | head -5; echo "🔴 gate-sync 常设网有失败项"; rc=1; };
     [ $brc -eq 0 ] || { echo "🔴 test_check_gate_sync.bats rc=$brc"; rc=1; };

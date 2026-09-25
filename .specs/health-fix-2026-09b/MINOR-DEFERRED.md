@@ -1195,3 +1195,92 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | `R3-27`（审计 M4） | ADR 预算魔法数 `18000`/`5000` 在同一段内联 5 处，`_adr_budget` 只覆盖其中两处 ⇒ 改预算需手抄 | 🟢（R3/R5） | `flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:353`、`:362`、`:367-369` | accept —— 抽 `_ADR_BUDGET_TOTAL` / `_ADR_BUDGET_PER_FILE` |
 | `R3-28`（审计 M5） | 孤儿白名单：`sync-hooks.sh` 的 case 模式 `stop/lib/*.sh` 被 `stop/*.sh` 涵盖（shellcheck SC2221/SC2222，**既有**，本次仅追加 `pre-push/*.sh`） | 🟢（R4/R5） | `sync-hooks.sh:290` | accept —— 删冗余分支或加注释说明 |
 | `R3-29`（审计 M6） | 登记册跨文件一致性：`.specs/CONTEXT.md:589` 的 TD-048 行仍写「Part C 拷贝段无 pre-push stanza」（`package-flow-kit.sh:131-136` 已补）、`:605` 的 TD-059 行仍标 🔴（`done-validation.sh:84-89` 已修，TD-064 行已同步为 🔴→🟢） | 🟢（R5/R2） | `.specs/CONTEXT.md:589`、`:605` | **本 change 收口时顺手更新这两行**（登记册自身在审计面外，仅作提示） |
+
+## ✅ T-FIX-07 复核记录（主 agent 十项契约 + 判据独立复跑 + 活性重放 · 2026-09-25）
+
+修复提交 `20847e1`（1 file `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` **+223/−82** ⇒ 548 → **735 行**，blob `16632dcd10e9`）· 写回提交 `4275d8f`（`T-FIX-07-SUMMARY.md` +143 · `TASK.md` 2/2）· `%cI` 14:07:09 ⇒ 台账 `completed_at` 14:07:25 ⇒ **Δ=16 s**。
+
+| # | 检查项 | 结果 |
+| 1 | numstat ⊆ `<write_files>` | ✅ 仅 `check-path-privacy.sh`（双源 bats 未改，既有 24 例判别力不回退） |
+| 2 | worktree blob == HEAD | ✅ 5/5（生产件 `16632dcd10e9`；双源 bats 同为 `6cf09f3d963d`） |
+| 3 | 台账五字段 + Δ ≤ 120 s | ✅ `deferred:[]`（ADR-015）· Δ=16 s · `.flow-active.updated_at` 保持数值 epoch |
+| 4 | 结构不变量 | ✅ 39 块：`<task id=` / `</task>` / `<depends_on>` / `</depends_on>` / `</write_files>` / `</action>` / `</verify>` 均 39；锚定状态 36 done + 3 pending = 39；写回 diff 恰 2 行（T-FIX-07 翻 done + `<done>` 注记） |
+| 5 | 冻结集 | ✅ 5 个冻结件最后一次改动仍停在 `a702547`（本轮未触碰） |
+| 6 | `<verify>` 独立抽取复跑 | ✅ `TASK.md:1933-2019`（**87 行**，`bash -n` 通过）⇒ **EXIT=0**：坏态①~⑤ rc=1 / 好态①~③ rc=0 / `bats: 1029 ok / 0 not-ok` |
+| 7 | 工作树残留 | ✅ 仅 ` M .specs/health-fix-2026-09b/reproduce-5-test.sh`（主 agent 自身扩面，非执行者产物） |
+| 8 | 双源 / mirror / dist | ✅ `dist/dsh-flow-kit/vendor/.../check-path-privacy.sh` 与源 `cmp` 一致；判据内的 `make check`（含三一致性门禁）绿 |
+| 9 | 活性重放 | ✅ 见下 |
+| 10 | 语义核对 | ✅ 见下 |
+
+**⑨ 活性重放**：把生产件还原为 `20847e1^`（**594 行** · sha256 `57649a9c8bf3…`；新件 sha256 `370e0b86b575…`）后用**同一判据**复跑：
+- 坏态① 非ASCII 名 rc=**0**（假绿）· 坏态② staged-leak rc=**0**（假绿）· 坏态③ rev+非ASCII rc=**0**（假绿）⇒ 三条 🔴 的判别力成立；
+- 好态① 缩进清单 rc=**1**（假红）· 好态③ `TMPDIR` 含空格残留 **4 件** ⇒ 两条卫生面判别力成立；
+- `LIVENESS_EXIT=1`；`cp -p` 还原后 `git diff --exit-code` 干净、sha256 回 `370e0b86…` ✓（旧件下判据在夹具段即早退，未走到 bats 段）。
+
+**⑩ 语义核对（机制 → 行号，均以 HEAD blob 为准）**：`TMP_FILES=()` 普通数组 `:111` + `register_tmp()` `:121`（`mktemp` 站点 `:149/:151/:153/:155/:161/:636` 全部登记，单一 `trap cleanup EXIT` `:118`）· NUL 安全枚举 `git ls-tree -r -z` `:339` / `git ls-files -z` `:348` + `read -r -d ''` `:365/:582` · 工作树内容面 = 磁盘 `grep -naE` `:536-537` ∪ index `git grep --cached --null` `:551-553`，命中并集去重 `grep -qxF` `:480-481`，NUL 三段解析 `:494-498/:627-630` · `SCANNED_COUNT` 改为**成功读取后**计数 `:524/:560` · `UNREADABLE_COUNT` `:430` ⇒ 缺失面 `:543-546` ⇒ 终局失败闭锁 `:606-614` · 注释口径单点 `IS_COMMENT_OR_BLANK_RE` `:242` + 尾随 `<!-- -->` 剥离 · rc 断言：`git grep` rc≥2 `:518-522`、`grep` rc≥2 `:539-542`。`2>/dev/null` 17→18 处、`|| true` **3→3** 处，全部落在已断言 rc 之后（`:34` 注释 · `:177` rev-parse 后紧跟空值闭锁 · `:445` 只读辅助）。
+
+### 🟡 R4-1（主 agent 复核新发现 · T-FIX-07 引入的**过严红** · 待用户裁决）
+
+**现象**：工作树模式下，**已跟踪文件在工作树被删但未 staged**（`git status` 显示 ` D a.txt`）⇒ `[ -f "$file" ]` 为假的磁盘分支计入 `UNREADABLE_COUNT`（`check-path-privacy.sh:543-546`）并在终局 fail-closed（`:606-614`）⇒ **rc=1**，尽管该文件内容已由 index 侧 `git grep --cached` 扫过（`:551-553`）并计入 `SCANNED_COUNT`（`:560`）。
+
+**亲验夹具**（`mktemp -d` + 复制允许清单到 `flow-kit-bundle/flow-kit/reference/` + `git init` + 提交 `a.txt`/`b.txt` + `rm a.txt`，脚本 `/tmp/p6b/deleted-file-fixture2.sh`）：
+- 新件：候选文件 3 / 实际扫描 2 / **不可读候选 1** ⇒ `🔴 不可读候选 1 个（缺失/不可读 ⇒ fail-closed，不得折算为干净）` + 具名 `a.txt` ⇒ **rc=1**；
+- 旧件：候选文件 3 / 实际扫描 2 / 命中合计 0 / ✅ ⇒ **rc=0**（此例 index 面已覆盖内容，旧件的 rc=0 **并非**假绿）。
+
+**影响**：消费者经 `install.sh --project` 装入 `pre-commit`/`pre-push` 后，「删文件后先提交别的内容」这一常见中间态会被门禁拒绝（与 🔴 R3-14 同族的可达面；本仓自身因为总在提交前 `git add` 而少见）。**建议修法**：仅当**两个面都读不到**时才计 `UNREADABLE_COUNT`（例如 `git cat-file -e ":${file}"` 失败 + 磁盘缺失），否则以 index 面覆盖为准；或把该形态降级为 `ℹ️ 工作树缺失（index 面已扫描）` 且不 fail-closed。
+
+**处置**：不阻塞 T-FIX-08；在 toll-gate 4→5 的裁决问题中与「是否追加 `T-FIX-11` 修 R4-1」一并交用户。
+
+## 🧩 契约修订留痕：T-FIX-08 `<action>` ①(c)（主 agent · 阶段 4 · 2026-09-25）
+
+**触发**：派发 T-FIX-08（subagent `18e2e1c9`）后，主 agent 核对 R3-14 修法的可实施性时发现原契约**不可满足**：`<action>` ①(a) 要求「无 Makefile 时回退到随包携带的 `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`，门禁在消费者项目仍然有效」，但检查器的**允许清单读序是 CWD 相对路径**（`check-path-privacy.sh:94-98` 定义 `ALLOWLIST_PERSISTENT` / `ALLOWLIST_CHANGE` 为相对路径；`:193-214` 依次尝试，两者皆缺 ⇒ `🔴 允许清单缺失（fail-closed，不得当空清单放行）` **exit 1**）。消费者项目里这两条路径都不存在 ⇒ 直接回退必然 rc=1 ⇒ `<verify>` 场景①（无 Makefile + 干净推送 ⇒ 期望 rc=0）**恒红**。
+
+**亲验（只读 · 夹具全在 `/tmp` · 三段）**：
+- ① CWD = `<fixture>/.git/fk`（把随包清单按该处的相对路径摆放）⇒ 清单**可解析**（打印 `允许清单来源: flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt`），候选 1 / 实际扫描 1，但 **`🔴 不可读候选 1 个（缺失/不可读 ⇒ fail-closed，不得折算为干净）` rc=1** —— 内容面读的是 **CWD 相对磁盘路径**（`:536-541`），换 CWD 后所有候选都读不到；
+- ② 同上 + 泄漏文件 ⇒ 候选 2 / 全部不可读 / rc=1（同样**不是**「因命中而红」）；
+- ③ CWD = 项目根 ⇒ `🔴 允许清单缺失（fail-closed…）：常设路径 … / change 副本 …` rc=1。
+⇒ **「清单可见」与「内容可读」在消费者项目形态下互斥**，必须由外部把清单路径**显式喂给**检查器。
+
+**修订内容**（已写入 `TASK.md:2046` 的 action ①(c) 与 `TASK.md:2035` 之后的 `write_files` 行）：给检查器加**允许清单来源覆盖旋钮** `FLOW_KIT_PRIVACY_ALLOWLIST`（最高优先级；**未设置时读序逐字不变**；设置但不可读 ⇒ fail-closed 并指名路径）；hook 回退时导出该变量指向随包 `reference/path-privacy-allowlist.txt`（路径由 hook 自身位置推导，CWD 保持项目根）；安装器随钩子一并部署检查器与清单；三者皆不可得 ⇒ 显式 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` 且不改变 rc。
+
+**留痕理由**：① 修订**不改 `<verify>`**（四场景期望值不变，修订后仍可满足）；② 修订只加「清单来源」这一条外部入口，**不动**扫描面 / 候选枚举 / 命中口径 / 自证行 ⇒ T-FIX-07 已修的三条 🔴 面不受影响；③ 属主 agent 在阶段 4 的判据/契约修补（与 TD-065 的 `<verify>` 修补同类），证据与推演全部留档于此。
+
+**追加订正（同日 · T-FIX-08 `<verify>` 路径前缀）**：`<verify>` 第 9 行与 `<read_files>` / `<write_files>` / `<action>` ③ 的 `install.sh` 均缺 `flow-kit-bundle/` 前缀（仓根**无**该文件；真件 = `flow-kit-bundle/install.sh`，16652 B，其内当前**无** `jq` 字样）⇒ 原判据只能靠「在仓根新建一个假安装器」满足 ⇒ **判据自身缺陷**（同 TD-065 / TD-066 / TD-067 族），主 agent 已订正四处（断言语义、场景数、其余行一字不变）并登记 **TD-071**。执行者（subagent `18e2e1c9`）按硬规则 6 停下、原样上报并请求裁决 A/B、**未擅自新建仓根文件** —— 该行为符合契约；主 agent 裁决：路径 B 作废，判据路径订正后按原契约继续。
+
+**追加订正 2（同日 · T-FIX-09 `<verify>` 三处判据缺陷）**：按 TD-071 v2 ② 做**派发前预检**时发现并订正 —— ① `FXRUN()` 内的 `NRC=$?` 在 `OUT=$(FXRUN)` 的**子 shell** 里赋值 ⇒ 外层 `set -u` 下 `$NRC` 未绑定 ⇒ 判据恒红；② `tracked` 面夹具只改文件**不提交**，而 `Makefile:168` 的被测面是 `git diff --name-only "$BASE" -- "*.sh"`（`BASE` = 改动前提交）⇒ 样本不在面内，该腿变成 untracked 面（**假通过**）；③ R3-22 全量模式夹具的样本为 untracked，而全量模式按设计只扫 tracked ⇒ 判据必红。三处已订正（三个调用点改 `OUT=$(FXRUN); NRC=$?;`、`tracked` 分支追加 `probe` 提交、`BASESHA` 先于探针捕获、R3-22 样本入库），锚定抽取 102 行 `bash -n` ✅；登记 **TD-072**。
+
+## 🧪 阶段 4 判据预检记录（主 agent · 2026-09-25 · T-FIX-09 / T-FIX-10）
+
+**方法**：在**修复前**的生产件上，把两块 `<verify>` 的夹具腿抽成 `/tmp/p6b/preflight9.sh` 与 `/tmp/p6b/preflight10.sh` 空跑一次，逐腿记录「修复前应有的红」，用以证明判据**具判别力**（TD-073 v2 ④：派发前确认「修复前必红 / 修复后必绿」）。
+
+**T-FIX-09（NFR 兼容性判据 · 夹具 = `mktemp -d` + `cp Makefile` + `git init` + 基线 commit + 探针入库/落盘）**：
+- 10 个禁构 token 逐 token 夹具：`mapfile` / `readarray` / `declare -A` / `readlink -f` / `stat -c` / `sed -i` / `grep -P` / `find -printf` / `timeout` 九例 **rc=2 判红** ✅；**`realpath .` rc=0 假绿** ⚠️ ⇒ 坐实 **R3-15**（`awk -v P='\brealpath\b'` 中 `` 被 `awk -v` 当退格 ⇒ 本仓自认的头号 GNU-only 构造完全失明）。
+- 含空格文件名：untracked 腿 `sp ace.sh` rc=**0**（假绿）· tracked 腿 `sub/sp ace.sh` rc=**0**（假绿）⇒ 坐实 **R3-16**（未加引号 `for _f in $(git …)` 词拆成两段，两段皆「不存在 ⇒ 跳过」却仍打印 ✅）。
+- 无锚点全量模式（夹具内无 `.specs/*/.change-base` 且未设 `FLOW_KIT_CHANGE_BASE`）：rc=**0** + `SKIP: 变更起点锚点缺失（.change-base 不存在且 $FLOW_KIT_CHANGE_BASE 未设）—— NFR 判据无法界定新增行，未验证` ⇒ 坐实 **R3-22**（永久门禁静默退化为「未验证」）。
+⇒ 修复后：三条腿必须分别变成 rc≠0（R3-15/R3-16）与「真正执行全量扫描」（R3-22）。
+
+**T-FIX-10（gate 同步判据 · 夹具 = 完整复制 3 对 PCSC 载体 + `skills/flow/SKILL.md` + `test/test_gate_config_presets.bats`）**：
+- ① 真实仓 rc=0 + `✅ 校验对 3/14 一致` ✅（判据前置面成立）。
+- ② **基线夹具 rc=0 + `3/14`** ✅ ⇒ 夹具与真仓同源、后续各腿的对照有效（否则判「判据前置失败」）。
+- ③ 只在 **prompt** 侧多一行 ⇒ rc=1，输出**同时**出现 `定位: prompts/A-evolve.md:343（prompt 侧内容漂移）` 与 `定位: skills/flow-evolve/SKILL.md:342（skill 侧内容漂移）` ⇒ 修复后必须**只**具名 `prompt` 侧（判据断言「含 `prompt 侧内容不一致`」且「不含 `skill 侧内容不一致`」）⇒ 修复前红 ✅（坐实 **R3-18** 张冠李戴）。
+- ④ 只在 **skill** 侧多一行 ⇒ 对称，修复前红 ✅。
+- ⑤ 两侧预设集合**同时清空** ⇒ rc=1、输出 20 行，停在 `校验: gate-config 预设名同步 …` 标题后**无汇总行、无 🔴** ⇒ 坐实 **R3-19**（`:196 preset_count=$(printf … | grep -c .)` 在 `set -euo pipefail` 下静默中止）⇒ 修复后必须打印汇总行或具名 🔴。
+- ⑥ `PATH` 影子 `diff`（恒 `exit 2`）⇒ rc=**0** + `✅ 校验对 3/14 一致` ⇒ 坐实 **R3-20**（`diff_out=$(diff … || true)` 把 rc=2 折算为「无差异 ⇒ 一致」）⇒ 修复后必须 rc≠0 + 具名 🔴。
+⇒ 六腿在修复前均为「应有的红/异常」，判据具判别力；修复后应全绿。
+
+**预检同时修掉的三处/五处判据自身缺陷**：T-FIX-09（`FXRUN()` 内 `NRC=$?` 落在 `$( )` 子 shell ⇒ 外层 `set -u` 下未绑定 ⇒ 必红；`tracked` 腿夹具不提交 ⇒ 样本不在 `git diff --name-only "$BASE"` 面内（假通过）；R3-22 夹具样本为 untracked 而全量模式只扫 tracked ⇒ 必红）已登记 **TD-072**；T-FIX-10（`wc -l > 0` 恒真、夹具缺 3 对 PCSC 载体、`chmod 000` 目标未创建、空预设只清一侧、静态 `grep 'skill 侧'` 修复前即命中）已登记 **TD-073**。
+
+## 🔴 T-FIX-08 RED 回执（执行者 `18e2e1c9` · **修复前**实测 · 2026-09-25 · `/tmp` 夹具）
+
+探针串**拼接构造**（`P='/home/''zz-probe-b/leak.txt'`）；夹具 = ① 无 Makefile 的消费者项目 + 干净推送 ② 同类项目 + 含泄漏推送 ③ 纯删除推送 ④ 只声明 `test:` 目标的消费者项目（pre-commit）。
+
+| 观测 | 原文要点 | 归因 |
+| ① 无 Makefile + 干净推送 | rc=1 · `make: *** 没有规则可制作目标“check-path-privacy”。 停止。` · `🔴 拒绝推送 refs/heads/main：该 ref 含路径隐私泄漏` | **R3-14**：`pre-push.sh` 直接调 `make check-path-privacy`，消费者项目根本没有该目标 ⇒ 假红拒推 |
+| ② 纯删除推送 | rc=1（拒绝对，但路径/理由错） | **R3-14②**：未区分「纯删除」（ADR-027②：删除不引入新泄漏） |
+| ③ 无 Makefile + 含泄漏推送 | rc=2（落到 `make check` 报「没有规则可制作目标」） | R3-14 连带（目标缺失把 rc 语义打乱） |
+| ④a 只声明 `test:` 的项目 | rc=1 · `[archive-commit-gate] path-privacy check failed, commit rejected` | **R3-14**（pre-commit 侧同族） |
+| ④b 同类项目 | rc=1 | 同上 |
+| 安装器 | `grep: install.sh: 没有那个文件或目录` | **R3-21**：`flow-kit-bundle/install.sh` 无 jq 预检；`README` 未写 jq 前置 |
+| 基线 | `bats 1029 ok / 0 not-ok`（未变） | — |
+
+**留档说明**：本回执在**修复前**取得；其中 pre-push / pre-commit / 安装器 / README 的修复已由该执行者在崩溃前落盘（**未提交**，见同批 `MINOR-DEFERRED.md` 的 T-FIX-08 复核记录），因此上述 RED 现在**只能靠旧版本复现** —— 复现方式：`git worktree add /tmp/<dir> 4275d8f`（**禁用 `git stash`**）。④a/④b 两条是 pre-commit 侧证据；④ 场景对应块内 `<verify>` 的场景④。
