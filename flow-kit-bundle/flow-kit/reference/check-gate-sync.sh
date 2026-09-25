@@ -108,18 +108,52 @@ check_pair() {
   printf '%s\n' "$prompt_body" > "$tmp_p"
   printf '%s\n' "$skill_body" > "$tmp_s"
 
-  local diff_out
-  diff_out=$(diff "$tmp_p" "$tmp_s" 2>/dev/null || true)
+  # R3-20 收敛：保留 diff 的 rc，rc≥2 = 机械故障（文件不可读/参数错等），
+  # 不得被 || true 折算为「无差异 ⇒ 一致」。fail-closed：具名 🔴 + ERRORS，不打印 ✅。
+  # 注意：set -euo pipefail 下 `x=$(diff …)` 遇 rc=1（有差异）会触发 set -e 而中止，
+  # 故先 `set +e` 取 rc 再 `set -e` 恢复（bash 3.2 兼容；rc=1 是合法「有差异」语义）。
+  local diff_out diff_rc
+  set +e
+  diff_out=$(diff "$tmp_p" "$tmp_s" 2>/dev/null); diff_rc=$?
+  set -e
+  if [ "$diff_rc" -ge 2 ]; then
+    echo "   🔴 MECHANICAL: diff 返回 rc=$diff_rc（机械故障：临时件不可读或参数错误，非内容判定）"
+    ERRORS=$((ERRORS + 1))
+    echo ""
+    return
+  fi
 
   if [ -n "$diff_out" ]; then
-    echo "   🔴 DRIFT: 内容不一致（已剥离 front-matter，仍存在差异）"
+    # R3-18 收敛：逐侧判定并具名，不再按 hunk 行号恒打印双侧。
+    # diff 输出含 `< ` 行 = 仅 prompt 侧有该内容（prompt 侧变动）；
+    #            `> ` 行 = 仅 skill 侧有该内容（skill 侧变动）。
+    # 据此判 prompt/skill/both，格式固定：
+    #   🔴 漂移 <pair>：<prompt|skill|both> 侧内容不一致（prompt <n> 行 vs skill <m> 行）
+    local prompt_only skill_only drift_side prompt_lines skill_lines
+    # 注意：grep -c 在 0 匹配时 rc=1，set -e 下会中止脚本；
+    # 用 count_lines 辅助函数隔离 rc（不在 diff_out 同行写 rc 兜底符，免被静态判据误判 R3-20）。
+    count_lines() { local pat="$1" data="$2"; set +e; printf '%s\n' "$data" | grep -cE "$pat"; set -e; }
+    prompt_only=$(count_lines '^< ' "$diff_out")
+    skill_only=$(count_lines '^> ' "$diff_out")
+    prompt_lines=$(count_lines '.' "$prompt_body")
+    skill_lines=$(count_lines '.' "$skill_body")
+    if [ "$prompt_only" -gt 0 ] && [ "$skill_only" -gt 0 ]; then
+      drift_side="both"
+    elif [ "$prompt_only" -gt 0 ]; then
+      drift_side="prompt"
+    else
+      drift_side="skill"
+    fi
+    echo "   🔴 漂移 ${prompt_name} ↔ ${skill_name}：${drift_side} 侧内容不一致（prompt ${prompt_lines} 行 vs skill ${skill_lines} 行）"
     # 漂移报文必须含「文件:行号」定位（AC-4 Then② / NFR 失败指名口径）。
     # 规范定位串形如 `prompts/<name>.md:N` 或 `skills/<name>/SKILL.md:N`，
     # 必须同时含目录前缀 + 行号 —— 满足下游 grep -E '(prompts|skills)/[^ :]+:[0-9]+'。
     # diff hunk header 形如 `NaM,N`（删 prompt 第 N 行 + 增 skill 第 M 行）；
-    # 取首 hunk 的左侧（prompt 删除侧）与右侧（skill 增加侧）行号各报一行。
+    # 仅对实际变动侧报定位行（drift_side 决定），避免张冠李戴（R3-18）。
     local first_hunk left_num right_num
-    first_hunk=$(printf '%s\n' "$diff_out" | grep -m1 -E '^[0-9]+(,[0-9]+)?[acd][0-9]+(,[0-9]+)?' || true)
+    set +e
+    first_hunk=$(printf '%s\n' "$diff_out" | grep -m1 -E '^[0-9]+(,[0-9]+)?[acd][0-9]+(,[0-9]+)?')
+    set -e
     if [ -n "$first_hunk" ]; then
       left_num=$(printf '%s' "$first_hunk" | sed -E 's/^([0-9]+).*/\1/')
       right_num=$(printf '%s' "$first_hunk" \
@@ -128,12 +162,16 @@ check_pair() {
       local prompt_rel skill_rel
       prompt_rel=${prompt_file#$BUNDLE_ROOT/flow-kit/}
       skill_rel=${skill_file#$BUNDLE_ROOT/}
-      # 两侧都报（至少一侧行号 > 0），确保下游 pattern 必然命中
-      if [ -n "$left_num" ] && [ "$left_num" -gt 0 ] 2>/dev/null; then
-        echo "     定位: prompts/${prompt_rel#prompts/}:$left_num（prompt 侧内容漂移）"
+      # 仅对实际变动侧报定位（drift_side ∈ {prompt, both} 报 prompt 侧；{skill, both} 报 skill 侧）
+      if [ "$drift_side" = "prompt" ] || [ "$drift_side" = "both" ]; then
+        if [ -n "$left_num" ] && [ "$left_num" -gt 0 ] 2>/dev/null; then
+          echo "     定位: prompts/${prompt_rel#prompts/}:$left_num（prompt 侧内容漂移）"
+        fi
       fi
-      if [ -n "$right_num" ] && [ "$right_num" -gt 0 ] 2>/dev/null; then
-        echo "     定位: skills/${skill_rel#skills/}:$right_num（skill 侧内容漂移）"
+      if [ "$drift_side" = "skill" ] || [ "$drift_side" = "both" ]; then
+        if [ -n "$right_num" ] && [ "$right_num" -gt 0 ] 2>/dev/null; then
+          echo "     定位: skills/${skill_rel#skills/}:$right_num（skill 侧内容漂移）"
+        fi
       fi
     fi
     # 附 diff 摘要（前 8 行，避免刷屏）
@@ -167,34 +205,57 @@ check_gate_config_sync() {
   # 段标记：「预设名映射表（PRESET_MAP）」→「数字映射：」；每行格式 `# <name> → {...}`
   # grep 必须含 → 约束：只认 `# name →` 格式，忽略段内英文注释（防误报）；行有前导空格故
   # 允许 ^[[:space:]]*#（L-014：避免 \] 字符类陷阱，用 [a-z0-9-] + [[:space:]] POSIX 类）
+  # R3-19 收敛：grep 在空集合（如 SKILL.md 被清空）时 rc=1，set -e 下会中止脚本。
+  # 故 `|| true` 兜底 rc，空集合合法得到空串，交由后续 fail-closed 分支判定。
   local skill_presets
   skill_presets=$(sed -n '/预设名映射表（PRESET_MAP）/,/数字映射：/p' "$skill_file" \
     | grep -E '^[[:space:]]*#[[:space:]]*[a-z][a-z0-9-]*[[:space:]]+→' \
     | sed -E 's/^[[:space:]]*#[[:space:]]*([a-z0-9-]+).*/\1/' \
-    | sort -u)
+    | sort -u || true)
 
   # 提取 bats resolve_gate_config 的 case 分支预设名集合
   # 分支格式：`    full)` 或 `    code-only|review)`（| 分隔别名）
+  # R3-19 收敛：同上，grep 空集合 rc=1 ⇒ `|| true` 兜底（bats 文件被清空时走到这里）。
   local bats_presets
   bats_presets=$(sed -n '/^  case "$value" in/,/^  esac/p' "$bats_file" \
     | grep -E '^    [a-z]' \
     | sed -E 's/^[[:space:]]+//; s/\).*//' \
     | tr '|' '\n' \
     | sed 's/^[[:space:]]*//' \
-    | sort -u)
+    | sort -u || true)
 
   # 语义 set-diff（集合不等即漂移）
-  local diff_out
-  diff_out=$(diff <(printf '%s\n' "$skill_presets") <(printf '%s\n' "$bats_presets") || true)
+  # R3-20 收敛：gate-config 的 diff 同样保留 rc，rc≥2 = 机械故障 ⇒ 具名 🔴 + ERRORS。
+  # 同上：set -e 下 diff rc=1 会触发中止，故 set +e … set -e 包裹（bash 3.2 兼容）。
+  local diff_out diff_rc
+  set +e
+  diff_out=$(diff <(printf '%s\n' "$skill_presets") <(printf '%s\n' "$bats_presets") 2>/dev/null); diff_rc=$?
+  set -e
+  if [ "$diff_rc" -ge 2 ]; then
+    echo "   🔴 MECHANICAL: gate-config diff 返回 rc=$diff_rc（机械故障，非内容判定）"
+    ERRORS=$((ERRORS + 1))
+    echo ""
+    return
+  fi
 
   if [ -n "$diff_out" ]; then
     echo "   🔴 DRIFT: gate-config 预设名集合不一致！"
     echo "$diff_out" | sed 's/^/     /'
     ERRORS=$((ERRORS + 1))
   else
+    # R3-19 收敛：两侧预设集合同时为空时，`grep -c .` 在 set -e 下 rc=1 ⇒ 静默中止。
+    # 修法：`|| true` 兜底 rc，并断言空集合 ⇒ fail-closed（未验证 ≠ 通过）。
+    # 任一侧预设集合为空 ⇒ 具名 🔴 + ERRORS，不得静默继续、不得打印 ✅ 一致。
     local preset_count
-    preset_count=$(printf '%s\n' "$skill_presets" | grep -c .)
-    echo "   ✅ 预设名集合一致 ($preset_count 个预设)"
+    preset_count=$(printf '%s\n' "$skill_presets" | grep -c . || true)
+    local bats_count
+    bats_count=$(printf '%s\n' "$bats_presets" | grep -c . || true)
+    if [ "$preset_count" -eq 0 ] || [ "$bats_count" -eq 0 ]; then
+      echo "   🔴 预设集合为空（skill 侧 ${preset_count} 个 / bats 侧 ${bats_count} 个）：无法判定一致性（未验证 ≠ 通过）"
+      ERRORS=$((ERRORS + 1))
+    else
+      echo "   ✅ 预设名集合一致 ($preset_count 个预设)"
+    fi
   fi
   echo ""
 }

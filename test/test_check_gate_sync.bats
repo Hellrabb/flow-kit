@@ -90,3 +90,63 @@ teardown() {
   [[ "$output" == *"MISSING"* ]]                        # 坏态：必须指名缺失文件
   rm -rf "$SBX"
 }
+
+# ── T-FIX-10 R3-18/R3-19/R3-20 判别式 ──
+# 复制真实生产件进 mktemp -d 夹具（3 对 PCSC + gate-config 两侧），构造三类坏态：
+#   R3-18 双向：仅 prompt/skill 侧加一行 ⇒ 必须逐侧具名（不得张冠李戴）
+#   R3-19：两侧预设集合同时清空 ⇒ 不得静默中止（须有汇总行或具名 🔴）
+#   R3-20：PATH 影子 diff（恒 rc=2）⇒ 机械故障不得折算为「一致」（rc≠0 + 具名 🔴）
+# 好态（完整夹具）仍 rc=0（T02 F6 好态已覆盖，此处不重复）。
+FXB10() {
+  SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix10-XXXXXX")
+  mkdir -p "$SBX/fk/flow-kit-bundle/flow-kit/reference" "$SBX/fk/flow-kit-bundle/flow-kit/prompts" "$SBX/fk/flow-kit-bundle/skills" "$SBX/fk/flow-kit-bundle/test"
+  cp "$SCRIPT" "$SBX/fk/flow-kit-bundle/flow-kit/reference/"
+  cp flow-kit-bundle/flow-kit/prompts/A-evolve.md flow-kit-bundle/flow-kit/prompts/I-intel-scan.md flow-kit-bundle/flow-kit/prompts/L-restyle.md "$SBX/fk/flow-kit-bundle/flow-kit/prompts/"
+  for sk in flow-evolve flow-intel flow-restyle flow; do
+    mkdir -p "$SBX/fk/flow-kit-bundle/skills/$sk"
+    cp "flow-kit-bundle/skills/$sk/SKILL.md" "$SBX/fk/flow-kit-bundle/skills/$sk/"
+  done
+  cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/"
+}
+
+@test "T-FIX-10 R3-18A: 仅 skill 侧加一行 → 具名 skill 侧，不误报 prompt 侧" {
+  FXB10
+  printf '\nX-DRIFT-SKILL-ONLY\n' >> "$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"skill 侧内容不一致"* ]]
+  [[ "$output" != *"prompt 侧内容不一致"* ]]
+  rm -rf "$SBX"
+}
+
+@test "T-FIX-10 R3-18B: 仅 prompt 侧加一行 → 具名 prompt 侧，不误报 skill 侧" {
+  FXB10
+  printf '\nX-DRIFT-PROMPT-ONLY\n' >> "$SBX/fk/flow-kit-bundle/flow-kit/prompts/A-evolve.md"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"prompt 侧内容不一致"* ]]
+  [[ "$output" != *"skill 侧内容不一致"* ]]
+  rm -rf "$SBX"
+}
+
+@test "T-FIX-10 R3-19: 两侧预设集合同时清空 → 不静默中止（有汇总行或具名 🔴）" {
+  FXB10
+  printf 'name: flow\n' > "$SBX/fk/flow-kit-bundle/skills/flow/SKILL.md"
+  : > "$SBX/fk/flow-kit-bundle/test/test_gate_config_presets.bats"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"── 校验汇总 ──"* || "$output" == *"🔴"* ]]
+  [[ "$output" != *"✅ 预设名集合一致"* ]]
+  rm -rf "$SBX"
+}
+
+@test "T-FIX-10 R3-20: PATH 影子 diff（恒 rc=2）→ rc≠0 + 具名 🔴（不折算为一致）" {
+  FXB10
+  mkdir -p "$SBX/fk/bin"
+  printf '#!/bin/sh\nexit 2\n' > "$SBX/fk/bin/diff"
+  chmod +x "$SBX/fk/bin/diff"
+  run bash -c "cd '$SBX/fk' && PATH='$SBX/fk/bin:$PATH' bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"🔴"* ]]
+  rm -rf "$SBX"
+}
