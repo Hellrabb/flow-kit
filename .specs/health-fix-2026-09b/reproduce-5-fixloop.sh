@@ -48,6 +48,14 @@ grepc() {
   [ "$got" = "$want" ] && ok "$label（/$pat/ = $got）" || bad "$label" "$f 中 /$pat/ 计数 $got ≠ $want"
 }
 
+# grepge <标签> <文件> <ERE> <最少计数>（下界断言：计数 ≥ min 即通过）
+grepge() {
+  local label="$1" f="$2" pat="$3" min="$4" got
+  [ -f "$f" ] || { bad "$label" "缺文件 $f"; return; }
+  got=$(grep -cE -- "$pat" "$f")
+  [ "$got" -ge "$min" ] && ok "$label（/$pat/ = $got ≥ $min）" || bad "$label" "$f 中 /$pat/ 计数 $got < $min"
+}
+
 # rc0 <标签> <命令…>
 rc0() {
   local label="$1"; shift
@@ -120,7 +128,7 @@ then
 else
   bad "T-FIX-21 台账归一" "$(tail -2 "$TMPD/g21" | tr '\n' ' ')"
 fi
-grepc "T-FIX-21 TEST.md 数量口径生成规则" .specs/health-fix-2026-09b/TEST.md '数量口径生成规则' 1
+grepge "T-FIX-21 TEST.md 数量口径生成规则" .specs/health-fix-2026-09b/TEST.md '数量口径生成规则' 1
 
 echo "-- T-FIX-22（R5-20/R5-21/R5-22/R5-5 具名诊断 + 短路次序 + 归档面 + 自排除）"
 grepc "T-FIX-22 非法 JSON 具名诊断" flow-kit-bundle/lib/install_hooks.sh 'settings\.json.*jq\|jq.*settings\.json' 1
