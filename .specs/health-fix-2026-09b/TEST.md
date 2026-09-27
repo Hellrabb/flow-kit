@@ -1137,6 +1137,16 @@ R4D_RC=0
 
 **D-9-3 本轮暴露并订正的两条判据/工具面缺陷**：（见 §1.7 第 8 次执行行与发现表 #41/#42 · `TD-066` = `T17` 对照夹具候选面全自排除 · `TD-067` = 抽取器未整行锚定）——**均非生产件回归**，订正后本轮的 18 条判据与 7 项门禁按**订正后**的判据集/工具复跑取全绿。
 
+### D-10 第 9 次执行（阶段 6 第 3 轮裁决回退 4-dev 后的重验 · 判据面 23 条）原始回执内嵌 —— **本轮 NFR 判据 ❌（诚实记录）**
+
+**运行标识**：`FK_REPRO_LOG_DIR=/tmp/fk-reproduce-5-r8 bash .specs/health-fix-2026-09b/reproduce-5-test.sh`（HEAD = `bf3763f`）⇒ **脚本总退出码 `rc=0`**，但当时脚本把 NFR 门禁的 rc **硬编码为 0**（`emit_gate "NFR ≤5s ×5" 0 "…"`）⇒ 该「全绿」不可作为判定依据（`TD-077`）。原始日志 `/tmp/p6c/repro8.out` · 逐条输出 `/tmp/fk-reproduce-5-r8/out_<ID>.txt` · 全文回执见 `PHASE5-RECEIPTS.md §R`。
+
+**D-10-1 判据（23/23 rc=0 · 数字 = 抽取行数）**：T05 12 · T06 22 · T11 7 · T13 34 · T17 74 · T19 36 · T20 3 · T22 20 · T24 18 · T26 30 · T27 19 · T29 15 · T-FIX-01 36 · T-FIX-02 42 · T-FIX-03 78 · T-FIX-04 44 · T-FIX-05 26 · T-FIX-06 41 · T-FIX-07 87 · T-FIX-08 56 · T-FIX-09 58 · T-FIX-10 72 · T-FIX-11 58。
+
+**D-10-2 门禁（7 项 · 1 项 ❌）**：bats `--count` = **1061** · `npx bats test/` = ok **1061** / not ok **0** · `make check` = **21 ✅ / 0 ❌** · `check-path-privacy` 候选 1600 / 实际扫描 1594 / index 侧 13 / 不可读 0 / 命中 0 / 清单外 0 ✅ · `package-flow-kit.sh --validate` 漏配 0 / 源缺失 0 ✅ · 阶段门沙箱六态（A rc=2 · B rc=0 · B2/B3/B4 rc=2 · C rc=0）✅ · **NFR ❌** = `time make check-path-privacy` ×5 的 `real`：`10.741 / 10.885 / 10.783 / 11.510 / 11.469 s`（max 11.510 · 均值 **11.078 s = 预算 221.6%**；判据 `REQUIREMENT.md:495`「单次运行 ≤5 秒」· 本节 `:248`「超阈值即未满足」· `:265`「绝对阈值、不做负载折算」；环境 nproc=32 · loadavg 8.08 / 6.86 / 6.40）。⇒ **阶段 5 判定 ❌ 未通过**（不得据此过 4→5 门）。
+
+**D-10-3 根因与闭合**：`T-FIX-07`（R3-2 修复）在 `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` 内为**每个候选各起一次** `git grep --cached -naE --null … -- "$file"`（1594 次进程）⇒ A/B 实测 `7b624dc`（594 行）= 3.191 s · `20847e1`（T-FIX-07 · 692 行）= 10.662 s · `bf3763f`（769 行）= 10.778 s；微基准 = 每文件一次 4.28 ms（150 次 0.642 s）vs 全 index 一次 0.023 s（≈290×）。处置：`TD-077`（`reproduce-5-test.sh` 的 `[D]` 段改**真断言**：逐次解析 `real=`、`awk` 判 `>5`、打印 max/均值/预算百分比、超限即 `emit_gate … 1` ⇒ 脚本 `exit 1`）＋ **`T-FIX-12`**（index 侧批量预扫描 + 一次 `git cat-file --batch-check` 处理磁盘缺失候选；commit `c177fbac8ffe8c24a989fa5d6bb9ac9574fb2fa3`）⇒ 修复后同机 5 次 `3.722 / 3.562 / 3.489 / 3.664 / 3.581 s`（均值 3.604 = 预算 72.1%），第 10 次执行复审见 `D-11`。
+
 ### D-8 第 7 次执行（fix 循环后重验 · 17 条判据 + 7 项门禁）原始回执内嵌
 
 **运行标识**：`FK_REPRO_LOG_DIR=/tmp/fk-reproduce-5-r5 bash .specs/health-fix-2026-09b/reproduce-5-test.sh` ⇒ **`REPRO5_RC=0`**；HEAD = `ee29a6d`；起始 **2026-09-25T00:26:42+08:00**；`bash 5.2.21(1)-release`；脚本 = `reproduce-5-test.sh`（198 行 · `DEFAULT_IDS` 17 条）。

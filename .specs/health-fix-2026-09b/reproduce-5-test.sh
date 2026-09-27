@@ -49,6 +49,22 @@
 #   · 阶段 4 第 3 轮 fix 循环（阶段 6 第 3 轮裁决回退 4-dev · T-FIX-07 ~ T-FIX-11，处置 R3 系列 5🔴+13🟡
 #     与 R4-1）：判据面 18 → 23，逐个纳入 T-FIX-07（复核面）~ T-FIX-11（磁盘缺失但 index 侧可读）；
 #     基线 1029 → 待第 9 次执行实测（T-FIX-08 已把源码面推到 1047，T-FIX-09/10/11 追加后再定值）。
+# 第 9 次执行（REPRO8 · 阶段 5 重入第 5 轮 · 2026-09-25）：阶段 6 第 3 轮裁决回退 4-dev 后的**本轮最终**复验
+#   —— fix 循环收口（T-FIX-07 ~ T-FIX-11 全部落地）后重取阶段 5 权威干净全脸。
+#   · 判据面 **23 条**（T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 + T-FIX-01 ~ T-FIX-11），全部**原样抽取**
+#     自 TASK.md 并字面执行；门禁面 7 项与第 8 次执行同构。
+#   · 基线 → **1061 ok / 0 not ok**（1058 T-FIX-10 收口值 + 3 条 T-FIX-11 判别式）。
+#   · 判据路径修复（TD-076）：T-FIX-11 `<verify>` 原写相对路径 `S=flow-kit-bundle/…` 而 `FXR()` 会 `cd "$FX"`
+#     ⇒ 抽取执行时四腿全部 rc=127；已就地修为 `S="$R/flow-kit-bundle/…"`（语义不变）⇒ 自第 9 次执行起该判据可原样跑通。
+# 第 10 次执行（REPRO9 · 阶段 4 修复循环收口后重取阶段 5 判定 · 2026-09-25）：
+#   · 判据面 **24 条**（新增 `T-FIX-12`：NFR 预算回归修复 —— 其 `<verify>` 自带 5 次真计时腿，与脚本 [D] 段互为独立复算）。
+#   · 基线仍 **1061 ok / 0 not ok**（`T-FIX-12` 为纯性能修复：未增删 bats 用例，`test_path_privacy_gate.bats` 稳定 30 例）。
+#   · `[D]` 段自本次起为**真断言**（TD-077：逐次解析 `real=`、`awk` 判 >5、打印 max/均值/预算百分比；超限 ⇒ rc=1 ⇒ 脚本 exit 1）。
+#   · 前置红面：第 9 次执行 NFR 均值 11.078 s = 预算 221.6% ⇒ `T-FIX-12`（commit c177fbac8ffe8c24a989fa5d6bb9ac9574fb2fa3）
+#     把 index 侧内容面从「每候选一次 `git grep --cached`」（1594 次 git 进程）改为候选循环前**一次**全 index 扫描；
+#     `git cat-file -t` 亦批量化（`--batch-check`）。主 agent 独立复核 3 次：3.56 / 3.47 / 3.47 s（rc=0）。
+#   · 相关记录：T-FIX-10 `<verify>` 的静态判据 `grep -qE 'diff_out.*\|\| true'` 属「实现形态约束」而非行为语义
+#     （R4-7 🟡，留 v2）；本脚本只做原样执行，不改写任何判据。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,7 +72,7 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10 T-FIX-11"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10 T-FIX-11 T-FIX-12"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -134,7 +150,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1029 ok / 0 not ok，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1061 ok / 0 not ok，skip 计入 ok 行）"
 
   echo
   echo "== [B] make check（全门禁）=="
@@ -153,15 +169,35 @@ run_gates() {
   echo
   echo "== [D] NFR 性能预算（5 次 · 预算 ≤5s）=="
   TIMEFORMAT='real=%R user=%U sys=%S'
-  i=1; times=""
+  i=1; times=""; nfr_max=0; nfr_sum=0; nfr_bad=""
   while [ "$i" -le 5 ]; do
     t=$( { time make check-path-privacy > /dev/null 2>&1; } 2>&1 | tr '\n' ' ' )
     printf '       run %s: %s\n' "$i" "$t"
     times="$times$t
 "
+    secs=$(printf '%s' "$t" | sed -n 's/.*real=\([0-9.][0-9.]*\).*/\1/p')
+    if [ -n "$secs" ]; then
+      over=$(awk -v s="$secs" 'BEGIN{print (s>5)?1:0}')
+      [ "$over" -eq 1 ] && nfr_bad="$nfr_bad run$i(${secs}s)"
+      nfr_max=$(awk -v a="$nfr_max" -v b="$secs" 'BEGIN{print (b>a)?b:a}')
+      nfr_sum=$(awk -v a="$nfr_sum" -v b="$secs" 'BEGIN{printf "%.3f", a+b}')
+    else
+      nfr_bad="$nfr_bad run$i(无法解析 real)"
+    fi
     i=$((i + 1))
   done
-  emit_gate "NFR ≤5s ×5" 0 "环境 nproc=$(nproc 2>/dev/null || echo '?') loadavg=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo '?')"
+  nfr_mean=$(awk -v s="$nfr_sum" 'BEGIN{printf "%.3f", s/5}')
+  nfr_pct=$(awk -v m="$nfr_mean" 'BEGIN{printf "%.1f", m*20}')
+  nfr_env="环境 nproc=$(nproc 2>/dev/null || echo '?') loadavg=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo '?')"
+  # 断言（TD-077 fix · 第 10 次执行起）：预算 ≤5s 是 REQUIREMENT.md:495 的明文 NFR、
+  #   TEST.md:248 的判据（「超阈值即未满足」）。此前本段 emit_gate … 0 **硬编码 rc=0**
+  #   ⇒ 第 9 次执行实测 10.74~11.51s（均值 11.08 = 221.6% 预算）仍被打印为 ✅ ——
+  #   不判的判据等于没有判据（与 TD-064/TD-065 同族）。
+  if [ -n "$nfr_bad" ]; then
+    emit_gate "NFR ≤5s ×5" 1 "🔴 预算 5s 超限：${nfr_bad# } · max ${nfr_max}s · 均值 ${nfr_mean}s = 预算 ${nfr_pct}% · $nfr_env"
+  else
+    emit_gate "NFR ≤5s ×5" 0 "max ${nfr_max}s · 均值 ${nfr_mean}s = 预算 ${nfr_pct}% · $nfr_env"
+  fi
 
   echo
   echo "== [E] 打包覆盖 validate =="

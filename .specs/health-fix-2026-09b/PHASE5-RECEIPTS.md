@@ -1,31 +1,31 @@
 # PHASE5 RECEIPTS — health-fix-2026-09b 阶段 5 · 原始回执存档
 
 > **目的**：让 `TEST.md` 每条自报数字可被外部**重放核对**，而非只给汇总数字（L3 第 2 轮 major 1/2 响应工件）。
-> **复算入口**：`bash .specs/health-fix-2026-09b/reproduce-5-test.sh`（判据从 `TASK.md` **权威副本** awk 原样抽取后**字面执行**，不套 `set -e`；支持 `--criteria-only` / `--gates-only` / `--only T19,T27`；任一非 0 ⇒ `exit 1`）。
-> **本次运行**：**第 8 次执行（第 2 轮 fix 循环后重验 · 判据面 18 条）** · HEAD `26d5d7b` · bash 5.2.21 · 日志 `/tmp/fk-reproduce-5-r7` ⇒ **`REPRO7_RC=0`**（第 7 次 HEAD `ee29a6d`；更早见 §A/§B/§H/§I/§J/§M/§O）。
+> **复算入口**：`bash .specs/health-fix-2026-09b/reproduce-5-test.sh`（判据从 `TASK.md` **权威副本** awk 原样抽取后**字面执行**，不套 `set -e`；支持 `--criteria-only` / `--gates-only` / `--only T19,T27`；任一非 0 ⇒ `exit 1`；**NFR 段自第 10 次执行起为真断言**，见 `TD-077`）。
+> **本次运行**：**第 9 次执行（阶段 6 第 3 轮裁决回退 4-dev 后重验 · 判据面 23 条）** · HEAD `bf3763f` · bash 5.2.21 · 日志 `/tmp/fk-reproduce-5-r8` ⇒ 判据面 `rc=0` · **NFR 面 ❌（唯一红面，见 §0 与 §R）**（第 8 次 HEAD `26d5d7b` `REPRO7_RC=0`；更早见 §A/§B/§H/§I/§J/§M/§O）。
 > **脱敏**：仓库根与家目录前缀按 **L-129** 去形为 `<repo>`（其余字节原样）。
 
 ---
 
 ## §0 最小复算证据（索引与结论 · 落在补充产物 3000 B 预算内）
 
-**结论**：**18 条**判据 + 7 项门禁全绿 —— 第 8 次执行（判据面 17→18）总 `rc=0` · `make check` 21 ✅ / 0 ❌ · 沙箱六态全绿 ⇒ 第 2 轮 3 🟡：F-19/F-20 = `T-FIX-06`（`421640a`）、F-18 措辞同提交；另订正 `TD-066`/`TD-067`（`26d5d7b`）；第 1 轮 2 🔴 = `T-FIX-03`…`05`。
-**一键复算**：`bash .specs/health-fix-2026-09b/reproduce-5-test.sh`（判据 + 门禁）· `bash .specs/health-fix-2026-09b/reproduce-phase-gate.sh`（六态）—— 均需 `exit 0`。
+**结论**：**判据面 23/23 ✅ · 门禁面 5/6 ✅，唯一红面 = NFR** —— 第 9 次执行 `make check-path-privacy` 5 次实测 **10.741/10.885/10.783/11.510/11.469 s**（均值 **11.078 s = 预算 221.6%**；`REQUIREMENT.md:495` / `TEST.md:248` 明文「超阈值即未满足」）⇒ **阶段 5 判定 ❌ 未通过**，转 `T-FIX-12`（新发现 `R4-2` 🔴 · 根因 = `check-path-privacy.sh:586` 每候选一次 `git grep --cached`，`T-FIX-07` 引入）。判据面新增 `T-FIX-07`…`T-FIX-11` 五条**全部 ✅**。
+**一键复算**：`bash .specs/health-fix-2026-09b/reproduce-5-test.sh`（判据 + 门禁）· `bash .specs/health-fix-2026-09b/reproduce-phase-gate.sh`（六态）。
 
-| 面 | 第 8 次实测（括号 = 第 7 次 r5） | 原文 |
+| 面 | 第 9 次实测（括号 = 第 8 次） | 原文 |
 | --- | --- | --- |
-| 判据 T05…T29 + `T-FIX-01`…`06` | **18/18 ✅ rc=0**（17/17） | §P-1 · §O-1 |
-| `npx bats test/` | ok=**1029** / not ok=0 / skip=0（有效 **1028**）（1025 / 1024） | §P-3a |
-| `make check` | 21 条 ✅ / 0 条 ❌（同） | §P-3b |
-| `make check-path-privacy` | 清单外命中 **0**（同） | §P-3c |
-| NFR ≤ 5 s ×5 | **3.011–3.146 s** · 均值 **3.077** = 预算 **61.5%** · nproc=32 | §P-3d |
-| `package-flow-kit.sh --validate` | 期望 **315** / 实际 **321** · 漏配 0 / 源缺失 0 | §P-3e |
-| 阶段门沙箱 | **六态全绿**：A rc=2 · B rc=0 · **B2/B3/B4 rc=2** · C rc=0 | §P-4 |
-| 门禁面（第 2 轮 fix 循环后） | L2 第 4 轮 **pass**（R1 🟢 已处置 · `TD-068`）· L3 第 13 轮 **pass**（0 critical · 3 major 全为既有 TD） | §Q |
-| 总退出码 | 第 8 次 **`REPRO7_RC=0`**（第 7 次 `REPRO5_RC=0`） | §P · §O |
-| 历史（第 1–5 次） | 判据 12/12–14/14 · bats 976 → 1012 | §I · §J |
+| 判据 T05…T29 + `T-FIX-01`…`11` | **23/23 ✅ rc=0**（18/18） | §R-1 |
+| `npx bats test/` | ok=**1061** / not ok=0 / skip=0（1029） | §R-2 |
+| `make check` | 21 条 ✅ / 0 条 ❌（同） | §R-2 |
+| `make check-path-privacy` | 候选 **1600** / 扫描 **1594** / 清单外命中 **0**（1590 / 0） | §R-2 |
+| **NFR ≤ 5 s ×5** | **❌ 10.741–11.510 s · 均值 11.078 = 预算 221.6%**（3.011–3.146 · 61.5%） | §R-2/§R-3 |
+| `package-flow-kit.sh --validate` | 漏配 **0** / 源缺失 **0** | §R-2 |
+| 阶段门沙箱 | 六态全绿：A rc=2 · B rc=0 · **B2/B3/B4 rc=2** · C rc=0 | §R-2 |
+| 门禁面（第 2 轮 fix 循环后） | L2 第 4 轮 **pass**（`TD-068`）· L3 第 13 轮 **pass**（0 critical · 3 major 为既有 TD） | §Q |
+| 总退出码 | 第 9 次脚本 `rc=0`，**但 NFR 段当时硬编码 rc=0（`TD-077`）⇒ 不作为判定** | §R-2 · §R-4 |
+| 历史（第 1–8 次） | 判据 12/12 → 18/18 · bats 976 → 1029 · NFR 2.841–3.146 s | §I · §J · §M · §O · §P |
 
-**读法**：§A/§B/§H/§I = 第 1–4 次 · §J = 第 5 次 · §M = 第 6 次 · §O = 第 7 次 · **§P = 第 8 次（当前）** · §K/§L = 回写判据修改前原文 · §N = L3 第 9 轮处置 · **§Q = 门禁面（L2 第 4 轮 + L3 第 13 轮）**。补充产物只按**前 3000 B** 进外部审查信封 ⇒ 关键数字与复算入口必须留在本节内（L-151）；原始行已内嵌 `TEST.md` 附录 C / D-8 / D-9。
+**读法**：§A/§B/§H/§I = 第 1–4 次 · §J = 第 5 次 · §M = 第 6 次 · §O = 第 7 次 · §P = 第 8 次 · **§R = 第 9 次（当前 · 含唯一红面）** · §Q = 门禁面（L2 第 4 轮 + L3 第 13 轮）· §K/§L = 回写判据修改前原文 · §N = L3 第 9 轮处置。补充产物只按**前 3000 B** 进外部审查信封 ⇒ 关键数字与复算入口必须留在本节内（L-151）；原始行已内嵌 `TEST.md` 附录 C / D-8 / D-9。
 
 ---
 
@@ -2068,3 +2068,82 @@ artifacts=TEST.md,TASK.md,REQUIREMENT.md,INDEPENDENT-REVIEW-5.md
 第 8 次执行的原始日志整段贴入 §P 时只替换了仓库根、漏了家目录前缀 ⇒ `make check` 首跑在 `check-path-privacy` 判红：`命中合计 3 条 / 清单外命中 3 条`（`:1876` `✅ /home/<acct>/.dsh/profiles/web/node_modules/dsh-flow-kit/vendor/flow-kit-bundle/hooks` · `:1877` `✅ /home/<acct>/.config/opencode/hooks` · `:1937` `== 门禁 = /home/<acct>/…/independent-review-gate.sh`）。订正 = 按本仓既有写法（HEAD 版同类行）统一去形为 `<repo>/…`，头部脱敏口径说明同步补「与家目录前缀」；复跑 ⇒ `命中合计 0 条 / 清单外命中 0 条 ✅`（`§0 区 = 2970 B ≤ 3000`）。
 
 **留痕意义**：本 change 新增的 fail-closed 自证面（F-19）在**自己的证据文件**上抓到一次真实泄漏，属门禁价值的正向证据；同时沉淀 `L-160`（贴文去形口径必须成表）。
+
+---
+
+## §R 第 9 次执行（阶段 6 第 3 轮裁决回退 4-dev 后的重验 · 判据面 23 条）原始回执（2026-09-25 · HEAD `bf3763f`）
+
+**运行**：`FK_REPRO_LOG_DIR=/tmp/fk-reproduce-5-r8 bash .specs/health-fix-2026-09b/reproduce-5-test.sh` · 起 18:27:34 · bash 5.2.21 · 日志 `/tmp/p6c/repro8.out` + `/tmp/fk-reproduce-5-r8/`（判据脚本体 `v_<id>.sh` · 逐条输出 `out_<id>.txt` · 门禁原文 `bats-tap.txt` / `make-check.txt` / `phase-gate.txt`）。
+**判据面扩张**：18 → **23 条**（新增 `T-FIX-07` … `T-FIX-11`，逐条仍从 `TASK.md` 权威副本**原样抽取后字面执行**）。
+**总退出码**：`rc=0`（⚠️ 但总退出码不可作为阶段 5 判定 —— 本脚本 `[D]` 段当时把 NFR 判据**硬编码 rc=0**，见 §R-2 注与 §R-4）。
+
+### §R-1 判据面（23/23 ✅ rc=0）
+
+| 判据 | rc | 抽取行数 | 原始输出 |
+| --- | --- | --- | --- |
+| T05 | ✅ rc=0 | 12 | `out_T05.txt` |
+| T06 | ✅ rc=0 | 22 | `out_T06.txt` |
+| T11 | ✅ rc=0 | 7 | `out_T11.txt` |
+| T13 | ✅ rc=0 | 34 | `out_T13.txt` |
+| T17 | ✅ rc=0 | 74 | `out_T17.txt` |
+| T19 | ✅ rc=0 | 36 | `out_T19.txt` |
+| T20 | ✅ rc=0 | 3 | `out_T20.txt` |
+| T22 | ✅ rc=0 | 20 | `out_T22.txt` |
+| T24 | ✅ rc=0 | 18 | `out_T24.txt` |
+| T26 | ✅ rc=0 | 30 | `out_T26.txt` |
+| T27 | ✅ rc=0 | 19 | `out_T27.txt` |
+| T29 | ✅ rc=0 | 15 | `out_T29.txt` |
+| T-FIX-01 | ✅ rc=0 | 36 | `out_T-FIX-01.txt` |
+| T-FIX-02 | ✅ rc=0 | 42 | `out_T-FIX-02.txt` |
+| T-FIX-03 | ✅ rc=0 | 78 | `out_T-FIX-03.txt` |
+| T-FIX-04 | ✅ rc=0 | 44 | `out_T-FIX-04.txt` |
+| T-FIX-05 | ✅ rc=0 | 26 | `out_T-FIX-05.txt` |
+| T-FIX-06 | ✅ rc=0 | 41 | `out_T-FIX-06.txt` |
+| T-FIX-07 | ✅ rc=0 | 87 | `out_T-FIX-07.txt` |
+| T-FIX-08 | ✅ rc=0 | 56 | `out_T-FIX-08.txt` |
+| T-FIX-09 | ✅ rc=0 | 58 | `out_T-FIX-09.txt` |
+| T-FIX-10 | ✅ rc=0 | 72 | `out_T-FIX-10.txt` |
+| T-FIX-11 | ✅ rc=0 | 58 | `out_T-FIX-11.txt` |
+
+单条耗时 1–11 分钟（每条尾部都会跑自身夹具 + `make check`）⇒ 本次执行总耗时约 1 小时 33 分（18:27:34 → 20:00 前后）。
+
+### §R-2 门禁面（**5 ✅ + 1 ❌**）
+
+| 门禁 | 结果 | 摘要 |
+| --- | --- | --- |
+| `bats --count` | ✅ rc=0 | 用例数 **1061**（源码面 `test/*.bats`） |
+| `npx bats test/` | ✅ rc=0 | ok=**1061** / not-ok=**0**（基线 1061 ok / 0 not ok） |
+| `make check` | ✅ rc=0 | 21 条 ✅ / 0 条 ❌（原文 `make-check.txt`） |
+| `check-path-privacy` | ✅ rc=0 | 候选 **1600** / 实际扫描 **1594** / 命中合计 **0** / 清单外命中 **0** |
+| **NFR ≤5 s ×5** | **❌ 未通过** | real = **10.741 / 10.885 / 10.783 / 11.510 / 11.469 s** · max **11.510** · **均值 11.078 s = 预算 221.6%** · `nproc=32` `loadavg` 8.08 6.86 6.40 |
+| `package-flow-kit.sh --validate` | ✅ rc=0 | 🔴 漏配 **0** / ⚠️ 源缺失 **0** |
+| 阶段门沙箱复现 | ✅ rc=0 | A 拒绝且 HEAD 不变 · B 放行 · **B2/B3/B4 一律 rc=2** · C 门不适用放行（六态全绿 · `TD-059` 已闭合 · `ADR-029`） |
+
+> ⚠️ **判据运输面缺陷（`TD-077`）**：本脚本 `[D]` 段当时写作 `emit_gate "NFR ≤5s ×5" 0 "…"`（rc **硬编码 0**）⇒ 221.6% 预算被打印成 `✅`、总退出码仍是 `rc=0`「复算全绿」。NFR 真实数值是主 agent 从原始输出逐行读出后判定的（未受该缺陷影响），但**脚本自身当时不具备判定能力**。已同批修复，见 §R-4。
+
+### §R-3 本批新发现 `R4-2` 🔴（NFR 预算回归）· 根因与亲验证据
+
+- **判据原文**：`REQUIREMENT.md:495`「新增门禁 `make check-path-privacy` 单次运行 ≤ **5 秒**」；`TEST.md:248`「验证手段 = `time` 实测并记入 `TEST.md`，**超阈值即未满足**」；`TEST.md:265` 确立「绝对阈值、不做负载折算」。历次基线实测：2.842–3.146 s（预算 57–61.5%，§E/§I/§O/§P）。
+- **A/B 归因**（同机、同仓、相隔数分钟；`git show <rev>:<path>` 取旧版副本后 `time bash` 实测，副本用完即删）：
+  | 版本 | 行数 | real | user | sys |
+  | --- | --- | --- | --- | --- |
+  | `7b624dc`（fix 循环前） | 594 | **3.191 s** | 1.246 | 2.120 |
+  | `20847e1`（`T-FIX-07`） | 692 | **10.662 s** | 3.592 | 11.142 |
+  | `bf3763f`（HEAD） | 769 | **10.778 s** | 3.710 | 11.186 |
+  ⇒ 回归由 **`T-FIX-07`** 引入（sys 时间 ↑ 5.3× ⇒ 进程启动开销，非 I/O 或算术）。
+- **机制**：`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:586` 对**每个候选**调一次 `git grep --cached -naE --null "$PAT" -- "$file"`（`T-FIX-07` 为 R3-2「index-only 泄漏」引入）⇒ **1594 次 git 进程**；`:573` 另有每「磁盘缺失」候选一次的 `git cat-file -t ":$file"`（`T-FIX-11` 引入，常规路径上不触发）。
+- **微基准（判定批量化可行性的直接证据）**：`for f in <150 files>; do git grep --cached -naE --null PAT -- "$f"; done` = **0.642 s**（≈ **4.28 ms/次** ⇒ ×1594 ≈ **6.8 s**，与观测增量一致）；**一次**不带 pathspec 的全 index 扫描 `git grep --cached -naE --null PAT` = **0.023 s** ⇒ 相差约 **290×**。既有解析器 `:509-520 parse_grep_nul` 已支持 `<path>\0<line>\0<content>\n` 记录 ⇒ 一次扫描 + 按路径归位即可，无需逐文件调用。
+- **处置**：新增 **`T-FIX-12`**（`TASK.md:2390-2489` · `depends_on T-FIX-07` · `status="pending"`），写面 = `check-path-privacy.sh` + 双源 `test/test_path_privacy_gate.bats` + `.specs/STATE.md`（计数行）+ `dist/`；`<verify>` 含**真计时腿**（5 次逐次 ≤5 s、打印 max/均值/预算百分比、不做负载折算）+ `R3-1`（非 ASCII 名）/`R3-2`（index-only 泄漏）不回退夹具 + 常设网/全量套件/三一致性/`make check`。
+- **判据强度不变**：`T-FIX-12` 硬约束 —— 既有 34 例隐私 bats 只许新增、不得删改；`R3-1`/`R3-2`/`R3-30` 三条判别式必须仍绿；自证四数口径不得回退。
+- **沉淀**：`.specs/LESSONS.md` **`L-168`**（判据不判 ⇒ 缺陷可穿过「全绿」；性能回归只能由真计时腿抓到）。
+
+### §R-4 判据运输面修复（主 agent 写面 · `TD-077`）
+
+`.specs/health-fix-2026-09b/reproduce-5-test.sh` 的 `[D]` 段由「打印数值 + 硬编码 rc=0」改为**真断言**：逐次解析 `real=`、`awk` 判 `>5`、打印 `max` / 均值 / 预算百分比，超限 ⇒ `emit_gate "NFR ≤5s ×5" 1 …` ⇒ `GATE_FAIL=1` ⇒ 脚本 `exit 1`（脚本 231 → 268 行）。
+**断言逻辑单测**（假值驱动，`/tmp/nfr_logic_test.sh`）：第 9 次实测值 `10.741…11.469` ⇒ `🔴 rc=1`「预算 5s 超限：run1(10.741s) … max 11.510s · 均值 11.078s = 预算 221.6%」；第 8 次实测值 `3.146/3.050/3.051/3.127/3.011` ⇒ `✅ rc=0`「均值 3.077s = 预算 **61.5%**」（与 §P-3d 历史回执逐位一致 ⇒ 解析与均值口径可复算）；边界 `5.001` ⇒ `🔴 rc=1`。
+**⇒ 第 10 次执行起，NFR 超预算时本脚本不可能再输出「复算全绿」。**
+
+### §R-5 结论与判定
+
+- 判据面 **23/23 ✅**、门禁面 **5/6 ✅**，**唯一红面 = NFR 预算（221.6%）** ⇒ **阶段 5 第 9 次执行判定：❌ 未通过**（`TEST.md:248` 明文「超阈值即未满足」；`AC-8` NFR 侧）。**不得**据此宣布阶段 5 达标，**不得**据此过 `4→5` 门。
+- 出口链：`T-FIX-12`（批量化 + 判据真断言）→ **第 10 次执行**（`§S`，含新的 NFR 断言腿）→ 阶段 5 判定重取 → 阶段 6 第 4 轮复审（`R4-1` 已闭合 · `R4-2` 待第 10 次执行证据）。

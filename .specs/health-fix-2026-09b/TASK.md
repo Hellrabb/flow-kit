@@ -2022,7 +2022,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-06</depends_on>
 </task>
 
-<task id="T-FIX-08" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-08" parallel="false" status="done" model-tier="top">
   <name>阶段 6 第 3 轮 🔴 R3-14 —— 消费者项目里 pre-push/pre-commit 拒一切推送与提交 + R3-17/21/23（恢复提示 / jq 前置 / 每 ref 全量重扫）</name>
   <read_files>
     <`.specs/health-fix-2026-09b/REVIEW.md` §0″.4.B（R3-14…R3-23 全文；主 agent 的四夹具实测输出：无 Makefile 普通推送 rc=1 `make: *** 没有规则可制作目标"check-path-privacy"。 停止。` + `🔴 拒绝推送` · 纯删除推送 rc=2 · 空 stdin rc=2 · 项目 Makefile 仅含 `test:` ⇒ pre-commit rc=1 `[archive-commit-gate] path-privacy check failed, commit rejected`）>
@@ -2109,11 +2109,11 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix8-check.out 2>&1 || { tail -20 /tmp/tfix8-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done></done>
+  <done>commit 2f01f3975b2056c2b16f6db6cdcab7e3f7b3a5a2 · 消费者项目 hook 面（R3-14 / R3-17 / R3-21 / R3-23）修复：pre-commit 与 pre-push 的检查调用改为「项目 Makefile 目标 → 随包 reference 检查器（显式导出 `FLOW_KIT_PRIVACY_ALLOWLIST`，路径由 hook 自身位置推导）→ 显式跳过并打印 `ℹ️`」三态回退；jq 前置预检入安装器 + `flow-kit-bundle/README.md` / `OPENCODE-INSTALL.md` / `install.sh` 文档；`install_hooks.sh` 部署面把「检查器 + 清单」作为一对安装。verify EXIT=0（五场景：无 Makefile+干净 rc=0 · 无 Makefile+泄漏 rc=1 · 纯删除 rc=0 · 仅 `test:`+干净 rc=0 · 仅 `test:`+泄漏 rc=1）· `bats` 1047 ok / 0 not-ok · `make check` 21 ✅ · 主 agent 独立复核：pre-push 七腿 A–G + 提交面无禁用路径（见 `MINOR-DEFERRED.md` 的 T-FIX-08 复核记录）。遗留 `R4-M1` 🟡（部分部署下「清单缺失」措辞不符 + rc=0 放行）与 `R4-M2` 🟢（自证行路径未归一化）交阶段 7 triage / 4→5 门裁决。</done>
   <depends_on>T-FIX-07</depends_on>
 </task>
 
-<task id="T-FIX-09" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-09" parallel="false" status="done" model-tier="top">
   <name>阶段 6 第 3 轮 🔴 R3-15/R3-16 —— NFR 判据「禁构面失明」与「文件名含空格即跳过」+ 🟡 R3-22（变更锚点硬编码进永久 Makefile）</name>
   <read_files>
     <`.specs/health-fix-2026-09b/REVIEW.md` §0″.4.B（R3-15/R3-16/R3-22 全文；主 agent 的双态实测：`awk -v P='\brealpath\b' 'BEGIN{print length(P)}'` = **10**（`\b` 被判成退格 0x08）⇒ `realpath` 夹具 ✅ rc=0，同夹具 `mapfile`/`grep -P` 🔴 rc=2；`sp ace.sh`（含 mapfile）⇒ ✅ rc=0、拆分项 `sp`/`ace.sh` 均「不存在 ⇒ 跳过」，改名 `mf.sh` ⇒ 🔴 rc=2）>
@@ -2196,7 +2196,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     make check > /tmp/tfix9-check.out 2>&1 || { tail -20 /tmp/tfix9-check.out; echo "🔴 make check 不绿"; rc=1; };
     exit $rc
   </verify>
-  <done></done>
+  <done>commit 81c920e61101f599bf9e29f7ec5bc3dbe429a887 · NFR 可移植性门禁三处判据可信度修复：① R3-15 —— `_report_viol()` 不再用 `awk -v` 传含反斜杠的正则（改 `ENVIRON` + 词边界写法 `(^|[^[:alnum:]_])realpath([^[:alnum:]_]|$)`），`realpath` 正面控制修复前必红；② R3-16 —— 路径面引号化（含空格文件名不再被 `for` 静默跳过）；③ R3-22 —— 无锚点由静默 `SKIP` 改**全量模式**（fail-closed），`Makefile` 的 `check-nfr-portability` 拆为薄壳 + `-internals` 体（判定只在 `NFR_RC_FILE`，违规详情走 stderr）。`bats` 1047 → 1054（+7 例）· 主 agent 独立夹具 **21/21 PASS**（空落 / 空格路径 tracked+untracked / 双锚点 + 坏 id / 全量模式脏·净 / `FLOW_KIT_CHANGE_BASE` 优先）· 全量模式在真仓实测本应红（BAN 19 处 / 12 文件 ⇒ 登记 `TD-074`）。</done>
   <depends_on>T-FIX-08</depends_on>
 </task>
 

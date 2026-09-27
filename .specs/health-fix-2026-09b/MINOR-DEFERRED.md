@@ -1307,10 +1307,10 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **结论**：R3-14（消费者项目回退 + 目标守卫 + 纯删除 + 每 sha 只扫一次）、R3-17（恢复路径提示）、R3-21（jq 前置预检 + 文档）、R3-23（去重）**均修复**；腿 C/D 证明回退不是「一律跳过」，而是**真的会跑随包检查器并拦住泄漏** ✅。
 
 **本轮新增（主 agent 独立复跑发现）**：
-- **R4-2 🟡** —— `bundle` 模式下检查器可用但 `path-privacy-allowlist.txt` 缺失时（部分部署：旧版安装器 / 手工 symlink / 半拷贝目录）：① 打印的 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` **与实际原因不符**（检查器明明在）；② 该形态下含泄漏推送 **rc=0 放行**（腿 E）。缓解：T-FIX-08 的 (c)③ 让安装器把「检查器 + 清单」作为一对部署 ⇒ 正统路径不会出现该形态；**已安装旧版钩子**的消费者需重跑安装器（`install.sh --update`）才会获得随包检查器。
-- **R4-3 🟢** —— 自证行打印的允许清单来源是**未归一化**的逻辑路径（腿 C：`<fx>/.git/hooks/../reference/path-privacy-allowlist.txt`），可读性略差（非缺陷）。
+- **R4-M1 🟡**（原编号 `R4-2`，与 REVIEW.md §0‴ 的 `R4-2`（NFR 预算回归）撞号 ⇒ 2026-09-25 重编，与 `R3-M1`…`R3-M6` 同族）—— `bundle` 模式下检查器可用但 `path-privacy-allowlist.txt` 缺失时（部分部署：旧版安装器 / 手工 symlink / 半拷贝目录）：① 打印的 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` **与实际原因不符**（检查器明明在）；② 该形态下含泄漏推送 **rc=0 放行**（腿 E）。缓解：T-FIX-08 的 (c)③ 让安装器把「检查器 + 清单」作为一对部署 ⇒ 正统路径不会出现该形态；**已安装旧版钩子**的消费者需重跑安装器（`install.sh --update`）才会获得随包检查器。
+- **R4-M2 🟢**（原编号 `R4-3`）—— 自证行打印的允许清单来源是**未归一化**的逻辑路径（腿 C：`<fx>/.git/hooks/../reference/path-privacy-allowlist.txt`），可读性略差（非缺陷）。
 
-**建议处置**：R4-2 提交用户在 4→5 收费门处裁决（本 change 内追加修复 vs 阶段 7 triage）；R4-3 记 MINOR-DEFERRED 不修。
+**建议处置**：`R4-M1` 提交用户在 4→5 收费门处裁决（本 change 内追加修复 vs 阶段 7 triage）；`R4-M2` 记 MINOR-DEFERRED 不修。
 
 ## 🧩 契约修订留痕：`T-FIX-09`（主 agent 飞行中复核 · 2026-09-25）
 
@@ -1402,3 +1402,32 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 
 **结论**：T-FIX-11 ✅ **通过** —— R4-1 过严红已修；index 侧内容面逐字保留且无条件执行；gitlink 与非 blob 仍 fail-closed；T-FIX-08 的 staged-only 面未回归；判据自身缺陷已就地修正并留痕。**无新增 🟡 遗留**。
 
+---
+
+## ✅ T-FIX-12 复核记录（主 agent 独立计时 ×3 + diff 语义等价亲读 + 提交面核对 · 2026-09-25）
+
+**提交面**（本任务按「修复 commit + 文档 commit」拆分）：
+- `c177fbac8ffe8c24a989fa5d6bb9ac9574fb2fa3`（%cI 2026-09-25T20:28:46+08:00）= `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` **+172 / −18**（769 → **923 行**）
+- `280ffdcfffb2abdaa944a741a15a6c52e5aecee6` = `.specs/health-fix-2026-09b/T-FIX-12-SUMMARY.md`（+122）+ `.specs/health-fix-2026-09b/TASK.md`（+101：T-FIX-12 块 + `status="done"` + `<done>` 注记）
+- 全文件清单**无禁用路径** ✅（无 5 个冻结件 / REVIEW.md / MINOR-DEFERRED.md / INDEPENDENT-REVIEW-*.md / CONTEXT.md / LESSONS.md / T-FIX-11-SUMMARY.md）
+- 台账：`{"id":"T-FIX-12","commit_sha":"c177fbac…","fix_rounds":0,"deferred":[],"completed_at":1790339356}`，修复 commit epoch 1790339326 ⇒ **Δ=30 s ≤ 120 s** ✅
+- `.flow-active`：执行者只改了 `task_id` 与 `goal.updated_at`，**顶层 `updated_at` / `updated_at_note` 仍停在 T-FIX-11**（1790330769）⇒ 主 agent 补齐为 `updated_at=1790339542`、note=「T-FIX-12 收口（commit c177fba · NFR 批量化 3.6s = 预算 72.1% · bats 1061 不变 · 主 agent 3 次独立复核 3.47–3.56s）」，并同步 `goal.updated_at` —— 否则 `flow-kit-bundle/hooks/stop/33-flow-active-integrity.sh:229-243` 的 staleness 检查（`now - updated_at`）会按旧 epoch 误判停滞。
+
+**主 agent 独立计时（3 次 · 真仓 · 同机）**：**3.56 / 3.47 / 3.47 s**，三次 rc=0 —— 对照第 9 次执行修复前 **10.741 / 10.885 / 10.783 / 11.510 / 11.469 s**（均值 11.078 = 预算 221.6%）⇒ 回归已消除（≈3.1× 提速）；执行者自测 3.722 / 3.562 / 3.489 / 3.664 / 3.581（均值 3.604 = 72.1%）与主 agent 数值同量级 ✅。
+
+**diff 语义等价性亲读（`git show c177fba` 全文）**：
+
+| 面 | 修复前 | 修复后 | 等价性判定 |
+|---|---|---|---|
+| index 侧内容面 | 每个候选一次 `git grep --cached -naE --null "$PAT" -- "$file"`（1594 次 git 进程 ⇒ ~6.8 s） | 候选循环**之前**一次 `git grep --cached -naE --null "$PAT"`（无 pathspec）落 `TMP_INDEX_CACHE_RAW`；`parse_grep_null_filtered()` 逐条 `is_self_exclude` 跳过后 `record_hit` + 经 `TMP_INDEX_SEEN` 去重计 `INDEX_SIDE_COUNT` | ✅ 候选面 = `:390 git ls-files -z --`（**无 pathspec** = 全部 tracked 文件）⇒ 全 index 扫描与候选面**同集合**，无扫描面扩大/缩小 |
+| 磁盘缺失查型 | 每「磁盘缺失」候选一次 `git cat-file -t ":$file"` | 一次 `git cat-file --batch-check`（喂 `:path` 列表，双 FD 3/4 按行序对应）落 `TMP_DISKMISS_MAP`；`lookup_diskmiss_type()` 精确查表 | ✅ 真仓 disk-missing = 0 ⇒ 该路径常规不可达；`rev` 模式在 `:597` 分支内 `:615-616` 提前 `return 0` ⇒ 磁盘缺失分支在 `rev` 模式不可达，空表无害 |
+| fail-closed | 逐候选 rc 检查 | 批量 grep `rc≥2` ⇒ `🔴 无法完成扫描：git grep --cached 失败（批量 index 侧预扫描）` exit 1；`--batch-check` 失败 ⇒ exit 1 | ✅ 保留（未退化为「工具失败当 0 命中 ✅」—— F1 族教训） |
+| `rev`（`FLOW_KIT_CHECK_REV`）模式 | 逐候选 `git grep -naE --null "$PAT" "$RESOLVED_REV" -- "$file"`（`:606`） | **未改** | ✅ NFR 热路径之外，行为不变 |
+
+**语义不回退证据**：真仓 `check-path-privacy` 自证四数 = 候选 **1601** / 实际扫描 **1595** / index 侧 **13** / 不可读 **0** / 命中合计 **0** / 清单外 **0**（较 T-FIX-11 基线各 +1 / +1，因本任务新增 `T-FIX-12-SUMMARY.md` 进入 tracked 面）✅；`npx bats test/test_path_privacy_gate.bats` = **30 ok / 0 not-ok** ✅；`npx bats --count test/` = **1061**（与 T-FIX-11 收口值一致 —— 本次为纯性能修复、未增删用例）✅。
+
+**🧾 本次复核发现的简报缺陷（TD-078 · 🟢）**：主 agent 在 T-FIX-12 块 `<read_files>` 里写「`test_path_privacy_gate.bats`（34 例）」，**实际为 30 例** ⇒ 与 TD-071（路径错）/ TD-073（判据错）同族的「任务简报事实性错误」。执行者**没有**为凑数新增用例，而是主动上报差异（未擅自扩大改动面）—— 处置：**不改代码**，登记 TD-078（`.specs/CONTEXT.md`）供阶段 7 triage。
+
+**遗留风险（执行者自报 · 主 agent 认可为非阻断）**：① `--batch-check` 结果与输入**行序对应**（真仓 disk-missing=0 不触发，夹具可覆盖）；② `rev` 模式未批量化（不在 NFR 热路径）；③ 未新增 bats 用例（既有 30 例覆盖 R3-1 / R3-2 / R3-30 判别式，语义未变）；④ `dist/` 不入 commit（`.gitignore`；`make check-dist` 一致）。
+
+**结论**：**R4-2（NFR 预算回归）✅ 已闭合** —— 根因（`T-FIX-07` 为 R3-2 引入的逐候选 git 进程）已批量化消除、语义等价与 fail-closed 亲验无回退、执行者自测与主 agent 独立计时一致；待**第 10 次执行**（REPRO9 · 判据面 **24 条**，含 `T-FIX-12` `<verify>` 自带的 5 次真计时腿）取权威阶段 5 判定。
