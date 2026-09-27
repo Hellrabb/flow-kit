@@ -2845,7 +2845,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     写面: test/test_independent_review_model.bats · test/test_combined_metric.bats · flow-kit-bundle/test/ 对应两件镜像 · T-FIX-20-SUMMARY.md · TASK.md(本件)
   </done>
 </task>
-<task id="T-FIX-21" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-21" parallel="false" status="done" model-tier="top">
   <name>【R5-8 🟡 / R5-1 🟡（报告侧）/ R5-2 🟢】`TEST.md` 汇总面可复算订正与数量口径生成规则 + 台账归一（伪条目 / 幽灵键 / 时区口径）</name>
   <read_files>
     <`.specs/health-fix-2026-09b/TEST.md` 的 §1.3（第 3/4 条的旧计数与行号引用）· `:55`（AC-2 措辞）· §1.1（AC-6 bats 计数补记）>
@@ -2875,6 +2875,12 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑥ `make check` 21 ✅ / 0 ❌（台账改动不影响门禁，仍须全绿）。
   </verify>
   <depends_on>T-FIX-20（串行：全仓门禁为独占步骤）</depends_on>
+  <done>
+    sha: dfca45966a44f01be60b3ec2a444924011113781
+    completed_at: 2026-09-28T06:19:51+08:00 (Δ 57 s)
+    verify: ① 复算表三列对照（命令⇒实测数⇒报告新值）含于 SUMMARY §A · ② grep 命中行与实测一致（1098/45-34-14-15-15/15文件）· ③ R5-3 已完成内容保留（'第 11 次执行补记' ≥1 · 发现表#43-#49/:558 索引行未动）· ④ 冻结件零改动（git show --stat 不含 CHANGE/REQUIREMENT/DESIGN/INDEPENDENT-REVIEW）· ⑤ 台账归一后 python 断言 OK + integrity rc=0 · ⑥ make check 21✅/0❌
+    写面: .specs/health-fix-2026-09b/TEST.md(§1.3 第2/3/4/5条 + 数量口径生成规则行 + :54 AC-1 TD-053→R5-9) · .specs/health-fix-2026-09b/T-FIX-21-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress 归一 + append · gitignored 不提交)
+  </done>
 </task>
 
 <task id="T-FIX-22" parallel="false" status="pending" model-tier="top">
