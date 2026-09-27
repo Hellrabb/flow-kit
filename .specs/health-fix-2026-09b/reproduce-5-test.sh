@@ -65,6 +65,14 @@
 #     `git cat-file -t` 亦批量化（`--batch-check`）。主 agent 独立复核 3 次：3.56 / 3.47 / 3.47 s（rc=0）。
 #   · 相关记录：T-FIX-10 `<verify>` 的静态判据 `grep -qE 'diff_out.*\|\| true'` 属「实现形态约束」而非行为语义
 #     （R4-7 🟡，留 v2）；本脚本只做原样执行，不改写任何判据。
+# 第 11 次执行（REPRO10 · R4-M1 收口后重取阶段 5 判定 · 2026-09-27）：
+#   · 判据面 **25 条**（新增 `T-FIX-13`：bundle 形态「检查器在 + `path-privacy-allowlist.txt` 缺」的 fail-open 与
+#     错措辞修复 —— R4-M1 🟡，用户裁决「本 change 内修」；其 `<verify>` 自带三态反向控制 + 危害报文断言）。
+#   · 前置红面（主 agent 预跑原文）：修复前 `T-FIX-13` 判据 rc=1（8 条红腿：L2a/L2b/L2c/L2e/L2f/L2g + L5×2）。
+#   · 第 10 次执行（REPRO9）的 24 条判据 + 7 项门禁**全绿**（NFR 3.716 s = 预算 74.3%）—— 本次重跑的理由是
+#     `T-FIX-13` 改动了 `flow-kit-bundle/hooks/pre-push/pre-push.sh` 与 `pre-commit/pre-commit.sh` 两个生产件
+#     ⇒ 第 10 次的证据面对**当前 HEAD 不再权威**；REPRO9 的原始回执仍留档于 §S（不作为本次判定面）。
+#   · 基线：**1064 ok / 0 not ok**（1061 + `T-FIX-13` 新增 3 例静态断言；[A] 段文案与实跑同源）。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -72,7 +80,7 @@ ROOT=$(cd "$SELF_DIR/../.." && pwd)
 TASK_MD="$SELF_DIR/TASK.md"
 LOG_DIR=${FK_REPRO_LOG_DIR:-${TMPDIR:-/tmp}/fk-reproduce-5}
 MODE=all
-DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10 T-FIX-11 T-FIX-12"
+DEFAULT_IDS="T05 T06 T11 T13 T17 T19 T20 T22 T24 T26 T27 T29 T-FIX-01 T-FIX-02 T-FIX-03 T-FIX-04 T-FIX-05 T-FIX-06 T-FIX-07 T-FIX-08 T-FIX-09 T-FIX-10 T-FIX-11 T-FIX-12 T-FIX-13"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -150,7 +158,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1061 ok / 0 not ok，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1064 ok / 0 not ok = 1061 + T-FIX-13 3 例，skip 计入 ok 行）"
 
   echo
   echo "== [B] make check（全门禁）=="

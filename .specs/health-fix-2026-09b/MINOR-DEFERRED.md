@@ -1431,3 +1431,52 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **遗留风险（执行者自报 · 主 agent 认可为非阻断）**：① `--batch-check` 结果与输入**行序对应**（真仓 disk-missing=0 不触发，夹具可覆盖）；② `rev` 模式未批量化（不在 NFR 热路径）；③ 未新增 bats 用例（既有 30 例覆盖 R3-1 / R3-2 / R3-30 判别式，语义未变）；④ `dist/` 不入 commit（`.gitignore`；`make check-dist` 一致）。
 
 **结论**：**R4-2（NFR 预算回归）✅ 已闭合** —— 根因（`T-FIX-07` 为 R3-2 引入的逐候选 git 进程）已批量化消除、语义等价与 fail-closed 亲验无回退、执行者自测与主 agent 独立计时一致；待**第 10 次执行**（REPRO9 · 判据面 **24 条**，含 `T-FIX-12` `<verify>` 自带的 5 次真计时腿）取权威阶段 5 判定。
+
+## ✅ R4-M1 处置记录（主 agent · 2026-09-27 · 用户裁决「本 change 内修」）
+
+**用户裁决**：在 4→5 收费门同批请示中，用户选择 **「本 change 内修（追加 `T-FIX-13`）」**（已同时告知代价：第 10 次执行 REPRO9 的全量证据面作废、需重跑一轮 24→25 条判据、阶段 5 的 L2/L3 审查轮次须重做）。同批的 `tollgate_4to5` 裁决 = **选项 1：继续 → 5-test**。
+
+**主 agent 亲验（夹具 `/tmp/p6d/r4m1-probe.sh`）**：沙箱 `hooks/` + `reference/` + `proj/`（探针串拼接构造 `P='/home/''zz-probe-e/leak.txt'`）。
+- 缺陷态「检查器在、`path-privacy-allowlist.txt` 缺」：`pre-push` **rc=0**（stderr 印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`、stdout 印 `ℹ️ 项目 Makefile 未声明 check 目标：跳过`），而**被推送对象（ref）内含真实形态探针泄漏**；`pre-commit` 亦 **rc=0** + 同错措辞。
+- 对照态（检查器一并移除）：同为 rc=0 + 同措辞 ⇒ 措辞与放行在两种成因下不可区分。
+- 结论：缺陷覆盖**两个 hook**（`pre-push.sh` 的 `scan_rev()` bundle 分支与 `pre-commit.sh` 的 bundle 分支），非单点。
+
+**判据先红（TDD 基线 · 主 agent 预跑）**：任务块 `<verify>` 抽成 `/tmp/p6d/verify-tfix13.sh`（47 行 · `bash -n` OK）⇒ 修复前实跑 **rc=1**，8 条红腿原文：
+`🔴 L2a 允许清单缺失时 pre-push 仍 rc=0（fail-open 未修）` · `🔴 L2b 报文未指名缺失的允许清单路径` · `🔴 L2c 报文复用了「检查器缺失」措辞（原因不符）` · `🔴 L2e/L2f/L2g pre-commit 同形三腿` · `🔴 L5 泄漏对象未按泄漏归因（rc=0）` · `🔴 L5 泄漏对象 rc=0`。
+
+**派发**：subagent **`3add4b81-472b-4c54-acad-45a962dbec61`**（qwen-token-plan-cn / glm-5.2 · 后台）· 任务块 `.specs/health-fix-2026-09b/TASK.md` 的 `T-FIX-13`（`<depends_on>T-FIX-08</depends_on>`：缓解措施同源）。派发词硬约束：三态语义逐字（① 检查器缺失保持 rc=0 + 原措辞；② 检查器在 + 清单缺 ⇒ 具名非零退出且报文指名 `path-privacy-allowlist.txt`、**不得**含旧措辞、**不得**含 `含路径隐私泄漏`；③ 两者皆在行为逐字不变）· pre-push 不得复用 `scan_rev()` 的 `return 1`（父层会错位归因为泄漏 ⇒ L2d 判红）· 反向控制三条 · 既有静态断言（`test/test_archive_commit_gate.bats:208`/`:222`）不得回退 · 写面纪律（禁改 `reproduce-5-test.sh` / `TEST.md` / `REVIEW.md` / 本文件 / `CONTEXT.md` / `LESSONS.md`）· 收尾顺序 L-154 · 路径受限提交 · 五字段台账（提交后 Δ ≤ 120 s）。
+
+**主 agent 同步面**：`reproduce-5-test.sh` 已把 `T-FIX-13` 纳入 `DEFAULT_IDS`（判据面 24 → **25 条**）并补第 11 次执行（REPRO10）changelog；REPRO9 的原始回执仍留档于 `PHASE5-RECEIPTS.md` §S（标注为「T-FIX-13 之前」的中间态，不作为最终判定面）。
+
+### R4-M1 修订：判据夹具缺陷 TD-081（主 agent · 2026-09-27）
+
+**发现（执行者与主 agent 各自独立发现）**：T-FIX-13 `<verify>` 初版夹具只 `cp check-path-privacy.sh` 到 `$SBX/reference/`，**从未创建** `$SBX/reference/path-privacy-allowlist.txt` ⇒ 标注「两者皆在」的 L4/L5 实际运行在「检查器在 + 清单缺」缺陷态；同一 `$LSHA` 上 L2d 要求报文**不含**「含路径隐私泄漏」、L5 要求**含**之 ⇒ **判据不可满足**（任何正确修复都会假红）。执行者 `3add4b81-472b-4c54-acad-45a962dbec61` 在判据校验阶段即停下原样上报（`fix_rounds=0`，未触碰任何 write_files、未跑门禁、未提交）。
+
+**修订（未放宽判据）**：`.specs/health-fix-2026-09b/TASK.md` 2572 → **2579 行**，块内新增「判据修订留痕（主 agent · 2026-09-27）」段 + **L3d**（`printf '# fixture allowlist（无条目）\n' > "$SBX/reference/path-privacy-allowlist.txt"` + 就位断言，把夹具切到真正的「两者皆在」态）+ **L4c**（两者皆在 + 真泄漏 ⇒ `pre-commit` 必须 `rc≠0`，pre-commit 侧反向控制）；L2a–L2g / L3a–L3c / L6a–L6c 一字未改（缺陷态的具名 fail-closed 仍全由 L2 承担）。
+
+**修订后先红预跑**：重抽判据 `/tmp/p6d/verify-tfix13.sh`（47 → **53 行**，`sha256` = `242fa9c4537776478fba344d789457bcb4a091504d8b116bc3275df61c4fdf41`）⇒ rc=1，红腿恰好 **6 条**（L2a/L2b/L2c/L2e/L2f/L2g）；修订前那两条 L5 红腿消失 ⇒ 证实为状态错位产物而非缺陷本体。L4/L4c 在修复前后均绿（守门腿，无区分力但可防「一律放行/一律拒绝」退化）。
+
+**登记**：**TD-081**（`.specs/CONTEXT.md`，🟡，同族 TD-073/TD-065/TD-072）—— 判据夹具未构造其标称状态所需的证据文件 ⇒ 腿间互斥；v2 三条：① 夹具状态切换必须显式（断言并打印 `none`/`bundle+no-list`/`bundle+list`，腿名按态命名）② 派发前预跑须做互斥性检查（同一输入在不同腿的期望输出不得互相否定）③ `make lint` 增静态检查（标称某态却从未构造该态所需证据文件时告警）。
+
+**续派**：`send_message` 通知执行者按修订判据继续修复（三态语义、`scan_rev` 禁用 `return 1`、写面与提交/台账/SUMMARY 契约均不变）。
+
+## ✅ T-FIX-13 复核记录（主 agent 独立复核 · 2026-09-27 · R4-M1 闭合）
+
+**提交面**：`ee0df5c0e4cc3f631edce85a436a667acb0a14ac`（%cI `2026-09-27T19:17:51+08:00`）= 5 files / **+114 −4**（`.specs/STATE.md` +2/−1 · `flow-kit-bundle/hooks/pre-commit/pre-commit.sh` +9/−1 · `flow-kit-bundle/hooks/pre-push/pre-push.sh` +22/−2 · `flow-kit-bundle/test/test_archive_commit_gate.bats` +42 · `test/test_archive_commit_gate.bats` +42）与 `551e846`（19:19:57）= `T-FIX-13-SUMMARY.md` +113 · `TASK.md` +90（含主 agent 的 TD-081 判据修订留痕 + `status="done"` + `<done>`）。**逐提交 `--name-only` 扫描：无任何禁用路径**（5 件冻结件 / `REVIEW.md` / 本文件 / `CONTEXT.md` / `LESSONS.md` / `PHASE5-RECEIPTS.md` / `TEST.md` 均未被带入）。
+
+**主 agent 独立三态复核（自建夹具 `/tmp/p6d/tfix13-main-verify.sh`，独立实现、非判据搬运）**：**rc=0 全绿**。
+
+| 腿 | 状态 | 断言 → 实测 |
+| --- | --- | --- |
+| M1 | ② 检查器在 + 清单缺（pre-push） | rc=2 · 报文含 `path-privacy-allowlist.txt` · 不含 `未找到可用的路径隐私检查器` · 不含 `含路径隐私泄漏` → ✅ |
+| M2 | ② pre-commit | rc=1 · 具名允许清单 · 不复用①措辞 → ✅ |
+| M3 | ① 检查器缺失 | pre-push 与 pre-commit 均 **rc=0** + 旧措辞逐字保留 → ✅（消费者兼容语义未破坏；`test/test_archive_commit_gate.bats:208`/`:222` 静态断言仍命中） |
+| M4 | ③ 两者皆在 | 干净对象 rc=0 · pre-commit 泄漏 rc≠0 · pre-push 泄漏 rc≠0 且归因 `含路径隐私泄漏` → ✅ |
+
+**修复设计复核**：① pre-push 用**独立致命路径** `echo … >&2; exit 2`（`flow-kit-bundle/hooks/pre-push/pre-push.sh` 的 `scan_rev()` bundle 分支）而非 `return 1` —— 父层（约 `:150`）把任何非零返回一律归因为「该 ref 含路径隐私泄漏」，配置缺失走该路径会造成归因错位；实测报文确为「缺少允许清单」且无泄漏字样 ✅。② pre-commit 同态 `exit 1` + 具名报文 ✅。③ 状态③调用面（`CHECK_REV` + `FLOW_KIT_PRIVACY_ALLOWLIST`）逐字未改 ✅。
+
+**主 agent 自建夹具首版两处自身缺陷（记录备查，非被审对象缺陷）**：① `proj/Makefile` 只声明 `all:`，而 `pre-commit.sh` 在隐私检查之前还有归档门 `make test` 腿 ⇒ 钩子在更早关口以 `make: *** 没有规则可制作目标“test”。 停止。` + `[archive-commit-gate] test failed, commit rejected`（rc=1）退出，状态②分支不可达（假红 M2 + 状态①的 M3 pre-commit）；② 自造允许清单写成 `path:1 fixture`（`file:token` 后缺 `#` 理由注释分隔）⇒ `validate_allowlist_format` 判 `🔴 允许清单格式违例（ADR-028 规则 ① · file:token 语法）` ⇒ 状态③干净对象亦 rc=1（假红 M4）。两处修正后全绿 ⇒ 归因确认为**夹具缺陷而非修复缺陷**（教训 **L-170**）。
+
+**其余同步面**：`.specs/STATE.md` 基线计数 1061 → **1064**（新增 3 例静态断言）；`TASK.md` 的 T-FIX-13 `status="done"`；`.flow-active` 台账末条 `{id:T-FIX-13, commit_sha:ee0df5c…, fix_rounds:0, deferred:[], completed_at:1790507877}`（提交 epoch 1790507871，Δ=6 s ≤ 120 s）· 顶层 `updated_at`/`updated_at_note` 同步。
+
+**判定**：**R4-M1 ✅ 已闭合**；权威阶段 5 判定由 **REPRO10（第 11 次执行 · 25 条判据）** 取。

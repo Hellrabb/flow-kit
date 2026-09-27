@@ -19,7 +19,7 @@
 
 ## 0‴. 第 4 轮审查（阶段 5 第 9 次执行 → `T-FIX-12` 后重审 · **进行中**）
 
-> **状态**：本节为第 4 轮的**输入面**（第 3 轮 `verdict=fail` 的处置闭环 + 阶段 5 第 9 次执行的新发现）。第 4 轮的 L2 / L3 / spot-check 结论将在 `T-FIX-12` 落地、阶段 5 判定重取（第 10 次执行）之后补入 `0‴.3` … `0‴.6`。
+> **状态**：本节为第 4 轮的**输入面**（第 3 轮 `verdict=fail` 的处置闭环 + 阶段 5 第 9 次执行的新发现 + 阶段 4 复审的 `R4-M1`）。第 4 轮的 L2 / L3 / spot-check 结论将在阶段 5 判定重取（第 10 次执行 REPRO9 全绿；`R4-M1` 裁决「本 change 内修」后再取第 11 次执行 REPRO10）之后补入 `0‴.3` … `0‴.6`。
 
 ### 0‴.1 第 4 轮输入：阶段 5 第 9 次执行（REPRO8 · HEAD `bf3763f`）的新发现
 
@@ -27,6 +27,7 @@
 | --- | --- | --- | --- | --- |
 | `R4-1` | 过严红（已闭合） | `T-FIX-11` 一度过度收紧：候选在 index 侧可读（`git cat-file -t ":$file"` = `blob`）但工作树缺失时被判「不可读」⇒ 门禁对合法状态报红 | 修复前夹具 10 PASS / 5 FAIL（`/tmp/p6c/tfix11-pre-fix.txt`）· 主 agent 16 腿夹具 16/16 · 执行者四腿（过严红 / index 侧泄漏被检出 / gitlink 正确 fail-closed）+ `bats` 1061 ok | `T-FIX-11`（`38f3a38`） |
 | `R4-2` | **🔴 待关闭** | **NFR 预算回归**：`make check-path-privacy` 5 次实测 `10.741/10.885/10.783/11.510/11.469 s` ⇒ **均值 11.078 s = 预算 221.6%**（判据 `REQUIREMENT.md:495`「单次运行 ≤5 秒」· `TEST.md:248`「超阈值即未满足」· `TEST.md:265` 不做负载折算） | 原始回执 `PHASE5-RECEIPTS.md` §R-2（门禁表）/ §R-3（A/B 与微基准）· A/B：`7b624dc`（594 行）**3.191 s** → `20847e1`（`T-FIX-07`，692 行）**10.662 s** → HEAD `bf3763f`（769 行）**10.778 s**（sys 2.120 → 11.186）· 机制 = `check-path-privacy.sh:586` 对每个候选调一次 `git grep --cached`（1594 次进程）· 微基准 = 4.28 ms/次（×1594 ≈ 6.8 s）vs 一次全 index 扫描 **0.023 s** | `T-FIX-12`（`TASK.md:2390-2489` · `c177fba`）⇒ 第 10 次执行取证据。**闭环状态（主 agent 独立复核 · 2026-09-25）**：✓ 修复后 3 次计时 **3.56 / 3.47 / 3.47 s**（rc=0，对照修复前均值 11.078 s = 221.6%）· ✓ 全 index 批量扫描与候选面（`git ls-files -z --` 无 pathspec）同集合、无面扩大 · ✓ fail-closed 保留（批量 `git grep` rc≥2 ⇒ exit 1）· ✓ 自证四数口径不回退（候选 1601 / 扇扫 1595 / index 侧 13 / 不可读 0）· ✓ 隐私套件 30 ok / 0 not-ok、全量 `bats` 1061 不变（见 `MINOR-DEFERRED.md` 的 T-FIX-12 复核记录） |
+| `R4-M1` | 🟡（裁决：**本 change 内修**） | **bundle 形态 fail-open（R4-M1）**：检查器 `check-path-privacy.sh` 在 `reference/` 内、但 `path-privacy-allowlist.txt` 缺失时（旧版安装器 / 手工 symlink / 半拷贝目录），`pre-push` 与 `pre-commit` 都打印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`（成因不符）且 **rc=0 放行** ⇒ 含真实形态探针的推送/提交被静默放过 | 主 agent 夹具 `/tmp/p6d/r4m1-probe.sh`：缺陷态 `pre-push rc=0` + `pre-commit rc=0`，对照态（检查器同缺）措辞不可区分 · 代码点 = `flow-kit-bundle/hooks/pre-push/pre-push.sh:87-100`（`scan_rev()` 的 `bundle)` 分支）与 `flow-kit-bundle/hooks/pre-commit/pre-commit.sh:56-75` · 原文见 `MINOR-DEFERRED.md:1310` | 用户裁决 = **本 change 内修** ⇒ `T-FIX-13`（`TASK.md` 末块 · `<depends_on>T-FIX-08</depends_on>`）⇒ **REPRO10（第 11 次执行 · 25 条判据）** 取证据；先红基线 = `<verify>` 预跑 rc=1（初版 8 条红腿 → 判据夹具缺陷 **TD-081** 修订后 **6 条** · `/tmp/p6d/verify-tfix13.sh` sha256 `242fa9c4…`，新增 L3d/L4c）· 处置记录见 `MINOR-DEFERRED.md` 的 R4-M1 段 |
 
 **第 9 次执行其余面全绿**（判据 23/23 ✅ · `bats` 1061 ok / 0 not-ok · `make check` 21 ✅ · 隐私门禁 命中 0 / 清单外 0 · 包校验 漏配 0 · 阶段门沙箱六态 ✅）⇒ 第 9 次执行**判定 ❌ 未通过**，唯一红面 = NFR 预算（见 `PHASE5-RECEIPTS.md` §R-5）。另有判据运输面缺陷 `TD-077`（复算脚本 NFR 段当时硬编码 rc=0，已同批修为真断言）。
 
