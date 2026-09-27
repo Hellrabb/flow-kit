@@ -1,7 +1,7 @@
 # T-FIX-18 SUMMARY（R5-14 🟡 / R5-10 🟡）
 
 > `check-gate-sync` 缺文件 fail-closed + 补 AC-4 判别形态与 `$status` 断言
-> 执行轮次：第 5 轮 fix loop · commit `4ce0d5e` · `completed_at` `2026-09-28T04:11:16+08:00`
+> 执行轮次：第 5 轮 fix loop · commit `ef6d88a` · `completed_at` `2026-09-28T04:11:48+08:00`
 
 ## 一、问题锚点
 
