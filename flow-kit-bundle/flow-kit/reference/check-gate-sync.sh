@@ -195,9 +195,18 @@ check_gate_config_sync() {
   echo "     skill:  $skill_file"
   echo "     bats:   $bats_file"
 
-  if [ ! -f "$skill_file" ] || [ ! -f "$bats_file" ]; then
-    echo "   ⚠️  WARNING: 文件缺失，跳过 gate-config 同步校验"
+  # F6/R5-14 收敛：缺 skill/bats 文件 ⇒ 计入错误（不再裸 return + ✅ 全绿）。
+  # 措辞与 check_pair 的 MISSING 分支同族（T-FIX-04 先例），但必须打印 gate-config 侧自身名号。
+  # 具名文件路径（不得只含泛化措辞「文件缺失」）。
+  local missing=0
+  [ ! -f "$skill_file" ] && missing=1
+  [ ! -f "$bats_file" ] && missing=$((missing + 2))
+  if [ "$missing" -ne 0 ]; then
+    echo "   🔴 MISSING: gate-config 同步无法校验（未比对）"
+    [ $((missing & 1)) -ne 0 ] && echo "       skill: $skill_file"
+    [ $((missing & 2)) -ne 0 ] && echo "       bats:  $bats_file"
     echo ""
+    ERRORS=$((ERRORS + 1))
     return
   fi
 
