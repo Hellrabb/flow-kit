@@ -2780,7 +2780,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-17（串行：全仓门禁为独占步骤）</depends_on>
 </task>
 
-<task id="T-FIX-19" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-19" parallel="false" status="done" model-tier="top">
   <name>【R5-9 🟡】AC-1 载荷注入与 6 副本判据常设化（现有覆盖为一次性探针）</name>
   <read_files>
     <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（AC-1 实现本件）>
@@ -2806,6 +2806,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ④ `make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-18（串行：全仓门禁为独占步骤）</depends_on>
+  <done>40b909a · 2026-09-28T05:05:42+08:00 · 15/15 绿 · make check 21✅/0❌（NFR 假红由主 agent 44f3693 修复）</done>
 </task>
 
 <task id="T-FIX-20" parallel="false" status="pending" model-tier="top">
