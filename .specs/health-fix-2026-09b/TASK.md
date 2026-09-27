@@ -2642,7 +2642,12 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>R5-18 🔴：`pre-push.sh` 与 `pre-commit.sh` 新增 `_resolve_self_path()`（`command -v readlink` + 深度上限 40 循环解析 `BASH_SOURCE[0]`，相对目标按 `dirname` 拼接），`HOOK_DIR` 经 `.git/hooks/*` symlink 调用时仍解析为 `<proj>/.claude/hooks/<hook>`；`resolve_reference_dir()` 候选由 3 条扩为 4 条，新增 `$HOOK_DIR/../../reference`（安装形态正确位置：`<proj>/.claude/hooks/<hook>` → `<proj>/.claude/reference`），源码树候选保留。R5-19 🟡：`pre-commit.sh` 隐私扫描块整体前置于无 Makefile / npx 早退（两早退只跳过测试门禁）。R5-24 🟢：删 `pure_delete_seen`（全文件无读取，纯写）。`install_hooks.sh:277-292` 注释与实物对齐。新增 `test/test_install_layout.bats`（8 例全绿，含反向控制腿）。验证 ①–⑥ 全满足：先红 `grep -c '未找到可用的路径隐私检查器' /tmp/tfix14/pre.txt` ≥ 2；后绿 `npx bats test/test_install_layout.bats` not ok=0 / ok=8；反向控制 strip 候选 ⇒ not ok=2；静态 `pure_delete_seen` 计数=0、pre-commit 隐私行(5) < 无 Makefile 行(107)；`bash -n` 三件 rc=0；全量 bats 1072 例（基线 1064 +8）`make check` 21 ✅。T-FIX-13 三态语义①未回退（真缺失态 rc=0 + 逐字跳过消息）。</done>
 </task>
 
-<task id="T-FIX-15" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-15" parallel="false" status="done" model-tier="top">
+  <!-- <done> T-FIX-15 · 2026-09-28 · commit 330a4e9（代码/测试）+ <SUMMARY commit sha>（SUMMARY）
+       R5-6 🔴 闭合：新增 test/test_install_jq_guard.bats 4 例（路A install.sh 入口 check_jq + 路B install_hooks.sh 两道守卫 + 无 *.tmp 残片 + 变异反向控制腿）。
+       变异验证：删 install_hooks.sh:189-192 + :365-368 两道守卫 ⇒ 路B 腿②/③ 转 not ok（rc=0 不满足 rc=1）+ 腿④ 确认 4× ⚠️ 合并失败 静默谎报。
+       R5-27 🟢 闭合：TEST.md:55 「字节不变」→「未被截断为空 + allow/hook 存活（非字节相等）」。
+       npx bats --count test/ = 1076（基线 1072 + 4）。make check 21 ✅。 -->
   <name>【R5-6 🔴 · R5-27 🟢】AC-2「缺 jq 不毁配置」固化为常设 bats（含变异反向控制）+ `TEST.md:55` 措辞订正</name>
   <read_files>
     <`flow-kit-bundle/lib/install_hooks.sh:35-55`（`mktemp` 原子写）· `:180-195`（入口 `command -v jq` 守卫 + 具名报文中止）· `:350-365`（合并前第二道守卫）>
