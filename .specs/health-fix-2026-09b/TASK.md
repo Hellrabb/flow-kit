@@ -2715,7 +2715,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>AC-3 行为级常设网 `test/test_pre_push_behavior.bats`（6 例 · 源码树形态 · 全真跑 hook）落档：① 干净 rc=0、② 泄漏 rc≠0+指名 ref、③ 纯删除 rc=0+跳过措辞、④ 畸形 stdin rc≠0+fail-closed、⑤ 检查器在+清单缺 rc=2+具名、⑥ 消费者形态（无 Makefile）泄漏仍 rc≠0。先红（`/tmp/tfix16/pre.txt`）：变异体（`exit 1→continue` + `泄漏拒绝→scan_rev || true`，语法合法、`bash -n` 过）上 12 条既有静态断言全绿 ⇒ 旧网从不执行 hook。变异反向控制（`/tmp/tfix16/mut-run.txt`）：同一 bats 指向变异体 ⇒ 腿②④ not ok（腿⑥额外 not ok）。分工核对：`grep -c 'install_layout' test/test_pre_push_behavior.bats` = 3（仅注释，非用例名）；T-FIX-14 `test_install_layout.bats`（安装形态 8 例）与本文件（源码树形态 6 例）用例名无重复。`npx bats --count test/` = 1082（开工 1076 + 6）；`test_archive_commit_gate.bats` 45 例仍全绿；`make check` 21 ✅ / 0 ❌。前提修正：派发词背景 L-54 称"仓库 reference 无 allowlist"为过时信息（`f315b64` T21 已冻结常设权威清单进 HEAD），腿⑤改用自建沙箱 reference（拷检查器不拷 allowlist）精确命中状态②，判据（状态②⇒rc=2）未变；`fix_rounds=1`〔2026-09-28 执行者自跑〕</done>
 </task>
 
-<task id="T-FIX-17" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-17" parallel="false" status="done" model-tier="top">
   <name>【R5-15 🟡 · R5-16 🟡】隐私门禁磁盘侧检索隔离候选路径（消除 fail-open 与扫描面塌缩）+ rev 面批量化回到 5 s 预算内</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:600-680`（磁盘侧 `raw_disk=$(grep -naE "$PAT" "$file" …)` 无 `--`；rev 模式 `:606` 每候选一次 `git grep`）>
@@ -2746,6 +2746,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑤ `make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-16（串行：全仓门禁为独占步骤）</depends_on>
+  <done>磁盘侧 fail-open + 扫描面塌缩双管修复（commit `60f0835`）：① 磁盘 grep `grep -naE -e "$PAT" -- "$file"`（选项终止 + 模式绑定）；② 候选循环 `done 3<`（独立 FD 结构性防线）；③ 自证一致性断言 `CANDIDATE == SCANNED + SKIPPED` 不等则 🔴 exit 1 + `自排除 N 个` 印进自证行；④ rev 面批量化 `git grep -naE --null "$PAT" "$RESOLVED_REV"` 一次替代逐候选 `:606`，`scan_file` rev 分支改 `git cat-file -t` 判 blob（批量覆盖）+ 非 blob 兜底逐候选。先红（`/tmp/tfix17/pre.txt` v1 + `pre2.txt` v2）：`-q` + `zz_control.txt` 候选，v2 决定性——`zz_control` 磁盘泄漏但 index 干净 ⇒ 磁盘 `-q` 吞 stdin 消费候选流 ⇒ `实际扫描 1`（应 2）+ `命中 0`（应 1）+ rc=0 假绿。后绿：v1 `实际扫描 2` + `命中 2`（-q:1+zz_control.txt:1）+ rc=1；v2 `实际扫描 2` + `命中 1`（zz_control.txt:1）+ rc=1；一致性 4=2+2 ✅。DEDUP grep 硬化 3 处（`record_hit:522`/`parse_grep_null_filtered:571`/`count_in_allowlist:847`）+ `record_hit` 内容归一化（剥 trailing `\n`）。bats 34 例全绿（基线 30 + 新增 4）：① `-q`+`zz_control` 均 index+worktree 泄漏 ⇒ rc=1 两处均归因；② `-q` 干净 + `zz_control` 磁盘泄漏 ⇒ 泄漏检出 + scanned+skipped==candidate + unreadable==0；③ rev 计时 5×≤5s（max=0.061s mean=0.0578s 预算 1.2%）；④ 反向控制。**关键发现**：仅摘 `-e/--` 不足以复现——独立 FD 单独防塌缩，④ 重新设计为同摘两道防线（磁盘 `-e/--` + 候选循环 `<&3`/`3<`）⇒ `zz_control` 漏报（塌缩重现 ✅）。真仓计时：工作树 3.767–3.835s（≤4.5s ✅）、rev 4.405–4.544s（从 R5-16 基线 7.084–7.509s 降 ~40%）。真仓复算 `make check-path-privacy` rc=0，自证五数 候选 1611/实际扫描 1605/自排除 6/index 侧 15/不可读 0，一致性 1611=1605+6 ✅。`make check` 21 ✅ / 0 ❌；`npx bats --count test/` = 1086（开工 1082 + 4）；sync-hooks 跳过（未改 hooks/**）；`fix_rounds=1`〔2026-09-28 执行者自跑〕</done>
 </task>
 <task id="T-FIX-18" parallel="false" status="pending" model-tier="top">
   <name>【R5-14 🟡 / R5-10 🟡】`check-gate-sync` 缺文件必须 fail-closed + 补 AC-4 判别形态与 `$status` 断言</name>
