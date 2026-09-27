@@ -2809,7 +2809,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>40b909a · 2026-09-28T05:05:42+08:00 · 15/15 绿 · make check 21✅/0❌（NFR 假红由主 agent 44f3693 修复）</done>
 </task>
 
-<task id="T-FIX-20" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-20" parallel="false" status="done" model-tier="top">
   <name>【R5-26 🟡 / R5-12 🟢】AC-7 删除注入封闭（去 `$HOME` 回落）+ combined metric 驱动真实路径</name>
   <read_files>
     <`test/test_independent_review_model.bats:12-20`（`FK_SRC_29` 主路径 = 仓库源树、`:18` 回落 `$HOME/.claude/hooks/stop/29-independent-review.sh`）· `:40`/`:46`/`:60`（另有**直接**引用 `$HOME/.claude/hooks/stop/30-ai-analyze.sh` 的断言 ⇒ 同族非封闭）>
@@ -2838,6 +2838,12 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑥ `make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-19（串行：全仓门禁为独占步骤）</depends_on>
+  <done>
+    sha: 75526996a6108815a7fc71882baaa53bf848310a
+    completed_at: 2026-09-28T05:54:33+08:00 (Δ 12 s)
+    verify: ① pre-red rc=0 12 绿（缺陷确认）· ② post-fix 13+3 全绿 · ③ inject 双态 PASS（leg1 not-ok 13 / leg2 全绿）· ④ grep -cE 'HOME/\.claude/hooks/stop' = 0 · ⑤ stop-hook.json 双态 ok/skip · ⑥ make check 21✅/0❌
+    写面: test/test_independent_review_model.bats · test/test_combined_metric.bats · flow-kit-bundle/test/ 对应两件镜像 · T-FIX-20-SUMMARY.md · TASK.md(本件)
+  </done>
 </task>
 <task id="T-FIX-21" parallel="false" status="pending" model-tier="top">
   <name>【R5-8 🟡 / R5-1 🟡（报告侧）/ R5-2 🟢】`TEST.md` 汇总面可复算订正与数量口径生成规则 + 台账归一（伪条目 / 幽灵键 / 时区口径）</name>
