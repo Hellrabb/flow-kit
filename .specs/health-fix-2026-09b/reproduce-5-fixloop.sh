@@ -109,6 +109,8 @@ short = [e['id'] for e in tp if len(str(e['commit_sha'])) != 40]
 assert not short, 'short sha: %s' % short
 for e in tp:
     datetime.datetime.fromisoformat(e['completed_at'])
+assert all(str(e['completed_at']).endswith('+08:00') for e in tp), \
+    'non-+08:00: %s' % [e['id'] for e in tp if not str(e['completed_at']).endswith('+08:00')]
 assert tp == sorted(tp, key=lambda e: e['completed_at']), 'not time-ordered'
 assert isinstance(d['updated_at'], int), 'top-level updated_at must stay epoch int'
 print('OK', len(tp))
