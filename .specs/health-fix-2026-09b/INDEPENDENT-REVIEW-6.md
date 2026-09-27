@@ -153,3 +153,53 @@ bash ./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh; echo "rc=$?"   
 - **④ 主仓观察（非脚本缺陷）**：`.git/config` 现有 `core.quotePath=false`（今日 ~12:47 写入，疑早前调试所设；本人每次 true→读数→恢复 false）。工作区/index 存在探针残留 `中 文名.md`（A 状态，第 2 行 `/home/<acct-2>/b`）：quotePath=true 下门禁 ✅ RC=0（被①类跳过吞掉），false 下 🔴 RC=1。另有 MINOR-DEFERRED.md / REVIEW.md / path-privacy-allowlist.txt 的并发暂存改动（主 agent 工作，未触碰）。建议清残留意象并评估 quotePath=false 是否入库固化（它掩盖而非修复 H1 的 utf-8 半区）。
 
 **Verdict**: fail — 三条 🔴（H1/H2/H3）全部独立复现成立且维持 🔴 定级，I1 侧证成立维持 🟡；另将 H1 的影响面从 pre-commit 扩展到 pre-push/CHECK_REV 路径（新发现①），修复判据应包含 NUL 安全枚举与 SCANNED_COUNT 语义两点。
+
+## Cross-Model Spot-Check（第 5 轮 · 2026-09-27 · qwen3.8-flash）
+
+**触发**：`6-review.md:297-308` ADR-014 —— 第 5 轮 `verdict=fail` + 3 🔴（`R5-6`/`R5-7`/`R5-18`）⇒ 派不同模型盲审第 2 轮。
+**执行者**：agent `8dd172a1-aef0-48dc-ade7-66909f671c8e` · provider `qwen-token-plan-cn` / model `qwen3.8-flash` · 只读（探针全在 `/tmp/spot6/`）· 被审工件 = `<repo>`（L-129 脱敏）HEAD `1b5a9c39a3064ce329c10b381a82123594aad792` + change `.specs/health-fix-2026-09b/`。
+**任务面**：独立复核 `R5-6`/`R5-7` 是否成立与严重度是否恰当 + 自由猎取 2–3 条 AC 的同类缺口。
+**Verdict**：**fail** —— 🔴 **2** · 🟡 **1** · 🟢 **1**（两条 🔴 均为对 `R5-6`/`R5-7` 的**独立确认**并补变异证据；🟡/🟢 为新增）。
+
+### F1（= `R5-6` 确认成立）· 🔴 Critical · AC-2 缺 jq ⇒ 既有 settings.json 不被破坏
+
+- **Symptom**：`TEST.md:55` 声称 AC-2 有「✅ 常设 bats（`test_install_coverage.bats` / `test_install_dry_run.bats`）」且「缺 jq 分支：目标配置字节不变 + fail-closed」——两文件合计 21 个 `@test`，**从未隐藏 jq、从未断言缺 jq 路径**。
+- **Source**：声明侧 `TEST.md:55`；实现侧 `flow-kit-bundle/lib/install_hooks.sh:189-192`（入口守卫）+ `:356-359`（合并分支二道守卫）。
+- **实跑证据**：`grep -rn "permissions" test/*.bats` → **0 命中**；`grep -rln "settings\.json" test/*.bats` → 仅 `test_install_dry_run.bats`（4 例全在 `DRY_RUN=true` 下，与缺 jq 无关）；`grep -rn '缺少依赖 jq|jq 不可用' test/*.bats` → install_hooks 相关 **0 命中**；`test_install.bats` 的 `run_install` 恒带 `--dry-run` ⇒ 亦不覆盖。
+- **变异实证**（`/tmp/spot6/f1mutB` = 两道守卫全文删除；影子 PATH 验证 NOJQ；沙箱 HOME + `USER_SETTINGS_FILE` 钉住）：**REAL** rc=1 · size 120→120 · `❌ 缺少依赖 jq…已中止（尚未做任何写盘）`；**MUTANT-B** rc=**0** · size 120→120 但 4×`⚠️ …合并失败，请手动检查` ⇒ 守卫被删后当前代码形态是**静默安装失败（rc=0 谎报成功）**而非截断。原始 PC2 截断（122B→0B）需旧代码 create-branch `>` 重定向形态，**未能从现件复现** ⇒ 数据丢失复发条件比转述更苛刻，但「装了个寂寞仍报成功」同样击穿 AC-2 产品语义。
+- **缓解事实（如实记录）**：`install.sh:125-136 check_jq()` 在 `:168-170` 硬前置（非 update 且非 `--no-hooks`）⇒ 出货 CLI 路径已有第一道防线；残余暴露 = 直接 `source` 库调用者（恰是常设 bats 的使用模式）。
+- **严重度依据**：按 `flow-kit-bundle/flow-kit/prompts/6-review.md:289-296`（🔴 阻塞 toll-gate）+ `CHANGE.md:161-171` 的 TD-053 先例（生产件判定力只由 change 期判据承载 + 报告登记成 ✅ ⇒ 与 pass 不可并存）⇒ **维持 🔴，不降级**。
+- **Remedy 建议**：固化 T06 为常设 bats —— 影子 PATH 排除 jq + 直调 `install_hooks`（及全 CLI `--global --no-brooks --user` 双形态）+ 断言 rc≠0 + `cmp -s` 前后一致 + `permissions.allow` 存活；并在用例内 grep 钉住守卫文本，防「静默 rc=0」变异形态。
+
+### F2（= `R5-7` 确认成立）· 🔴 Critical · AC-3 泄漏 ref 拦截无常设行为级测试
+
+- **Symptom**：`TEST.md:56` 声称 AC-3 由 `test_archive_commit_gate.bats`（45 例）覆盖，但该文件对 `flow-kit-bundle/hooks/pre-push/pre-push.sh` **只做 `bash -n`（`:183-186`）+ 静态 `grep -q`（`:188-212`、`:264-278`），从不以 stdin 执行 hook**。
+- **Source**：同上 bats；实现 = `pre-push.sh` 185 行（畸形 stdin fail-closed `:139-142` · 泄漏分支拒绝 `:167-171` · 缺清单 `exit 2` `:107-108`）。
+- **实跑证据（变异证伪网失效）**：`grep -rn "pre-push\.sh" test/*.bats` 全部命中集中于 `bash -n`/静态 grep；`grep -rn 'run bash.*pre-push' test/*.bats` 仅命中 `bash -n` 行。构造变异体（`/tmp/spot6/f2/…/pre-push.sh`：`:138-141` 畸形守卫 `exit 1`→`continue`；`:167-171` 泄漏拒绝块→`scan_rev || true`）后，**常设全套静态断言在该拦截已死的 hook 上逐条重放全绿**（`bash -n` + 10 个被断言字符串：`resolve_reference_dir` / `makefile_has_target` / `纯删除推送` / `scanned_shas` / `已扫描过该 sha` / `未找到可用的路径隐私检查器` / `FLOW_KIT_PRIVACY_ALLOWLIST` / `path-privacy-allowlist.txt` / `fail-closed` / `exit 2`）⇒ `make check` 全绿而拦截失效，正是 TD-053 描述的模式。
+- **行为差分（证明该逻辑本可 bats 化）**：真实 bundle 布局 + 隔离 bare remote + clone，提交含 `/home/<account>/proj/x` 的泄漏文件（探针字面按 L-129/L-137 脱敏为占位形态） ⇒ **REAL push rc=1** + stderr `🔴 拒绝推送 refs/heads/main：该 ref 含路径隐私泄漏`；**MUTANT rc=0** 推送被接受。畸形单字段 stdin 行：REAL rc=1 / MUTANT rc=0。
+- **Remedy 建议**：把 T19 收敛为常设 bats —— bare-repo 沙箱 + 四形态 stdin（干净 / 泄漏 / 纯删除 / 畸形）+ 缺清单 `exit 2` 态，断言 rc 与被拒 ref 名（或如实降级 `TEST.md:56` 并登记 tech-debt；后者依仓库先例不满足 toll-gate）。
+
+### F3 · 🟡 Important · AC-7 删除注入声明不封闭（非 hermetic）
+
+- **Symptom**：`TEST.md:60` 声称「四个假绿文件各含注入型用例（删除被断言文件 ⇒ 红）」，但 `test/test_independent_review_model.bats` 的 setup 有回落 `FK_SRC_29="$HOME/.claude/hooks/stop/29-independent-review.sh"`。
+- **实跑证据**（`/tmp/spot6/ac7` 最小树重放）：内容回归注入（bundle 件删 `fk_resolve_model`）⇒ **tests 1&4 转红**（网对内容退化有判定力）；**删除注入（`rm` bundle 源件）⇒ 12 例全绿**，因 `$HOME` 已装副本顶替通过 grep。
+- **Consequence**：分发件被删/改名时光网不红；用例判定依赖本机安装态 ⇒ 异机 / CI 不可复现。`MINOR-DEFERRED.md:173-190` 披露的 HOME 沙箱验法是 change 期合法证据，但不改变常设网性质。
+- **Remedy**：夹具复制入 bats `TMPDIR` 并钉住扫描根（禁 `$HOME` 回落），或修正 `TEST.md` 声明。定级 🟡：测试卫生债，非「出货门禁失效」同型。
+
+### F4 · 🟢 Minor · `TEST.md:55` 措辞与 REQUIREMENT 冲突
+
+`REQUIREMENT.md` 的 AC-2 明确断言面是「未被截断为空 + allow 存活」且「**明确不是**字节数不变」（对照 120→1162 的合法增长）；`TEST.md` 却写「目标配置字节不变」⇒ 随 remedy 一并订正。
+
+### 自由猎取结果（其余 AC 复核，未见同类 🔴）
+
+- AC-1（`runtime_edit_guard`）· AC-4（`check_gate_sync`：11 例真执行 `run bash "$SCRIPT"` + fake-preset / delete / T-FIX-04 双态 / PATH-shadow 注入）· AC-5（`Makefile:106` `check` 依赖链含 `check-dist`）· AC-6（`path_privacy_gate` 30 例真执行 checker）· AC-8（`nfr_portability` 14 例经 `$NFR_RC_FILE` 契约通道）—— 均为**真实执行 + 注入型**覆盖，声明成立。
+- 用例计数抽查（`grep -c '@test'`）与 `TEST.md` 所报一致。
+
+### 未验证边界（如实记录）
+
+1. 未运行全量 `npx bats test/` 或 `make check`（任务禁止）；「常设网在变异体上全绿」系把该文件全部 pre-push 断言逐条脚本重放所得，非 bats 整体执行 —— 若存在 grep 未匹配到的动态生成断言可能漏计（可能性低：已交叉核对 `grep -rn 'run bash.*pre-push'` 唯一命中 `bash -n`）。
+2. F1 未能复现原始 PC2 截断（0B）—— 需旧代码 create-branch `>` 形态，无法从 HEAD 现件忠实重建；故「守卫删除 ⇒ 数据丢失复发」只有间接证据，直接证据是「守卫删除 ⇒ 静默 rc=0 谎报安装成功」。
+3. AC-7 之外未对其余文件的注入声明逐一做变异重放（`combined_metric` / `auto_checkpoint` 抽读判断为真实注入，未实验证伪）。
+4. AC-3 四推送形态中仅实测 single-ref 泄漏态与畸形行两态；`--all`/`--mirror`/`--tags` 三形态未单独驱动（同一主循环，推断同源）。
+5. 结论基于 HEAD `1b5a9c3`；4 个未提交文档改动仅作为「被审声明」引用，其后的再修订不在审查范围。
+6. 收工时 `git status --porcelain` 仅剩 4 个先期文档改动（`CONTEXT.md` / `TEST.md` / `REVIEW.md` / `MINOR-DEFERRED.md`）⇒ 仓库代码面全程未被该 agent 触碰。

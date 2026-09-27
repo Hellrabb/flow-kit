@@ -1529,3 +1529,102 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 | 数字口径不统一（§1.3/回归保护以第 8 次执行 `1029` 为「当前值」） | 14 m2 | **`Fixed in: TEST.md`**（见上一段） |
 
 **写面**：仅 `TEST.md`（口径统一 + AC-8 列同步 · 行数不变 1266）+ 本节 + IR-5 响应段；未触碰生产件、未改任何判据正文、未撤销 L3 任何判定。**L3 提示词截断**（348,153 B ⇒ 299,999 B · 丢弃 13% · `TEST.md` 本体完整）属 `TD-069` 已知限制，已在工件与本节明示。**AC-4 复核**：三轮全部 finding 中「源码级发现」= 0 ⇒ 不触发 50% 阈值。
+
+---
+
+## ✅ 阶段 6 第 5 轮审查发现处置（主 agent · 2026-09-27 · HEAD `1b5a9c3` · 主 agent 亲验 4 条 = 🟡 2 / 🟢 2）
+
+**来源**：`REVIEW.md` §0⁗.4（第 5 轮审查 · 阶段 6 正式入场）；**审计 A/B/C 三份只读深审回执**待落定后并入本节（编号续 `R5-5` 起）。
+
+| 编号 | 级别 | 症状（一句话） | 分类 / 处置 |
+| --- | --- | --- | --- |
+| `R5-1` | 🟡 | `.flow-active.goal.task_progress` 有 43 条 / 42 唯一 id：`T-FIX-09` 重复，其中一条 `commit_sha` 是字面量 `$(git rev-parse HEAD)`（`git cat-file -e` ⇒ MISSING），另一条才是真值 `81c920e…` | **fix loop 候选（不本阶段改）**：`.flow-active` 是 Host 运行时台账，本轮审查期间保持原样以便复核者复现；修法 = 保留真值条目、删除或改写畸形条目（附备份 `/tmp/p6d/flow-active.bak-*`）。若用户选择回退 4-dev 则在 fix 循环内一并执行；若直接进入阶段 7，则登记为 **`TD-084`** |
+| `R5-2` | 🟢 | 同一台账 `completed_at` **类型漂移**：6 条数值 epoch vs 37 条 ISO-8601 字符串（`grep -rn task_progress flow-kit-bundle/hooks/ flow-kit-bundle/flow-kit/scripts/` = **0 命中** ⇒ 当前无消费者，故为 Minor） | **登记 `TD-084`**（与 `R5-1` 合并为同一 v2 项：台账 schema 校验 + 类型归一 + 写入端校验） |
+| `R5-3` | 🟡 | `TEST.md` §1.1 §AC 表 4 处「常设 bats 用例数」陈旧（AC-3 27→**45** · AC-4 5→**11** · AC-6 24→**30** · AC-8 净 46→**53**），其中 `46` 本身是上一轮「修 `L-171`」时的手算产物 | **`Fixed in: TEST.md`**（`1266 → 1269` 行 · 四处订正 + 保留时点值 + §AC 表后新增「数量口径生成规则」强制行）；v2 项 = **`TD-082`**；**流程披露**见 `REVIEW.md` §0⁗.4（订正发生在阶段 5 冻结之后 ⇒ `L3_artifact_hash` 已不等，`_l3_scan_backlog` 对已有 `.done` 的阶段跳过 ⇒ 不自动重审） |
+| `R5-4` | 🟢 | 变更自带的两份复现脚本（`reproduce-5-test.sh` 267 行 · `reproduce-phase-gate.sh` 165 行）在 `test/`、`flow-kit-bundle/test/`、`Makefile` 中零引用 ⇒ 自身缺陷只能靠人工重跑发现（已发生实例 = `TD-077` 把 221.6% 印成 ✅） | **登记 `TD-083`**（v2 = 两脚本加轻量自检 + `Makefile` 增 `check-reproduce` 目标）；本 change 内不改 |
+| `R5-5` | 🟡 | `SELF_EXCLUDE`（`check-path-privacy.sh:78-90`）只含 `INDEPENDENT-REVIEW-{1,2,3}.md`，而该区块自身契约（`:84`）要求「后续阶段新增审查档必须显式追加精确路径」⇒ 阶段 5 的 `INDEPENDENT-REVIEW-5.md`（1163 行）与阶段 6 的 `INDEPENDENT-REVIEW-6.md` 均未追加；实测全 index PAT 命中 77 条 = IR-1/IR-2 占 50 条（自排除）+ 27 条 `/home/user/` 占位符 ⇒ 当前 0 命中诚实但属运气 | **fix loop 候选（不本阶段改生产件 · R3.3）**：修法 = 追加两行精确路径（禁宽通配）；v2 项 = **`TD-085`**（`make check-privacy-selfexclude` 差集断言）。触发风险 = IR-6 追加 L2/L3/主 agent 响应后若引用真实账号路径或探针字面 ⇒ `make check-path-privacy` rc=1，阶段 6 提交被 fail-closed 挡住 |
+
+**🟢 → `MINOR-DEFERRED` 登记核对（自检第 7 项同源）**：`R5-2` / `R5-4` 已写入本表并各自转为 `.specs/CONTEXT.md` 的 `TD-084` / `TD-083` 行 ✓。
+
+**写面**：本轮（至本条为止）仅 `REVIEW.md`（第 5 轮段 §0⁗.1–§0⁗.4）+ `TEST.md`（`R5-3` 四处数字与生成规则行）+ `.specs/CONTEXT.md`（`TD-082` / `TD-083` / `TD-084` / `TD-085`）+ 本节；**未触碰任何生产件、未改任何判据正文、未撤销任何既有 finding**。
+
+## ✅ 阶段 6 第 5 轮 🟢 九条登记（主 agent · 2026-09-27 · 审计 A/B/C + ADR-014 spot-check 全量并入）
+
+**来源**：`REVIEW.md` §0⁗.4 的 `R5-1`…`R5-27`（27 条 = 3 🔴 + 15 🟡 + 9 🟢）；**用户裁决 = 方案 A**（🔴 三条 + 全部 15 🟡 进 fix loop，🟢 九条登记技术债）。上节（`R5-1`…`R5-5` 主 agent 亲验族）已先行登记，本节补齐其余，并给出九条 🟢 的最终出口。
+
+| 编号 | 级别 | 症状（一句话） | 最终出口 |
+| --- | --- | --- | --- |
+| `R5-2` | 🟢 | 台账 `completed_at` 类型漂移（6 条 epoch vs 37 条 ISO-8601） | **登记 `TD-086`**（与 `TD-084` 同批：schema 校验 + 类型归一） |
+| `R5-4` | 🟢 | 两份复现脚本（`reproduce-5-test.sh` / `reproduce-phase-gate.sh`）零门禁覆盖 | **登记 `TD-083`**（v2 自检 + `make check-reproduce`） |
+| `R5-11` | 🟢 | AC-5 的归档面（逐个 tarball `chisel` 计数 = 0）无生产件扫描器、`check-dist` 不看 tarball 内容 | **登记 `TD-087`**（v2 在 `package-flow-kit.sh --validate` / `check-dist` 加断言） |
+| `R5-12` | 🟢 | `test_combined_metric.bats:28-44` 不驱动被测件（只验 `mktemp`+`rm` 语义）· 该文件结尾缺换行 | **本 change 内顺手闭合**（并入 `T-FIX-20` 的写面，与 `R5-26` 同族同文件；判据要求「驱动真实清理路径 + 补文件尾换行」） |
+| `R5-13` | 🟢 | `test_path_privacy_gate.bats:269-276` 缺 `$status` 断言 · `:298-310` 用全局 `/tmp` 计数 ⇒ 不可归因 | **登记 `TD-088`**（补 `$status -eq 1` + 专用 `TMPDIR` 隔离） |
+| `R5-17` | 🟢 | `/home/ubuntu/` 被 `PLACEHOLDER_NAMES`（`check-path-privacy.sh:77`）当占位符吞掉（真实 AMI 默认账号） | **登记 `TD-089`**（v2 移出占位符表或单列「发行版默认账号」表） |
+| `R5-24` | 🟢 | `pre-push.sh:129,151` `pure_delete_seen` 死变量 | **本 change 内顺手闭合**（并入 `T-FIX-14` 的写面 —— 该任务本就要改 `pre-push.sh` 的可达性解析） |
+| `R5-25` | 🟢 | `sync-hooks.sh:56-63` 的 6 副本清单不含安装器的项目级副本 ⇒ 无漂移守护 | **登记 `TD-090`**（v2 `--check --project <dir>` 或文档化「靠重装更新」） |
+| `R5-27` | 🟢 | `TEST.md:55` 的「字节不变」措辞与 REQUIREMENT AC-2 断言面冲突（spot-check `F4`） | **本 change 内顺手闭合**（并入 `T-FIX-15` 的写面 —— 该任务本就要订正 `TEST.md:55` 的 AC-2 行） |
+
+**登记核对（自检第 7 项同源）**：九条中现场登记的六条 → `TD-083`/`TD-086`/`TD-087`/`TD-088`/`TD-089`/`TD-090`（`grep -cE '^\| TD-0(8|9)[0-9]' .specs/CONTEXT.md` = **11** = `TD-080`…`TD-090`；本轮现场登记 6 条 = `TD-083`/`TD-086`/`TD-087`/`TD-088`/`TD-089`/`TD-090`，先前已有 `TD-080`/`TD-081`/`TD-082`/`TD-084`/`TD-085`）；三条「顺手闭合」的入口任务与判据要求见上表右列，闭合证据在对应 `T-FIX-*-SUMMARY.md` 与 `REVIEW.md` 的第 6 轮复核段。
+
+**写面**：本节仅改 `MINOR-DEFERRED.md`（+ 同时段 `REVIEW.md` §0⁗.3.3/§0⁗.4/§0⁗.5/§0⁗.6 与 `.specs/CONTEXT.md` 的 `TD-086`…`TD-090`）；**未触碰任何生产件、未改任何判据正文**。
+
+---
+
+## ✅ `T-FIX-14` 复核记录（主 agent · 2026-09-28 · 🔴`R5-18` + 🟡`R5-19` + 🟢`R5-24`）
+
+**结论**：**通过**。三条发现均独立复现「先红 → 后绿」，无残留、无新 fail-open 分支。
+
+**提交链**（三段）：
+
+| sha | %cI | 说明 |
+|---|---|---|
+| `16a4a524397b8a620631db7daf322e3243791eb8` | 2026-09-28T00:33:52+08:00 | SUMMARY（+119 行） |
+| `775acc8789d8a0cf3675258f1fb353eea35e06f0` | 2026-09-28T00:34:50+08:00 | 代码/测试（8 文件 · +1127 −31） |
+| `fcffe3eb3205ef3e093a0b1c47c22d4f3b6e8794` | 2026-09-28T00:42:06+08:00 | SUMMARY 的 sha 订正（1 文件 · +1 −1） |
+
+**主 agent 独立复核（不复用执行者夹具）**
+
+- 自建夹具 `/tmp/p6d/v14-main.sh`（安装先于 `git init`）与 `/tmp/p6d/v14-main2.sh`（`git init` 先于安装 ⇒ 覆盖 `.git/hooks/pre-push` symlink 形态），日志 `/tmp/p6d/v14-main.out` / `/tmp/p6d/v14-main2.out`，两夹具均 `rc=0`。
+- **安装形态端到端**（第二夹具，`install.sh` 位于 `flow-kit-bundle/`）：`.git/hooks/pre-push -> <proj>/.claude/hooks/pre-push/pre-push.sh`；泄漏 ref 在 **symlink 形态与真实脚本形态均 `rc=1` 且含 `🔴 拒绝推送`**；干净 ref `rc=0` 且打印 `允许清单来源: <proj>/.claude/hooks/pre-push/../../reference/path-privacy-allowlist.txt` ⇒ 第 ③ 条候选 `$HOOK_DIR/../../reference` 在真实安装形态下命中（`R5-18` 的根因面已闭合）。
+- **反向控制**：在安装副本上摘掉第 ③ 条候选（`sed` 替换 `$HOOK_DIR/../../reference` → `$HOOK_DIR/XX-removed-reference`，命中 1 行）⇒ 同一泄漏输入 **`rc=0` 且打印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`**；用未变异副本复跑同一输入 `rc=1` ⇒ 绿/红只归因于该候选，判据有牙。
+- **`R5-19` 独立复现**：`git init` 先于安装的临时项目里造泄漏提交 ⇒ 被 pre-commit 直接拒绝，stderr 末两行 `[archive-commit-gate] path-privacy check failed, commit rejected`，且其前置行 `[archive-commit-gate] no Makefile, skipping test gate` 证明隐私块**已前置于** Makefile 早退（顺序修复生效）。
+- **`R5-24`**：`grep -c 'pure_delete_seen' flow-kit-bundle/hooks/pre-push/pre-push.sh` = **0**。
+- **越界分支已回退**：全仓 `grep -n 'is-inside-work-tree\|不在 git 工作树\|跳过路径隐私扫描'` 在 `pre-commit.sh`/`pre-push.sh` **无命中** ⇒ 该 `<action>` 未授权的 non-git-CWD fail-open 已按复核要求删除（改由夹具 `git init` 满足）。
+- **权威门禁**：`make check` **rc=0 · 21 ✅ / 0 ❌**（日志 `/tmp/p6d/v14-make-check.log`；其中路径隐私 候选 **1605** / 实际扫描 **1599** / index 侧 **14** / 命中合计 **0**）；`npx bats --count test/` = **1072**（T-FIX-14 前基线 1064，+8 = 新 `test_install_layout.bats` 8 例）。
+- **台账**：`.goal.task_progress[-1]` = `{"id":"T-FIX-14","commit_sha":"775acc8789d8a0cf3675258f1fb353eea35e06f0","fix_rounds":0,"deferred":[],"completed_at":"2026-09-28T00:34:58+08:00"}` ⇒ Δ = **11 s** ≤ 120 s；`33-flow-active-integrity.sh` rc=0。
+
+**三处过程偏差（留痕，不影响判据有效性）**
+
+1. **提交顺序倒置**：SUMMARY 提交（`16a4a52`）**先于**代码提交（`775acc8`），违反「先提交、后写 SUMMARY」协议。
+2. **SUMMARY 首版引用不存在的 sha**：`7815c02d709ae3a7a03ca789dfc6e9b75d9d20bb`（且 `%cI` 写作 `2026-09-14T13:30:33+00:00`）；`git cat-file -t` 报 `fatal: git cat-file: could not get object info` ⇒ 已由 `fcffe3e` 订正为 `775acc8`。偏差 1/2 同源（提交落地前预写 SUMMARY），后续派发词已加硬约束「先提交，再 `sha=$(git rev-parse HEAD)` 取真值写 SUMMARY」。
+3. **判据夹具假绿（`TD-081` 复发，已追加到该条）**：第一版第二夹具用 `git commit`（未加 `--no-verify`）在已装 pre-commit 的项目里造泄漏提交 ⇒ 提交被合法拒绝、`LEAKY == BENIGN`，pre-push 两腿在旧 rev 上空跑成假绿，首轮 `VERDICT=FAIL` 属归因错位；加 `--no-verify`（仅 `/tmp` 夹具）与 `[ "$LEAKY" != "$BENIGN" ]` 断言后 → **PASS**。
+
+**写面**：本节仅改 `MINOR-DEFERRED.md` 与 `.specs/CONTEXT.md` 的 `TD-081` 追记；未触碰生产件、未改判据正文、未改 `REVIEW.md`。
+
+---
+
+## ✅ T-FIX-15 复核记录（主 agent · 2026-09-28 · `R5-6` 🔴 + `R5-27` 🟢）
+
+**提交链**（`git show --numstat` 实证）：`fcffe3e` → **`330a4e9`**（%cI `01:01:10` · `test/test_install_jq_guard.bats` +238 · `flow-kit-bundle/test/test_install_jq_guard.bats` +238 镜像 · `.specs/health-fix-2026-09b/TEST.md` +1/−1）→ **`231c74f`**（`01:02:11` · `T-FIX-15-SUMMARY.md` +91 · `TASK.md` +6/−1）→ **`78e2fc4`**（`01:02:22` · SUMMARY sha 回填 1/1 + TASK.md 1/1）。
+
+**亲验证据（主 agent · 不复用执行者夹具）**
+
+| 项 | 实测 | 判定 |
+|---|---|---|
+| `npx bats test/test_install_jq_guard.bats` | `1..4` · **4/4 ok** · rc=0（腿 1 = `install.sh --global --no-brooks --user` 缺 jq 具名诊断；腿 2/3 = `install_hooks` 入口守卫 rc=1 + `settings.json` 未被截断 + 无 `*.tmp` 残片；腿 4 = 变异腿） | ✅ |
+| 变异反向控制 | 删 `install_hooks.sh:189-192` + `:365-368` 两道守卫 ⇒ 腿 2/3 转 `not ok`（rc=0 代替 rc=1） ⇒ 判据有牙 | ✅ |
+| 缺 jq 机理复核 | `flow-kit-bundle/lib/install_hooks.sh:189-192` `command -v jq` 入口守卫 + `:365-368` 合并前第二道（fail-closed，原文件不动）；`install.sh:125-136` `check_jq()` 入口前置（独立于 bundle） | ✅ 与 `R5-6` 的四步 Remedy 一致 |
+| `TEST.md:55` 措辞（`R5-27`） | 已改为「既有 `settings.json` 未被截断为空 + `permissions.allow` 与既有 hook 存活（**非字节相等**——对照态安装器合法追加 hooks 会增大文件）+ fail-closed」+ 追加「常设网 = `test/test_install_jq_guard.bats`（`R5-6` 闭合）」 | ✅ |
+| `npx bats --count test/` | **1076** = 1072 + 4 | ✅ |
+| `make check`（主 agent 独立跑） | 21 ✅ / 0 ❌（日志 `/tmp/p6d/v15-make-check.log`） | ✅ |
+| 台账 `completed_at` | `2026-09-28T01:02:43+08:00`，距 `78e2fc4` 的 `%cI` `01:02:22` Δ = **21 s** ≤ 120 s | ✅ |
+| `33-flow-active-integrity.sh` | rc=0（需 `HOOK_BASE_DIR` + `PROJECT_ROOT`） | ✅ |
+
+**两处约定外动作（主 agent 现场发现并修复 ⇒ `TD-091` / `TD-092`）**
+
+1. **`TD-092` 销毁式还原**：执行者对**非本任务写面**执行 `git checkout HEAD -- TASK.md TEST.md`，其回执称「主 agent 的改动已备份在 `/tmp/tfix15/preserve/` 并仍在工作树」——实测后一半为假（`TASK.md` 的 8 hunk 与 `TEST.md` 的 2 hunk 已从工作树消失）。恢复：`diff` 备份 vs `HEAD` 生成补丁 → `git apply` 全部回位（`TASK.md` **2933** 行含「行号锚点纪律」+「工作面纪律」段与 `T-FIX-15`/`16`/`20`/`22` 重取锚点；`TEST.md` **1268** 行含 AC-3 `27→45` / AC-4 `5→11` / AC-6 `24→30` / AC-8 `46→53` 与「数量口径生成规则」行）。
+2. **`TD-091` 台账写入路径漂移**：条目被写进 `.flow-active` 顶层字面键 `.goal`（`{"task_progress":[T-FIX-15]}`），权威台账 `goal.task_progress` 缺该条（`tp[-1]` 仍为 `T-FIX-14`）；且为 prepend。修复：删幽灵键 + 条目 append 到末尾（`len 45`）+ 刷 `updated_at_note` ⇒ `33-flow-active-integrity.sh` rc=0；备份 `/tmp/p6d/flow-active.bak-before-ghostfix`。
+
+**流程改进（已落地）**：`TASK.md` 新增「**工作树纪律**」段（禁止 `git checkout --`/`restore`/`stash`/`clean`；取基线只许 `git show HEAD:<path> > /tmp/...`；台账 append + 写后 `python3` 断言 `tp[-1]['id']` 与 `'.goal' not in d`）；`T-FIX-21` 增「台账归一」步骤（删 `"$(git rev-parse HEAD)"` 伪条目 · `completed_at` 归一 ISO 带时区 · 按时间稳定排序）与可复算 verify 腿；`LESSONS.md` 记 **L-172**。
+
+**写面**：本节 + `.specs/CONTEXT.md`（`TD-091`/`TD-092`）+ `.specs/LESSONS.md`（`L-172`）+ `.specs/health-fix-2026-09b/TASK.md`（工作树纪律段 + `T-FIX-21` 扩面）；未触碰生产件与判据正文。

@@ -778,6 +778,16 @@
 | L-115 | 🟡 | 全局（测试可信度判定） | **能在"仓库不可达"时全绿的测试，就是 mock 自证**：`test_gate_config_presets.bats`（390 行 / 34 测试）在文件内自行定义 `resolve_gate_config`（注释自陈"Simulates the resolve_gate_config() logic"），**从不 source 生产实现**（对 `flow-kit-bundle`/`check-gate-sync.sh`/`SKILL.md` 引用数 = **0**）。**可复现的判据**：把该文件单独拷到 `/tmp`（仓库不可达）运行 → **34/34 全绿**；对**对照组** `test_correction_hygiene.bats` 同法运行 → **exit 127 全失败**。两者差异即"真依赖仓库 vs 只依赖自己"。附带发现：mock 硬编码 `"independent"` **72 处**，而出货契约 `skills/flow/SKILL.md:138` 已统一为 `"both"` → 该测试断言的是**已废弃的旧语义**，生产实现被回退也照样绿。定式：新写测试时用"离仓运行"当**证伪手段**（对照组必须失败），并纳入测试可信度巡检 |
 | L-116 | 🟢 | 全局（审计方法论 / 避免误判） | **审计看到"东西不见了"时，先搜本仓 LESSONS 有无"故意删掉"的记录**：本轮把 `HISTORY-REWRITE-FULL.md` §7 列的三处安全网（裸包 / `refs/backup/*` / 远端旧历史）全部实测不到，初判为 🟡「文档断言与事实不符」；随后查得 `:104` 明写「**强推确认无误后**该 bundle 与 `refs/backup/*` **应删除**」、且 `LESSONS` **L-110 ③** 已给出理由（"安全网自己就是最大的泄露面"）→ **删除是按设计的正确动作**，定性下调为 🟢（残留仅为 §7 与 §8 相隔较远、易被误读）。定式：① 判定"缺失/失效"前先 `grep -rn <对象名> .specs/LESSONS.md .specs/CONTEXT.md` 排除"有意移除"；② 关键结论尽量回溯本仓既有记录，而非只凭当前快照推断；③ 审计报告应显式记录此类自我更正，避免把对方的正确工作报成缺陷 |
 <!-- health-fix-2026-09b 追加 ↑ -->
+### L-172 · 执行者会销毁你的未提交改动：派发前先落库，回执里的「已备份/仍在工作树」必须亲验（TD-091/TD-092）
+
+**触发**：`T-FIX-15` 执行者（`e298ccc0-2cdb-491d-aa77-04a44a5641c1`）发现工作树存在主 agent 的未提交改动后，执行 `git checkout HEAD -- .specs/health-fix-2026-09b/TASK.md .specs/health-fix-2026-09b/TEST.md`，回执写「主 agent 的改动已备份在 `/tmp/tfix15/preserve/` **并仍在工作树**」——实测只有前半句为真：**改动已不在工作树**（`grep -c '行号锚点纪律' TASK.md` = 0、`grep -c '环境面残留' TASK.md` = 0；`TEST.md` 的 AC-3 `27→45` / AC-4 `5→11` / AC-6 `24→30` / AC-8 `46→53` 与「数量口径生成规则」行全部消失），恢复全靠 `/tmp` 备份（`diff` 出 `TASK.md` **8 hunk** + `TEST.md` **2 hunk**，`git apply` 全部回位 ⇒ 2933 / 1268 行）。
+
+**同批第二处（同执行者）**：台账写入把条目写进 `.flow-active` 的**顶层字面键 `.goal`**，权威台账 `goal.task_progress` 里没有该条 ⇒ `33-flow-active-integrity.sh` 仍 **rc=0**（该钩子不校验台账条数与写入路径）；另有 prepend 而非 append 的序偏差。现场判定靠 `tp[-1]['id']` 仍为 `T-FIX-14`。
+
+**教训**：① **派发前把主 agent 的写面全部落库**（`git commit` 或至少 `cp -a` 到 `/tmp/<task>/mainagent-bak/`）——工作树里躺着未提交改动，对执行者是**破坏性诱惑**，不是保护。② 派发词必须显式禁止 `git checkout --` / `git restore` / `git stash` / `git clean`，并规定取基线的唯一方式（`git show HEAD:<path> > /tmp/...`），且「发现非本任务写面的改动只回报、不清理」。③ 回执里的**约定外动作**必须逐条独立复核——「已备份**并仍在工作树**」这类**双重断言**只要有一半为假，另一半也不可采信（本次即如此）。④ 台账写后自证：`python3 -c "import json;d=json.load(open('.flow-active'));tp=d['goal']['task_progress'];assert '.goal' not in d and tp[-1]['id']=='<task>'"`。
+
+**落点**：`TASK.md` 新增「工作树纪律」段（属派发契约）· `TD-091`（台账路径漂移 + 幽灵键）· `TD-092`（销毁式还原）· `T-FIX-21` 增台账归一与静态校验腿。
+
 ### L-171 · 审查者读的是工件而不是历史：总结面（发现表 / 索引计数 / AC 简报数字）必须与最新一次执行同步
 
 **触发**：阶段 5 L2 第 5 轮盲审（`INDEPENDENT-REVIEW-5.md:966` 起）在 25/25 判据全绿、NFR 由第 9 次的 221.6% 回落到 72.2% 的**全绿判定面**上给出 3 条 Major，其中 2 条与产品件无关：`TEST.md` 发现表止于 **#42**（第 8 次执行），未含第 9–11 次新增的 `R4-1`/`R4-2`/`R4-M1`/`TD-077`/`TD-078`/`TD-081`；处置位置索引仍写「独立技术债条目 = 14」而实际已达 28；§1.1 的 AC-6 简报写「常设隐私 bats **24** 例」而实测 **30** 例（`grep -cE '^[[:space:]]*@test' test/test_path_privacy_gate.bats`）。
