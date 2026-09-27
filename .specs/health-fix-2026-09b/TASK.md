@@ -2679,10 +2679,10 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-14（串行：镜像/打包/门禁为全仓步骤）</depends_on>
 </task>
 
-<task id="T-FIX-16" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-16" parallel="false" status="done" model-tier="top">
   <name>【R5-7 🔴】pre-push 拦截行为固化为常设 bats（四推送形态 + 缺清单态 + 变异反向控制）</name>
   <read_files>
-    <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（全文：`:47-50` `makefile_has_target` · `:99` `CHECK_REV="$check_rev" make check-path-privacy` · `:107-108` 缺允许清单具名 `exit 2` · `:135-145` 畸形 stdin 具名 `exit 1` · `:149-153` 纯删除跳过 · `:157-177` sha 去重与泄漏拒绝 · `:182` 尾随 `make check`）>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（全文 **216 行**；行号主 agent 于 2026-09-28 重取：`:78` `makefile_has_target` · `:89`/`:95-99` 检查器与 allowlist 解析 · `:131` `CHECK_REV="$check_rev" make check-path-privacy` · `:137-140` 缺允许清单具名 `exit 2` · `:171-172` 畸形 stdin 具名 `exit 1` · `:181-182` 纯删除跳过 · `:189-193` sha 去重 · `:198-200` 泄漏拒绝 · `:208` 尾随 `[ -z "$leaky_ref" ] || exit 1` · `:212-213` `make check`）>
     <`test/test_archive_commit_gate.bats:175-290`（现有对 pre-push 的静态断言：`bash -n` + 文本 `grep -q`，**从不执行 hook**）>
     <`.specs/health-fix-2026-09b/TASK.md` 的 `T19`（change 期四形态 UAT 判据原文，须逐条搬为常设）>
     <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-7`（含 spot-check `F2` 的变异实证：畸变体上静态断言全绿）>
@@ -2697,7 +2697,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     2. 新增 `test/test_pre_push_behavior.bats`（≥6 例，全部**真跑 hook**）：在 `mktemp -d` 里建裸仓 + 工作仓（`git init --bare` + 固定身份），自建 `reference/path-privacy-allowlist.txt`（**注释-only 清单合法**），按需构造提交，随后以 `printf '%s\n' "$line" | bash <hook 路径>` 驱动：
        ① 干净 ref ⇒ rc=0；
        ② 泄漏 ref（探针字面按 L-137 拼接构造）⇒ rc≠0 且报文含 `🔴 拒绝推送` 与**被拒 ref 名**；
-       ③ 纯删除推送（new sha = 40 个 0，old sha ≠ 0）⇒ rc=0 且报文含 `ℹ️ 纯删除推送：跳过内容扫描`；
+       ③ 纯删除推送（new sha = 40 个 0，old sha ≠ 0）⇒ rc=0 且报文含 `ℹ️ 纯删除推送：跳过内容扫描`（实现位 `flow-kit-bundle/hooks/pre-push/pre-push.sh:181-182`）；
        ④ 畸形 stdin 行（缺 local sha）⇒ rc≠0 且报文含 `pre-push stdin 行缺 local sha`（fail-closed，不得 `continue`）；
        ⑤ 缺允许清单态（检查器在、清单缺）⇒ rc=2 且报文指名缺的清单路径（T-FIX-13 语义，勿回退）；
        ⑥ 消费者形态（项目无 Makefile）⇒ 不因缺 Makefile 报红，但泄漏仍必须 rc≠0（与 `T-FIX-14` 的安装形态腿同源；若 `T-FIX-14` 已把该腿写进 `test_install_layout.bats`，本任务只做「源码树形态」的对应腿并注明分工）。
@@ -2712,6 +2712,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ④ `npx bats test/test_archive_commit_gate.bats` 仍全绿（既有静态断言未被削弱）；`make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-14（pre-push 路径解析已定稿后再钉行为判据）</depends_on>
+  <done>AC-3 行为级常设网 `test/test_pre_push_behavior.bats`（6 例 · 源码树形态 · 全真跑 hook）落档：① 干净 rc=0、② 泄漏 rc≠0+指名 ref、③ 纯删除 rc=0+跳过措辞、④ 畸形 stdin rc≠0+fail-closed、⑤ 检查器在+清单缺 rc=2+具名、⑥ 消费者形态（无 Makefile）泄漏仍 rc≠0。先红（`/tmp/tfix16/pre.txt`）：变异体（`exit 1→continue` + `泄漏拒绝→scan_rev || true`，语法合法、`bash -n` 过）上 12 条既有静态断言全绿 ⇒ 旧网从不执行 hook。变异反向控制（`/tmp/tfix16/mut-run.txt`）：同一 bats 指向变异体 ⇒ 腿②④ not ok（腿⑥额外 not ok）。分工核对：`grep -c 'install_layout' test/test_pre_push_behavior.bats` = 3（仅注释，非用例名）；T-FIX-14 `test_install_layout.bats`（安装形态 8 例）与本文件（源码树形态 6 例）用例名无重复。`npx bats --count test/` = 1082（开工 1076 + 6）；`test_archive_commit_gate.bats` 45 例仍全绿；`make check` 21 ✅ / 0 ❌。前提修正：派发词背景 L-54 称"仓库 reference 无 allowlist"为过时信息（`f315b64` T21 已冻结常设权威清单进 HEAD），腿⑤改用自建沙箱 reference（拷检查器不拷 allowlist）精确命中状态②，判据（状态②⇒rc=2）未变；`fix_rounds=1`〔2026-09-28 执行者自跑〕</done>
 </task>
 
 <task id="T-FIX-17" parallel="false" status="pending" model-tier="top">
