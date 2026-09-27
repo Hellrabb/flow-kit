@@ -131,19 +131,40 @@ fi
 grepge "T-FIX-21 TEST.md 数量口径生成规则" .specs/health-fix-2026-09b/TEST.md '数量口径生成规则' 1
 
 echo "-- T-FIX-22（R5-20/R5-21/R5-22/R5-5 具名诊断 + 短路次序 + 归档面 + 自排除）"
-# TODO(主 agent)：T-FIX-22 回执后把下面这条从下界断言升级为**确切值**（执行者交付形态已知时再钉）。
-grepge "T-FIX-22 非法 JSON 具名诊断" flow-kit-bundle/lib/install_hooks.sh 'settings\.json.*jq\|jq.*settings\.json' 1
+# R5-20 具名诊断锚点（确切值 = 交付实测）。注意：grepc/grepge 走 `grep -E`，ERE 里的 `\|` 是**字面竖线**
+# （实测计数 0 ⇒ 会把正确交付判成假红；L-178 同族），故此处用整串确切文本而非 A|B 交替。
+grepc "T-FIX-22 jq 合并失败具名诊断" flow-kit-bundle/lib/install_hooks.sh '合并失败：jq 解析/执行错误' 1
+grepc "T-FIX-22 jq 报文回显" flow-kit-bundle/lib/install_hooks.sh 'jq 报文：' 1
+grepc "T-FIX-22 jq 失败声明原文件未改动" flow-kit-bundle/lib/install_hooks.sh '原文件未改动（fail-closed）' 1
 # SELF_EXCLUDE 断言刻意用**锚定整行**（不是 INDEPENDENT-REVIEW-[56] 计数）：基线里该 ERE 已有 1 处
 # 注释命中（check-path-privacy.sh:613「INDEPENDENT-REVIEW-6 ③」），计数口径会随散文漂移（TD-099 同族）。
 grepc "T-FIX-22 SELF_EXCLUDE 含 IR-5" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5\.md$' 1
 grepc "T-FIX-22 SELF_EXCLUDE 含 IR-6" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6\.md$' 1
-if _t22d=$(mktemp -d) && : >"$_t22d/empty.done" && printf '%s' '{"goal":{"phases_done":["4"]}}' >"$_t22d/.flow-active" \
-   && PROJECT_ROOT="$_t22d" bash -c '. flow-kit-bundle/hooks/stop/lib/done-validation.sh; fk_validate_done_marker "$1" 4 cid' _ "$_t22d/empty.done"; then
-  bad "T-FIX-22 空 .done 必须 rc=2" "实际 rc=0（phases_done 短路仍然先于非空校验）"
-else
-  _t22rc=$?
-  [ "$_t22rc" = "2" ] && ok "T-FIX-22 空 .done ⇒ rc=2" || bad "T-FIX-22 空 .done" "rc=$_t22rc ≠ 2"
-fi
+# R5-22 归档面：ADR 截断须落「已丢弃 N 条」标记（旧实现只 break，artifact 无痕）
+grepc "T-FIX-22 ADR 上限丢弃计数标记" flow-kit-bundle/hooks/stop/lib/l3-prompt.sh '已丢弃' 1
+batsnet "T-FIX-22 ADR 截断常设网" test/test_l3_adr_truncation.bats 4
+batsnet "T-FIX-22 done 校验常设网" test/done-validation.bats 11
+# R5-21 行为复算（.done 三态 × phases_done=['4']）：空 ⇒ deny rc=2；KVP 齐全 ⇒ 短路放行 rc=0。
+# 调用刻意置于**条件上下文**里：直接在 set -euo pipefail 顶层调用时，缺 KVP 会让 _fk_done_kvp 的
+# grep 管线在 pipefail 下中止（rc=1）——那是调用约定产物而非产品缺陷（生产调用点
+# independent-review-gate.sh:97 / gate-checks-basic.sh:147 / 31-auto-advance.sh:77 全在条件上下文）。
+_t22d=$(mktemp -d)
+: >"$_t22d/empty.done"
+printf 'phase=4\nchange_id=cid\nwritten_by=main-agent\nL2_verdict=pass\nL3_verdict=pass\nartifacts=a,b\n' >"$_t22d/valid.done"
+printf '%s' '{"goal":{"phases_done":["4"]}}' >"$_t22d/.flow-active"
+for _t22case in empty valid; do
+  if PROJECT_ROOT="$_t22d" bash -c '. flow-kit-bundle/hooks/stop/lib/done-validation.sh
+if fk_validate_done_marker "$1" 4 cid 2>/dev/null; then exit 0; else exit $?; fi' _ "$_t22d/$_t22case.done" 2>/dev/null; then
+    _t22rc=0
+  else
+    _t22rc=$?
+  fi
+  case "$_t22case:$_t22rc" in
+    empty:2) ok "T-FIX-22 空 .done ⇒ deny rc=2" ;;
+    valid:0) ok "T-FIX-22 KVP 齐全 .done ⇒ 短路放行 rc=0" ;;
+    *) bad "T-FIX-22 $_t22case .done" "rc=$_t22rc（期望 empty⇒2 / valid⇒0）" ;;
+  esac
+done
 rm -rf "$_t22d"
 rc0 "T-FIX-22 隐私检查器实跑" make check-path-privacy
 

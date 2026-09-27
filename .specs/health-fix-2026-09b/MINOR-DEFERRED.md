@@ -1808,3 +1808,42 @@ fi
 ⇒ 登记 `TD-099` 🟢（「报告当前值计数」无机器门禁 ⇒ 每轮必漂移）与 `L-178`（判据脚本别对散文文件用相等计数断言）。
 
 **写面**：`.flow-active`（数据面，不入提交）· `.specs/health-fix-2026-09b/TEST.md` · `.specs/health-fix-2026-09b/T-FIX-21-SUMMARY.md` · `.specs/health-fix-2026-09b/TASK.md`（`status="done"` + `<done>`）。
+
+## ✅ T-FIX-22 复核记录（主 agent · 2026-09-28 · R5-20 / R5-21 / R5-22 / R5-5）
+
+**提交链**
+
+| 提交 | %cI | 内容 |
+|---|---|---|
+| `44eef94` | 2026-09-28T07:27:57+08:00 | 代码 13 文件：`check-path-privacy.sh` +2/−0 · `done-validation.sh` +22/−13 · `l3-prompt.sh` +13/−1 · `install_hooks.sh` +19/−3 · `test/done-validation.bats` +42 · `test/test_install_coverage.bats` +49 · `test/test_l3_adr_truncation.bats` 新建 +109 · `test/test_review_gate_validity.bats` +19/−3 · 同 5 件 `flow-kit-bundle/test/` 镜像 · `T-FIX-22-SUMMARY.md` +134 |
+| `d5fc0d1` | 2026-09-28T07:29:40+08:00 | `TASK.md` +7/−1（done 标记 / status=done） |
+| `95f0537` | 2026-09-28T07:31:15+08:00 | `TASK.md` 1/1（done timestamp 与台账对齐） |
+
+**代码面**
+
+- **R5-20** `flow-kit-bundle/lib/install_hooks.sh:378-403`：`_jq_err=$(mktemp)` + `merged=$(jq … 2>"$_jq_err") || _jq_rc=$?`；`_jq_rc≠0` ⇒ 三行具名诊断（`:400` `❌ … 合并失败：jq 解析/执行错误（rc=…）` · `:401` `jq 报文：…` · `:402` `原文件未改动（fail-closed）…`）+ `return 1`。旧实现下 jq 失败被 `set -euo pipefail` 直接带走（rc=5、无任何诊断、`:393` 的告警是死代码）。
+- **R5-21** `flow-kit-bundle/hooks/stop/lib/done-validation.sh:116-146`：Tier-1（`:122` 非空 · `:125` 行数 ≥ `MIN_MEANINGFUL_LINES=6`（定义于 `flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:15`）· `:131-136` `phase`/`change_id`/`written_by` KVP）整体前移到 `:140-146` 的 phases_done 短路**之前**；短路只豁免 Tier-2/3（`:148-173`）。
+- **R5-22** `flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:356-367`：命中 8 份上限时先算丢弃数、把「⚠️ ADR 纳入上限（8 份）命中，已丢弃 N 条…」追加进 artifact（标记行 `:366`）再 `break`；旧实现只 `break`，artifact 无痕。
+- **R5-5** `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:92-93`：`SELF_EXCLUDE` 追加 `INDEPENDENT-REVIEW-5.md` / `INDEPENDENT-REVIEW-6.md` 两条明确条目。
+
+**先红 / 后绿亲验（自建夹具，非执行者 bats）** —— `/tmp/p6d/v22-probe.sh`：`/tmp/p6d/v22/new` = HEAD 副本；`/tmp/p6d/v22/old` = 同副本但用 `git show 44eef94^:<path>` 覆盖三个产品件。
+
+| 判据 | 旧（先红） | 新（后绿） |
+|---|---|---|
+| R5-20 非法 `settings.local.json` | `rc=5` · 无 `jq`/`合并失败` 诊断（沉默中止） | `rc=1` + 具名 settings 路径 ×3 + `jq: parse error: Invalid numeric literal at line 1, column 9` + `合并失败`；原文件 sha 不变 |
+| R5-21 空 `.done` × `phases_done=['4']` | ALLOW（rc=0） | **DENY rc=2** |
+| R5-21 KVP 齐全 `.done` × `phases_done` | ALLOW | ALLOW（短路保留 ✓） |
+| R5-21 非空无 KVP `.done` × `phases_done` | ALLOW（rc=0） | **DENY rc=2** |
+| R5-22 10 份 ADR | 纳入 8 段 · 无「已丢弃」 | 纳入 8 段 + 「已丢弃」计数 **2** |
+
+**调用约定澄清（避免误判为缺陷）**：把 `fk_validate_done_marker` 直接放在 `set -euo pipefail` 顶层调用时，`.done` 缺 KVP 会以 `rc=1` 中止——这是**调用约定产物**：`flow-kit-bundle/hooks/stop/lib/l2-detect.sh:17` 在 source 时开启 `set -euo pipefail`，而 `_fk_done_kvp` 的 `grep` 管线在 pipefail 下返回 1 ⇒ 赋值中止。生产调用点**全在条件上下文**（`flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh:97` `if _gate_done_validation …; then exit 0; fi` · `flow-kit-bundle/hooks/pre-tool-use/gate-checks-basic.sh:147` `if fk_validate_done_marker …` · `flow-kit-bundle/hooks/stop/31-auto-advance.sh:77` `if ! fk_validate_done_marker …`）⇒ errexit 挂起，返回设计值 `2`（已在两态复算里实测）。该契约与调用上下文的耦合已登记 **`TD-100`**（🟢，v2 建议 `_fk_done_kvp` 管线加 `|| true` 兜底）。
+
+**常设腿亲验**：`test/done-validation.bats` 11 例 · `test/test_l3_adr_truncation.bats` 4 例（新建）· `test/test_install_coverage.bats` 20 例 · `test/test_review_gate_validity.bats` 12 例 ⇒ 四件合并 **47 ok / 0 not ok / 0 skip**；四件镜像 `cmp -s` 全 SAME；`npx bats --count test/` = **1108**（1098 → +10，与执行者自报一致）。既有 `test_review_gate_validity.bats:188` 那条**编码了旧 bug** 的用例已拆为两条：非空有效标记 + Tier-2 不一致 + phases_done ⇒ rc=1（短路保持）与 空 `.done` + phases_done ⇒ rc=2 deny。
+
+**台账**：len **51**；末条 `{"id":"T-FIX-22","commit_sha":"44eef94ba53feaa021acdbdc6be20300dc9157f2","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T07:28:35+08:00"}`（Δ=38 s ✓ · 无 `.goal` 幽灵键 · `updated_at` 仍 epoch int）。执行者原写的两处偏差由**主 agent 归一**：`fix_rounds` `0 → 1`（其余 22 条皆 1）· `completed_at` `2026-09-28T07:28:35.588481+08:00 → 2026-09-28T07:28:35+08:00`（去微秒）。
+
+**判据脚本订正（主 agent）**：T-FIX-22 段原写 `grepge … 'settings\.json.*jq\|jq.*settings\.json' 1` —— ① `grepc`/`grepge` 走 `grep -E`，ERE 里的 `\|` 是**字面竖线**（实测计数 0 ⇒ 对正确交付必然假红）；② 即便改裸 `|`，该 ERE 命中的 4 行里 3 行是注释、1 行是无关的依赖告警，**一个修复锚点都没锚到**。已替换为三条确切值锚（`合并失败：jq 解析/执行错误` / `jq 报文：` / `原文件未改动（fail-closed）` 各 1）+ `已丢弃` 1 + 两个 `batsnet`（ADR 截断 4 例 / done 校验 11 例）+ `.done` 两态行为复算（条件上下文内）。该教训固化 **`L-179`**。
+
+**判据脚本空跑（HEAD `44eef94` + 主 agent 归一）**：`bash .specs/health-fix-2026-09b/reproduce-5-fixloop.sh` ⇒ **✅ 35 · 🔴 5**，红项**全部**是尚未开工的 `T-FIX-23` 五项（`make check-nfr-portability-full` 未定义 · `sync-hooks.sh` `mapfile` 3 处 · `verify-claims.sh` 2 处 · 基线文件缺 · 常设网 14 < 20 例），T-FIX-14…22 段全绿、无假红。
+
+**写面**：`T-FIX-22-SUMMARY.md` · 4 个产品件 · 5 对 bats/镜像 · `TASK.md`；主 agent 侧：`.specs/health-fix-2026-09b/reproduce-5-fixloop.sh` · 本文档 · `.specs/CONTEXT.md`（`TD-100`）· `.specs/LESSONS.md`（`L-179`）。
