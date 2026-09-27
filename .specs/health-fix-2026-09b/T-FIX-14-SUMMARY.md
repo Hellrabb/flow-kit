@@ -1,7 +1,7 @@
 # T-FIX-14 SUMMARY — 安装形态下隐私检查器可达性 + pre-commit 隐私块前置
 
 - change: `health-fix-2026-09b` · phase 4 · round 5 fix loop · task `T-FIX-14`
-- commit: `7815c02d709ae3a7a03ca789dfc6e9b75d9d20bb` (`%cI` = `2026-09-14T13:30:33+00:00`)
+- commit: `775acc8789d8a0cf3675258f1fb353eea35e06f0` (`%cI` = `2026-09-28T00:34:50+08:00`)
 - HEAD before: `1b5a9c39a3064ce329c10b381a82123594aad792`
 - findings: R5-18 🔴 / R5-19 🟡 / R5-24 🟢
 
