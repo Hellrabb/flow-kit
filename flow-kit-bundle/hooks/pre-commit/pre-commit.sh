@@ -2,7 +2,13 @@
 set -euo pipefail
 
 # pre-commit.sh — flow-kit 归档 commit 门禁
-# make test 与路径隐私检查非零退出码拒绝 commit。无 Makefile / npx 不可见时跳过。
+# make test 与路径隐私检查非零退出码拒绝 commit。无 Makefile / npx 不可见时跳过 test 门。
+#
+# T-FIX-14（R5-19 🟡）：隐私块前置。旧实现把 [ ! -f Makefile ] exit 0 与
+#   npx 不可见 exit 0 排在隐私扫描块**之前** ⇒ 无 Makefile / 无 npx 的消费者项目里
+#   隐私门禁永远跑不到（双侧门禁静默失效）。修法：把隐私块整体移到两个早退**之前**，
+#   两个早退只跳过 test 门，不再跳过隐私扫描。
+#
 # 消费者项目兼容（R3-14 · health-fix-2026-09b T-FIX-08）：项目 Makefile 声明了
 # check-path-privacy 目标则用之；无则回退到随包 reference/check-path-privacy.sh
 # （路径由 hook 自身位置推导，导出 FLOW_KIT_PRIVACY_ALLOWLIST 指向随包
@@ -15,30 +21,41 @@ set -euo pipefail
 [ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
 [ -d /usr/local/bin ] && export PATH="/usr/local/bin:$PATH"
 
-# 无 Makefile → 跳过
-if [ ! -f Makefile ]; then
-  echo "[archive-commit-gate] no Makefile, skipping test gate"
-  exit 0
-fi
-
-# npx 不可见 → warn + 跳过
-if ! command -v npx >/dev/null 2>&1; then
-  echo "[archive-commit-gate] npx not found, skipping test gate"
-  exit 0
-fi
-
-# make test
-if ! make test; then
-  echo "[archive-commit-gate] test failed, commit rejected" >&2
-  exit 1
-fi
-
+# ═══════════════════════════════════════════════════════════════════════
 # 路径隐私门禁（health-fix-2026-09b AC-6 ③ · R3-14 消费者项目回退）
+# T-FIX-14（R5-19）：隐私块前置到 Makefile/npx 早退**之前**——两个早退只跳过 test 门，
+# 不再跳过隐私扫描。
+# ═══════════════════════════════════════════════════════════════════════
 # hook 自身位置推导随包 reference 目录（不写死绝对路径）。
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#
+# T-FIX-14（R5-18 🔴 · 与 pre-push 同构）：旧实现 HOOK_DIR 直接取 dirname(BASH_SOURCE[0])，
+# 经 .git/hooks/pre-commit symlink 调用时取到 symlink 本体 ⇒ HOOK_DIR=.git/hooks ⇒
+# 三条候选全 miss。修法：readlink 循环解析为真实脚本路径，再 cd dirname pwd。
+_resolve_self_path() {
+  local self="${BASH_SOURCE[0]}"
+  if command -v readlink >/dev/null 2>&1; then
+    local depth=0
+    while [ -L "$self" ] && [ "$depth" -lt 40 ]; do
+      local target
+      target="$(readlink "$self" 2>/dev/null)" || break
+      case "$target" in
+        /*) self="$target" ;;
+        *)  self="$(cd "$(dirname "$self")" && pwd)/$target" ;;
+      esac
+      depth=$((depth + 1))
+    done
+  fi
+  printf '%s\n' "$self"
+}
+HOOK_DIR="$(cd "$(dirname "$(_resolve_self_path)")" && pwd)"
+# 随包 reference 目录候选（精确列表 · 与 pre-push 同构 · 禁通配扫描）：
+#   ① 源码树：HOOK_DIR/../flow-kit/reference
+#   ② 安装形态（user scope）：HOOK_DIR/../reference
+#   ③ 安装形态（project scope · T-FIX-14）：HOOK_DIR/../../reference
+#   ④ user scope 备选：HOOK_DIR/../../flow-kit/reference
 resolve_reference_dir() {
   local d
-  for d in "$HOOK_DIR/../flow-kit/reference" "$HOOK_DIR/../reference" "$HOOK_DIR/../../flow-kit/reference"; do
+  for d in "$HOOK_DIR/../flow-kit/reference" "$HOOK_DIR/../reference" "$HOOK_DIR/../../reference" "$HOOK_DIR/../../flow-kit/reference"; do
     if [ -f "$d/check-path-privacy.sh" ]; then
       printf '%s\n' "$d"
       return 0
@@ -61,6 +78,9 @@ else
   ref_dir="$(resolve_reference_dir 2>/dev/null || true)"
   if [ -n "$ref_dir" ] && [ -f "$ref_dir/check-path-privacy.sh" ]; then
     if [ -f "$ref_dir/path-privacy-allowlist.txt" ]; then
+      # pre-commit 不经 git stdin 注入 sha，扫描对象是**当前工作树**。
+      # check-path-privacy.sh 在空 CHECK_REV 下扫工作树，要求 CWD 在 git
+      # 工作树内（消费者项目 pre-commit 由 git 触发，CWD 必在仓库根）。
       if ! FLOW_KIT_PRIVACY_ALLOWLIST="$ref_dir/path-privacy-allowlist.txt" \
            bash "$ref_dir/check-path-privacy.sh"; then
         echo "[archive-commit-gate] path-privacy check failed, commit rejected" >&2
@@ -71,7 +91,7 @@ else
       # path-privacy-allowlist.txt 缺失 ⇒ 具名 fail-closed。配置缺失不得
       # 被当成「干净」放行（含泄漏的提交会被直接放过 ⇒ fail-open），也不得
       # 复用「未找到可用的路径隐私检查器」措辞（与实际原因不符；该措辞
-      # 保留给 :73 的「检查器缺失」腿，bats:222 静态断言要求其仍在文件内）。
+      # 保留给下面的「检查器缺失」腿）。
       echo "🔴 [archive-commit-gate] 找到路径隐私检查器但缺少允许清单：$ref_dir/path-privacy-allowlist.txt（无法确定扫描基线 ⇒ fail-closed，提交被拒绝）" >&2
       exit 1
     fi
@@ -79,6 +99,28 @@ else
     # 状态 ①：检查器缺失 ⇒ 消费者兼容语义（rc=0 + 原措辞，审计已接受）。
     echo "ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描"
   fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════════
+# test 门（R5-19：早退只跳过 test 门，不再跳过隐私扫描——隐私块已在上面跑完）
+# ═══════════════════════════════════════════════════════════════════════
+
+# 无 Makefile → 跳过 test 门
+if [ ! -f Makefile ]; then
+  echo "[archive-commit-gate] no Makefile, skipping test gate"
+  exit 0
+fi
+
+# npx 不可见 → warn + 跳过 test 门
+if ! command -v npx >/dev/null 2>&1; then
+  echo "[archive-commit-gate] npx not found, skipping test gate"
+  exit 0
+fi
+
+# make test
+if ! make test; then
+  echo "[archive-commit-gate] test failed, commit rejected" >&2
+  exit 1
 fi
 
 exit 0

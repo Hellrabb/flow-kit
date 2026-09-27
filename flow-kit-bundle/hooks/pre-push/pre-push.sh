@@ -28,12 +28,44 @@
 set -euo pipefail
 
 # hook 自身位置推导随包 reference 目录（不写死绝对路径）。
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 随包 reference 目录：hook 入口在 hooks/ 下，reference 在 hooks/ 同级的
-# flow-kit/reference/（部署形态：<hook_dst>/../reference/；源码形态：flow-kit-bundle/hooks/../flow-kit/reference/）。
+#
+# T-FIX-14（R5-18 🔴）：旧实现 `HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`
+# 在安装形态下不可达 —— .git/hooks/pre-push 是指向真实脚本的 symlink，BASH_SOURCE[0]
+# 取到的是 symlink 本体，dirname 得到 .git/hooks ⇒ HOOK_DIR=.git/hooks ⇒ 三条候选
+# （HOOK_DIR/../flow-kit/reference、HOOK_DIR/../reference、HOOK_DIR/../../flow-kit/reference）
+# 全 miss ⇒ 门禁找不到检查器 ⇒ rc=0 放行，消费者双侧门禁静默失效。
+#
+# 修法（macOS bash 3.2 兼容 · 禁 readlink -f）：先用 `command -v readlink` + 循环把
+# BASH_SOURCE[0] 逐级解析为真实文件（相对目标按 dirname 拼接），再 cd 到真实脚本所在
+# 目录 pwd ⇒ 经 symlink 调用时 HOOK_DIR 仍是真实脚本所在目录（<proj>/.claude/hooks/pre-push）。
+_resolve_self_path() {
+  local self="${BASH_SOURCE[0]}"
+  # macOS 无 readlink -f；裸 readlink 只解一层。逐级循环直至不再是 symlink。
+  if command -v readlink >/dev/null 2>&1; then
+    local depth=0
+    while [ -L "$self" ] && [ "$depth" -lt 40 ]; do
+      local target
+      target="$(readlink "$self" 2>/dev/null)" || break
+      case "$target" in
+        /*) self="$target" ;;                            # 绝对目标直接用
+        *)  self="$(cd "$(dirname "$self")" && pwd)/$target" ;;  # 相对目标按 dirname 拼接
+      esac
+      depth=$((depth + 1))
+    done
+  fi
+  printf '%s\n' "$self"
+}
+HOOK_DIR="$(cd "$(dirname "$(_resolve_self_path)")" && pwd)"
+# 随包 reference 目录候选（精确列表，禁止改成通配目录扫描）：
+#   ① 源码树形态：HOOK_DIR/../flow-kit/reference（flow-kit-bundle/hooks/pre-push → flow-kit-bundle/flow-kit/reference）
+#   ② 安装形态（user scope，旧注释假设的层级）：<hook_dst>/../reference ⇒ HOOK_DIR/../reference
+#   ③ 安装形态（project scope · T-FIX-14 修复）：hook 装在 <hook_dst>/<hook-name>/（深一层），
+#      reference 在 <hook_dst>/../reference ⇒ HOOK_DIR/../../reference
+#      （<proj>/.claude/hooks/pre-push → <proj>/.claude/reference）
+#   ④ 安装形态备选（user scope 罕见布局）：HOOK_DIR/../../flow-kit/reference
 resolve_reference_dir() {
   local d
-  for d in "$HOOK_DIR/../flow-kit/reference" "$HOOK_DIR/../reference" "$HOOK_DIR/../../flow-kit/reference"; do
+  for d in "$HOOK_DIR/../flow-kit/reference" "$HOOK_DIR/../reference" "$HOOK_DIR/../../reference" "$HOOK_DIR/../../flow-kit/reference"; do
     if [ -f "$d/check-path-privacy.sh" ]; then
       printf '%s\n' "$d"
       return 0
@@ -126,7 +158,7 @@ resolve_checker || true
 leaky_ref=""
 # 本次 push 涉及的唯一 local_sha 集合（R3-23 去重：同一 sha 只扫一次）
 scanned_shas=''
-pure_delete_seen=0
+# T-FIX-14（R5-24 🟢）：删除死变量（全文件无读取，纯写）。
 
 while IFS= read -r line || [ -n "$line" ]; do
     # 逐字段展开，兼容 bash 3.2（不用 mapfile / 关联数组）
@@ -148,7 +180,6 @@ while IFS= read -r line || [ -n "$line" ]; do
     # 不得走到门禁触发 fail-closed（ADR-027② 防新假红）。
     if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
         echo "ℹ️ 纯删除推送：跳过内容扫描"
-        pure_delete_seen=1
         continue
     fi
 

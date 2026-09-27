@@ -276,9 +276,18 @@ install_hooks() {
 
   # ── 随包路径隐私检查器部署（R3-14 (c)③ · T-FIX-08）──────────────────
   # 把 flow-kit/reference/check-path-privacy.sh 与 path-privacy-allowlist.txt
-  # 一并装到已安装 hooks 目录旁的 reference/（<hook_dst>/../reference/），
-  # 使 pre-push/pre-commit hook「由 hook 自身位置推导」在已部署的消费者项目
-  # 里也能解析到随包检查器与允许清单（hook 推导路径：HOOK_DIR/../reference/）。
+  # 一并装到已安装 hooks 目录旁的 reference/（<hook_dst>/../reference/）。
+  #
+  # T-FIX-14（R5-18 🔴）：安装位与 hook 落位的层级关系固化注释。
+  #   - reference 落在 <hook_dst>/../reference/（= ${hook_dst%/hooks}/reference）。
+  #     project scope（claude）：<proj>/.claude/reference
+  #     user scope（claude）：<HOME>/.claude/reference
+  #   - hook 落在 <hook_dst>/<hook-name>/<hook-name>.sh（**比 reference 的层级深一层**）：
+  #     pre-push 装到 <hook_dst>/pre-push/pre-push.sh = <proj>/.claude/hooks/pre-push/pre-push.sh
+  #     pre-commit 装到 <hook_dst>/pre-commit/pre-commit.sh
+  #   ⇒ hook 自身位置推导 reference 时，候选必须含 `$HOOK_DIR/../../reference`
+  #     （HOOK_DIR=<hook_dst>/<hook-name> → 上两级到 <hook_dst>/.. = .claude，再 /reference）。
+  #   pre-push/pre-commit 的 resolve_reference_dir() 已含该候选（见 hook 内注释）。
   local ref_src_dir="$SCRIPT_DIR/flow-kit/reference"
   local ref_dst_dir="${hook_dst%/hooks}/reference"
   if [ -f "$ref_src_dir/check-path-privacy.sh" ]; then

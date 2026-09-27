@@ -2577,3 +2577,354 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>已完成（commit ee0df5c0e4cc3f631edce85a436a667acb0a14ac）。三态区分：① 检查器缺失（RESOLVED_KIND=none / pre-commit 无 ref_dir 或其中无检查器）⇒ 保持 rc=0 + 原措辞 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`（消费者兼容语义，bats:208/:222 静态断言仍命中）；② 检查器在 + path-privacy-allowlist.txt 缺失 ⇒ 具名 fail-closed：pre-push 用独立致命路径 `echo … >&2; exit 2`（不走 scan_rev return 1，避免父层 :150 错位归因为「含路径隐私泄漏」），pre-commit 用 `exit 1`（沿用既有「提交被拒绝」语义），报文均指名缺失的允许清单路径 + fail-closed 语义，不复用①措辞、不含泄漏归因；③ 两者皆在 ⇒ 行为逐字不变。verify 复跑 rc=0（L0a/L0b 语法 OK；L2 检查器在+清单缺：pre-push rc=2 + pre-commit rc=1 均具名 fail-closed，L2a-L2g 全绿；L3 检查器缺失态 rc=0 + 旧措辞，L3a-L3c 全绿；L3d 夹具切「两者皆在」态；L4 干净 rc=0 / L4c pre-commit 泄漏 rc≠0 / L5 泄漏 rc≠0+归因「含路径隐私泄漏」，L4/L4c/L5 全绿；L6 静态断言+bats 套件全绿）。先红基线 rc=1（6 条红腿 L2a/b/c/e/f/g，与主 agent 公布一致）。反向控制三条全绿：(a) 检查器缺失 rc=0；(b) 两者皆在+干净 rc=0；(c) 两者皆在+真泄漏 rc≠0+归因。bats 42→45（+3：pre-push 状态②具名 fail-closed·exit 2·指名允许清单 / pre-push 状态②报文不复用①措辞·归因区分 / pre-commit 状态②具名 fail-closed exit 1·指名允许清单），全量 bats 1064 ok / 0 not-ok（T-FIX-11 基线 1061 + 3）；make check 21 项全绿；check-hooks-sync（6 镜像 12 文件漂移 0）/ check-test-sync / check-dist 全绿。判据夹具缺陷 TD-081（verify L2d 与 L5 对同态同输入互斥）由主 agent 修订（L3d 切「两者皆在」态 + L4c 新增 pre-commit 反向控制），本执行者未自行放宽判据。详见 T-FIX-13-SUMMARY.md。</done>
   <depends_on>T-FIX-08</depends_on>
 </task>
+
+
+---
+
+## 第 5 轮 fix loop 追加任务（`T-FIX-14`…`T-FIX-23` · 主 agent · 2026-09-27）
+
+**来源**：阶段 6 第 5 轮审查（`REVIEW.md` §0⁗.4 的 `R5-1`…`R5-27` = 3 🔴 + 15 🟡 + 9 🟢）· 用户裁决 = **方案 A**（3 🔴 + 全部 15 🟡 进 fix loop；9 🟢 中 6 条登记技术债 `TD-083`/`TD-086`…`TD-090`、3 条作为顺手闭合并入下表任务）。**任务与发现映射**：
+
+| 任务 | 覆盖发现 | 面 |
+| --- | --- | --- |
+| `T-FIX-14` | `R5-18` 🔴 · `R5-19` 🟡 · `R5-24` 🟢（顺手闭合） | 安装形态可达性 + pre-commit 顺序 + 死变量 |
+| `T-FIX-15` | `R5-6` 🔴 · `R5-27` 🟢（顺手闭合） | AC-2 缺 jq 常设 bats + `TEST.md:55` 措辞 |
+| `T-FIX-16` | `R5-7` 🔴 | AC-3 pre-push 行为级常设 bats |
+| `T-FIX-17` | `R5-15` 🟡 · `R5-16` 🟡 | 隐私门禁磁盘侧隔离 + rev 面批量化 |
+| `T-FIX-18` | `R5-14` 🟡 · `R5-10` 🟡 | `check-gate-sync` fail-closed + AC-4 判别形态 |
+| `T-FIX-19` | `R5-9` 🟡 | AC-1 载荷与副本判据常设化 |
+| `T-FIX-20` | `R5-26` 🟡 · `R5-12` 🟢（顺手闭合） | AC-7 删除注入封闭 + combined metric 真实路径 |
+| `T-FIX-21` | `R5-1` 🟡 · `R5-8` 🟡 · `R5-2` 🟢（归一） | 台账与报告可复算订正 |
+| `T-FIX-22` | `R5-20` 🟡 · `R5-21` 🟡 · `R5-22` 🟡 · `R5-5` 🟡 | 钩子/安装器健壮性 + `SELF_EXCLUDE` |
+| `T-FIX-23` | `R5-23` 🟡 | NFR 判据存量基线 + `mapfile` 替换 |
+
+**执行序（`parallel="false"` · 严格串行）**：`T-FIX-14` → `T-FIX-15` → `T-FIX-16` → `T-FIX-17` → `T-FIX-18` → `T-FIX-19` → `T-FIX-20` → `T-FIX-21` → `T-FIX-22` → `T-FIX-23`。理由：镜像/打包/门禁三步（`make test-sync` · `./sync-hooks.sh` · `package-*.sh` → `make check-*`）会重写 `test/` 与 `hooks/` 的全量副本与 `dist/`，并发执行会让彼此的门禁读到中间态；且 `T-FIX-22` 的写面与 `T-FIX-14`/`T-FIX-17` 重叠（见其 `<depends_on>`）。
+
+<task id="T-FIX-14" parallel="false" status="done" model-tier="top">
+  <name>【R5-18 🔴 · R5-19 🟡 · R5-24 🟢】已安装形态下隐私检查器不可达（消费者双侧门禁静默失效）+ pre-commit 隐私块顺序 + 死变量</name>
+  <read_files>
+    <`flow-kit-bundle/lib/install_hooks.sh:270-300`（检查器安装位 `ref_dst_dir="${hook_dst%/hooks}/reference"` 与注释里假设的 `HOOK_DIR/../reference/` 不一致）>
+    <`flow-kit-bundle/lib/install_hooks.sh:75-95`（`deploy_pre_commit`）· `:110-165`（`deploy_pre_push`：hook 落在 `<hook_dst>/pre-push/pre-push.sh`，比注释深一层）· `:205-230`（`hook_dst` 定义：user `$USER_HOOKS_DIR` / project `${project}/${PROJECT_DIR_NAME}/hooks`）>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh:25-45`（`HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"` + `resolve_reference_dir()` 三条候选）· `:120-160`（`pure_delete_seen` 死变量 · 纯删除分支 · `:150` 父层泄漏报文）>
+    <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh:15-80`（`:19-22` 无 Makefile 早退 + `:25-28` npx 早退均**早于** `:36` 起的隐私块；候选解析与 pre-push 同构）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-18`（含主 agent 扩面证据：安装位本身即错层）· `R5-19` · `R5-24`（每条四要素 + Remedy）>
+    <`.specs/health-fix-2026-09b/REQUIREMENT.md` 的 AC-6 ③（消费者项目回退路径的声明面）>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh:85-110`（`scan_rev` 的 `bundle)` 分支与缺失清单具名 `exit 2` —— T-FIX-13 已修，勿回退）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（自身真实路径解析 + 候选补安装形态 + 删死变量）>
+    <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（同构路径解析 + 隐私块前置）>
+    <`flow-kit-bundle/lib/install_hooks.sh`（安装位注释与实物一致；如安装位需调整则同步 `resolve_reference_dir` 候选）>
+    <`test/test_install_layout.bats`（新件 · 安装形态端到端常设网）>
+    <`T-FIX-14-SUMMARY.md`（新件）>
+  </write_files>
+  <action>
+    1. **先红留档**：`mkdir -p /tmp/tfix14` 并写夹具脚本复现缺陷——`bash flow-kit-bundle/install.sh --platform claude --project /tmp/tfix14/proj --hooks-only`；在 `/tmp/tfix14/proj` 内 `git init` + 提交一个**含真泄漏**的文件（探针字面必须由拼接构造 · L-137，例如 `LEAK="/home/""<真实账号>""/secret"` 的形式请改用非真实账号的等价形态并说明口径）＋ 一份自建 allowlist；随后两形态各喂一行 stdin（`printf 'refs/heads/main %s refs/heads/main %s\n' "$sha" 0000000000000000000000000000000000000000`）：① `.git/hooks/pre-push`（symlink 形态）② `/tmp/tfix14/proj/.claude/hooks/pre-push/pre-push.sh`（真实脚本路径形态）。**当前两形态均应 rc=0 且 stdout 含 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`** ⇒ 把两段原始输出存 `/tmp/tfix14/pre.txt` 并在 SUMMARY 引用。
+    2. **修自身路径解析（两 hook 同构、macOS 兼容）**：不依赖 `readlink -f`；用 `command -v readlink` + 循环把 `BASH_SOURCE[0]` 逐级解析为真实文件（相对目标按 `dirname` 拼接），再 `HOOK_DIR="$(cd "$(dirname "$self")" && pwd)"`。这样经 `.git/hooks/pre-push` symlink 调用时 `HOOK_DIR` 仍是 `<proj>/.claude/hooks/pre-push`。
+    3. **候选补齐**：在 `resolve_reference_dir()` 现有三候选之后补 `$HOOK_DIR/../../reference`（安装形态正确位置：`<proj>/.claude/hooks/pre-push` → `<proj>/.claude/reference`）；保留源码树候选（`$HOOK_DIR/../flow-kit/reference` 等）。**不得**把候选改宽成通配目录扫描——必须是精确候选列表。
+    4. **安装位与注释对齐**：`install_hooks.sh:277-292` 的 `ref_dst_dir` 保持现状（`${hook_dst%/hooks}/reference`，即 `<proj>/.claude/reference`），把误导性注释改为与实物一致，并注明「hook 装在 `<hook_dst>/<hook-name>/`（深一层）⇒ 候选必须写 `$HOOK_DIR/../../reference`」。
+    5. **修 `R5-19`**：把 `pre-commit.sh` 的隐私扫描块整体移到 `:19` 的 `[ ! -f Makefile ]` 与 `:25` 的 npx 早退**之前**；两个早退只跳过测试门禁，不再跳过隐私扫描。在无 Makefile 的沙箱项目里实测：干净 ref rc=0、泄漏 ref rc≠0 + 具名报文。
+    6. **清 `R5-24`**：删除 `pre-push.sh:129`/`:151` 的 `pure_delete_seen`（全文件无读取）。
+    7. **常设判据**：新增 `test/test_install_layout.bats`（端点用真实 `install.sh`，`HOME` 与 project 均指向 `mktemp -d`；固定桩 git 身份），断言：① `.git/hooks/pre-push` symlink 形态 + 泄漏 ⇒ rc≠0 且报文含 `🔴 拒绝推送` 与被拒 ref 名；② 真实脚本路径形态 ⇒ 同上；③ 干净 ref ⇒ rc=0；④ `<proj>/.claude/reference/{check-path-privacy.sh,path-privacy-allowlist.txt}` 就位；⑤ 真缺失态**回归腿**：把安装位的 `check-path-privacy.sh` 与 `path-privacy-allowlist.txt` **同时**移走 ⇒ 必须**保持** `T-FIX-13` 三态语义①（`rc=0` + 逐字 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`）。本任务**不得**把「检查器真缺失」改成 fail-closed —— 那是独立裁决、超出本任务范围；本任务只保证「检查器**已装**时必须被找到并使用」；⑥（反向控制）临时把候选表还原为旧三条 ⇒ 腿①②必须转红。
+    8. **同步/打包/门禁/提交**（硬顺序）：`make test-sync` → `./sync-hooks.sh` → `bash flow-kit-bundle/package-dsh-plugin.sh` 与 `bash flow-kit-bundle/package-flow-kit.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check`（21 项全绿）。随后逐路径 `git add` + `git commit -m "<type>: <摘要>（T-FIX-14 · R5-18/19/24）" -- <路径…>`（`-m` 必须在 `--` 之前；禁 `git add .`/`-A`/`--no-verify`/`git stash`）。
+    9. 提交后写 `T-FIX-14-SUMMARY.md`（六维自评 + 先红/后绿原始输出 + 六条未验证边界），勾 `status="done"`，追加 `<done>` 注记，并追加 `task_progress` 五字段（`commit_sha` 先 `sha=$(git rev-parse HEAD)` 取真值再 `--arg` 传入 jq；`completed_at` 取 `date -Iseconds`；`deferred: []`；Δ ≤ 120 s）。
+  </action>
+  <verify>
+    以仓库根为 cwd 逐条执行，任一不满足即 fail：
+    ① 先红证据：`grep -c '未找到可用的路径隐私检查器' /tmp/tfix14/pre.txt` ≥ 2（两形态各一条）且该文件内无 `🔴 拒绝推送`。
+    ② 后绿端到端：`npx bats test/test_install_layout.bats` ⇒ `not ok` 计数 = 0 且用例数 ≥ 6。
+    ③ 反向控制（判据有牙）：把候选表临时还原为旧三候选后重跑同一 bats ⇒ **必须出现 not ok**（贴输出后还原）。
+    ④ 静态面：`grep -c 'pure_delete_seen' flow-kit-bundle/hooks/pre-push/pre-push.sh` = **0**；`grep -n 'check-path-privacy\|隐私' flow-kit-bundle/hooks/pre-commit/pre-commit.sh | head -1` 的行号 < `grep -n 'no Makefile' flow-kit-bundle/hooks/pre-commit/pre-commit.sh` 的行号。
+    ⑤ 语法：`bash -n` 三个生产件 rc=0。
+    ⑥ 镜像与总门禁：`make check-hooks-sync check-test-sync check-dist` rc=0 且 `make check` 21 ✅ / 0 ❌；`npx bats --count test/` ≥ 1070。
+  </verify>
+  <depends_on>无（本批首个；`T-FIX-16`/`T-FIX-22` 依赖本任务）</depends_on>
+  <done>R5-18 🔴：`pre-push.sh` 与 `pre-commit.sh` 新增 `_resolve_self_path()`（`command -v readlink` + 深度上限 40 循环解析 `BASH_SOURCE[0]`，相对目标按 `dirname` 拼接），`HOOK_DIR` 经 `.git/hooks/*` symlink 调用时仍解析为 `<proj>/.claude/hooks/<hook>`；`resolve_reference_dir()` 候选由 3 条扩为 4 条，新增 `$HOOK_DIR/../../reference`（安装形态正确位置：`<proj>/.claude/hooks/<hook>` → `<proj>/.claude/reference`），源码树候选保留。R5-19 🟡：`pre-commit.sh` 隐私扫描块整体前置于无 Makefile / npx 早退（两早退只跳过测试门禁）。R5-24 🟢：删 `pure_delete_seen`（全文件无读取，纯写）。`install_hooks.sh:277-292` 注释与实物对齐。新增 `test/test_install_layout.bats`（8 例全绿，含反向控制腿）。验证 ①–⑥ 全满足：先红 `grep -c '未找到可用的路径隐私检查器' /tmp/tfix14/pre.txt` ≥ 2；后绿 `npx bats test/test_install_layout.bats` not ok=0 / ok=8；反向控制 strip 候选 ⇒ not ok=2；静态 `pure_delete_seen` 计数=0、pre-commit 隐私行(5) < 无 Makefile 行(107)；`bash -n` 三件 rc=0；全量 bats 1072 例（基线 1064 +8）`make check` 21 ✅。T-FIX-13 三态语义①未回退（真缺失态 rc=0 + 逐字跳过消息）。</done>
+</task>
+
+<task id="T-FIX-15" parallel="false" status="pending" model-tier="top">
+  <name>【R5-6 🔴 · R5-27 🟢】AC-2「缺 jq 不毁配置」固化为常设 bats（含变异反向控制）+ `TEST.md:55` 措辞订正</name>
+  <read_files>
+    <`flow-kit-bundle/lib/install_hooks.sh:35-55`（`mktemp` 原子写）· `:180-195`（入口 `command -v jq` 守卫 + 具名报文中止）· `:350-365`（合并前第二道守卫）>
+    <`flow-kit-bundle/install.sh:120-140`（`check_jq()` 硬前置）· `:160-175`>
+    <`test/test_install_dry_run.bats:1-40`（现有 settings.json 相关用例：`DRY_RUN` + jq 在位 ⇒ 不覆盖缺 jq）· `test/test_install.bats:75-90`（`no-brooks` 用例缺 `--user`）>
+    <`.specs/health-fix-2026-09b/TASK.md` 的 `T06`（change 期判据原文，须逐条搬为常设）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-6`（含 spot-check `F1` 的变异实证）· `R5-27` · `REQUIREMENT.md` 的 AC-2 条文>
+    <`test/test_install_coverage.bats`（既有安装覆盖面的写法与夹具约定）>
+  </read_files>
+  <write_files>
+    <`test/test_install_jq_guard.bats`（新件 · 缺 jq 常设网）>
+    <`.specs/health-fix-2026-09b/TEST.md`（仅 `:55` 一行的措辞订正）>
+    <`T-FIX-15-SUMMARY.md`（新件）>
+  </write_files>
+  <action>
+    1. **先红**：写 `/tmp/tfix15/probe.sh` 复现「缺 jq 无覆盖」——`grep -rn "permissions" test/*.bats` = 0 命中、`grep -rln "settings\.json" test/*.bats` 仅 `test_install_dry_run.bats`（且 jq 在位）⇒ 记录到 SUMMARY。
+    2. 新增 `test/test_install_jq_guard.bats`（≥4 例）：在 `mktemp -d` 沙箱里（`HOME` 指向沙箱、git 身份固定、`settings.json` 预置含 `permissions.allow` 与既有 hook 的有效 JSON）用**影子 PATH**（软链 `jq` 之外的必需命令、排除 jq）跑 `bash flow-kit-bundle/install.sh --global --no-brooks --user`，断言：① rc≠0；② stdout/stderr 含 `❌ 缺少依赖 jq` 与 `已中止`；③ `settings.json` **未被截断为空**（`[ -s file ]`）且 `permissions.allow` 与既有 hook 仍可 `jq -e` 读出；④ 目录内无遗留 `*.tmp` 残片。**判据口径以 `REQUIREMENT.md` 的 AC-2 为准（「未被截断为空 + allow/hook 存活」，不是逐字节相等）。**
+    3. **变异反向控制**（证明判据有牙，不写进常设网）：`cp -a flow-kit-bundle /tmp/tfix15/mut-bundle`，删 `:186-191` 与 `:352-358` 两处守卫（用 `sed`/python 精确改），用同一 bats 跑 `INSTALL_ROOT=/tmp/tfix15/mut-bundle` 形态 ⇒ **必须出现 not ok**；贴输出后丢弃副本。
+    4. **订正 `TEST.md:55`**（`R5-27`）：把 AC-2 行的「目标配置字节不变」改为「既有 `settings.json` 未被截断为空 + `permissions.allow` 与既有 hook 存活（**非**字节相等）」，并在同格追加「常设网 = `test/test_install_jq_guard.bats`（`R5-6` 闭合）」。**只改这一行**，不动其他计数（`R5-8` 由 `T-FIX-21` 负责）。
+    5. 同步与提交：`make test-sync` → `make check-test-sync` → `make check`（21 ✅ / 0 ❌）；`git add` 逐路径后 `git commit -m "test: AC-2 缺 jq 常设 bats + TEST.md 措辞订正（T-FIX-15 · R5-6/R5-27）" -- <路径…>`。
+    6. SUMMARY + `status="done"` + `<done>` 注记 + `task_progress` 五字段（契约同 `T-FIX-14` 第 9 步）。
+  </action>
+  <verify>
+    ① 先红证据：`grep -rn 'permissions' test/*.bats` 修复前 = 0 命中（存 `/tmp/tfix15/pre.txt`）。
+    ② `npx bats test/test_install_jq_guard.bats` ⇒ not ok = 0 且用例数 ≥ 4。
+    ③ 变异腿：删两道守卫的副本上同一 bats **必须 not ok**（贴证据）。
+    ④ `grep -n '字节不变' .specs/health-fix-2026-09b/TEST.md` ⇒ **0 命中**；`grep -c 'test_install_jq_guard' .specs/health-fix-2026-09b/TEST.md` ≥ 1。
+    ⑤ `make check` 21 ✅ / 0 ❌；`npx bats --count test/` ≥ 1070。
+  </verify>
+  <depends_on>T-FIX-14（串行：镜像/打包/门禁为全仓步骤）</depends_on>
+</task>
+
+<task id="T-FIX-16" parallel="false" status="pending" model-tier="top">
+  <name>【R5-7 🔴】pre-push 拦截行为固化为常设 bats（四推送形态 + 缺清单态 + 变异反向控制）</name>
+  <read_files>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（全文：`:47-50` `makefile_has_target` · `:99` `CHECK_REV="$check_rev" make check-path-privacy` · `:107-108` 缺允许清单具名 `exit 2` · `:135-145` 畸形 stdin 具名 `exit 1` · `:149-153` 纯删除跳过 · `:157-177` sha 去重与泄漏拒绝 · `:182` 尾随 `make check`）>
+    <`test/test_archive_commit_gate.bats:175-290`（现有对 pre-push 的静态断言：`bash -n` + 文本 `grep -q`，**从不执行 hook**）>
+    <`.specs/health-fix-2026-09b/TASK.md` 的 `T19`（change 期四形态 UAT 判据原文，须逐条搬为常设）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-7`（含 spot-check `F2` 的变异实证：畸变体上静态断言全绿）>
+    <`test/test_path_privacy_gate.bats:200-240`（既有沙箱建 git 仓 + 自建 allowlist 的写法，勿 `cp` 仓库文件）>
+  </read_files>
+  <write_files>
+    <`test/test_pre_push_behavior.bats`（新件 · 行为级常设网）>
+    <`T-FIX-16-SUMMARY.md`（新件）>
+  </write_files>
+  <action>
+    1. **先红**：`grep -rn "git push" test/*.bats` ⇒ 仅无关匹配；把 `test_archive_commit_gate.bats` 对 pre-push 的静态断言全量输出留档，证明「改坏逻辑仍全绿」⇒ 存 `/tmp/tfix16/pre.txt`。
+    2. 新增 `test/test_pre_push_behavior.bats`（≥6 例，全部**真跑 hook**）：在 `mktemp -d` 里建裸仓 + 工作仓（`git init --bare` + 固定身份），自建 `reference/path-privacy-allowlist.txt`（**注释-only 清单合法**），按需构造提交，随后以 `printf '%s\n' "$line" | bash <hook 路径>` 驱动：
+       ① 干净 ref ⇒ rc=0；
+       ② 泄漏 ref（探针字面按 L-137 拼接构造）⇒ rc≠0 且报文含 `🔴 拒绝推送` 与**被拒 ref 名**；
+       ③ 纯删除推送（new sha = 40 个 0，old sha ≠ 0）⇒ rc=0 且报文含 `ℹ️ 纯删除推送：跳过内容扫描`；
+       ④ 畸形 stdin 行（缺 local sha）⇒ rc≠0 且报文含 `pre-push stdin 行缺 local sha`（fail-closed，不得 `continue`）；
+       ⑤ 缺允许清单态（检查器在、清单缺）⇒ rc=2 且报文指名缺的清单路径（T-FIX-13 语义，勿回退）；
+       ⑥ 消费者形态（项目无 Makefile）⇒ 不因缺 Makefile 报红，但泄漏仍必须 rc≠0（与 `T-FIX-14` 的安装形态腿同源；若 `T-FIX-14` 已把该腿写进 `test_install_layout.bats`，本任务只做「源码树形态」的对应腿并注明分工）。
+    3. **变异反向控制**：`cp -a flow-kit-bundle /tmp/tfix16/mut` 后精确改两处（`:138-141` 畸形守卫 `exit 1`→`continue`；`:167-171` 泄漏拒绝 → `scan_rev || true`），用同一 bats 指向 `/tmp/tfix16/mut/hooks/pre-push/pre-push.sh` ⇒ **腿②④必须 not ok**；贴输出。
+    4. 同步与提交：`make test-sync` → `make check-test-sync` → `make check`；`git add` 逐路径 + `git commit -m "test: pre-push 行为级常设 bats（T-FIX-16 · R5-7）" -- <路径…>`。
+    5. SUMMARY（含先红/变异证据）+ `status="done"` + `<done>` 注记 + `task_progress` 五字段。
+  </action>
+  <verify>
+    ① `npx bats test/test_pre_push_behavior.bats` ⇒ not ok = 0 且用例数 ≥ 6。
+    ② 变异腿：两台变异体上腿②/④ **必须 not ok**（贴证据）。
+    ③ 分工核对：`grep -c 'install_layout' test/test_pre_push_behavior.bats` 与 `T-FIX-14` 的 bats 无重复用例（同名断言不得两处并存）。
+    ④ `npx bats test/test_archive_commit_gate.bats` 仍全绿（既有静态断言未被削弱）；`make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-14（pre-push 路径解析已定稿后再钉行为判据）</depends_on>
+</task>
+
+<task id="T-FIX-17" parallel="false" status="pending" model-tier="top">
+  <name>【R5-15 🟡 · R5-16 🟡】隐私门禁磁盘侧检索隔离候选路径（消除 fail-open 与扫描面塌缩）+ rev 面批量化回到 5 s 预算内</name>
+  <read_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:600-680`（磁盘侧 `raw_disk=$(grep -naE "$PAT" "$file" …)` 无 `--`；rev 模式 `:606` 每候选一次 `git grep`）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:380-400`（候选面 `git ls-files -z --`）· `:760-790`（`while IFS= read -r -d '' f; do … scan_file "$f"; done < "$TMP_CANDIDATES"` 候选循环与 `scan_file` 共用 stdin）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:560-600`（T-FIX-12 的 index 侧批量扫描与 `parse_grep_null_filtered`，复用其写法）· `:900-923`（自证四数口径输出）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-15`（含主 agent 三腿夹具 `/tmp/p6d/a2c-verify.sh` 的实测：leg A/B 静默 rc=0、leg C 对照 rc=1）· `R5-16`（rev 7.084–7.509 s vs 工作树 3.6–3.8 s）>
+    <`.specs/health-fix-2026-09b/REQUIREMENT.md:495`（NFR「单次运行 ≤5 秒」）· `TEST.md:248` / `:265`（超阈值即未满足 · 不做负载折算）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（磁盘侧 `grep … -- "$file"` + 候选循环改走独立 FD + rev 面批量预扫描）>
+    <`test/test_path_privacy_gate.bats`（新增：候选名似 grep 选项的行为腿 + 扫描面计数腿 + rev 计时腿留档）>
+    <`T-FIX-17-SUMMARY.md`（新件）>
+  </write_files>
+  <action>
+    1. **先红**：把主 agent 的三腿夹具口径复现为本地夹具（`/tmp/tfix17/pre.sh`）：工作树里放一个名为 `-q` 的候选（内容含真泄漏）与一个 `zz_control.txt`（含泄漏），分别跑 ⇒ 当前应为 `实际扫描 1 / 命中 0` 且 **rc=0**（静默放行）或命中塌缩；存 `/tmp/tfix17/pre.txt`。
+    2. **修 fail-open**：磁盘侧检索加选项终止符（`grep -naE -- "$PAT" -- "$file"` 或等价写法），并让候选循环从**独立 FD** 读取（如 `while … done < "$TMP_CANDIDATES" 3<&0` 或先读入临时表后循环），使 `scan_file` 内任何子进程都不可能消费候选流。
+    3. **加自证**：为「候选数 vs 实际扫描数」增设显式一致性断言——扫描结束后若 `实际扫描 < 候选数` 且差额不由 `不可读` 解释，则打印具名 `🔴` 并 `exit 1`（fail-closed），同时把两个计数一并印在既有自证行中。
+    4. **rev 面批量化（`R5-16`）**：仿 `T-FIX-12` 的 index 侧做法，对 `$RESOLVED_REV` 做**一次**批量 `git grep -naE --null "$PAT" "$RESOLVED_REV"`（按候选集合过滤），替代逐候选 `:606` 的调用；fail-closed 语义不变（批量 rc≥2 ⇒ `🔴 无法完成扫描…` exit 1）。若批量路径无法覆盖 gitlink/不可读候选，保留逐候选**兜底**但仅限异常候选（并在 SUMMARY 说明口径）。
+    5. **判据**：`test/test_path_privacy_gate.bats` 新增 ≥4 例：① 候选名 `-q`/`-v` 且在 index 与工作树各有一处泄漏 ⇒ rc=1 且两处均被归因；② 候选名 `-q` 干净 + 其他候选含泄漏 ⇒ 泄漏仍被检出（扫描面不塌缩），并断言自证行 `实际扫描 == 候选 - 不可读`；③ rev 形态计时：5 次 `CHECK_REV=HEAD` 实测均 ≤5 s（打印 max/mean/预算百分比；不做负载折算）；④ 反向控制：把磁盘侧 `--` 去掉后腿①必须转红（临时验证后还原）。
+    6. 同步与提交：`make test-sync` → `./sync-hooks.sh`（若 `hooks/**` 未改可跳过并在 SUMMARY 说明）→ package 两脚本 → `make check-hooks-sync check-test-sync check-dist` → `make check`；逐路径 `git add` + `git commit -m "fix(privacy): 磁盘侧检索隔离 + rev 面批量化（T-FIX-17 · R5-15/R5-16）" -- <路径…>`。
+    7. SUMMARY + `status="done"` + `<done>` 注记 + `task_progress` 五字段。
+  </action>
+  <verify>
+    ① 先红证据留存（`/tmp/tfix17/pre.txt` 含 `实际扫描 1` 或 rc=0 静默放行的原文）。
+    ② `npx bats test/test_path_privacy_gate.bats` ⇒ not ok = 0；用例数 ≥ 34（现 30 + 新增 ≥4）。
+    ③ 计时：连续 5 次 `time CHECK_REV=HEAD bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（在最小夹具仓内、warm-up 1 次后取 5 次）⇒ 每次 `real` ≤ 5.000 s，打印 max/mean/预算%；工作树形态（无 `CHECK_REV`）不得劣化（≤ 4.5 s）。
+    ④ 真仓复算：`make check-path-privacy` rc=0 且自证四数口径（候选/扫描/index 侧/不可读）与修复前语义一致（候选数不缩小）。
+    ⑤ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-16（串行：全仓门禁为独占步骤）</depends_on>
+</task>
+<task id="T-FIX-18" parallel="false" status="pending" model-tier="top">
+  <name>【R5-14 🟡 / R5-10 🟡】`check-gate-sync` 缺文件必须 fail-closed + 补 AC-4 判别形态与 `$status` 断言</name>
+  <read_files>
+    <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh:100-135`（`check_pair` 的 MISSING 分支 · T-FIX-04 已修）· `:180-210`（gate-config 分支：缺文件只 `WARNING` + 裸 `return`）>
+    <`test/test_check_gate_sync.bats`（现覆盖面 · 与缺失文件路径的缺口）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-14`/`R5-10`（四要素 + Remedy + 主 agent 亲验证据）>
+    <`.specs/health-fix-2026-09b/REVIEW.md:420`（`F6` 先例 · 同级判 🟡 的一致性依据）>
+    <`REQUIREMENT.md` 的 AC-4（判据不可只靠行数）· `DESIGN.md:372`（允许清单读序）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh`（缺件路径 fail-closed）>
+    <`test/test_check_gate_sync.bats`（补缺失文件腿 / 行数不变腿 / `$status` 腿）>
+  </write_files>
+  <action>
+    1. 先红基线：忠实夹具（`/tmp/tfix18/cp1` = 真 `flow-kit/` + `skills/` + `test/` 全量拷贝）删 `test/test_gate_config_presets.bats` 后运行 ⇒ 当前 rc=0 + `⚠️  WARNING: 文件缺失，跳过 gate-config 同步校验` + 仍打印 `✅ 校验对 3/14 一致`。移走 `skills/flow/SKILL.md` 同样 rc=0。把两条红线（命令 + rc + 报文）贴进 SUMMARY。
+    2. 修 `check-gate-sync.sh:190-202`：缺 `skills/flow/SKILL.md` / `test/test_gate_config_presets.bats` 时改为 `🔴 MISSING <文件>：gate-config 同步无法校验（未比对）` + `ERRORS=$((ERRORS + 1))` + 具名文件路径，禁止裸 `return`。措辞与 `check_pair` 的 MISSING 分支保持同族（T-FIX-04 先例），但**必须**打印 gate-config 侧自身名号。
+    3. 修 AC-4 判别形态（`R5-10`）：确保「两侧行数相同、内容不同」也必须判红——即 `check_pair` 的判定不得依赖行数差；若当前实现存在行数短路，改为先比内容哈希再报行数（`prompt <n> 行 vs skill <m> 行`）。
+    4. 在 `test/test_check_gate_sync.bats` 增常设腿（≥4 例）：① 删 `test/test_gate_config_presets.bats` ⇒ `[ "$status" -ne 0 ]` + 输出含 `🔴 MISSING` + 不含 `✅ 校验对`；② 删 `skills/flow/SKILL.md` ⇒ 同上；③ 只改一行内容（行数不变）⇒ `[ "$status" -ne 0 ]` + 输出含具名定位；④ 反向控制：完整树 ⇒ `[ "$status" -eq 0 ]` 且含 `✅`。每例都必须断言 `$status`（`R5-13` 同族弱点，不得只 grep 报文）。
+    5. 同步与提交：`make test-sync` → `bash flow-kit-bundle/flow-kit/reference/...`（不需要 hooks 同步）→ `package-dsh-plugin.sh` / `package-flow-kit.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`（`-m` 在 `--` 前；禁 `git add .` / `-A` / `--no-verify` / `git stash`）。
+    6. 提交后写 `T-FIX-18-SUMMARY.md`（六维自评 + 红/绿线证据 + 未验证边界），勾 `status="done"`、追加 `<done>` 注记与 `task_progress` 五字段（`commit_sha` 先取真值再 `--arg`，`completed_at` 取 `date -Iseconds`，Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红留档：`bash /tmp/tfix18/pre.sh` 输出含 `WARNING: 文件缺失` 且 rc=0（缺陷态证据，提交前生成）。
+    ② `npx bats test/test_check_gate_sync.bats` 全绿（含 4 条新腿，逐例断言 `$status`）。
+    ③ 变异腿：把 `check-gate-sync.sh` 的缺失分支临时还原为 `WARNING` + `return` ⇒ 同套 bats 的腿①/②必须 **not ok**（证明判据有牙）。
+    ④ 具名性：腿①输出必须含被删文件的确切路径字符串，不得只含泛化措辞。
+    ⑤ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-17（串行：全仓门禁为独占步骤）</depends_on>
+</task>
+
+<task id="T-FIX-19" parallel="false" status="pending" model-tier="top">
+  <name>【R5-9 🟡】AC-1 载荷注入与 6 副本判据常设化（现有覆盖为一次性探针）</name>
+  <read_files>
+    <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（AC-1 实现本件）>
+    <`test/test_runtime_edit_guard.bats:57-109`（现有 9 例：全是路径解析 / 维护源 / `~` 展开，**无载荷注入、无哨兵断言、不枚举 6 副本与 `dist/` 归档面**）>
+    <`.specs/health-fix-2026-09b/TASK.md` 中 `T05` 块的 `<verify>`（change 期判据 · 本轮审计 C 已独立复算六面 + 源树 + tarball 全 0）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-9`（四要素 + Remedy）>
+    <`REQUIREMENT.md` 的 AC-1（载荷必须经拼接构造 · 不得字面出现）>
+  </read_files>
+  <write_files>
+    <`test/test_runtime_edit_guard.bats`（追加常设腿）或新 `test/test_payload_injection.bats`>
+  </write_files>
+  <action>
+    1. 先红基线：用一次性探针（放 `/tmp/tfix19/`）把 `$(eval …)` 形态载荷（**拼接构造**，如 `P="\$(ev""al echo …"`）喂给 `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`，证明「现常设 9 例全绿但载荷形态未被断言」——即现有常设网对载荷回归零判别力。记录命令 + rc + 输出为红线。
+    2. 落常设腿（≥4 例，追加进 `test/test_runtime_edit_guard.bats`）：① 拼接构造的 `$(…)` 载荷路径 ⇒ 守卫按预期拦截/放行，且**哨兵文件不存在**（哨兵必须由载荷执行才会被创建 ⇒ 不存在即证明未被执行）；② 6 个部署副本（`./sync-hooks.sh` 清单）对该载荷形态静态计数 `grep -cE` = 0；③ `dist/` 归档面同形态计数 = 0（若该形态不适用于归档则写明理由并给替代断言）；④ 反向控制：把守卫的载荷判定临时改为恒真 ⇒ 腿①必须 not ok。
+    3. 判据不得只 grep 报文：每条断 `$status` + 哨兵文件存在性 + 输出片段三者之一以上。
+    4. 同步与提交：`make test-sync` → `make check-hooks-sync check-test-sync check-dist`（若未触碰 hooks 可略过 `sync-hooks.sh`）→ `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
+    5. 提交后写 `T-FIX-19-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红留档：`bash /tmp/tfix19/pre.sh` 呈现「现有常设面无法区分拼接/字面」的对照（或缺口说明 + rc）。
+    ② `npx bats test/test_runtime_edit_guard.bats`（或新件）全绿且含 ≥4 条新腿。
+    ③ 变异腿：把拼接改回字面 ⇒ 腿①必须 not ok。
+    ④ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-18（串行：全仓门禁为独占步骤）</depends_on>
+</task>
+
+<task id="T-FIX-20" parallel="false" status="pending" model-tier="top">
+  <name>【R5-26 🟡 / R5-12 🟢】AC-7 删除注入封闭（去 `$HOME` 回落）+ combined metric 驱动真实路径</name>
+  <read_files>
+    <`test/test_independent_review_model.bats:12-20`（`FK_SRC_29` 主路径 = 仓库源树、`:18` 回落 `$HOME/.claude/hooks/stop/29-independent-review.sh`）· `:40`/`:46`/`:60`（另有**直接**引用 `$HOME/.claude/hooks/stop/30-ai-analyze.sh` 的断言 ⇒ 同族非封闭）>
+    <`test/test_combined_metric.bats`（是否驱动真实清理路径 · 文件尾换行）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-26`/`R5-12` + `INDEPENDENT-REVIEW-6.md` 的 `F3`>
+    <`flow-kit-bundle/hooks/stop/29-independent-review.sh`（被注入源件的真实位置）>
+  </read_files>
+  <write_files>
+    <`test/test_independent_review_model.bats`（去 `$HOME` 回落 + 删除注入腿）>
+    <`test/test_combined_metric.bats`（真实路径 + 文件尾换行）>
+  </write_files>
+  <action>
+    1. 先红基线：删 `flow-kit-bundle/hooks/stop/29-independent-review.sh` 后跑 `test/test_independent_review_model.bats` ⇒ 当前 12 例**全绿**（因 setup 回落到 `$HOME/.claude/...`）⇒ 判据不封闭；记录红线。
+    2. 修 setup：源件路径只指向**仓库源树**（`flow-kit-bundle/hooks/stop/…`），删除 `:18` 的 `$HOME` 回落；源件缺失即 fail-fast（bats 内 `[ -f "$FK_SRC_29" ]` 断言 + 明确报错），不得静默跳过。**并清理 `:40`/`:46`/`:60` 对 `$HOME/.claude/hooks/stop/30-ai-analyze.sh` 的直接依赖**（改为仓库源树同路径件；若该件确不存在于源树，则写明替代源并让缺失态 fail-fast）。
+    3. 增删除注入腿：临时移走 bundle 源件 ⇒ 该 bats 必须 **not ok**（≥1 例）；恢复后必须回绿。
+    4. `R5-12`：`test/test_combined_metric.bats` 改为驱动真实清理路径（不得只测纯函数壳），并补文件尾换行。
+    5. 同步与提交：`make test-sync` →（若触碰 hooks 则 `./sync-hooks.sh`）→ `package-*.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
+    6. 提交后写 `T-FIX-20-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红留档：`bash /tmp/tfix20/pre.sh`（删源件后跑现版 bats ⇒ rc=0 全绿）。
+    ② `npx bats test/test_independent_review_model.bats` 全绿（含删除注入腿）；`npx bats test/test_combined_metric.bats` 全绿。
+    ③ 变异腿：删 `flow-kit-bundle/hooks/stop/29-independent-review.sh` 后同套 bats 必须 not ok。
+    ④ 封闭性：`grep -cE 'HOME/\.claude' test/test_independent_review_model.bats` = **0**（不得再有 `$HOME` 依赖，注释行也不留 —— 若必须解释历史原因，改写为不含该字面的措辞）。
+    ⑤ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-19（串行：全仓门禁为独占步骤）</depends_on>
+</task>
+<task id="T-FIX-21" parallel="false" status="pending" model-tier="top">
+  <name>【R5-8 🟡 / R5-1 🟡（报告侧）】`TEST.md` 汇总面可复算订正与数量口径生成规则</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/TEST.md` 的 §1.3（第 3/4 条的旧计数与行号引用）· `:55`（AC-2 措辞）· §1.1（AC-6 bats 计数补记）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-8`/`R5-1`/`R5-3`（四要素 + Remedy；`R5-3` 已完成的部分不得回退）>
+    <`.specs/health-fix-2026-09b/MINOR-DEFERRED.md` 的「L2 第 5 轮盲审发现处置」节（已完成的订正记录）>
+  </read_files>
+  <write_files>
+    <`.specs/health-fix-2026-09b/TEST.md`（§1.3 第 3/4 条 + 数量口径生成规则行）>
+  </write_files>
+  <action>
+    1. 先复算现状：逐条重跑 §1.3 引用的命令，记录「报告写的数」vs「实跑的数」并列表（禁止照抄旧值）。同时订正 `TEST.md:54` 的自相矛盾行：TD-053 的现实是「change 期判据覆盖 + 常设网缺口（`R5-9`）」，不得再写「已闭合（9 用例）」——`R5-9` 落地后改写为指向新增载荷腿。
+    2. 就地订正 §1.3 第 3/4 条：更新计数与行号引用为实测值；行号引用必须指向**当前**文件（`REQUIREMENT.md:139`/`:168`/`:177` 形态）。
+    3. 追加「数量口径生成规则」行：写明每个计数由哪条命令产生（命令原文），使后轮可直接复算；不得只写结论数字。
+    4. 不得改动 `R5-3` 已完成的部分（§1.1 的 AC-6 补记、发现表 #43–#49、`:558` 索引行）；若发现与实测冲突，只增订正注记，不删原文。
+    5. 提交：`git add .specs/health-fix-2026-09b/TEST.md` + `git commit -m "..." -- .specs/health-fix-2026-09b/TEST.md`（逐路径；`-m` 在 `--` 前）。
+    6. 提交后写 `T-FIX-21-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 复算表：每条订正都可复现（SUMMARY 内含「命令 ⇒ 实测数 ⇒ 报告新值」三列）。
+    ② `grep -n '1[0-9] 文件\|45 例\|11 处' .specs/health-fix-2026-09b/TEST.md` 的命中行必须与实测一致。
+    ③ `R5-3` 已完成内容仍在（`grep -c '第 11 次执行补记' TEST.md` ≥ 1 · `grep -c '^| 49 |' TEST.md` = 1）。
+    ④ 冻结件零改动（`git show --stat HEAD` 不含 CHANGE/REQUIREMENT/DESIGN/INDEPENDENT-REVIEW-1/2/3）。
+  </verify>
+  <depends_on>T-FIX-20（串行：全仓门禁为独占步骤）</depends_on>
+</task>
+
+<task id="T-FIX-22" parallel="false" status="pending" model-tier="top">
+  <name>【R5-20 🟡 / R5-21 🟡 / R5-22 🟡 / R5-5 🟡】安装器 jq 诊断 + 门禁短路次序 + L3 ADR 截断留痕 + SELF_EXCLUDE 补录</name>
+  <read_files>
+    <`flow-kit-bundle/lib/install_hooks.sh:355-390`（`merged=$(jq … 2>/dev/null)` ⇒ rc=5 在 `set -euo pipefail` 下终止安装、`:384` 告警成死代码）· `install.sh:7` 与 `:125-136`（`check_jq`）>
+    <`flow-kit-bundle/hooks/stop/lib/done-validation.sh:100-135`（`phases_done` 短路先于 `[[ -s "$done_path" ]] || return 2`；docstring `:108` 自称 D1/R11 有意设计）>
+    <`flow-kit-bundle/hooks/stop/lib/l3-prompt.sh:345-370`（`[ "$_adr_n" -lt 8 ] || break` 静默截断 · 落标记晚于 break）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` 的 `SELF_EXCLUDE` 定义处（需追加 `INDEPENDENT-REVIEW-5.md`/`INDEPENDENT-REVIEW-6.md`）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-20`/`R5-21`/`R5-22`/`R5-5`（四要素 + Remedy）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/lib/install_hooks.sh`（jq 失败具名诊断 + 非零退出语义明确）>
+    <`flow-kit-bundle/hooks/stop/lib/done-validation.sh`（短路次序与注释对齐）>
+    <`flow-kit-bundle/hooks/stop/lib/l3-prompt.sh`（截断标记先于 break）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（SELF_EXCLUDE 追加两文件）>
+    <`test/test_install_coverage.bats` 或新件（jq parse error 腿）>
+  </write_files>
+  <action>
+    1. 先红基线（三条独立红线）：① `settings.json` 预置非法 JSON 后跑 `install.sh` ⇒ 当前 rc=5 且**无**具名诊断（告警死代码）；② `done-validation.sh` 在 `phases_done` 含目标阶段但 `.done` 为空文件时返回 0（短路先于 Tier-1）；③ `l3-prompt.sh` 在 ADR > 8 时静默丢弃且落标记不写。记录命令 + rc + 报文。
+    2. 修 `install_hooks.sh:369-386`：把 `jq` 的 parse 失败与「其他失败」分流，打印具名诊断（含 `settings.json` 路径 + jq 原始 stderr 摘要），并让失败路径**显式**决定退出码（不再靠 `set -e` 副作用），`:384` 的告警必须可达。
+    3. 修 `done-validation.sh`：把 Tier-1（`.done` 非空）判定移到 `phases_done` 短路**之前**，或明确把短路限定为「历史阶段兜底」并更新 docstring 与常量名；改后两态各自实测（空 `.done` + 在 `phases_done` ⇒ rc=2；非空 ⇒ 按原语义）。
+    4. 修 `l3-prompt.sh:357`：截断时**先**写落标记（含「ADR 超上限已丢弃 N 条」措辞）**再** break；实测 ADR 数 > 8 的夹具下标记存在。
+    5. `R5-5`：在 `check-path-privacy.sh` 的 `SELF_EXCLUDE` 追加 `INDEPENDENT-REVIEW-5.md`/`INDEPENDENT-REVIEW-6.md`；实测 `make check-path-privacy` rc=0 且候选数不缩小、命中 0。
+    6. 常设腿：新增/扩展 bats 覆盖 ①②③（每条断言 `$status` + 报文具名），并保留反向控制（把短路次序改回旧态 ⇒ 腿②必须 not ok）。
+    7. 同步与提交：`make test-sync` → `./sync-hooks.sh` → `package-*.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
+    8. 提交后写 `T-FIX-22-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 三条先红留档（命令 + rc + 报文）。
+    ② `bash -n` 四个生产件 rc=0；`npx bats` 相关件全绿（含新腿）。
+    ③ 非法 JSON 夹具：`install.sh` 输出含 `settings.json` 具名诊断 + 非零退出，且**不再**出现「安装成功」类措辞。
+    ④ `done-validation.sh` 两态实测与新增 bats 一致（空 `.done` ⇒ rc=2）。
+    ⑤ ADR > 8 夹具：`l3-prompt.sh` 落标记存在且含丢弃计数。
+    ⑥ `make check-path-privacy` rc=0（候选数不缩小 · 命中 0 · 不可读 0）。
+    ⑦ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-14, T-FIX-17, T-FIX-21（串行：同文件写面 + 全仓门禁为独占步骤）</depends_on>
+</task>
+
+<task id="T-FIX-23" parallel="false" status="pending" model-tier="top">
+  <name>【R5-23 🟡】NFR 可移植性判据存量基线 + `sync-hooks.sh` 的 `mapfile` 替换</name>
+  <read_files>
+    <`Makefile:129-160`（目标族说明）· `:162-306`（判据正文：`BASE` 解析 `:233-276`、全量分支 `:167`/`:195`/`:268`/`:286`）· `:308-334`（包装层三态转译）>
+    <`.specs/health-fix-2026-09b/.change-base`（本仓 BASE 锚点 ⇒ 默认走变更集模式，存量违禁构造不进扫描面）>
+    <`sync-hooks.sh:170-205`（`mapfile` 使用点 · bash 3.2 下 rc=127）>
+    <`test/test_nfr_portability_gate.bats`（现覆盖面）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-23`（四要素 + Remedy + 审计 B 的 #6 证据）>
+    <`REQUIREMENT.md` 的 AC-8（可移植性声明）>
+  </read_files>
+  <write_files>
+    <`Makefile`（全量模式显式入口；复用既有 `BASE=FULL`，不改 `make check` 默认语义）>
+    <`sync-hooks.sh`（`mapfile` → 便携读循环）>
+    <`test/test_nfr_portability_gate.bats`（存量违禁构造腿）>
+  </write_files>
+  <action>
+    1. 先红基线：`grep -n 'mapfile' sync-hooks.sh` ⇒ `:182`/`:197`/`:198` 三处；在 bash 3.2 语义下（用 `set -o posix`/模拟或静态断言）证明其为违禁构造且**当前 `make check-nfr-portability` 不报**（因变更集模式只扫新增行）。记录红线。
+    2. 修 `sync-hooks.sh`：用 `while IFS= read -r line; do … done < <(...)` 或临时文件替代 `mapfile`（bash 3.2 兼容；不得引入 `readarray`）。
+    3. 修 `Makefile`：**全量模式已存在**（`BASE=FULL`，见 `:262` 与 `:167`/`:195`/`:268`/`:286` 的 `if [ "$$BASE" = "FULL" ]` 分支）⇒ **不要**再造第二套判据；只需：(a) 新增一个显式入口目标（如 `check-nfr-portability-full`，内部以 `FLOW_KIT_CHANGE_BASE=FULL` 调用同一 internals，沿用三态包装语义）；(b) 把该入口写进 `.PHONY` 与目标注释（写明「日常 `make check` 用变更集模式；收尾/归档必须再跑全量入口」）；(c) **不得**把 `make check` 的默认模式改成全量（会拖慢日常并改变既有语义）。
+    4. 常设腿：`test/test_nfr_portability_gate.bats` 增 ≥3 例——① 注入一条 `mapfile` 到夹具源件 ⇒ 基线模式 rc≠0 + 具名文件:行号；② 变更集模式下同一注入不报（记录已知取舍）；③ 便携写法 ⇒ 两模式皆 rc=0；每例断言 `$status`。
+    5. 提交前自查：真仓 `make check-nfr-portability` 与基线模式都必须 rc=0（即存量 19 行/12 文件盲区已清零或明确登记）。
+    6. 同步与提交：`./sync-hooks.sh`（若触碰 hooks）→ `package-*.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
+    7. 提交后写 `T-FIX-23-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红留档：`grep -n 'mapfile' sync-hooks.sh` 三处 + 现判据不报的证据。
+    ② 修改后 `grep -c 'mapfile\|readarray' sync-hooks.sh` = 0。
+    ③ 基线模式：注入夹具 ⇒ rc≠0 + 具名 `文件:行号`；便携写法 ⇒ rc=0。
+    ④ 真仓 `make check-nfr-portability` rc=0（且基线模式 rc=0 或残留项已在 SUMMARY 明列并登记技术债）。
+    ⑤ `make check` 21 ✅ / 0 ❌。
+  </verify>
+  <depends_on>T-FIX-22（串行：全仓门禁为独占步骤）</depends_on>
+</task>

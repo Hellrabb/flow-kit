@@ -11,6 +11,14 @@ setup() {
   done
   export PROJECT_ROOT=$(mktemp -d)
   export HOOK_BASE_DIR="$BATS_ROOT/flow-kit-bundle/hooks"
+  # T-FIX-14：pre-commit.sh 隐私块已前置到 Makefile/npx 早退之前。check-path-
+  # privacy.sh 在空 git index（0 候选）下按 ADR-027 fail-closed ⇒ 会挡住
+  # "no Makefile" 腿。夹具这里 git init + 提交一个干净占位文件，让隐私扫描走
+  # 「清单内、放行」分支，再让 Makefile/npx 早退腿可达。
+  git -C "$PROJECT_ROOT" init -q
+  printf 'placeholder\n' > "$PROJECT_ROOT/.gitkeep"
+  git -C "$PROJECT_ROOT" add .gitkeep
+  git -C "$PROJECT_ROOT" -c user.email=t@t -c user.name=t commit -q -m init
 }
 
 teardown() {
