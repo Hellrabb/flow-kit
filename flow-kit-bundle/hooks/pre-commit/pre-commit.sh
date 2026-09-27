@@ -67,9 +67,16 @@ else
         exit 1
       fi
     else
-      echo "ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描"
+      # 状态 ②（health-fix-2026-09b · T-FIX-13 · R4-M1）：检查器在 +
+      # path-privacy-allowlist.txt 缺失 ⇒ 具名 fail-closed。配置缺失不得
+      # 被当成「干净」放行（含泄漏的提交会被直接放过 ⇒ fail-open），也不得
+      # 复用「未找到可用的路径隐私检查器」措辞（与实际原因不符；该措辞
+      # 保留给 :73 的「检查器缺失」腿，bats:222 静态断言要求其仍在文件内）。
+      echo "🔴 [archive-commit-gate] 找到路径隐私检查器但缺少允许清单：$ref_dir/path-privacy-allowlist.txt（无法确定扫描基线 ⇒ fail-closed，提交被拒绝）" >&2
+      exit 1
     fi
   else
+    # 状态 ①：检查器缺失 ⇒ 消费者兼容语义（rc=0 + 原措辞，审计已接受）。
     echo "ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描"
   fi
 fi

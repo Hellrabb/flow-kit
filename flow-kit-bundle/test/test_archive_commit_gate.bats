@@ -252,3 +252,45 @@ EOF
   # fail-closed 且指名路径
   grep -q 'fail-closed.*FLOW_KIT_PRIVACY_ALLOWLIST' "$sut"
 }
+
+# ----------------------------------------------------------------------------
+# T-FIX-13（health-fix-2026-09b · R4-M1）：bundle 形态「检查器在 +
+# path-privacy-allowlist.txt 缺失」三态区分静态断言。
+# 状态 ② 必须具名 fail-closed（指名缺失的允许清单路径 + fail-closed 语义），
+# 不得复用状态 ① 的「未找到可用的路径隐私检查器」措辞（原因不符），
+# 不得被归因为「含路径隐私泄漏」（配置缺失 ≠ 泄漏）。
+# ----------------------------------------------------------------------------
+
+@test "pre-push.sh: 检查器在 + 允许清单缺失 ⇒ 具名 fail-closed（T-FIX-13 · R4-M1）" {
+  local sut="$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  # 报文指名缺失的允许清单路径
+  grep -q 'path-privacy-allowlist.txt' "$sut"
+  # fail-closed 语义
+  grep -q 'fail-closed' "$sut"
+  # 独立致命路径：用 exit 2 而非 return 1（父层 :150 会把 return 1 错位归因为泄漏）
+  grep -q 'exit 2' "$sut"
+  # 不得把配置缺失归因为泄漏
+  ! grep -q '缺.*含路径隐私泄漏\|允许清单缺失.*含路径隐私泄漏' "$sut"
+}
+
+@test "pre-push.sh: 状态 ② 报文不复用「检查器缺失」措辞（T-FIX-13 · 归因区分）" {
+  local sut="$HOOK_BASE_DIR/pre-push/pre-push.sh"
+  # 「未找到可用的路径隐私检查器」必须仅出现在 none 分支（状态 ①），
+  # 不得与 bundle 分支的「允许清单缺失」报文同处一个 echo。
+  # bundle 分支的 fail-closed 报文必须用独立措辞指名允许清单。
+  grep -q '缺少允许清单' "$sut"
+  # 状态 ① 措辞仍在文件内（bats:208 静态断言已覆盖，此处补 bundle 分支不复用）
+  grep -q '未找到可用的路径隐私检查器' "$sut"
+}
+
+@test "pre-commit.sh: 检查器在 + 允许清单缺失 ⇒ 具名 fail-closed exit 1（T-FIX-13 · R4-M1）" {
+  local sut="$HOOK_BASE_DIR/pre-commit/pre-commit.sh"
+  # 报文指名缺失的允许清单路径
+  grep -q 'path-privacy-allowlist.txt' "$sut"
+  # fail-closed 语义
+  grep -q 'fail-closed' "$sut"
+  # 允许清单缺失分支用 exit 1（沿用既有「提交被拒绝」语义）
+  grep -q '缺少允许清单' "$sut"
+  # 状态 ① 措辞仍在文件内（bats:222 静态断言已覆盖）
+  grep -q '未找到可用的路径隐私检查器' "$sut"
+}

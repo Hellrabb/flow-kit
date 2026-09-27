@@ -76,6 +76,22 @@ resolve_checker() {
 # make 目标：CHECK_REV=<sha> make check-path-privacy
 # 随包脚本：CHECK_REV=<sha> FLOW_KIT_PRIVACY_ALLOWLIST=<随包> bash <checker>
 # 不可得：打印跳过理由且不改 rc（不静默）
+#
+# 三态区分（health-fix-2026-09b · T-FIX-13 · R4-M1）：
+#   ① 检查器缺失（RESOLVED_KIND=none）⇒ 消费者兼容语义：打印
+#      ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描 且 rc=0（审计已接受，
+#      bats:208 静态断言要求该措辞仍在文件内）。
+#   ② 检查器在 + path-privacy-allowlist.txt 缺失（bundle 形态半拷贝 /
+#      旧版安装器 / 手工 symlink）⇒ **具名 fail-closed**：配置缺失不得被
+#      当成「干净」放行（含泄漏的推送会被直接放过 ⇒ R4-M1 fail-open），
+#      也不得复用 ① 的措辞（与实际原因不符）。此处用**独立致命路径**
+#      `echo … >&2; exit 2` 而非 `return 1` —— 因为 scan_rev 的调用方
+#      （约 :150）把任何非零返回一律归因为「该 ref 含路径隐私泄漏」，
+#      配置缺失若走该路径会造成**归因错位**（把「缺清单」报成「泄漏」）。
+#      exit 2 直接终止脚本，绕过父层的泄漏归因，报文明确指名缺失的
+#      允许清单绝对路径与 fail-closed 语义。
+#   ③ 两者皆在 ⇒ 行为逐字不变：干净 rc=0；真泄漏 rc≠0 且父层归因
+#      「含路径隐私泄漏」。
 scan_rev() {
   local check_rev="$1"
   case "$RESOLVED_KIND" in
@@ -86,8 +102,10 @@ scan_rev() {
       ;;
     bundle)
       if [ -z "$RESOLVED_ALLOWLIST" ]; then
-        echo "ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描" >&2
-        return 0
+        # 状态 ②：检查器在 + 允许清单缺失 ⇒ 具名 fail-closed。
+        # 独立致命路径（exit 2），不得走 return 1（父层 :150 会错位归因为泄漏）。
+        echo "🔴 [pre-push] 找到路径隐私检查器但缺少允许清单：${RESOLVED_CHECKER%/check-path-privacy.sh}/path-privacy-allowlist.txt（无法确定扫描基线 ⇒ fail-closed，推送被拒绝）" >&2
+        exit 2
       fi
       if ! CHECK_REV="$check_rev" FLOW_KIT_PRIVACY_ALLOWLIST="$RESOLVED_ALLOWLIST" \
            bash "$RESOLVED_CHECKER"; then

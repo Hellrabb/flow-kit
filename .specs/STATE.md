@@ -45,7 +45,8 @@
 - **git_repo**: `true`
 - **default_branch**: `main`
 - **commit_convention**: `Conventional Commits`
-- **test_framework**: `bats-core 1.13.0 (npx) · 1061 ok / 0 not ok / 0 skip（TAP plan 1..1061；2026-09-25 health-fix-2026-09b T-FIX-11 全量实测）`
+- **test_framework**: `bats-core 1.13.0 (npx) · 1064 ok / 0 not ok / 0 skip（TAP plan 1..1064；2026-09-27 health-fix-2026-09b T-FIX-13 全量实测）`
+  > 基线演进（2026-09-27 health-fix-2026-09b T-FIX-13 收口实测）：**1064 ok / 0 not ok / 0 skip** = T-FIX-11 基线 1061 + T-FIX-13 bundle 形态「检查器在 + path-privacy-allowlist.txt 缺失」三态区分静态断言 3 例（test_archive_commit_gate.bats：pre-push 状态②具名 fail-closed·exit 2 独立致命路径·指名允许清单路径 · pre-push 状态②报文不复用「检查器缺失」措辞·归因区分 · pre-commit 状态②具名 fail-closed exit 1·指名允许清单路径）；`npx bats --count test/` 同步为 1064。
   > 基线演进（2026-09-25 health-fix-2026-09b T-FIX-11 收口实测）：**1061 ok / 0 not ok / 0 skip** = T-FIX-10 基线 1058 + T-FIX-11 不可读候选判定与 index 内容面口径 3 例（test_path_privacy_gate.bats：T-FIX-11① 已跟踪未 staged 删除·干净 rc=0 且「不可读候选 0 个」· T-FIX-11② 同删除态 index 含泄漏 rc≠0 且「清单外命中 [1-9]」· T-FIX-11③ gitlink 候选 mode 160000 无 blob rc≠0）；`npx bats --count test/` 同步为 1061。
   > 基线演进（2026-09-25 health-fix-2026-09b T-FIX-10 收口实测）：**1058 ok / 0 not ok / 0 skip** = T-FIX-09 基线 1054 + T-FIX-10 check-gate-sync 判据可信度判别式 4 例（test_check_gate_sync.bats：R3-18A 仅 skill 侧具名 · R3-18B 仅 prompt 侧具名 · R3-19 两侧预设同时清空不静默中止 · R3-20 PATH 影子 diff rc=2 不折算为一致）；`npx bats --count test/` 同步为 1058。
   > 基线演进（2026-09-25 health-fix-2026-09b T-FIX-09 收口实测）：**1054 ok / 0 not ok / 0 skip** = T-FIX-08 基线 1047 + T-FIX-09 NFR 禁构面/文件名面/锚点面回归钉 7 例（test_nfr_portability_gate.bats：R3-15 realpath 词边界 · R3-16 空格名 untracked · R3-16 空格名 tracked · R3-22 全量模式不退化 SKIP · R3-22 全量模式 fail-closed · R3-22 .flow-active 锚点选中 · R3-22 多锚点+坏 .flow-active 具名红）；`npx bats --count test/` 同步为 1054。
