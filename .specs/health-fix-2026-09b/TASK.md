@@ -2921,7 +2921,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <depends_on>T-FIX-14, T-FIX-17, T-FIX-21（串行：同文件写面 + 全仓门禁为独占步骤）</depends_on>
   <done>
     sha: 44eef94ba53feaa021acdbdc6be20300dc9157f2
-    completed_at: 2026-09-28T07:10:00+08:00
+    completed_at: 2026-09-28T07:28:35+08:00
     verify: ① 三条先红留档于 /tmp/tfix22/pre.txt（命令+rc+报文） · ② bash -n 四生产件 rc=0 · ③ 非法 JSON 夹具输出含 settings.local.json + 合并失败 + jq + parse error + 非零退出 + 无「安装完成」 · ④ done-validation 两态实测（空 .done+phases_done ⇒ rc=2 / 非空有效+phases_done ⇒ rc=0） · ⑤ ADR>8 落标记含「已丢弃 N 条」+计数 · ⑥ check-path-privacy rc=0（候选1617/扫描1609/自排除8/index侧15/命中0） · ⑦ make check 21✅/0❌ · npx bats 1..1108 ok=1108 notok=0 skip=0
     写面: flow-kit-bundle/lib/install_hooks.sh(R5-20) · flow-kit-bundle/hooks/stop/lib/done-validation.sh(R5-21) · flow-kit-bundle/hooks/stop/lib/l3-prompt.sh(R5-22) · flow-kit-bundle/flow-kit/reference/check-path-privacy.sh(R5-5) · test/done-validation.bats(+2) · test/test_install_coverage.bats(+3) · test/test_l3_adr_truncation.bats(新+4) · test/test_review_gate_validity.bats(拆分+1) · flow-kit-bundle/test/(5件镜像) · .specs/health-fix-2026-09b/T-FIX-22-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress append · gitignored 不提交)
   </done>
