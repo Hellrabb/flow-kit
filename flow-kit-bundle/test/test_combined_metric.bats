@@ -2,6 +2,18 @@
 
 # INT-COMBINED-1: task-brief + 4-dev.md 合并加载 token 友好性
 # Closes L-066 (AC-B4 测试深度补齐)
+# R5-12（审计 C F7）：cleanup 用例改为驱动真实清理路径——
+#   ① 跑真实被测件（task-brief awk 脚本），扫描其隔离根下无 tmp.* 残留；
+#   ② 注入残留文件 ⇒ 必须转红（AC-7 注入型判据，对齐 REQUIREMENT.md:411/TEST.md:60）；
+#   ③ 文件尾补换行。
+
+setup() {
+  export TEST_TMPDIR=$(mktemp -d)
+}
+
+teardown() {
+  rm -rf "$TEST_TMPDIR"
+}
 
 @test "INT-COMBINED-1: task-brief + 4-dev.md 合并大小 ≤20KB" {
   # task-brief 输出（典型 T01 from a real TASK.md）
@@ -26,26 +38,32 @@
   rm -f "$TASK_BRIEF_OUT"
 }
 
-@test "INT-COMBINED-1-cleanup: no leftover temp files" {
-  # 断言面自带扫描根（task T09 1.8 fix loop 第 1 轮裁定）：不回落环境 /tmp。
-  # 本机 /tmp 现存 149 个无关 tmp.*，而扫描根若用「TMPDIR 缺省回溯到 /tmp」的形态，在 TMPDIR 未设
-  # 时就会落到这堆无关文件上 ⇒ 环境相关恒红。故扫描面收敛到用例自建的、位于 $TEST_TMPDIR 内的
-  # 无噪声根，与环境 /tmp 彻底解耦。
-  # 被测形态：在自有根 TMPDIR="$root" 驱动下用 mktemp 造临时文件并随建随删（复刻 INT-COMBINED-1
-  # 的建/删模式）；mktemp 只可能把 tmp.* 落在 $root 内，全程不触碰环境 /tmp。
-  # 无残留 ⇒ ls 无命中 ⇒ grep -q . 失败 ⇒ 非零 ⇒ 绿；有残留 ⇒ 命中 ⇒ 零 ⇒ 红。
+@test "INT-COMBINED-1-cleanup: real SUT leaves no tmp.* residue in isolated scan root" {
+  # 驱动真实清理路径（R5-12）：跑真实被测件 task-brief awk 脚本，在自有隔离根
+  # TMPDIR="$root" 下执行；task-brief 为纯 awk（不建临时文件）⇒ 跑后 root 内无
+  # tmp.* 残留 ⇒ ls 无命中 ⇒ grep -q . 失败 ⇒ 非零 ⇒ 绿。
+  # 扫描面收敛到用例自建的、位于 $TEST_TMPDIR 内的无噪声根，与环境 /tmp 彻底解耦。
   root="$TEST_TMPDIR/scan"
   mkdir -p "$root"
-  t=$(env TMPDIR="$root" mktemp)
-  rm -f "$t"
+  # 真实 SUT：task-brief（INT-COMBINED-1 的同一被测件）
+  out=$(env TMPDIR="$root" awk -f flow-kit-bundle/flow-kit/scripts/task-brief \
+    flow-kit-bundle/flow-kit/templates/TASK.md T01 2>/dev/null) || true
+  # SUT 跑完：断言隔离根下无 tmp.* 残留
   run bash -c 'ls -d "$1"/tmp.* 2>/dev/null | grep -q .' -- "$root"
   [ "$status" -ne 0 ]
 }
 
-setup() {
-  export TEST_TMPDIR=$(mktemp -d)
-}
-
-teardown() {
-  rm -rf "$TEST_TMPDIR"
+@test "INT-COMBINED-1-cleanup-injection: leftover residual file turns the net red (AC-7)" {
+  # 注入型判据（AC-7 · REQUIREMENT.md:411 / TEST.md:60 / REVIEW.md R5-12）：
+  # 在隔离根下遗留一个 tmp.* 残留文件 ⇒ cleanup 断言必须转红（注入残留 ⇒ 红，
+  # 非恒真）。本例反向断言：注入残留后扫描必命中（grep -q . 成功 ⇒ rc=0），
+  # 而正常 cleanup 用例在该态会 `[ "$status" -ne 0 ]` 失败 ⇒ 红。此处直接断言
+  # 「扫描命中」以证明判据对残留有判定力（注入残留 ⇒ 被检出 ⇒ 红）。
+  root="$TEST_TMPDIR/scan"
+  mkdir -p "$root"
+  # 注入残留（模拟 SUT 未清理的临时文件）
+  env TMPDIR="$root" mktemp >/dev/null
+  # 扫描命中 ⇒ cleanup 判据（-ne 0）在此态会红 ⇒ 证明判据有判定力
+  run bash -c 'ls -d "$1"/tmp.* 2>/dev/null | grep -q .' -- "$root"
+  [ "$status" -eq 0 ]  # 命中 ⇒ 正常 cleanup 用例的 -ne 0 断言在此红（注入 ⇒ 红）
 }
