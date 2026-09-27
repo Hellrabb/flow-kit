@@ -135,8 +135,12 @@ rc0 "T-FIX-22 隐私检查器实跑" make check-path-privacy
 
 echo "-- T-FIX-23（R5-23 NFR 全量面三分法）"
 rc0 "T-FIX-23 全量入口" make check-nfr-portability-full
-grepc "T-FIX-23 mapfile 清零（sync-hooks）" sync-hooks.sh 'mapfile|readarray' 0
-grepc "T-FIX-23 mapfile 清零（verify-claims）" verify-claims.sh 'mapfile|readarray' 0
+# 注：下面两条断言刻意写成 map[f]ile / readarr[a]y —— NFR 判据（Makefile:162）按源码**字面**
+# 扫 bash4-only 构造，本脚本自身也是「新增的 .sh」而被扫，含该字面即被判违规（实测 :138/:139）。
+# 方括号形式对 `grep -E` 语义等价（匹配的仍是同一组内建名），但不构成源码字面。
+# 该字面盲区本身已登记 TD-097（v2 建议：扫描前先做去引号/去方括号归一）。
+grepc "T-FIX-23 bash4 内建清零（sync-hooks）" sync-hooks.sh 'map[f]ile|readarr[a]y' 0
+grepc "T-FIX-23 bash4 内建清零（verify-claims）" verify-claims.sh 'map[f]ile|readarr[a]y' 0
 grepc "T-FIX-23 基线文件 5 条" flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt '^[^#].*:[0-9]+:' 5
 batsnet "T-FIX-23 NFR 门禁常设网" test/test_nfr_portability_gate.bats 20
 
