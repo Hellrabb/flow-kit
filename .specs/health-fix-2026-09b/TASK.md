@@ -2487,3 +2487,93 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>已完成（commit c177fbac8ffe8c24a989fa5d6bb9ac9574fb2fa3）。修复前 5 次 NFR 实测 real=11.070/10.864/10.775/10.846/10.860 s（均值 ~11.083 s = 预算 221.7%，sys 远高于 user 确认 git 进程启动开销）；修复后 5 次 real=3.722/3.562/3.489/3.664/3.581 s（均值 3.604 s = 预算 72.1%，sys 从 ~11.2 s 降至 ~2.4 s）。R3-1（非 ASCII 名 naïve-ünïcode.sh rc=1）/ R3-2（index-only 泄漏 rc=1 + 清单外命中≥1）/ R3-30（rev 模式，bats 套件覆盖）三判别式不回退；自证四数口径不变（候选 1600 / 实际扫描 1594 / index 侧 13 / 不可读 0）。隐私 bats 30 ok / 0 not-ok；全量 bats 1061 ok / 0 not-ok；make check 21 项全绿。详见 T-FIX-12-SUMMARY.md。</done>
   <depends_on>T-FIX-07</depends_on>
 </task>
+
+<task id="T-FIX-13" parallel="false" status="done" model-tier="top">
+  <name>阶段 4 复审 R4-M1 🟡（bundle 形态「检查器可用但 `path-privacy-allowlist.txt` 缺失」）—— ① 提示语误报为「未找到可用的路径隐私检查器」（与实际原因不符）；② 该形态下含泄漏的推送/提交 **rc=0 放行**（fail-open）⇒ 区分「检查器缺失」与「允许清单缺失」两态，后者改具名 fail-closed（指名缺失的允许清单路径），前者语义逐字不变；用户已裁决「本 change 内修」</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/MINOR-DEFERRED.md:1310`（R4-M1 原文：腿 E 实测该形态含泄漏推送 rc=0 放行 + 提示语不符）· `:1313`（建议处置：提交 4→5 收费门裁决 ⇒ 主 agent 已就地向用户请示并获裁决「本 change 内修」）>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh:22`（注释硬契约：三者皆不可得 ⇒ 打印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` 且不改 rc）· `:34-45 resolve_reference_dir()` · `:46-80 resolve_checker()`（`RESOLVED_KIND=make|bundle|none`；bundle 形态导出 `RESOLVED_ALLOWLIST`）· `:87-100 scan_rev()`（**缺陷点**：`bundle` + `[ -z "$RESOLVED_ALLOWLIST" ]` ⇒ 打印旧措辞 + `return 0` = 放行）· `:140-150`（`scan_rev` 返回非零时父层一律打印 `🔴 拒绝推送 <ref>：该 ref 含路径隐私泄漏（check-path-privacy 未通过）` ⇒ 若把「配置缺失」也走该返回值会造成**归因错位**）>
+    <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh:56-75`（**缺陷点**：`[ -n "$ref_dir" ] && [ -f "$ref_dir/check-path-privacy.sh" ]` 为真、但 `[ -f "$ref_dir/path-privacy-allowlist.txt" ]` 为假 ⇒ 落 `:70` 同一个旧措辞且 `exit 0`）>
+    <`test/test_archive_commit_gate.bats:208/:222`（既有静态断言：两个 hook 文件内**必须仍含** `未找到可用的路径隐私检查器` 字样 ⇒ 该措辞不得删除，只能保留给「检查器缺失」腿）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/hooks/pre-push/pre-push.sh`（仅 `scan_rev` 的 bundle 分支与其注释）>
+    <`flow-kit-bundle/hooks/pre-commit/pre-commit.sh`（仅允许清单缺失分支与其注释）>
+    <`test/test_archive_commit_gate.bats` + `flow-kit-bundle/test/test_archive_commit_gate.bats`（`make test-sync`；只允许**新增**用例，不得删改既有断言）>
+    <`.specs/STATE.md`（bats 基线计数行；仅当计数变化时）· `dist/`（重建）>
+    <`.specs/health-fix-2026-09b/TASK.md`（**仅限**本任务块的 `status="done"` 属性与 `<done>…</done>` 注记；其余一字不改）>
+  </write_files>
+  <action>
+    ① **三态区分，只对「配置缺失」fail-closed**：
+      - **检查器缺失**（pre-push `RESOLVED_KIND=none`；pre-commit 无 `ref_dir` 或其中无检查器）⇒ **保持现状**：打印 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描` 且 rc 不变（消费者兼容语义，审计已接受）。
+      - **检查器在、允许清单缺失** ⇒ 打印**区分性**报文并**非零退出**。报文必须**指名缺失的允许清单路径**（形如 `<ref_dir>/path-privacy-allowlist.txt`）且含 `fail-closed` 语义；**不得**复用「未找到可用的路径隐私检查器」措辞。
+        · pre-commit：`exit 1`（沿用既有「提交被拒绝」语义，报文形如 `🔴 [archive-commit-gate] 找到路径隐私检查器但缺少允许清单：<路径>（无法确定扫描基线 ⇒ fail-closed，提交被拒绝）`）。
+        · pre-push：**不得**走 `scan_rev` 的 `return 1`（父层会误报「该 ref 含路径隐私泄漏」）⇒ 用独立致命路径（例如解析阶段 `echo … >&2; exit 2`），报文写明「配置缺失」而非「泄漏」。
+      - **两者皆在** ⇒ 行为**逐字不变**：含泄漏 ⇒ rc≠0 且归因 `file:line`；干净 ⇒ rc=0。
+    ② **TDD 先红后绿**：先按现行代码贴出 R4-M1 形态实测（`pre-push rc=0` + 旧措辞；`pre-commit rc=0` + 旧措辞），再改至 fail-closed 并贴原文。夹具一律 `mktemp -d`：沙箱内 `hooks/`（拷 hook）+ `reference/`（按腿决定是否拷检查器/清单）+ `proj/`（`git init` 项目仓，Makefile **不**声明 `check-path-privacy` 目标）；探针串**拼接构造**（L-137，如 `P='/home/''zz-probe-e/leak.txt'`），**禁止在真仓落任何探针、禁止改 `.git/config`**。
+    ③ **反向控制（必须，缺一即判红）**：(a) 检查器缺失态仍 rc=0；(b) 两者皆在 + 干净对象 ⇒ rc=0；(c) 两者皆在 + 真泄漏（探针已 add/已提交）⇒ rc≠0 且报文指名 ref 与 `file:line`。
+    ④ **静态断言不得回退**：`test/test_archive_commit_gate.bats:208/:222` 的 `grep -q '未找到可用的路径隐私检查器'` 必须仍命中。
+    ⑤ **同步与打包（改 `flow-kit-bundle/hooks/**` 后的顺序硬契约）**：`make test-sync` → `./sync-hooks.sh`（6 处镜像）→ `package-dsh-plugin.sh` / `package-flow-kit.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check`（21 项）。
+    ⑥ **文档**：`TEST.md` / `PHASE5-RECEIPTS.md` / `MINOR-DEFERRED.md` 的复核记录由**主 agent** 写；执行者只在 `T-FIX-13-SUMMARY.md` 贴修复前后实测原文与判据清单。
+    **只读与写面纪律（L-161）**：开工与收工各贴一次 `git status --porcelain` 与 `git diff --cached --stat`；除 `<write_files>` 外不得写仓库内任何文件（含 `.git/config`、`.specs/health-fix-2026-09b/reproduce-5-test.sh` = 主 agent 写面）；夹具只允许写在 `/tmp`。本仓 `core.hooksPath` 为空 ⇒ 不得声称「提交时钩子已校验」，收尾一律**手工**跑门禁。
+    提交：`git add <路径…>` + `git commit -m "fix(health-fix-2026-09b): T-FIX-13 bundle 形态允许清单缺失改为具名 fail-closed（R4-M1）" -- <路径…>`（`-m` 必须在 `--` 之前）；提交后写 `T-FIX-13-SUMMARY.md`、勾本块 `status="done"` + `<done>…</done>`、追加 `task_progress` 五字段（`completed_at` 必须在提交之后且 Δ ≤ 120 s）。
+    **判据修订留痕（主 agent · 2026-09-27 · 执行者与主 agent 各自独立发现）**：本块 `<verify>` 初版夹具**从未把 `path-privacy-allowlist.txt` 放进 `$SBX/reference/`**（只 `cp` 检查器）⇒ 被标注为「两者皆在」的 L4/L5 实际仍在**缺陷态**运行，于是 L2d（缺陷态**不得**出现「含路径隐私泄漏」）与 L5（同态同输入**必须**出现该串）构成**互斥断言** ⇒ 任何正确修复都无法同时满足（执行者 `3add4b81` 在判据校验阶段按硬规则停下原样上报；主 agent 独立复核一致；同族 = TD-073 / TD-065「判据夹具与语义脱节」，已登记 **TD-081**）。**修订**：L3 之后新增 **L3d**（把 fixture allowlist 写进 `$SBX/reference/` 并断言就位）将夹具切到真正的「两者皆在」态；新增 **L4c**（两者皆在 + 真泄漏 ⇒ pre-commit rc≠0）作为 pre-commit 的反向控制；L2a–L2g 与 L3a–L3c、L6a–L6c 的语义与断言**一字未改**（判据不放宽：缺陷态的具名 fail-closed 仍由 L2a–L2g 承担）。
+  </action>
+  <verify>
+    set -u; rc=0; R=$(pwd);
+    PP="$R/flow-kit-bundle/hooks/pre-push/pre-push.sh"; PC="$R/flow-kit-bundle/hooks/pre-commit/pre-commit.sh";
+    bash -n "$PP" || { echo "🔴 L0a pre-push 语法错误"; rc=1; };
+    bash -n "$PC" || { echo "🔴 L0b pre-commit 语法错误"; rc=1; };
+    P='/home/''zz-probe-e/leak.txt';
+    SBX=$(mktemp -d); mkdir -p "$SBX/hooks" "$SBX/reference" "$SBX/proj";
+    cp "$PP" "$SBX/hooks/pre-push.sh"; cp "$PC" "$SBX/hooks/pre-commit.sh";
+    cp "$R/flow-kit-bundle/flow-kit/reference/check-path-privacy.sh" "$SBX/reference/";
+    ( cd "$SBX/proj" || exit 9; git init -q . >/dev/null 2>&1; printf 'test:\n\t@true\n' > Makefile; git add Makefile; git -c user.email=a@b.c -c user.name=t commit -q -m clean; ) || { echo "🔴 L1 夹具建仓失败"; rc=1; };
+    CLEAN=$( cd "$SBX/proj" && git rev-parse HEAD );
+    ( cd "$SBX/proj" && printf 'leak: %s\n' "$P" > leak.txt && git add leak.txt && git -c user.email=a@b.c -c user.name=t commit -q -m leak ) || { echo "🔴 L1 夹具泄漏提交失败"; rc=1; };
+    LSHA=$( cd "$SBX/proj" && git rev-parse HEAD );
+    pp() { ( cd "$SBX/proj" && printf 'refs/heads/main %s refs/heads/main %s\n' "$1" 0000000000000000000000000000000000000000 | bash "$SBX/hooks/pre-push.sh" 2>&1 ); };
+    pc() { ( cd "$SBX/proj" && bash "$SBX/hooks/pre-commit.sh" 2>&1 ); };
+    # L2：缺陷态（检查器在、清单缺）—— 必须 rc≠0 且具名、不得复用旧措辞、不得错报泄漏
+    o=$(pp "$LSHA"); r=$?;
+    printf '   （L2 pre-push rc=%s）%s\n' "$r" "$o";
+    [ "$r" -ne 0 ] || { echo "🔴 L2a 允许清单缺失时 pre-push 仍 rc=0（fail-open 未修）"; rc=1; };
+    case "$o" in *path-privacy-allowlist.txt*) : ;; *) echo "🔴 L2b 报文未指名缺失的允许清单路径"; rc=1 ;; esac;
+    case "$o" in *未找到可用的路径隐私检查器*) echo "🔴 L2c 报文复用了「检查器缺失」措辞（原因不符）"; rc=1 ;; *) : ;; esac;
+    case "$o" in *含路径隐私泄漏*) echo "🔴 L2d 配置缺失被错报成泄漏（归因错位）"; rc=1 ;; *) : ;; esac;
+    o2=$(pc); r2=$?;
+    printf '   （L2 pre-commit rc=%s）%s\n' "$r2" "$o2";
+    [ "$r2" -ne 0 ] || { echo "🔴 L2e 允许清单缺失时 pre-commit 仍 rc=0"; rc=1; };
+    case "$o2" in *path-privacy-allowlist.txt*) : ;; *) echo "🔴 L2f pre-commit 报文未指名允许清单路径"; rc=1 ;; esac;
+    case "$o2" in *未找到可用的路径隐私检查器*) echo "🔴 L2g pre-commit 报文复用旧措辞"; rc=1 ;; *) : ;; esac;
+    # L3：反向控制（a）检查器缺失态保持 rc=0 + 旧措辞（此态下允许清单亦缺）
+    mv "$SBX/reference/check-path-privacy.sh" "$SBX/reference/.hidden-checker";
+    o3=$(pp "$LSHA"); r3=$?; o4=$(pc); r4=$?;
+    [ "$r3" -eq 0 ] || { echo "🔴 L3a 检查器缺失态 pre-push rc=$r3（应为 0，消费者兼容语义被破坏）"; rc=1; };
+    case "$o3" in *未找到可用的路径隐私检查器*) : ;; *) echo "🔴 L3b 检查器缺失态报文丢失既有措辞"; rc=1 ;; esac;
+    [ "$r4" -eq 0 ] || { echo "🔴 L3c 检查器缺失态 pre-commit rc=$r4（应为 0）"; rc=1; };
+    mv "$SBX/reference/.hidden-checker" "$SBX/reference/check-path-privacy.sh";
+    # L3d：夹具切到真正的「两者皆在」态 —— 检查器 + 允许清单都在位（fixture allowlist：无条目 ⇒ 任何真名形态均判清单外）
+    printf '# fixture allowlist（无条目）\n' > "$SBX/reference/path-privacy-allowlist.txt";
+    [ -f "$SBX/reference/path-privacy-allowlist.txt" ] || { echo "🔴 L3d 允许清单夹具未就位（L4/L4c/L5 会在缺陷态空跑 ⇒ 与 L2d 互斥）"; rc=1; };
+    # L4：反向控制（b）两者皆在 + 干净 ⇒ rc=0
+    o5=$(pp "$CLEAN"); r5=$?;
+    [ "$r5" -eq 0 ] || { echo "🔴 L4 干净对象 rc=$r5（反向控制失败：${o5}）"; rc=1; };
+    # L4c：反向控制（b2）两者皆在 + 真泄漏 ⇒ pre-commit rc≠0（不得退化成「一律放行」或「一律拒绝」）
+    o7=$(pc); r7=$?;
+    [ "$r7" -ne 0 ] || { echo "🔴 L4c 两者皆在时 pre-commit 对泄漏对象仍 rc=0（漏检）"; rc=1; };
+    # L5：反向控制（c）两者皆在 + 真泄漏 ⇒ rc≠0 且归因（此处才允许出现「含路径隐私泄漏」）
+    o6=$(pp "$LSHA"); r6=$?;
+    case "$o6" in *含路径隐私泄漏*) : ;; *) echo "🔴 L5 泄漏对象未按路径隐私泄漏归因（rc=$r6）"; rc=1 ;; esac;
+    [ "$r6" -ne 0 ] || { echo "🔴 L5 泄漏对象 rc=0"; rc=1; };
+    # L6：既有静态断言 + 套件
+    grep -q '未找到可用的路径隐私检查器' "$PP" || { echo "🔴 L6a pre-push 丢失既有措辞（bats:208 静态断言）"; rc=1; };
+    grep -q '未找到可用的路径隐私检查器' "$PC" || { echo "🔴 L6b pre-commit 丢失既有措辞（bats:222）"; rc=1; };
+    npx bats test/test_archive_commit_gate.bats >/dev/null 2>&1 || { echo "🔴 L6c test_archive_commit_gate.bats 未全绿"; rc=1; };
+    rm -rf "$SBX";
+    echo "T-FIX-13 verify rc=$rc";
+    exit "$rc"
+  </verify>
+  <done>已完成（commit ee0df5c0e4cc3f631edce85a436a667acb0a14ac）。三态区分：① 检查器缺失（RESOLVED_KIND=none / pre-commit 无 ref_dir 或其中无检查器）⇒ 保持 rc=0 + 原措辞 `ℹ️ 未找到可用的路径隐私检查器：跳过内容扫描`（消费者兼容语义，bats:208/:222 静态断言仍命中）；② 检查器在 + path-privacy-allowlist.txt 缺失 ⇒ 具名 fail-closed：pre-push 用独立致命路径 `echo … >&2; exit 2`（不走 scan_rev return 1，避免父层 :150 错位归因为「含路径隐私泄漏」），pre-commit 用 `exit 1`（沿用既有「提交被拒绝」语义），报文均指名缺失的允许清单路径 + fail-closed 语义，不复用①措辞、不含泄漏归因；③ 两者皆在 ⇒ 行为逐字不变。verify 复跑 rc=0（L0a/L0b 语法 OK；L2 检查器在+清单缺：pre-push rc=2 + pre-commit rc=1 均具名 fail-closed，L2a-L2g 全绿；L3 检查器缺失态 rc=0 + 旧措辞，L3a-L3c 全绿；L3d 夹具切「两者皆在」态；L4 干净 rc=0 / L4c pre-commit 泄漏 rc≠0 / L5 泄漏 rc≠0+归因「含路径隐私泄漏」，L4/L4c/L5 全绿；L6 静态断言+bats 套件全绿）。先红基线 rc=1（6 条红腿 L2a/b/c/e/f/g，与主 agent 公布一致）。反向控制三条全绿：(a) 检查器缺失 rc=0；(b) 两者皆在+干净 rc=0；(c) 两者皆在+真泄漏 rc≠0+归因。bats 42→45（+3：pre-push 状态②具名 fail-closed·exit 2·指名允许清单 / pre-push 状态②报文不复用①措辞·归因区分 / pre-commit 状态②具名 fail-closed exit 1·指名允许清单），全量 bats 1064 ok / 0 not-ok（T-FIX-11 基线 1061 + 3）；make check 21 项全绿；check-hooks-sync（6 镜像 12 文件漂移 0）/ check-test-sync / check-dist 全绿。判据夹具缺陷 TD-081（verify L2d 与 L5 对同态同输入互斥）由主 agent 修订（L3d 切「两者皆在」态 + L4c 新增 pre-commit 反向控制），本执行者未自行放宽判据。详见 T-FIX-13-SUMMARY.md。</done>
+  <depends_on>T-FIX-08</depends_on>
+</task>
