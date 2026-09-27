@@ -506,6 +506,14 @@ EOF
 # 同一 file:line:content 在 index∪磁盘并集时只记一次（去重）。
 record_hit() {
   local path="$1" line="$2" content="$3"
+  # T-FIX-17（R5-15 fix 副作用收敛 · 2026-09-28）：磁盘侧 `-e`/`--` 保护修复后，
+  # index 侧（git grep --null content 段尾随 \n）与磁盘侧（命令替换剥尾随 \n）
+  # 同一 file:line 的 content 字面不再一致 ⇒ R3-2 去重失效 ⇒ 重复命中。fix：
+  # 在去重与写入前统一剥 content 尾随单个 \n（git grep --null 格式带来的尾随），
+  # 使两侧 content 归一化；归因报文仍打印真实命中行内容（不含尾随 \n 也不影响可读）。
+  case "$content" in
+    *$'\n') content="${content%$'\n'}" ;;
+  esac
   # F3：line 字段必须匹配 ^[0-9]+$，否则按不可归因命中单列并 fail-closed
   case "$line" in
     ''|*[!0-9]*)
@@ -519,7 +527,11 @@ record_hit() {
   fi
   # R3-2 去重：index 侧与磁盘侧同一 file:line:content 只记一次。
   # 用临时去重表（已记 key 集合）。为避免重复扫，先查 grep -qxF。
-  if ! grep -qxF "${path}:${line}$(printf '\t')${content}" "$TMP_HITS_DEDUP" 2>/dev/null; then
+  # T-FIX-17（R5-15 fix 副作用收敛 · 2026-09-28）：key 形如 `${path}:${line}\t${content}`，
+  # 当 path 形似 grep 选项（如 `-q`）时 `grep -qxF "$key"` 的 $key 被当作选项吞 ⇒
+  # 去重查找静默失败 ⇒ 重复命中。fix：加 `-e` 显式绑定 key 为模式 + `--` 终止选项，
+  # 与磁盘侧 :633 同口径保护。
+  if ! grep -qxF -e "${path}:${line}$(printf '\t')${content}" -- "$TMP_HITS_DEDUP" 2>/dev/null; then
     printf '%s\t%s\n' "${path}:${line}" "$content" >> "$TMP_HITS_DEDUP"
     printf '%s\0%s\0%s\0' "$path" "$line" "$content" >> "$TMP_HITS"
   fi
@@ -568,7 +580,10 @@ parse_grep_null_filtered() {
     is_self_exclude "$path" && continue
     record_hit "$path" "$line" "$content"
     # INDEX_SIDE_COUNT = 非自排除唯一命中路径数（首次见到该路径才 +1）
-    if ! grep -qxF "$path" "$TMP_INDEX_SEEN" 2>/dev/null; then
+    # T-FIX-17（R5-15 fix 副作用收敛 · 2026-09-28）：path 形似 grep 选项时
+    # `grep -qxF "$path"` 被吞 ⇒ 路径永判「未见」⇒ INDEX_SIDE_COUNT 虚增。
+    # fix：加 `-e` 绑定 + `--` 终止（与去重表同口径）。
+    if ! grep -qxF -e "$path" -- "$TMP_INDEX_SEEN" 2>/dev/null; then
       printf '%s\n' "$path" >> "$TMP_INDEX_SEEN"
       INDEX_SIDE_COUNT=$((INDEX_SIDE_COUNT + 1))
     fi
@@ -601,18 +616,45 @@ scan_file() {
     # 含 : 的文件名不会被裸 : 切坏（R3-7），引号化路径不再被当 pathspec 字面量（R3-30）。
     # F3：统一 -a（把二进制当文本匹配 + 按行归因）。
     # F1：git grep rc≠0 且有 stderr ⇒ fail-closed；rc=1（无匹配）⇒ 静默跳过。
+    #
+    # T-FIX-17（R5-16 fix · 2026-09-28）：rev 模式内容面已批量化（进入候选循环
+    # **之前**做一次不带 pathspec 的 `git grep -naE --null "$PAT" "$RESOLVED_REV"`，
+    # 由 parse_grep_null_filtered 统一 record_hit + 计 INDEX_SIDE_COUNT）。本分支
+    # **不再**每候选起 git 进程（旧 :606 的逐候选调用 ⇒ 真仓 7.084–7.509 s 超预算）。
+    # 成功读取 ⇒ 计入 SCANNED_COUNT（R3-31：先增后扫改为成功读取后才计数）。
+    # 命中此时已在 TMP_HITS（批量预扫描 record_hit，保留 R3-2 去重）。
+    #
+    # 兜底（异常候选）：批量 `git grep "$RESOLVED_REV"` 覆盖不到 gitlink / 子模块
+    # 候选（mode 160000 无 blob ⇒ 不会命中，也不会报错）。对这类候选保留逐候选
+    # `git grep … -- "$file"` 兜底：若 rc≥2 ⇒ fail-closed；若 rc=0/1 ⇒ 该候选无
+    # blob 内容可扫（gitlink 指向 commit），按「真正不可读」计数 UNREADABLE_COUNT
+    # （fail-closed 语义不放松）。真仓常态下兜底不触发（候选均为 blob）。
+    local idx_type
+    idx_type=$(git cat-file -t "$RESOLVED_REV:${file}" 2>/dev/null || printf '')
+    if [ "$idx_type" = blob ]; then
+      # 正常候选：内容面由批量预扫描覆盖；此处仅计数。
+      SCANNED_COUNT=$((SCANNED_COUNT + 1))
+      return 0
+    fi
+    # 异常候选（gitlink / 子模块 / 非 blob / 探测失败）：逐候选兜底。
     local ggrc
     : > "$TMP_GREP_RAW"
     git grep -naE --null "$PAT" "$RESOLVED_REV" -- "$file" > "$TMP_GREP_RAW" 2>/dev/null
     ggrc=$?
     if [ "$ggrc" -ge 2 ]; then
       echo "🔴 无法完成扫描：git grep 失败（rev=${RESOLVED_REV} file=${file}）" >&2
-      echo "   位置: check-path-privacy.sh:git-grep" >&2
+      echo "   位置: check-path-privacy.sh:git-grev-fallback" >&2
       exit 1
     fi
-    # R3-31：成功读取 ⇒ 计入 SCANNED_COUNT（先增后扫改为成功读取后才计数）。
+    # gitlink 候选：批量不命中、逐候选也不命中（无 blob）⇒ 不可读 fail-closed。
+    if [ ! -s "$TMP_GREP_RAW" ]; then
+      UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
+      UNREADABLE_DETAILS="${UNREADABLE_DETAILS}${file}
+"
+      SCANNED_COUNT=$((SCANNED_COUNT + 1))
+      return 0
+    fi
     SCANNED_COUNT=$((SCANNED_COUNT + 1))
-    [ ! -s "$TMP_GREP_RAW" ] && return 0
     parse_grep_null "$TMP_GREP_RAW" "$RESOLVED_REV"
   else
     # 工作树模式：R3-2 fix —— 内容面 = index ∪ 磁盘并集（去重）。
@@ -630,7 +672,14 @@ scan_file() {
     # 磁盘侧
     raw_disk=''
     if [ -f "$file" ]; then
-      raw_disk=$(grep -naE "$PAT" "$file" 2>/dev/null)
+      # T-FIX-17（R5-15 fix · 2026-09-28）：磁盘侧 grep 加选项终止保护 ——
+      # 模式用 `-e "$PAT"` 显式绑定（避免 $PAT 形似选项时被吞），文件名前用 `--`
+      # 终止选项解析（避免形似 `-q`/`-v` 的候选名被当作 grep 选项 ⇒ grep 转读
+      # stdin 即候选流 ⇒ 该候选真实内容从未被扫却 rc=0 静默放行 + 候选流被消费
+      # ⇒ 扫描面塌缩）。正确形式 = `grep -naE -e "$PAT" -- "$file"`；不得写成
+      # `grep -naE -- "$PAT" -- "$file"`——第一个 `--` 结束选项解析后 $PAT 成为
+      # pattern，第二个 `--` 会被 grep 当成文件名（TASK.md step 2 订正）。
+      raw_disk=$(grep -naE -e "$PAT" -- "$file" 2>/dev/null)
       grc_disk=$?
       if [ "$grc_disk" -ge 2 ]; then
         echo "🔴 无法完成扫描：grep 检索失败（file=${file}）" >&2
@@ -763,15 +812,81 @@ if [ -z "$RESOLVED_REV" ]; then
   fi
 fi
 
+# ----------------------------------------------------------------------------
+# T-FIX-17（R5-16 fix · 2026-09-28）：rev 模式内容面批量化
+# ----------------------------------------------------------------------------
+# 旧实现（scan_file rev 分支 :606）每候选一次 `git grep -naE --null "$PAT"
+# "$RESOLVED_REV" -- "$file"` ⇒ 真仓 1594 次 git 进程启动，单次 7.084–7.509 s
+# （超 NFR ≤5 s 预算；工作树形态 3.6–3.8 s，未超）。
+#
+# fix：进入候选循环**之前**做一次不带 pathspec 的批量
+# `git grep -naE --null "$PAT" "$RESOLVED_REV"`（全 rev 树一次扫完），落
+# TMP_REV_CACHE_RAW，由 parse_grep_null_filtered 解析（复用 index 侧口径：
+# 自排除路径跳过 + TMP_INDEX_SEEN 去重 + INDEX_SIDE_COUNT 计数）⇒ scan_file
+# rev 分支不再每候选起 git 进程。
+#
+# 语义不变（违反即判红）：rev 模式清单外命中仍归因 file:line:content 并 rc=1；
+# R3-30（rev 模式同样判红）不回退；自证四数口径不变。
+# fail-closed 不放松：批量 git grep rc≥2 ⇒ 🔴 无法完成扫描 + exit 1
+# （与 index 侧批量预扫描 :710-713 同口径）；rc=1（无匹配）⇒ 空文件 ⇒
+# parse_grep_null_filtered 不记命中（语义同旧）。
+#
+# 兜底（异常候选）：批量路径覆盖不到的 gitlink / 子模块 / 不可读候选保留
+# 逐候选兜底（见 scan_file rev 分支 :606 保留，仅当批量预扫描未覆盖该候选时
+# 才起 git 进程 —— 真仓常态下兜底不触发，详见 SUMMARY）。
+if [ -n "$RESOLVED_REV" ]; then
+  : > "$TMP_INDEX_CACHE_RAW"
+  : > "$TMP_INDEX_SEEN"
+  git grep -naE --null "$PAT" "$RESOLVED_REV" > "$TMP_INDEX_CACHE_RAW" 2>/dev/null
+  grc_rev=$?
+  if [ "$grc_rev" -ge 2 ]; then
+    echo "🔴 无法完成扫描：git grep 失败（批量 rev 侧预扫描 rev=${RESOLVED_REV}）" >&2
+    echo "   位置: check-path-privacy.sh:grep-rev-batch" >&2
+    exit 1
+  fi
+  if [ -s "$TMP_INDEX_CACHE_RAW" ]; then
+    parse_grep_null_filtered "$TMP_INDEX_CACHE_RAW" "$RESOLVED_REV"
+  fi
+fi
+
 # 逐候选文件扫描（跳过自排除清单）
 # F19：在自排除判定之后、scan_file 之前递增 SCANNED_COUNT，以记录实际扫描次数。
 # R3-1/R3-30 fix：read -r -d '' 逐条取 NUL 分隔路径（git ls-files -z / ls-tree -z）。
 # R3-31 fix：SCANNED_COUNT 改在 scan_file 内部成功读取后才计数（此处不再预增）。
-while IFS= read -r -d '' f; do
+#
+# T-FIX-17（R5-15 fix · 2026-09-28）：候选循环改从**独立 FD 3** 读 `$TMP_CANDIDATES`
+# （`while … read … <&3; do … done 3< "$TMP_CANDIDATES"`），使 scan_file 内任何
+# 子进程（grep / git grep / git cat-file）即使吞掉 stdin（FD 0）也不可能消费候选流
+# ⇒ 扫描面不塌缩。这是磁盘侧 `-e`/`--` 选项终止保护之外的结构性防线（仅做选项终止
+# 不算闭环：grep 仍可能因其它畸形候选名误读 stdin）。
+# 同步新增 SKIPPED_COUNT（自排除命中的候选显式计数），循环后断言
+# CANDIDATE_COUNT == SCANNED_COUNT + SKIPPED_COUNT（+ UNREADABLE_COUNT 容差：
+# 不可读候选在 scan_file 内仍计 SCANNED_COUNT 后才递增 UNREADABLE，故不进入差值；
+# 此处仅校验「自排除」这条解释链，不可读已在下方独立 fail-closed 分支拦截）。
+SKIPPED_COUNT=0
+while IFS= read -r -d '' f <&3; do
   [ -z "$f" ] && continue
-  is_self_exclude "$f" && continue
+  is_self_exclude "$f" && { SKIPPED_COUNT=$((SKIPPED_COUNT + 1)); continue; }
   scan_file "$f"
-done < "$TMP_CANDIDATES"
+done 3< "$TMP_CANDIDATES"
+
+# T-FIX-17（R5-15 自证一致性断言）：候选数 == 实际扫描 + 自排除。
+# 不等 ⇒ 扫描面塌缩（候选流被子进程消费或循环被中断）⇒ 具名 🔴 + exit 1（fail-closed）。
+# 不可读候选（UNREADABLE_COUNT）在 scan_file 内成功读取后才递增，仍计入 SCANNED_COUNT，
+# 故不进入此差值校验（它有独立 fail-closed 分支）。此断言是「选项终止 + 独立 FD」
+# 双管修复后的回归网：若未来任一防线被改坏，此断言转红。
+if [ "$CANDIDATE_COUNT" -ne $((SCANNED_COUNT + SKIPPED_COUNT)) ]; then
+  echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
+  echo "   扫描面: ${SCAN_SURFACE}"
+  echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
+  echo "   允许清单 ${ALLOWLIST_COUNT} 条"
+  echo "   候选文件 ${CANDIDATE_COUNT} 个"
+  echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "   自排除 ${SKIPPED_COUNT} 个"
+  echo "   不可读候选 ${UNREADABLE_COUNT} 个"
+  echo "🔴 扫描面塌缩：候选 ${CANDIDATE_COUNT} ≠ 实际扫描 ${SCANNED_COUNT} + 自排除 ${SKIPPED_COUNT}（候选流可能被子进程消费 · R5-15 fail-closed）"
+  exit 1
+fi
 
 # F19（阶段 6 深审）：0 实际扫描 ≠ 干净 —— 候选面经自排除后为空（N>0 但 M=0）
 # 时不得打印「清单外命中 0 条」/「✅」+ rc=0（假绿），须 fail-closed。
@@ -784,6 +899,7 @@ if [ "$SCANNED_COUNT" -eq 0 ] && [ "$CANDIDATE_COUNT" -gt 0 ]; then
   echo "   允许清单 ${ALLOWLIST_COUNT} 条"
   echo "   候选文件 ${CANDIDATE_COUNT} 个"
   echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "   自排除 ${SKIPPED_COUNT} 个"
   echo "   不可读候选 ${UNREADABLE_COUNT} 个"
   echo "🔴 候选面经自排除后为空，无法判定（0 实际扫描 ≠ 干净 · ADR-027 ②③ fail-closed）"
   exit 1
@@ -798,6 +914,7 @@ if [ "$UNREADABLE_COUNT" -gt 0 ]; then
   echo "   允许清单 ${ALLOWLIST_COUNT} 条"
   echo "   候选文件 ${CANDIDATE_COUNT} 个"
   echo "   实际扫描 ${SCANNED_COUNT} 个"
+  echo "   自排除 ${SKIPPED_COUNT} 个"
   echo "   不可读候选 ${UNREADABLE_COUNT} 个"
   echo "🔴 不可读候选 ${UNREADABLE_COUNT} 个（缺失/不可读 ⇒ fail-closed，不得折算为干净）"
   printf '%s' "$UNREADABLE_DETAILS" | sed 's/^/   /'
@@ -844,7 +961,10 @@ fi
 count_in_allowlist() {
   local key="$1"
   # 精确匹配 file:line
-  grep -qxF "$key" "$TMP_ALLOWLIST_KEYS" 2>/dev/null && return 0
+  # T-FIX-17（R5-15 fix 副作用收敛 · 2026-09-28）：key 形如 `${file}:${line}`，
+  # file 形似 grep 选项时 `grep -qxF "$key"` 被吞 ⇒ 清单内查询失败 ⇒ 假红。
+  # fix：加 `-e` 绑定 + `--` 终止（与去重表 / 磁盘侧同口径）。
+  grep -qxF -e "$key" -- "$TMP_ALLOWLIST_KEYS" 2>/dev/null && return 0
   return 1
 }
 
@@ -886,12 +1006,16 @@ done < "$TMP_HITS"
 # F19：自证含两个计数 —— 「候选文件 N 个」（枚举 · 自排除前）与「实际扫描 M 个」
 # （scan_file 真实调用次数 · 自排除后）。两者差值 = 自排除命中的候选数；
 # M=0 且 N>0 时由上方 fail-closed 分支拦截（不得走到此处）。
+# T-FIX-17（R5-15 · 2026-09-28）：自证行新增「自排除 S 个」（SKIPPED_COUNT），
+# 使候选 N = 实际扫描 M + 自排除 S 在自证行内可读（一致性断言的具名证据）。
+# 五数口径：候选 N / 实际扫描 M / 自排除 S / index 侧 I / 不可读 U。
 echo "🔍 check-path-privacy: 扫描本机绝对路径前缀泄漏（PAT=${PAT}）"
 echo "   扫描面: ${SCAN_SURFACE}"
 echo "   允许清单来源: ${ALLOWLIST_SOURCE}"
 echo "   允许清单 ${ALLOWLIST_COUNT} 条"
 echo "   候选文件 ${CANDIDATE_COUNT} 个"
 echo "   实际扫描 ${SCANNED_COUNT} 个"
+echo "   自排除 ${SKIPPED_COUNT} 个"
 echo "   index 侧 ${INDEX_SIDE_COUNT} 条"
 echo "   不可读候选 ${UNREADABLE_COUNT} 个"
 echo "   命中合计 ${HITS_TOTAL} 条（含占位符排除后）"

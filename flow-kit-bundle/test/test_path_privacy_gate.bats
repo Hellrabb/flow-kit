@@ -497,3 +497,143 @@ run_sut_override() {
   run --separate-stderr run_sut_override "$override"
   [ "$status" -ne 0 ]
 }
+
+# ============================================================================
+# T-FIX-17（R5-15 🟡 · R5-16 🟡）：磁盘侧检索隔离候选路径 + rev 面批量化
+# 候选名形似 grep 选项（-q / -v）必须真扫不塌缩；扫描面计数自证；rev 计时；
+# 反向控制（摘掉 -e/-- 保护 ⇒ 腿① 转红）。
+# 探针拼接构造（L-137）；夹具 mktemp 隔离。
+# ============================================================================
+
+# 前提断言辅助（TD-088 同族教训：只 grep 报文不算，必须断言 $status + 前提状态）。
+# 在夹具仓内 `git add -- ./-q`（文件名以 - 开头），git ls-files -z 仍会输出它。
+
+@test "T-FIX-17①：候选名 -q 且 index + 工作树各一处泄漏 ⇒ rc=1 且两处均被归因（fail-open 修复）" {
+  # 前提：候选含名为 -q 的文件，且其内容含真泄漏探针（index 与工作树同内容）。
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/-q"
+  mkfile "zz_control.txt" "泄漏点: ${PROBE}secret.txt\n"
+  # git add -- ./-q：文件名以 - 开头时必须用 -- 终止
+  git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
+
+  # 前提断言：候选含 -q 且其内容含探针
+  git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
+  [ "$(git -C "$FIXTURE" show :'-q')" = "泄漏点: ${PROBE}secret.txt" ]
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 1 ]
+  # -q 的泄漏必须被归因（fail-open 修复：旧实现静默放行 -q）
+  [[ "$output" == *"-q:1"* ]]
+  # zz_control 的泄漏也必须被归因（扫描面不塌缩）
+  [[ "$output" == *"zz_control.txt:1"* ]]
+  # 扫描面未塌缩：实际扫描 ≥ 2（-q + zz_control，自排除 SUT/allowlist 不计）
+  local scanned
+  scanned=$(printf '%s\n' "$output" | grep -oE '实际扫描[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  [ "${scanned:-0}" -ge 2 ]
+}
+
+@test "T-FIX-17②：候选名 -q 干净 + 其他候选含磁盘侧泄漏 ⇒ 泄漏仍被检出（扫描面不塌缩）+ 自证 实际扫描 == 候选 - 不可读" {
+  # 关键：-q 内容干净（无泄漏），zz_control 含泄漏且只在磁盘（index 干净）。
+  # 旧实现：-q 被当 grep 选项吞 stdin ⇒ zz_control 从未被读 ⇒ 扫描面塌缩 + rc=0 假绿。
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  printf 'clean line no probe\n' > "$FIXTURE/-q"
+  mkfile "zz_control.txt" "clean control\n"
+  git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
+  git -C "$FIXTURE" commit -qm base
+  # 磁盘侧改 zz_control 加泄漏（不 add ⇒ index 仍干净，只有磁盘侧有泄漏）
+  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
+
+  # 前提断言：候选含 -q（干净）；zz_control 磁盘含探针但 index 不含
+  git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
+  [ "$(git -C "$FIXTURE" show :'-q')" = "clean line no probe" ]
+  [ "$(git -C "$FIXTURE" show :'zz_control.txt')" = "clean control" ]
+  grep -qFe "${PROBE}" "$FIXTURE/zz_control.txt"
+
+  local override="$FIXTURE/empty-allowlist.txt"
+  printf '# 空覆盖清单\n' > "$override"
+
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -eq 1 ]
+  # zz_control 磁盘侧泄漏必须被检出（扫描面不塌缩）
+  [[ "$output" == *"zz_control.txt:1"* ]]
+  # 自证一致性：实际扫描 == 候选 - 自排除（不可读应为 0）
+  local scanned cand skipped unread
+  scanned=$(printf '%s\n' "$output" | grep -oE '实际扫描[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  cand=$(printf '%s\n' "$output" | grep -oE '候选文件[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  skipped=$(printf '%s\n' "$output" | grep -oE '自排除[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  unread=$(printf '%s\n' "$output" | grep -oE '不可读候选[^0-9]*[0-9]+' | grep -oE '[0-9]+' | head -1)
+  [ "${unread:-0}" -eq 0 ]
+  [ "$((scanned + skipped))" -eq "${cand}" ]
+}
+
+@test "T-FIX-17③：rev 形态计时 5 次 CHECK_REV=HEAD 实测均 ≤5 s（R5-16 批量化回到预算内）" {
+  # 最小夹具仓：3 个候选（SUT + allowlist + 一个含探针的 blob），避免受本仓规模影响。
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}secret.txt\n"
+  stage "$ALLOW_REL" "probe.txt"
+  git -C "$FIXTURE" commit -qm base
+  local head
+  head="$(git -C "$FIXTURE" rev-parse HEAD)"
+
+  # warm-up 1 次（不在计时内）
+  ( cd "$FIXTURE" && CHECK_REV="$head" bash "$SUT_REL" >/dev/null 2>&1 ) || true
+
+  local t max=0 sum=0 i
+  for i in 1 2 3 4 5; do
+    # bash builtin time 输出 `real\t0m0.0123s`（含 m 前缀与 s 后缀）；awk 取第 2 字段
+    # 并剥 `m`/`s` 后转秒。兼容 BSD time 与 GNU time。
+    t=$( { time ( cd "$FIXTURE" && CHECK_REV="$head" bash "$SUT_REL" >/dev/null 2>&1 ) ; } 2>&1 \
+        | awk '/^real/ {v=$2; sub(/^0m/,"",v); sub(/m.*/,"",v); sub(/s$/,"",v); print v}' )
+    [ -n "$t" ] || t=99
+    sum=$(awk "BEGIN{print $sum + $t}")
+    max=$(awk "BEGIN{print ($t > $max) ? $t : $max}")
+    # 每次必须 ≤ 5.000 s（判据 ③）
+    awk "BEGIN{exit !($t <= 5.000)}"
+    [ $? -eq 0 ] || { echo "# iter $i: ${t}s > 5.000s (FAIL)" >&3; return 1; }
+  done
+  local mean pct
+  mean=$(awk "BEGIN{print $sum / 5}")
+  pct=$(awk "BEGIN{printf \"%.1f\", $max / 5.0 * 100}")
+  echo "# T-FIX-17③ rev 计时: max=${max}s mean=${mean}s 预算5.000s max=${pct}% (5/5 ≤ 5.000s ✅)" >&3
+}
+
+@test "T-FIX-17④：反向控制——摘掉磁盘侧 -e/-- 保护 + 还原候选循环共用 stdin ⇒ 腿①必须转红（还原后转回 ok）" {
+  # 本例验证「-e/-- 保护 + 独立 FD」是 fail-closed 的必要条件：临时同时摘掉两道防线
+  # ⇒ 扫描面塌缩重现（-q 被 grep 吞 stdin ⇒ zz_control 漏报 ⇒ rc=0 假绿）。
+  # 与 T-FIX-17② 同夹具（-q 干净 + zz_control 磁盘侧泄漏），SUT 被临时篡改。
+  mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
+  printf 'clean line no probe\n' > "$FIXTURE/-q"
+  mkfile "zz_control.txt" "clean control\n"
+  git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
+  git -C "$FIXTURE" commit -qm base
+  # 磁盘侧改 zz_control 加泄漏（不 add ⇒ index 仍干净，只有磁盘侧有泄漏）
+  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
+
+  # 前提断言：候选含 -q（干净）；zz_control 磁盘含探针但 index 不含
+  git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
+  [ "$(git -C "$FIXTURE" show :'-q')" = "clean line no probe" ]
+  [ "$(git -C "$FIXTURE" show :'zz_control.txt')" = "clean control" ]
+  grep -qFe "${PROBE}" "$FIXTURE/zz_control.txt"
+
+  local override="$FIXTURE/empty-allowlist.txt"
+  printf '# 空覆盖清单\n' > "$override"
+
+  # —— 还原前基线：受保护 SUT 应判红（zz_control 磁盘侧泄漏被检出）——
+  run --separate-stderr run_sut_override "$override"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"zz_control.txt:1"* ]]
+
+  # —— 篡改：① 磁盘侧 grep 去掉 -e/-- 保护；② 候选循环还原共用 stdin（done < $TMP，去掉 <&3/3<）——
+  local sut_tampered="$FIXTURE/sut-tampered.sh"
+  sed -e 's/grep -naE -e "\$PAT" -- "\$file"/grep -naE "$PAT" "$file"/' \
+      -e 's/while IFS= read -r -d '"'"''"'"''"'"' f <&3; do/while IFS= read -r -d '"'"''"'"''"'"' f; do/' \
+      -e 's/done 3< "\$TMP_CANDIDATES"/done < "\$TMP_CANDIDATES"/' \
+      "$SUT_SRC" > "$sut_tampered"
+
+  # 跑篡改版
+  run --separate-stderr bash -c "cd '$FIXTURE' && FLOW_KIT_PRIVACY_ALLOWLIST='$override' bash '$sut_tampered'"
+  # 反向控制：摘掉两道防线后，-q 被 grep 吞 stdin ⇒ zz_control 从未被读 ⇒ 漏报。
+  # 判据：篡改版不再归因 zz_control.txt（扫描面塌缩的证据），且实际扫描 < 候选数。
+  [[ "$output" != *"zz_control.txt:1"* ]]
+  echo "# T-FIX-17④ 反向控制：摘掉 -e/-- + 独立 FD ⇒ zz_control 磁盘泄漏漏报（扫描面塌缩 ✅ 证据）" >&3
+}
