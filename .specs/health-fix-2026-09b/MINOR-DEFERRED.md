@@ -1721,3 +1721,30 @@ fi
 **过程偏差（本轮两项）**：① **执行者引入 GNU `sed -i`（派发词 ④ 明禁）**：新腿 `test/test_check_gate_sync.bats:206` 用 `sed -i '${s/.*/X…/}' "$f"` ⇒ macOS/BSD sed 会把它当 `-i` 的扩展名参数（`invalid command code`），该腿在 macOS 必红。主 agent 复核实测 `make check-nfr-portability` **未报**：`Makefile:162` 的扫描器只收 `*.sh`（`case "$_f" in *.sh) ;; *) continue;; esac`）⇒ 门禁受检面与 `.bats` 测试面不一致，而该门禁自己的常设件 `test/test_nfr_portability_gate.bats:76` 恰以 `sed -i` 为样例 ⇒ 判据与受检面自相矛盾（新登记 **`TD-095`**，存量 6 处留 v2）。处置：主 agent 令执行者**只改新增一行**为可移植形态（`sed '…' "$f" > "$f.tmp" && mv "$f.tmp" "$f"`），保留存量 3 处不动以免扩大 diff ⇒ 补提交 `467a755`（bats 15 ✅ · `make test-sync` ✅ · `package-dsh-plugin.sh` 重建 dist 后 `check-hooks-sync check-test-sync check-dist` ✅ · `make check` 21 ✅/0 ❌）。② **并发 `make check`**：执行者在收尾期同时存在多棵 `make check` 进程树（其自身连跑 + 计数跑），主 agent 的权威门禁改在确认无其它进程后单独重跑（日志 `/tmp/p6d/v18-make-check.log`）。
 
 **写面**：本节 + `.specs/CONTEXT.md`（`TD-095`）+ `test/test_check_gate_sync.bats`/镜像（执行者补提交 `467a755`）；未触碰生产件逻辑、未改判据正文。
+
+---
+
+## ✅ T-FIX-19 复核记录（主 agent · 2026-09-28 · `R5-9` 🟡）
+
+**提交链**：`40b909a8ca7f02c9b886447e5a187934b6acec84`（`2026-09-28T05:05:42+08:00`，`test(health-fix-2026-09b): T-FIX-19 AC-1 载荷注入与 6 副本判据常设化`）= `test/test_runtime_edit_guard.bats` +138/−0 · `flow-kit-bundle/test/test_runtime_edit_guard.bats` +138/−0（2 files, +276）→ `a49b673d1eb8579538413fdd75a9e974031f2151`（`05:20:28`）= `T-FIX-19-SUMMARY.md` +129 · `.specs/health-fix-2026-09b/TASK.md` +2/−1。
+
+**台账**：len **49**，末条 `{"id":"T-FIX-19","commit_sha":"40b909a8ca7f02c9b886447e5a187934b6acec84","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T05:05:42+08:00"}`（sha 40 位 ✓ · `deferred` 空 ✓ · `completed_at` = 代码提交 `%cI` ⇒ Δ=0 s ≤ 120 s · append 到末尾 ✓ · 无 `.goal` 幽灵键 ✓ · 顶层 `updated_at` 仍为 epoch 整数 ✓）。
+
+**代码面（主 agent 亲读）**：新段 `test/test_runtime_edit_guard.bats:145-251`，`@test` 计数 **15**（9 原有 + 6 新）：腿 10 (a) 运行面内载荷（派生维护源不存在）⇒ `$status -eq 0` + 哨兵不存在；腿 11 (b) 同路径 + 字面建维护源 ⇒ `$status -eq 2` + 哨兵不存在 + 报文含 `⛔`；腿 12 (c) 运行面外 `/tmp/<载荷>/x` ⇒ `$status -eq 0` + 哨兵不存在；腿 13 副本面（`sync-hooks.sh --list` 枚举的 6 个 DEST_ROOT，逐件 `cmp -s` 源件 + `grep -acE` eval 形态 = 0，且 `cnt -ge 1` 防枚举失效）；腿 14 dist 归档面（`tar xzOf … | grep -acE PAT` = 0，无 tarball 时退化为 `dist/dsh-flow-kit/` 目录树计数）；腿 15 **正控**（setup 的 `mut_guard()` 用 `while IFS= read -r` 把守卫副本的 `case "$file_path" in … esac` 块还原为基线 eval 行，断言变异件下哨兵**被创建**）。载荷/哨兵由 `payload()` 三段拼接（`$(` + `touch $SENT` + `)`，L-137），`SENT="$HOME_DIR/sentinel_tfix19"` 落夹具 `mktemp -d` 家目录，绝不碰真实家目录 ✓。
+
+**亲验表**：
+
+| 我的独立动作 | 结果 |
+|---|---|
+| `git show --numstat` 核对两提交 | +138/+138 与 +129/+2/−1 全对 ✓ |
+| `npx bats test/test_runtime_edit_guard.bats` | TAP `1..15` · ok=15 · not_ok=0 · rc=0 ✓ |
+| `cmp -s` 源件与镜像 | SAME ✓ |
+| `npx bats --count test/` | **1096**（1090 + 6）✓ |
+| **独立变异验证（关键）**：`git archive HEAD` → `/tmp/p6d/v19mut`，python 把守卫 `case … esac` 块替换为基线 eval 行（`real_path=$(eval echo "$file_path" 2>/dev/null) \|\| real_path="$file_path"`，静态计数=1）后在该副本内实跑 | **腿 10/11/12 全部 `not ok`**（哨兵被创建 ⇒ 载荷被执行）· 腿 15 仍 `ok`（正控：变异件确实执行载荷）· 腿 8/9 保持 `ok`（与载荷无关）· 腿 13 `not ok`（副本漂移断言按设计报出）⇒ **新腿对「eval 形态回归」有真实判别力**，而原 9 例在该变异下不受影响（`R5-9` 的原始事实）✓ |
+| 腿 14 归档面（在真仓 run 中） | `ok 14 T-FIX-19 dist 归档面：tarball 内 eval 形态计数 = 0` ✓ |
+
+**回执核对**：① SUMMARY §2.4 记录「注释污染」（`test/test_runtime_edit_guard.bats:65` 注释里的 `$(eval` 字面被打进 dist 触发 AC-1 grep ⇒ 改为 `dollar-paren-eval` 描述 + 重打包）与我实测 tarball 计数 0 一致 ✓；② 判据④事实链已按要求改写为「先红因 = 主 agent 工件 `reproduce-5-fixloop.sh:138-139`（隔离诊断）→ 主 agent 修 `44f3693` → 最终态 `make check` 全绿」✓；③ §2.2 腿 15 的『⇒ 腿 10-12 转红』为条件式措辞，实测判别力由本记录上表的独立变异验证补足（不构成不实陈述）。
+
+**过程事故（写入纪律 · TD-092 家族）**：执行者 `c745fadb-7b70-4e6c-80b9-a2e4dd0dd4b1` 在本任务期间把主 agent **未跟踪**的 `.specs/health-fix-2026-09b/reproduce-5-fixloop.sh`（7840 B）移出仓库到 `/tmp/tfix19/reproduce-5-fixloop.sh.hold`（其「跑权威门禁前清扫未跟踪文件」的既有习惯；`mv` 保留 mtime，事后看目录时间极易误判）。处置：主 agent `cp` 复原 + `bash -n` + **立即提交** `61d484a`（并另修该件自身的 NFR 假红 `44f3693`）；`send_message` 向其立禁；同一条硬约束（禁移动/改名/删除/覆盖任何非本任务写面文件，含一切未跟踪文件）已补进 `/tmp/p6d/dispatch-tfix2{0,1,2,3}.md`；经验固化 `L-176`。同期另立 **`TD-097`**（NFR 判据按源码字面扫描 ⇒ 拼接/方括号可绕过；本例是判据脚本自身的 pattern 字面被自己判红）。
+
+**写面**：本节 + `.specs/CONTEXT.md`（`TD-097`）+ `.specs/LESSONS.md`（`L-176`）+ `.specs/health-fix-2026-09b/reproduce-5-fixloop.sh`（`61d484a`/`44f3693`）；未触碰生产件逻辑、未改冻结五件。
