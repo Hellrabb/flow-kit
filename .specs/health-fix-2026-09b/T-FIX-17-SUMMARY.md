@@ -11,7 +11,7 @@ R5-15 指出磁盘侧检索 `check-path-privacy.sh:633` = `raw_disk=$(grep -naE 
 
 ## 修复前 RED 原文（先红留档 · HEAD aaf5a4e 未修改生产代码）
 
-夹具方法（`/tmp/tfix17/pre.sh` v1 + `/tmp/tfix17/pre2.sh` v2，均基于 `git show HEAD:flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` 取基线到 `/tmp/tfix17/sut-baseline.sh`）：在最小夹具仓（`mktemp -d` + `git init`）内放候选 `-q`（内容含真泄漏 `/home/zz-probe/secret.txt`）与 `zz_control.txt`（含同探针）。v1：两者 index+worktree 均有泄漏。v2：`-q` 干净（index+worktree），`zz_control.txt` 仅磁盘侧泄漏（index 干净）。探针字面按 L-137 拼接构造，无真实用户名字面。
+夹具方法（`/tmp/tfix17/pre.sh` v1 + `/tmp/tfix17/pre2.sh` v2，均基于 `git show HEAD:flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` 取基线到 `/tmp/tfix17/sut-baseline.sh`）：在最小夹具仓（`mktemp -d` + `git init`）内放候选 `-q`（内容含真泄漏 `/home/""zz-probe""/secret.txt` 拼接形态）与 `zz_control.txt`（含同探针）。v1：两者 index+worktree 均有泄漏。v2：`-q` 干净（index+worktree），`zz_control.txt` 仅磁盘侧泄漏（index 干净）。探针字面按 L-137 拼接构造，无真实用户名字面。
 
 ```
 --- v1（-q + zz_control 均泄漏：index + 磁盘）---
