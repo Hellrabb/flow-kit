@@ -1685,3 +1685,39 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **过程偏差（本轮一项，主 agent 侧）**：首次跑权威门禁时用 `make check &` 在后台 job 内自行后台化（job `bash-398`）⇒ job 结束后进程仍存活，卡在 `lint` 步的 shellcheck 循环（pid 3211582，~48 min），同期执行者也在跑 `timeout 900 make check`；其间宿主疑似休眠（时钟 02:34 → 03:44 跳 70 min，`sleep 240` 工具调用超时）。处置：`kill` 2923654/2923653/2923651（无残留 `find`/`shellcheck`、无 `.git/index.lock`），改用工具级 `run_in_background: true` 重跑（job `bash-399`）⇒ RC=0。**教训：长命令不要用 `&` 在 job 内后台化。**
 
 **写面**：本节 + `.specs/CONTEXT.md`（`TD-094`）+ `.specs/LESSONS.md`（`L-174`）；未触碰生产件、未改判据正文。
+
+## ✅ T-FIX-18 复核记录（主 agent · 2026-09-28 · `R5-14` 🟡 + `R5-10` 🟡）
+
+**提交链**：`4ce0d5e fix(gate-sync): check-gate-config 缺件 fail-closed + AC-4 判别形态腿（T-FIX-18 · R5-14/R5-10）`（%cI `2026-09-28T04:11:11+08:00`；numstat = `flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` +11/−2 · `test/test_check_gate_sync.bats` +73 · `flow-kit-bundle/test/test_check_gate_sync.bats` +73 · `T-FIX-18-SUMMARY.md` +123 · `TASK.md` +2/−1）→ `ef6d88a`（`04:11:36`；SUMMARY/TASK.md 各 1/1 = `commit_sha` 回填）→ `52e1bb6`（`docs: T-FIX-18 SUMMARY sha 填真值`）→ **`467a755`**（`04:32:27`；主 agent 指令补提交：新腿去 GNU `sed -i`，`test/test_check_gate_sync.bats` + 镜像各 1/1）。
+
+**代码面（`check-gate-sync.sh`）**：`check_gate_config_sync()` 的缺件分支由「`⚠️  WARNING: 文件缺失，跳过 gate-config 同步校验` + 裸 `return`」改为位掩码具名 fail-closed：
+```bash
+local missing=0
+[ ! -f "$skill_file" ] && missing=1
+[ ! -f "$bats_file" ] && missing=$((missing + 2))
+if [ "$missing" -ne 0 ]; then
+  echo "   🔴 MISSING: gate-config 同步无法校验（未比对）"
+  [ $((missing & 1)) -ne 0 ] && echo "       skill: $skill_file"
+  [ $((missing & 2)) -ne 0 ] && echo "       bats:  $bats_file"
+  ERRORS=$((ERRORS + 1)); return
+fi
+```
+汇总行不变（`ERRORS>0 ⇒ 🔴 + exit 1`；仅 `ERRORS=0` 才打印 `✅ 校验对 N/14 一致`）⇒ `R5-14` 的「缺件仍报绿」闭合。
+
+**亲验（主 agent 独立夹具 `/tmp/p6d/v18cp`、`/tmp/p6d/v18old`，不复用执行者夹具）**
+
+| 场景 | 被测件 | rc | 关键报文 |
+|---|---|---|---|
+| 完整树（控制） | 新 | **0** | `✅ 校验对 3/14 一致` · 覆盖度 `实际比对 3/14` |
+| 缺 `test/test_gate_config_presets.bats` | 新 | **1** | `🔴 MISSING: gate-config 同步无法校验（未比对）` + `bats:  <副本路径>` + `🔴 发现 1 处问题`（**无** `✅ …一致`） |
+| 缺 `skills/flow/SKILL.md` | 新 | **1** | 同上（`skill: <副本路径>`） |
+| 缺 `test/test_gate_config_presets.bats` | 旧（`git show 2b61ea5:…`） | **0** | `⚠️  WARNING: 文件缺失，跳过 gate-config 同步校验` + `✅ 校验对 3/14 一致` ⇒ **先红复现** |
+| 缺 `skills/flow/SKILL.md` | 旧 | **0** | 同上 |
+
+**常设腿亲验**：`npx bats test/test_check_gate_sync.bats` ⇒ `1..15` 全 ok rc=0（新增腿 12 `R5-14 ①` 缺 bats ⇒ rc≠0 + `🔴 MISSING` + 具名 + **非** `✅ 一致`；腿 13 `R5-14 ②` 缺 SKILL.md 同型；腿 14 `R5-10 ③` 行数不变仅改内容 ⇒ rc≠0 + 含「漂移」；腿 15 `R5-14 ④` 反向控制完整树 ⇒ rc=0 + `✅` + 无 `🔴 MISSING`）。每腿均断言 `$status` + 前提状态（被删文件确不存在/行数确相等）⇒ 不落 `TD-088` 的「只 grep 报文」弱点。`grep -cE '^[[:space:]]*@test'` = **15**（基线 11 → +4）。镜像 `cmp -s` SAME。`npx bats --count test/` = **1090**（1086 + 4）。
+
+**执行者回执核对**：五字段 `{"id":"T-FIX-18","commit_sha":"ef6d88a9650277c84925793c175e1c0901d5f059","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T04:11:48+08:00"}`（len 48 · append ✓ · 无 `.goal` 幽灵键 ✓ · Δ=37 s ≤ 120 s）；其收尾把 `make check` 连跑三遍分别取 ✅ 计数 / ❌ 计数 / 末行（可用但浪费，且与既有 `make check` 并发过，见下）。台账 `commit_sha` 指向文档提交而非主修复提交（`4ce0d5e`），主 agent 判定可接受（同任务多提交时以收口提交为准），补提交 `467a755` 按指令**不**新增台账条目（保持「一任务一条」）。
+
+**过程偏差（本轮两项）**：① **执行者引入 GNU `sed -i`（派发词 ④ 明禁）**：新腿 `test/test_check_gate_sync.bats:206` 用 `sed -i '${s/.*/X…/}' "$f"` ⇒ macOS/BSD sed 会把它当 `-i` 的扩展名参数（`invalid command code`），该腿在 macOS 必红。主 agent 复核实测 `make check-nfr-portability` **未报**：`Makefile:162` 的扫描器只收 `*.sh`（`case "$_f" in *.sh) ;; *) continue;; esac`）⇒ 门禁受检面与 `.bats` 测试面不一致，而该门禁自己的常设件 `test/test_nfr_portability_gate.bats:76` 恰以 `sed -i` 为样例 ⇒ 判据与受检面自相矛盾（新登记 **`TD-095`**，存量 6 处留 v2）。处置：主 agent 令执行者**只改新增一行**为可移植形态（`sed '…' "$f" > "$f.tmp" && mv "$f.tmp" "$f"`），保留存量 3 处不动以免扩大 diff ⇒ 补提交 `467a755`（bats 15 ✅ · `make test-sync` ✅ · `package-dsh-plugin.sh` 重建 dist 后 `check-hooks-sync check-test-sync check-dist` ✅ · `make check` 21 ✅/0 ❌）。② **并发 `make check`**：执行者在收尾期同时存在多棵 `make check` 进程树（其自身连跑 + 计数跑），主 agent 的权威门禁改在确认无其它进程后单独重跑（日志 `/tmp/p6d/v18-make-check.log`）。
+
+**写面**：本节 + `.specs/CONTEXT.md`（`TD-095`）+ `test/test_check_gate_sync.bats`/镜像（执行者补提交 `467a755`）；未触碰生产件逻辑、未改判据正文。
