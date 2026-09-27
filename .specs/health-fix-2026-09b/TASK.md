@@ -2913,31 +2913,41 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <read_files>
     <`Makefile:129-160`（目标族说明）· `:162-306`（判据正文：`BASE` 解析 `:233-276`、全量分支 `:167`/`:195`/`:268`/`:286`）· `:308-334`（包装层三态转译）>
     <`.specs/health-fix-2026-09b/.change-base`（本仓 BASE 锚点 ⇒ 默认走变更集模式，存量违禁构造不进扫描面）>
-    <`sync-hooks.sh:170-205`（`mapfile` 使用点 · bash 3.2 下 rc=127）>
+    <`sync-hooks.sh:170-205`（`mapfile` 使用点 · bash 3.2 下 rc=127）· `verify-claims.sh:110-140`（同族 `mapfile`）>
     <`test/test_nfr_portability_gate.bats`（现覆盖面）>
-    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-23`（四要素 + Remedy + 审计 B 的 #6 证据）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-23`（四要素 + Remedy + 审计 B 的 #6 证据：`tracked .sh 文件数=104 · 命中行数=19 · 命中文件数=12`）>
     <`REQUIREMENT.md` 的 AC-8（可移植性声明）>
   </read_files>
   <write_files>
-    <`Makefile`（全量模式显式入口；复用既有 `BASE=FULL`，不改 `make check` 默认语义）>
+    <`Makefile`（全量模式显式入口 + 归档面排除 + 存量基线 ratchet；不改 `make check` 默认语义）>
     <`sync-hooks.sh`（`mapfile` → 便携读循环）>
-    <`test/test_nfr_portability_gate.bats`（存量违禁构造腿）>
+    <`verify-claims.sh`（`mapfile` → 便携读循环）>
+    <`flow-kit-bundle/hooks/stop/34-archive-commit-check.sh`（`stat -c %Y` → 便携双分支）>
+    <`flow-kit-bundle/lib/install_brooks.sh`（GNU `sed -i` → 临时文件 + 原子替换）>
+    <`flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt`（新建：存量基线清单）>
+    <`test/test_nfr_portability_gate.bats`（新增 ≥6 例：注入/变更集取舍/便携写法/归档排除/基线命中/基线陈旧）>
   </write_files>
   <action>
-    1. 先红基线：`grep -n 'mapfile' sync-hooks.sh` ⇒ `:182`/`:197`/`:198` 三处；在 bash 3.2 语义下（用 `set -o posix`/模拟或静态断言）证明其为违禁构造且**当前 `make check-nfr-portability` 不报**（因变更集模式只扫新增行）。记录红线。
-    2. 修 `sync-hooks.sh`：用 `while IFS= read -r line; do … done < <(...)` 或临时文件替代 `mapfile`（bash 3.2 兼容；不得引入 `readarray`）。
-    3. 修 `Makefile`：**全量模式已存在**（`BASE=FULL`，见 `:262` 与 `:167`/`:195`/`:268`/`:286` 的 `if [ "$$BASE" = "FULL" ]` 分支）⇒ **不要**再造第二套判据；只需：(a) 新增一个显式入口目标（如 `check-nfr-portability-full`，内部以 `FLOW_KIT_CHANGE_BASE=FULL` 调用同一 internals，沿用三态包装语义）；(b) 把该入口写进 `.PHONY` 与目标注释（写明「日常 `make check` 用变更集模式；收尾/归档必须再跑全量入口」）；(c) **不得**把 `make check` 的默认模式改成全量（会拖慢日常并改变既有语义）。
-    4. 常设腿：`test/test_nfr_portability_gate.bats` 增 ≥3 例——① 注入一条 `mapfile` 到夹具源件 ⇒ 基线模式 rc≠0 + 具名文件:行号；② 变更集模式下同一注入不报（记录已知取舍）；③ 便携写法 ⇒ 两模式皆 rc=0；每例断言 `$status`。
-    5. 提交前自查：真仓 `make check-nfr-portability` 与基线模式都必须 rc=0（即存量 19 行/12 文件盲区已清零或明确登记）。
-    6. 同步与提交：`./sync-hooks.sh`（若触碰 hooks）→ `package-*.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
-    7. 提交后写 `T-FIX-23-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+    0. **主 agent 现取实测（2026-09-28，派发词内含完整 19 条清单）**：`NFR_RC_FILE=/tmp/nfr-full.rc FLOW_KIT_CHANGE_BASE=FULL make check-nfr-portability-internals` ⇒ **rc=1 + 19 行 / 12 文件**；默认（变更集模式）rc=0 ⇒ 盲区成立。19 条分类：**归档面 7 条**（`.specs/archive/2026-09-21-health-fix-2026-09/verify/ac8.sh:13`/`:28` · `.specs/archive/2026-09-21-user-guide-sync-2026-09b/make-manifest.sh:28`/`:29` · 同目录 `verify-ac.sh:25` · `.specs/archive/2026-09-22-privacy-path-scrub-2026-09/make-manifest.sh:28`/`:29`）· **可修 7 条**（`sync-hooks.sh:182`/`:197`/`:198` mapfile · `verify-claims.sh:119`/`:135` mapfile · `34-archive-commit-check.sh:47` `stat -c` · `install_brooks.sh:125` GNU `sed -i`）· **登记基线 5 条**（`hooks/stop/lib/common.sh:432` `declare -A` · `hooks/stop/lib/flow-kit-artifacts.sh:51` `declare -A` · `hooks/stop/lib/l3-truncate.sh:100` `declare -A` · 同件 `:167` mapfile · `package-flow-kit.sh:394` `declare -A`）。**本任务按此三分法收口，不得改成「全量也翻红 + 只登技术债」**（那等于归档后 `make check` 自红）。
+    1. 先红留档（命令 + rc + 报文）：① `grep -n 'mapfile' sync-hooks.sh verify-claims.sh`；② FULL 模式 rc=1 + 命中清单；③ 默认模式 rc=0（同一构造不报）。
+    2. 修 `sync-hooks.sh:182`/`:197`/`:198` 与 `verify-claims.sh:119`/`:135`：`mapfile -t X < <(…)` → `X=(); while IFS= read -r _l; do X+=("$_l"); done < <(…)`（bash 3.2 兼容；禁 `readarray`；空输入时数组长度为 0 的语义须保持——`set -u` 下不得出现「未绑定变量」）。改后逐脚本实跑（`./sync-hooks.sh --check` / `./verify-claims.sh`）并确认输出与改前一致。
+    3. 修 `flow-kit-bundle/hooks/stop/34-archive-commit-check.sh:47`：`stat -c %Y` → 便携双分支（先 `stat -f %m`（BSD/macOS），失败再 `stat -c %Y`（GNU）），保留原 fail-open `|| echo 0`。
+    4. 修 `flow-kit-bundle/lib/install_brooks.sh:125`：GNU `sed -i` → `sed … > "$hook_file.tmp" && mv "$hook_file.tmp" "$hook_file"`（语义不变；`.tmp` 不得残留）。
+    5. **归档面排除（判据受检面）**：`Makefile` 的 NFR 枚举循环跳过 `.specs/archive/*`（注释写明理由：「归档快照是冻结的历史记录，修改它没有行动价值；可执行脚本的当前形态由非归档面守护」）。
+    6. **存量基线 ratchet**：新建 `flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt`（表头注释：生成日期 · 生成命令 · 说明「只登记**本 change 之前**既有的命中；新增构造一律不得入基线」），登记上文 5 条（格式 `路径:行号:标记`）。判据语义改为：命中**不在**基线内 ⇒ `🔴` + rc=1；命中**在**基线内 ⇒ 打印 `ℹ️ 存量基线 N 条（已登记：<清单路径>）` 且不置错；基线条目在真仓**已消失或行号漂移** ⇒ 打印 `⚠️ 基线陈旧：<条目>` + rc=1（防基线腐烂）。
+    7. **全量入口**：新增 `check-nfr-portability-full`（写入 `.PHONY`；目标注释：「日常 `make check` 用变更集模式；**收尾/归档必须再跑本入口**」），内部以 `FLOW_KIT_CHANGE_BASE=FULL` 调用同一 `-internals` 并沿用三态包装语义（`NFR_RC_FILE` 读取 + 3 ⇒ SKIP）。**不得**改 `make check` 的默认模式，**不得**另造第二套判据正文。
+    8. 常设腿 `test/test_nfr_portability_gate.bats` 增 ≥6 例（每例断言 `$status`）：① 归档外夹具源件注入 `mapfile` ⇒ 基线模式 rc≠0 + 具名 `文件:行号`；② 变更集模式下同一注入不报（记录已知取舍）；③ 便携写法 ⇒ 两模式皆 rc=0；④ 归档内注入（`.specs/archive/<夹具>/x.sh`）⇒ rc=0；⑤ 夹具命中基线条目 ⇒ rc=0 且输出含 `存量基线`；⑥ 基线陈旧（删掉基线条目对应行后重跑）⇒ rc≠0 且含 `基线陈旧`。
+    9. 提交前自查：真仓 `make check-nfr-portability`（默认）rc=0 **且** `make check-nfr-portability-full` rc=0；`check-dist` 若因新增 `reference/nfr-portability-baseline.txt` 报不一致 ⇒ 按既有 `package-*.sh` 流程重建 dist 后再验。
+    10. 同步与提交：`./sync-hooks.sh`（若触碰 hooks）→ `package-*.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
+    11. 提交后写 `T-FIX-23-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
   </action>
   <verify>
-    ① 先红留档：`grep -n 'mapfile' sync-hooks.sh` 三处 + 现判据不报的证据。
-    ② 修改后 `grep -c 'mapfile\|readarray' sync-hooks.sh` = 0。
-    ③ 基线模式：注入夹具 ⇒ rc≠0 + 具名 `文件:行号`；便携写法 ⇒ rc=0。
-    ④ 真仓 `make check-nfr-portability` rc=0（且基线模式 rc=0 或残留项已在 SUMMARY 明列并登记技术债）。
-    ⑤ `make check` 21 ✅ / 0 ❌。
+    ① 先红留档：`grep -n 'mapfile' sync-hooks.sh verify-claims.sh`（5 处）；FULL 模式 rc=1 + 19 行/12 文件；默认模式 rc=0。
+    ② `bash -n` 六个被改脚本 rc=0；`grep -c 'mapfile\|readarray' sync-hooks.sh verify-claims.sh` = 0；`./sync-hooks.sh --check` 与 `./verify-claims.sh` 实跑输出与改前一致。
+    ③ 默认（变更集）模式：真仓 rc=0；归档外夹具注入新命中 ⇒ rc≠0 + 具名；归档内注入 ⇒ rc=0（排除生效）。
+    ④ `make check-nfr-portability-full` rc=0 且输出含 `存量基线 5 条`；`FLOW_KIT_CHANGE_BASE=FULL make check-nfr-portability` rc=0。
+    ⑤ 基线陈旧检测：夹具删掉基线条目对应行 ⇒ rc≠0 且含 `基线陈旧`。
+    ⑥ 常设腿 ≥6 例全绿（含 ①②③④⑤ 六种形态）；`make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-22（串行：全仓门禁为独占步骤）</depends_on>
 </task>
