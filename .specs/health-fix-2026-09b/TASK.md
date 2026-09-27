@@ -2794,13 +2794,13 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   </write_files>
   <action>
     1. 先红基线：用一次性探针（放 `/tmp/tfix19/`）把 `$(touch <哨兵>)` 形态载荷（**拼接构造**，测试/探针源件内不得出现可直接运行的整串，见 L-137）喂给 `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`，证明「现常设 9 例全绿但载荷形态未被断言」——即现有常设网对载荷回归零判别力。记录命令 + rc + 哨兵存在性 + 输出为红线。
-    2. 落常设腿（≥4 例，追加进 `test/test_runtime_edit_guard.bats`）：① 两条拼接构造的 `$(…)` 载荷路径（一条落在 `~/.claude/` 运行面内 ⇒ 期望 exit 2 拦截；一条落在运行面之外 ⇒ 期望 exit 0 放行），每例都断 `$status` + **哨兵文件不存在**（哨兵只可能由载荷被执行而创建 ⇒ 不存在即证明未被执行）；② 6 个部署副本（`./sync-hooks.sh` 清单）逐件 `cmp -s` 与源件一致，且该形态静态计数 `grep -cE` = 0；③ `dist/` 归档面同形态计数 = 0（若该形态不适用于归档则写明理由并给替代断言）；④ 反向控制（产品侧变异，见判据③）：还原基线 eval 形态的守卫副本上，腿① 的哨兵断言必须 not ok。
+    2. 落常设腿（≥4 例，追加进 `test/test_runtime_edit_guard.bats`）：① 三条拼接构造的 `$(…)` 载荷路径（**期望值由主 agent 实测给定，勿照直觉照抄**）：(a) 运行面内载荷路径 `~/.claude/hooks/<载荷>/x.sh`（派生的维护源 `flow-kit-bundle/hooks/<载荷>/x.sh` 不存在）⇒ 现实现 **exit 0** 放行 + 哨兵不存在；(b) 同 (a) 的路径 + 夹具里**字面建出**该维护源（目录名就是载荷串）⇒ 现实现 **exit 2**（`⛔ 检测到改运行时副本`）+ 哨兵不存在；(c) 运行面外载荷 `/tmp/<载荷>/x` ⇒ **exit 0** + 哨兵不存在。**判别力在哨兵断言而非 `$status`**：基线 eval 形态下 (a)(b)(c) 分别为 `rc=0+哨兵存在` / `rc=0+哨兵存在` / `rc=0+哨兵存在`（主 agent 实测 `/tmp/p6d/tfix19-main/probe2.sh`）⇒ 仅断 `$status` 无法区分 (a)/(c) 的新旧实现。每例都断 `$status` 确切值 + **哨兵文件不存在** + 报文片段（(b) 断 `⛔`）；② 6 个部署副本（`./sync-hooks.sh:56-63` 的 `DEST_ROOTS` 清单）逐件 `cmp -s` 与源件一致，且该形态静态计数 `grep -cE` = 0；③ `dist/` 归档面同形态计数 = 0（若该形态不适用于归档则写明理由并给替代断言）；④ 反向控制（产品侧变异，见判据③）：还原基线 eval 形态的守卫副本上，腿① 的哨兵断言必须 not ok。
     3. 判据不得只 grep 报文：每条断 `$status` + 哨兵文件存在性 + 输出片段三者之一以上。
     4. 同步与提交：`make test-sync` → `make check-hooks-sync check-test-sync check-dist`（若未触碰 hooks 可略过 `sync-hooks.sh`）→ `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
     5. 提交后写 `T-FIX-19-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
   </action>
   <verify>
-    ① 先红留档：`bash /tmp/tfix19/pre.sh` 呈现「现有常设面无法区分拼接/字面」的对照（或缺口说明 + rc）。
+    ① 先红留档：`bash /tmp/tfix19/pre.sh` 把拼接载荷喂给守卫 —— 现实现 `rc=0 + 哨兵不存在`，基线 eval 形态（`git show 534e3e8…`）`rc=0 + 哨兵存在` ⇒ 证明现有 9 例常设网对载荷回归零判别力（主 agent 实测参照 `/tmp/p6d/tfix19-main/probe2.sh`：三形态下新旧守卫的 rc/哨兵对照表）。
     ② `npx bats test/test_runtime_edit_guard.bats`（或新件）全绿且含 ≥4 条新腿。
     ③ 变异腿（**产品侧**，不是夹具字符串形态）：把 `/tmp/tfix19/mut/` 内的守卫副本按 `534e3e842fc900045f39492badc66eabe3ffd4c4` 版本第 46 行还原为 `real_path=$(eval echo "$file_path" 2>/dev/null) || real_path="$file_path"` ⇒ 哨兵腿必须转 not ok（载荷被执行、哨兵被创建）；还原为现实现即转绿。仅把夹具里的拼接改成字面一律不算通过。
     ④ `make check` 21 ✅ / 0 ❌。
