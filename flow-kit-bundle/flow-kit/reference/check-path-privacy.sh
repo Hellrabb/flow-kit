@@ -89,6 +89,8 @@ flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md
+.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md
+.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md
 '
 
 # 允许清单读序（R8 定级裁决 · 强制 · fail-closed）：

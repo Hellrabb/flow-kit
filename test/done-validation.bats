@@ -209,3 +209,45 @@ EOF
     skip "fk_validate_done_marker not available"
   fi
 }
+
+# ── R5-21 修正：空 .done + phase ∈ phases_done ⇒ 仍须 deny rc=2 ──
+# 旧实现 phases_done 短路先于 Tier-1 非空校验，导致 touch 空文件 + phases_done 命中 ⇒ rc=0 放行。
+
+@test "R5-21: empty .done + phase in phases_done → deny rc=2 (short-circuit must not bypass Tier-1)" {
+  # Override .flow-active: phases_done contains the target phase "1"
+  cat > "$FLOW_ACTIVE" << 'FLOWEOF'
+{"change_id":"test-change","phase":"1","goal":{"scope":"pipeline","current_phase":"1","phases_done":["1"],"gates":{"0→1":"passed","1→2":"pending"},"gate_config":{"1-requirement":"both"}}}
+FLOWEOF
+  local _empty="${PROJECT_ROOT}/.specs/test-change/.independent-review-1.done"
+  mkdir -p "$(dirname "$_empty")"
+  touch "$_empty"
+  if type fk_validate_done_marker >/dev/null 2>&1; then
+    run fk_validate_done_marker "$_empty" "1" "test-change" "transition"
+    [ "$status" -eq 2 ]
+  else
+    skip "fk_validate_done_marker not available"
+  fi
+}
+
+@test "R5-21: non-empty valid .done + phase in phases_done → rc=0 (short-circuit still works for non-empty)" {
+  # phases_done contains "1"
+  cat > "$FLOW_ACTIVE" << 'FLOWEOF'
+{"change_id":"test-change","phase":"1","goal":{"scope":"pipeline","current_phase":"1","phases_done":["1"],"gates":{"0→1":"passed","1→2":"pending"},"gate_config":{"1-requirement":"both"}}}
+FLOWEOF
+  write_done << 'EOF'
+phase=1
+change_id=test-change
+written_by=main-agent
+L2_verdict=pass
+L3_verdict=pass
+artifacts=REQUIREMENT.md,CHANGE.md
+EOF
+  if type fk_validate_done_marker >/dev/null 2>&1; then
+    run fk_validate_done_marker \
+      "${PROJECT_ROOT}/.specs/test-change/.independent-review-1.done" \
+      "1" "test-change" "transition"
+    [ "$status" -eq 0 ]
+  else
+    skip "fk_validate_done_marker not available"
+  fi
+}

@@ -354,7 +354,19 @@ _l3_build_prompt() {
         _adr_ids=$(printf '%s' "$artifact" | grep -oE 'ADR-0[0-9]{2}' 2>/dev/null \
           | sort | uniq -c | sort -rn | awk '{print $2}' || true)
         for _adr_id in $_adr_ids; do
-          [ "$_adr_n" -lt 8 ] || break
+          [ "$_adr_n" -lt 8 ] || {
+            # R5-22 修正：ADR 纳入上限命中时**先落标记（含丢弃计数）再 break**，
+            # 旧实现 `|| break` 让 >8 号 ADR 被静默丢弃、且标记落在 break 之后（不可达）。
+            # 丢弃计数 = 工件引用的 ADR 唯一去重总数 - 已纳入数（_adr_n）。
+            local _adr_total _adr_dropped
+            _adr_total=$(printf '%s\n' $_adr_ids | grep -c '.' 2>/dev/null || echo 0)
+            _adr_dropped=$(( _adr_total - _adr_n ))
+            [ "$_adr_dropped" -lt 0 ] && _adr_dropped=0
+            if [ "$_adr_dropped" -gt 0 ]; then
+              artifact="${artifact}"$'\n\n（⚠️ ADR 纳入上限（8 份）命中，已丢弃 '"${_adr_dropped}"$' 条工件引用的 ADR；以下为**未纳入**的 ADR 清单，需要时按工件给出的复现命令自行查阅：'"$_adr_ids"'）'
+            fi
+            break
+          }
           _adr_num="${_adr_id#ADR-}"
           _adr_f=$(find "$adr_dir" -maxdepth 1 -type f -name "${_adr_num}-*.md" 2>/dev/null | head -1 || true)
           [ -n "$_adr_f" ] || continue

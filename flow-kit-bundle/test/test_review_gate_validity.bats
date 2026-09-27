@@ -185,13 +185,29 @@ source_dv_lib() {
   [ "$status" -eq 1 ]
 }
 
-@test "函数级：phases_done 短路保持（历史阶段 + 无效标记 ⇒ 不追溯，rc=1）" {
-  # phase 5 已归档（phases_done 含 5），残留的空标记不得让已完成的阶段回头变红
+@test "函数级：phases_done 短路保持（历史阶段 + Tier-1 有效标记 ⇒ 跳过 Tier-2/3，rc=1）" {
+  # phase 5 已归档（phases_done 含 5），Tier-1 有效非空标记（phase/change_id/written_by
+  # 三键齐全）⇒ 短路跳过 Tier-2/3 产物比对，直接放行，不让已完成阶段回头变红。
+  # R5-21 修正：短路移到 Tier-1 之后，故 Tier-1 无效（空 / 缺键）的标记即使在
+  # phases_done 中也会被拒（见下一测试）。
+  printf '{"change_id":"%s","phase":"6","goal":{"current_phase":"6","phases_done":["4","5"],"gate_config":{"5-test":"both"},"auto_advance":false}}\n' \
+    "$CID" > "$SBX/.flow-active"
+  write_marker pass pass                       # Tier-1 有效；L2_verdict=pass 但 review.md 记 fail
+  write_review_md fail                         # 故意不一致：若非短路，Tier-2 会拒绝
+  source_dv_lib
+  export PROJECT_ROOT="$SBX"
+  run fk_independent_review_gate_active "$PHASE"
+  [ "$status" -eq 1 ]                          # 短路保持：历史阶段不回头
+}
+
+@test "函数级：R5-21 空 .done + phase ∈ phases_done ⇒ 仍 deny rc=0（Tier-1 不短路）" {
+  # phase 5 已归档（phases_done 含 5），但残留的空标记在 Tier-1 非空校验就被拒。
+  # R5-21：短路移到 Tier-1 之后，空 .done 不再因 phases_done 命中而放行。
   printf '{"change_id":"%s","phase":"6","goal":{"current_phase":"6","phases_done":["4","5"],"gate_config":{"5-test":"both"},"auto_advance":false}}\n' \
     "$CID" > "$SBX/.flow-active"
   : > "$MARK"
   source_dv_lib
   export PROJECT_ROOT="$SBX"
   run fk_independent_review_gate_active "$PHASE"
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 0 ]                          # deny：空 .done 即使 phases_done 命中也拒
 }

@@ -375,7 +375,8 @@ install_hooks() {
         echo "   ✅ ${event} hook (${label}) 已存在于 ${settings_target}，跳过"
         return
       fi
-      local merged
+      local merged _jq_err _jq_rc
+      _jq_err=$(mktemp 2>/dev/null || echo "/tmp/fk_jq_err.$$")
       merged=$(jq --arg event "$event" \
                   --arg matcher "$matcher" \
                   --arg cmd "$cmd" '
@@ -386,11 +387,26 @@ install_hooks() {
             "command": $cmd
           }]
         }]
-      ' "$settings_target" 2>/dev/null)
+      ' "$settings_target" 2>"$_jq_err") || _jq_rc=$?
+      _jq_rc=${_jq_rc:-0}
+      if [ "$_jq_rc" -ne 0 ]; then
+        # jq 失败（含 settings.json 非法 JSON 解析失败）⇒ 具名诊断 + fail-closed。
+        # 旧实现在 `set -euo pipefail` 下把 jq 失败直接带入脚本退出（rc=5 无诊断），
+        # :393 的告警成死代码（R5-20）。此处显式分流：捕获 jq stderr 摘要并指名文件。
+        local _jq_msg
+        _jq_msg=$(head -1 "$_jq_err" 2>/dev/null | tr -d '\r')
+        [ -n "$_jq_msg" ] || _jq_msg="(jq 无 stderr 输出)"
+        rm -f "$_jq_err" 2>/dev/null || true
+        echo "   ❌ ${settings_target} ${event} (${label}) 合并失败：jq 解析/执行错误（rc=${_jq_rc}）" >&2
+        echo "      jq 报文：${_jq_msg}" >&2
+        echo "      原文件未改动（fail-closed）。请修复 ${settings_target} 后重试。" >&2
+        return 1
+      fi
+      rm -f "$_jq_err" 2>/dev/null || true
       if [ -n "$merged" ] && write_settings_file_atomic "$settings_target" "$merged"; then
         echo "   ✅ ${settings_target} 已追加 ${event} hook (${label})"
       else
-        echo "   ⚠️  ${settings_target} ${event} (${label}) 合并失败，请手动检查" >&2
+        echo "   ⚠️  ${settings_target} ${event} (${label}) 合并失败（写入异常），请手动检查" >&2
         return 1
       fi
     else

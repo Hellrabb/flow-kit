@@ -131,6 +131,55 @@ teardown() {
   [[ "$output" =~ "stop-hook.json" ]]
 }
 
+# ── R5-20 修正：install_hooks jq 解析失败具名诊断 ──
+# 旧实现 `merged=$(jq ... 2>/dev/null)` 在 set -euo pipefail 下直接终止脚本（rc=5），
+# :393 告警成死代码，用户只看到沉默。修正后须具名诊断（settings 路径 + jq 报文）+ 非零退出。
+
+@test "R5-20: invalid JSON settings.local.json → non-zero rc, no success msg" {
+  mkdir -p "$TEST_TMPDIR/proj/.claude"
+  printf '{ broken json' > "$TEST_TMPDIR/proj/.claude/settings.local.json"
+  SCRIPT_DIR="$FK_ROOT/flow-kit-bundle" \
+  HOME="$TEST_TMPDIR" \
+  run bash -c "
+    set -euo pipefail
+    source '$FK_ROOT/flow-kit-bundle/lib/install_hooks.sh'
+    install_hooks '$TEST_TMPDIR/proj' project
+  "
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ "settings.local.json" ]]
+}
+
+@test "R5-20: invalid JSON settings → output contains jq error mention and fail-closed" {
+  mkdir -p "$TEST_TMPDIR/proj/.claude"
+  printf '{ broken json' > "$TEST_TMPDIR/proj/.claude/settings.local.json"
+  SCRIPT_DIR="$FK_ROOT/flow-kit-bundle" \
+  HOME="$TEST_TMPDIR" \
+  run bash -c "
+    set -euo pipefail
+    source '$FK_ROOT/flow-kit-bundle/lib/install_hooks.sh'
+    install_hooks '$TEST_TMPDIR/proj' project
+  "
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ "合并失败" ]]
+  [[ "$output" =~ "jq" ]]
+  # 不再出现"安装成功"类措辞（原 rc=5 静默中止时无此行，但旧路径若被恢复会出现）
+  ! [[ "$output" =~ "flow-kit 安装完成" ]]
+}
+
+@test "R5-20: valid JSON settings → exit 0 and success message" {
+  mkdir -p "$TEST_TMPDIR/proj/.claude"
+  printf '{"hooks":{"Stop":[],"PreToolUse":[]}}' > "$TEST_TMPDIR/proj/.claude/settings.local.json"
+  SCRIPT_DIR="$FK_ROOT/flow-kit-bundle" \
+  HOME="$TEST_TMPDIR" \
+  run bash -c "
+    set -euo pipefail
+    source '$FK_ROOT/flow-kit-bundle/lib/install_hooks.sh'
+    install_hooks '$TEST_TMPDIR/proj' project
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ "已追加" ]]
+}
+
 # ── install_brooks_lint jq fallback ──
 
 @test "install_brooks_lint DRY_RUN: exit 0 and output contains [DRY-RUN]" {

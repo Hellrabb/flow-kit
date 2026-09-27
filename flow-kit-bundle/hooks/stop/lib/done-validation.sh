@@ -105,7 +105,9 @@ _fk_done_kvp() {
 #   tier = write (Tier 1 元数据快校验) | transition (Tier 1 + Tier 2 后置 · 方案 A 删 T3 握手仅保留 T4)
 # Returns: 0 = .done 有效（放行）; 2 = 无效 deny（对齐 DESIGN §3 "deny exit 2" + forged-done check.sh rc=2）
 # fail-close（D9）: jq 不可用 / 解析异常 / 畸形输入 → return 2（deny，agent 不能靠制造 hook 内部错误放行）
-# phases_done 短路（D1/R11）: phase ∈ goal.phases_done → 直接有效（历史 .done 兜底）
+# phases_done 短路（D1/R11 · R5-21 修正）: phase ∈ goal.phases_done → 跳过 Tier-2/3 产物比对，
+#   但**不**越过 Tier-1（非空 + 行数 + phase/change_id/written_by KVP）。
+#   空 .done 即使 phases_done 命中也须 deny rc=2；缺 KVP 的非空 .done 亦同。
 # 方案 A：作者性由 path-guard D7 前置保证（agent 写 .done 被 PreToolUse 拦截），Tier 2 不验作者性
 fk_validate_done_marker() {
   local done_path="$1" phase="$2" change_id="$3" tier="${4:-write}"
@@ -113,7 +115,28 @@ fk_validate_done_marker() {
 
   [[ -f "$done_path" ]] || return 2
 
-  # phases_done 短路（历史 .done · written_by=main-agent 不触发回头校验）
+  # ── Tier 1 · 元数据快校验（不依赖下游产物）── 必须先于 phases_done 短路（R5-21）：
+  # 一个空 .done 即使 phase ∈ phases_done 也须拒绝（旧实现 phases_done 短路在非空校验之前，
+  # 导致 touch 空文件 + phases_done 命中 ⇒ rc=0 放行）。
+  # Tier-1 = 非空 + 行数 + phase/change_id/written_by KVP（短路只豁免 Tier-2/3 产物比对）。
+  [[ -s "$done_path" ]] || return 2                        # T1 非空（挡威胁① touch 空文件）
+  local dlines
+  dlines=$(wc -l < "$done_path" 2>/dev/null | tr -dc '0-9')
+  [[ "${dlines:-0}" -ge "$MIN_MEANINGFUL_LINES" ]] || return 2
+
+  # T1 KVP（phase / change_id / written_by）—— 必须先于 phases_done 短路（R5-21）：
+  # 短路只豁免 Tier-2/3 产物比对，**不**豁免 Tier-1 元数据 KVP 校验。
+  # 历史非空 .done 仍须 phase / change_id / written_by 三键齐全且匹配，否则 deny。
+  local k_phase k_cid k_wby
+  k_phase=$(_fk_done_kvp "$done_path" "phase")
+  k_cid=$(_fk_done_kvp "$done_path" "change_id")
+  k_wby=$(_fk_done_kvp "$done_path" "written_by")
+  [[ "$k_phase" == "$phase" ]] || return 2
+  [[ "$k_cid" == "$change_id" ]] || return 2
+  [[ -n "$k_wby" ]] || return 2
+
+  # phases_done 短路（历史 .done · D1/R11 · R5-21 修正）: Tier-1 全部通过后，
+  # phase ∈ goal.phases_done ⇒ 跳过 Tier-2/3 产物比对（L2/L3/artifacts），直接放行。
   if [[ -f "$flow_file" ]]; then
     local in_done
     in_done=$(jq -r --arg p "$phase" \
@@ -122,21 +145,7 @@ fk_validate_done_marker() {
     [[ "$in_done" != "0" ]] && return 0
   fi
 
-  # ── Tier 1 · 元数据快校验（不依赖下游产物）──
-  [[ -s "$done_path" ]] || return 2                        # T1 非空（挡威胁① touch 空文件）
-  local dlines
-  dlines=$(wc -l < "$done_path" 2>/dev/null | tr -dc '0-9')
-  [[ "${dlines:-0}" -ge "$MIN_MEANINGFUL_LINES" ]] || return 2
-
-  local k_phase k_cid k_wby                                # T2 KVP（挡威胁② 伪造）
-  k_phase=$(_fk_done_kvp "$done_path" "phase")
-  k_cid=$(_fk_done_kvp "$done_path" "change_id")
-  k_wby=$(_fk_done_kvp "$done_path" "written_by")
-  [[ "$k_phase" == "$phase" ]] || return 2
-  [[ "$k_cid" == "$change_id" ]] || return 2
-  [[ -n "$k_wby" ]] || return 2
-
-  # T5 Tier1 补 L2_verdict / L3_verdict / artifacts 存在性 + 值合法性检查 (pipeline-fallback-fix P2-1/P2-2)
+  # T5 Tier2/3 补 L2_verdict / L3_verdict / artifacts 存在性 + 值合法性检查 (pipeline-fallback-fix P2-1/P2-2)
   local k_l2v k_l3v k_artifacts
   k_l2v=$(_fk_done_kvp "$done_path" "L2_verdict")
   k_l3v=$(_fk_done_kvp "$done_path" "L3_verdict")
