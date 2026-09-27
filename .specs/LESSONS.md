@@ -771,6 +771,13 @@
 <!-- privacy-path-scrub-2026-09 追加 ↑ -->
 
 <!-- health-fix-2026-09b 追加 ↓ -->
+
+### L-173 · 变异腿要选能区分判据的形态：同一守卫删「拒绝」与删「跳过」得到相反结论，`-ne 0` 会被意外崩溃冒充（TD-093）
+
+`test/test_pre_push_behavior.bats` 的 leg4（畸形 stdin ⇒ fail-closed）在两种守卫删除形态下结论相反：
+`exit 1`→`continue`（跳过整行）⇒ rc=0 ⇒ 腿红；`exit 1`→`:`（继续执行）⇒ 落到 `local_sha=$2` ⇒ `set -u` 崩溃 rc=1 ⇒ 腿绿。
+根因是判据断 `[ "$status" -ne 0 ]` 而不是 `-eq 1`，于是「被测件按预期拒绝」与「被测件意外崩溃」不可区分。
+⇒ 写变异腿时先问「这条腿能否把『另一条失败路径』与本路径分开」，能分开才叫有牙；`-ne 0` 一类宽松断言必须配报文/副作用反证。
 | L-111 | 🔴 | 全局（安全 / hook 守卫） | **安全守卫里的 `eval` 等于把执行权交给被守卫者**：`hooks/pre-tool-use/runtime-edit-guard.sh:46` 用 `real_path=$(eval echo "$file_path")` 展开 `~`，而 `file_path` 直接来自 hook stdin 的 `tool_input.file_path`（JSON 载荷，agent/提示注入可控）。本轮以携带命令替换的 `file_path` **实际复现命令执行**。关键点：外层 `2>/dev/null` 与 `\|\| real_path=...` **无法防护** —— `eval` 先做命令替换再谈退出码；且该行位于所有 gate 判定**之前**，matcher `Write\|Edit` 使其**每次写文件都触发**。全仓 57 个 shell 中唯一 `eval`，恰好落在守卫内。定式：`~` 展开一律用参数展开 `${var/#\~/$HOME}`，**永不** `eval`；`grep -rn '\beval\b' <被守护代码>` 应成为安全门禁的固定检查项 |
 | L-112 | 🔴 | 全局（安装器 / 原子写） | **`cmd > file` 是「先截断、后执行」—— 工具缺失即静默清空用户配置**：`lib/install_hooks.sh:238-253` 的分支条件是 `[ -f "$settings_target" ] && command -v jq`，于是**「文件已存在 + jq 缺失」为假 → 落入 `:238 else`（注释写 `# 新建`）** → `:251` 的 `jq -n … > "$settings_target"` **在 jq 执行前就把已有文件截断**，随后 `jq: command not found`（127），`set -euo pipefail` 使安装中断。本轮复现 **113 字节 → 0 字节**（`permissions.allow` 与既有 Stop hook 全毁），**无备份、无回滚**。两个独立缺陷叠加：① 二值条件把"工具缺失"误判为"文件不存在"；② 写盘用 `>` 而非 temp+rename。定式：依赖外部工具的分支须在**入口**硬校验（`command -v jq \|\| exit 1`），写用户配置一律 `mktemp` + `mv` |
 | L-113 | 🔴 | 全局（隐私 / 历史重写验证口径） | **历史重写的验证必须逐 ref 覆盖「本地分支」：`origin/*` 干净 ≠ 对象库干净**：本轮 `privacy-path-scrub-2026-09` 的论证（`HISTORY-REWRITE-FULL.md:32-33`）只看 `origin/main`（命中 0）就断言"旧对象也不会经 main 存活"，但**本地 `main` 是 20-commit 孤儿分支**（与 `develop` 无共同祖先、无 upstream），仍是 8 个含 `/home/<user>` blob 的**可达**来源 → `gc --prune=now` 无法回收 → 逐字执行文档 `:120` 自己的权威验证命令（`--batch-all-objects`，期望 0）**实测返回 8**。即"删安全网 + 清 reflog + gc"三步都做对了，仍因**一个未纳入分析的本地 ref** 而前功尽弃。定式：① 验证一律用**仓库级**口径（`--batch-all-objects`），不要用 `git log <branch>` 抽样；② 收尾前 `git for-each-ref` 枚举**全部 refs** 逐个判定，本地分支与 tag 同等对待；③ 把该验证做成**可复算门禁**而非一次性人工动作 |

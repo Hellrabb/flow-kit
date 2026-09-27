@@ -1628,3 +1628,25 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **流程改进（已落地）**：`TASK.md` 新增「**工作树纪律**」段（禁止 `git checkout --`/`restore`/`stash`/`clean`；取基线只许 `git show HEAD:<path> > /tmp/...`；台账 append + 写后 `python3` 断言 `tp[-1]['id']` 与 `'.goal' not in d`）；`T-FIX-21` 增「台账归一」步骤（删 `"$(git rev-parse HEAD)"` 伪条目 · `completed_at` 归一 ISO 带时区 · 按时间稳定排序）与可复算 verify 腿；`LESSONS.md` 记 **L-172**。
 
 **写面**：本节 + `.specs/CONTEXT.md`（`TD-091`/`TD-092`）+ `.specs/LESSONS.md`（`L-172`）+ `.specs/health-fix-2026-09b/TASK.md`（工作树纪律段 + `T-FIX-21` 扩面）；未触碰生产件与判据正文。
+
+## ✅ T-FIX-16 复核记录（主 agent · 2026-09-28）
+
+**提交链**：`b3c03fa test: pre-push 行为级常设 bats（T-FIX-16 · R5-7）`（%cI `2026-09-28T01:44:52+08:00`；numstat = `.specs/health-fix-2026-09b/TASK.md` 4/3 · `T-FIX-16-SUMMARY.md` 147/0 · `test/test_pre_push_behavior.bats` 269/0 · `flow-kit-bundle/test/test_pre_push_behavior.bats` 269/0）。
+
+**亲验（主 agent 独立，不复用执行者夹具）**：
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 常设腿全绿 | `npx bats test/test_pre_push_behavior.bats` | `1..6` 全 ok rc=0（leg1 干净 rc=0 · leg2 泄漏 rc≠0 + `🔴 拒绝推送` + 被拒 ref 名 · leg3 纯删除 rc=0 + 跳过措辞 · leg4 畸形 stdin rc≠0 + fail-closed · leg5 检查器在 + 清单缺 rc=2 + 具名 · leg6 消费者形态无 Makefile 仍拦泄漏） |
+| 镜像一致 | `cmp -s test/test_pre_push_behavior.bats flow-kit-bundle/test/test_pre_push_behavior.bats` | IDENTICAL |
+| 计数 | `npx bats --count test/` | **1082**（开工 1076 + 6） |
+| 变异 M1：`flow-kit-bundle/hooks/pre-push/pre-push.sh:200` `leaky_ref="$local_ref"` ⇒ `leaky_ref=""`（泄漏不记录） | 备份 `/tmp/p6d/tfix16-mut/orig.sh`（sha256 `80d1ac5a…`）→ 变异 → 同一 bats | **leg2 + leg6 not ok**，其余 4 绿 ⇒ 泄漏拒绝面确有牙；还原后 sha256 一致、`git status` 干净 |
+| 变异 M2：`:172` 守卫 `exit 1` ⇒ `:`（守卫删除但落到 `set -u` 崩溃） | 同上 | **6/6 全绿** ⇒ leg4 对「守卫删除后由 `$2` 未绑定崩溃兜底」形态无判别力（`TD-093`） |
+
+**M2 机理（实测报文）**：`flow-kit-bundle/hooks/pre-push/pre-push.sh:28` `set -euo pipefail` ⇒ 删掉 `:172` 的 `exit 1` 后循环体继续到 `:175` `local_sha=$2` ⇒ `行 175: $2: 未绑定的变量`（rc=1）；守卫的 `echo` 报文在 `exit` 之前已输出 ⇒ leg4 的 `status -ne 0` + 报文断言 + `fail-closed` 断言三条全满足。执行者变异体（`exit 1` → `continue`，跳过整行 ⇒ rc=0）则 leg4 转红。⇒ 同一守卫的两种删除形态给出**相反**结论；leg4 断 `-ne 0` 而非 `-eq 1`，无法区分「守卫 fail-closed 拒绝」与「意外崩溃兜底」。
+
+**执行者回执核对**：其 `<done>` 自述 `<verify>` ② 腿②/④ not ok 与本轮 M1（腿②⑥ not ok）方向一致（变异体构造不同、判别面相同），未发现夸大；`fix_rounds=1` 只写在 `<done>` 末尾。
+
+**过程偏差（本轮两项）**：① 执行者 `082e037b-68c9-480d-8797-3b7a642eba6f` 在提交 `b3c03fa` 之后**失败退出**（harness 报 `failed before it finished`）⇒ 未写台账五字段；由主 agent 按其提交时间补写 `completed_at=2026-09-28T01:45:02+08:00`（Δ=10 s ≤ 120 s），`goal.task_progress` len 45 → 46、`.goal` 幽灵键不存在、`33-flow-active-integrity.sh` rc=0（`TD-091` 家族再证：写入权在主线，执行者缺席时必须由主 agent 补）。② 派发词背景称「仓库 reference 无 allowlist」为**过时信息**（`f315b64` T21 已把常设权威清单冻结进 HEAD：`flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt` 已 tracked）——执行者自行核实并改以沙箱自建 reference 精确命中状态②，判据未变；教训：派发词的事实前提也必须现取（`TD-083` 家族）。
+
+**写面**：本节 + `.specs/CONTEXT.md`（`TD-093`）+ `.specs/LESSONS.md`（`L-173`）+ `.specs/health-fix-2026-09b/TASK.md`（判据修订：`T-FIX-17` step2 grep 形式订正、`T-FIX-19` 抽取污染与产品侧变异腿）。

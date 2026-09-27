@@ -2731,7 +2731,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   </write_files>
   <action>
     1. **先红**：把主 agent 的三腿夹具口径复现为本地夹具（`/tmp/tfix17/pre.sh`）：工作树里放一个名为 `-q` 的候选（内容含真泄漏）与一个 `zz_control.txt`（含泄漏），分别跑 ⇒ 当前应为 `实际扫描 1 / 命中 0` 且 **rc=0**（静默放行）或命中塌缩；存 `/tmp/tfix17/pre.txt`。
-    2. **修 fail-open**：磁盘侧检索加选项终止符（`grep -naE -- "$PAT" -- "$file"` 或等价写法），并让候选循环从**独立 FD** 读取（如 `while … done < "$TMP_CANDIDATES" 3<&0` 或先读入临时表后循环），使 `scan_file` 内任何子进程都不可能消费候选流。
+    2. **修 fail-open**：磁盘侧检索加模式侧选项终止（**正确形式 `grep -naE -e "$PAT" -- "$file"`**；不得写成 `grep -naE -- "$PAT" -- "$file"`——第二个 `--` 会被当作文件名），并让候选循环从**独立 FD** 读取（如 `while … done < "$TMP_CANDIDATES" 3<&0` 或先读入临时表后循环），使 `scan_file` 内任何子进程都不可能消费候选流。
     3. **加自证**：为「候选数 vs 实际扫描数」增设显式一致性断言——扫描结束后若 `实际扫描 < 候选数` 且差额不由 `不可读` 解释，则打印具名 `🔴` 并 `exit 1`（fail-closed），同时把两个计数一并印在既有自证行中。
     4. **rev 面批量化（`R5-16`）**：仿 `T-FIX-12` 的 index 侧做法，对 `$RESOLVED_REV` 做**一次**批量 `git grep -naE --null "$PAT" "$RESOLVED_REV"`（按候选集合过滤），替代逐候选 `:606` 的调用；fail-closed 语义不变（批量 rc≥2 ⇒ `🔴 无法完成扫描…` exit 1）。若批量路径无法覆盖 gitlink/不可读候选，保留逐候选**兜底**但仅限异常候选（并在 SUMMARY 说明口径）。
     5. **判据**：`test/test_path_privacy_gate.bats` 新增 ≥4 例：① 候选名 `-q`/`-v` 且在 index 与工作树各有一处泄漏 ⇒ rc=1 且两处均被归因；② 候选名 `-q` 干净 + 其他候选含泄漏 ⇒ 泄漏仍被检出（扫描面不塌缩），并断言自证行 `实际扫描 == 候选 - 不可读`；③ rev 形态计时：5 次 `CHECK_REV=HEAD` 实测均 ≤5 s（打印 max/mean/预算百分比；不做负载折算）；④ 反向控制：把磁盘侧 `--` 去掉后腿①必须转红（临时验证后还原）。
@@ -2783,7 +2783,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <read_files>
     <`flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`（AC-1 实现本件）>
     <`test/test_runtime_edit_guard.bats:57-109`（现有 9 例：全是路径解析 / 维护源 / `~` 展开，**无载荷注入、无哨兵断言、不枚举 6 副本与 `dist/` 归档面**）>
-    <`.specs/health-fix-2026-09b/TASK.md` 中 `T05` 块的 `<verify>`（change 期判据 · 本轮审计 C 已独立复算六面 + 源树 + tarball 全 0）>
+    <`.specs/health-fix-2026-09b/TASK.md` 中 `T05` 块的判据面（change 期 AC-1 六面 + 源树 + tarball 全 0 的判定；抽取时注意避免裸标签 token 污染抽取）>
     <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-9`（四要素 + Remedy）>
     <`REQUIREMENT.md` 的 AC-1（载荷必须经拼接构造 · 不得字面出现）>
   </read_files>
@@ -2791,8 +2791,8 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     <`test/test_runtime_edit_guard.bats`（追加常设腿）或新 `test/test_payload_injection.bats`>
   </write_files>
   <action>
-    1. 先红基线：用一次性探针（放 `/tmp/tfix19/`）把 `$(eval …)` 形态载荷（**拼接构造**，如 `P="\$(ev""al echo …"`）喂给 `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`，证明「现常设 9 例全绿但载荷形态未被断言」——即现有常设网对载荷回归零判别力。记录命令 + rc + 输出为红线。
-    2. 落常设腿（≥4 例，追加进 `test/test_runtime_edit_guard.bats`）：① 拼接构造的 `$(…)` 载荷路径 ⇒ 守卫按预期拦截/放行，且**哨兵文件不存在**（哨兵必须由载荷执行才会被创建 ⇒ 不存在即证明未被执行）；② 6 个部署副本（`./sync-hooks.sh` 清单）对该载荷形态静态计数 `grep -cE` = 0；③ `dist/` 归档面同形态计数 = 0（若该形态不适用于归档则写明理由并给替代断言）；④ 反向控制：把守卫的载荷判定临时改为恒真 ⇒ 腿①必须 not ok。
+    1. 先红基线：用一次性探针（放 `/tmp/tfix19/`）把 `$(touch <哨兵>)` 形态载荷（**拼接构造**，测试/探针源件内不得出现可直接运行的整串，见 L-137）喂给 `flow-kit-bundle/hooks/pre-tool-use/runtime-edit-guard.sh`，证明「现常设 9 例全绿但载荷形态未被断言」——即现有常设网对载荷回归零判别力。记录命令 + rc + 哨兵存在性 + 输出为红线。
+    2. 落常设腿（≥4 例，追加进 `test/test_runtime_edit_guard.bats`）：① 两条拼接构造的 `$(…)` 载荷路径（一条落在 `~/.claude/` 运行面内 ⇒ 期望 exit 2 拦截；一条落在运行面之外 ⇒ 期望 exit 0 放行），每例都断 `$status` + **哨兵文件不存在**（哨兵只可能由载荷被执行而创建 ⇒ 不存在即证明未被执行）；② 6 个部署副本（`./sync-hooks.sh` 清单）逐件 `cmp -s` 与源件一致，且该形态静态计数 `grep -cE` = 0；③ `dist/` 归档面同形态计数 = 0（若该形态不适用于归档则写明理由并给替代断言）；④ 反向控制（产品侧变异，见判据③）：还原基线 eval 形态的守卫副本上，腿① 的哨兵断言必须 not ok。
     3. 判据不得只 grep 报文：每条断 `$status` + 哨兵文件存在性 + 输出片段三者之一以上。
     4. 同步与提交：`make test-sync` → `make check-hooks-sync check-test-sync check-dist`（若未触碰 hooks 可略过 `sync-hooks.sh`）→ `make check` 21 ✅ / 0 ❌；`git add` 逐路径 + `git commit -m "..." -- <路径…>`。
     5. 提交后写 `T-FIX-19-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
@@ -2800,7 +2800,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <verify>
     ① 先红留档：`bash /tmp/tfix19/pre.sh` 呈现「现有常设面无法区分拼接/字面」的对照（或缺口说明 + rc）。
     ② `npx bats test/test_runtime_edit_guard.bats`（或新件）全绿且含 ≥4 条新腿。
-    ③ 变异腿：把拼接改回字面 ⇒ 腿①必须 not ok。
+    ③ 变异腿（**产品侧**，不是夹具字符串形态）：把 `/tmp/tfix19/mut/` 内的守卫副本按 `534e3e842fc900045f39492badc66eabe3ffd4c4` 版本第 46 行还原为 `real_path=$(eval echo "$file_path" 2>/dev/null) || real_path="$file_path"` ⇒ 哨兵腿必须转 not ok（载荷被执行、哨兵被创建）；还原为现实现即转绿。仅把夹具里的拼接改成字面一律不算通过。
     ④ `make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-18（串行：全仓门禁为独占步骤）</depends_on>
