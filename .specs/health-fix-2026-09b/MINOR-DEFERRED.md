@@ -1748,3 +1748,37 @@ fi
 **过程事故（写入纪律 · TD-092 家族）**：执行者 `c745fadb-7b70-4e6c-80b9-a2e4dd0dd4b1` 在本任务期间把主 agent **未跟踪**的 `.specs/health-fix-2026-09b/reproduce-5-fixloop.sh`（7840 B）移出仓库到 `/tmp/tfix19/reproduce-5-fixloop.sh.hold`（其「跑权威门禁前清扫未跟踪文件」的既有习惯；`mv` 保留 mtime，事后看目录时间极易误判）。处置：主 agent `cp` 复原 + `bash -n` + **立即提交** `61d484a`（并另修该件自身的 NFR 假红 `44f3693`）；`send_message` 向其立禁；同一条硬约束（禁移动/改名/删除/覆盖任何非本任务写面文件，含一切未跟踪文件）已补进 `/tmp/p6d/dispatch-tfix2{0,1,2,3}.md`；经验固化 `L-176`。同期另立 **`TD-097`**（NFR 判据按源码字面扫描 ⇒ 拼接/方括号可绕过；本例是判据脚本自身的 pattern 字面被自己判红）。
 
 **写面**：本节 + `.specs/CONTEXT.md`（`TD-097`）+ `.specs/LESSONS.md`（`L-176`）+ `.specs/health-fix-2026-09b/reproduce-5-fixloop.sh`（`61d484a`/`44f3693`）；未触碰生产件逻辑、未改冻结五件。
+
+---
+
+## ✅ T-FIX-20 复核记录（主 agent · 2026-09-28 · `R5-26` 🟡 + `R5-12` 🟢）
+
+**提交链**：代码 `75526996a6108815a7fc71882baaa53bf848310a`（`%cI` `2026-09-28T05:54:21+08:00`，`test(health-fix-2026-09b): T-FIX-20 AC-7 删除注入封闭 + combined metric 驱动真实路径`，4 files +202/−88：`test/test_independent_review_model.bats` 67/28 · `test/test_combined_metric.bats` 34/16 · 两件 `flow-kit-bundle/test/` 镜像同数）→ 文档 `11564fb`（`05:55:19`，`T-FIX-20-SUMMARY.md` +96 · `TASK.md` +7/−1）。
+
+**代码面**（`R5-26`：判据不得回落 `$HOME/.claude` 安装副本）
+- `test/test_independent_review_model.bats:11-35` `setup()` 全重写：从 `BATS_TEST_DIRNAME` 向上查找到含 `flow-kit-bundle/hooks/stop/29-independent-review.sh` 的仓库根 ⇒ 导出 `FK_ROOT`/`FK_STOP`/`FK_SRC_29`/`FK_SRC_30`/`FK_L3_REVIEW`/`FK_L3_API`；**四源件缺任一即 `echo "缺失仓库源件（R5-26 fail-fast）:$missing" >&3; return 1`**（不静默 skip、不回落 `$HOME`）。
+- 14 处 `$HOME/.claude/hooks/stop` 直接引用全部改指上述源树变量；新增 AC-7 删除注入腿（`:167` 起，`cp`→`rm`→跑→`cp` 回→`cmp -s`）；`stop-hook.json` 环境面用例改双态（文件在则实断言，缺则显式 `skip`）。
+- `test/test_combined_metric.bats`（`R5-12`）：cleanup 用例改为驱动真实 SUT（`task-brief` awk 脚本 + 隔离扫描根）并断言无 `tmp.*` 残留；新增注入腿（残留文件 ⇒ 扫描命中 ⇒ cleanup 转红）；文件尾补换行。
+
+**亲验表（主 agent 独立实测 · 非执行者夹具）**
+
+| 项 | 实测 |
+| --- | --- |
+| `git show --numstat 7552699` | 4 files +202/−88（与执行者自报一致） |
+| `git show --numstat 11564fb` | `T-FIX-20-SUMMARY.md` +96 · `TASK.md` +7/−1 |
+| 工作树 | `git status --porcelain` 空（开工/收工均空） |
+| bats 例数 | `test_independent_review_model.bats` = **13**（基线 12）· `test_combined_metric.bats` = **3**（基线 2） |
+| `$HOME` 回落残留 | `grep -cE 'HOME/\.claude/hooks/stop'` = **0** |
+| 镜像 | 两件 `cmp -s` **SAME** |
+| **独立删除注入**（自建，非执行者 `inject.sh`） | 删 `flow-kit-bundle/hooks/stop/29-independent-review.sh` ⇒ `npx bats` **rc=1 · ok=0 · not_ok=13** + 具名 `缺失仓库源件（R5-26 fail-fast）`；`cp -p` 复原 + `cmp -s` **SAME** ⇒ **rc=0 · 13 ok / 0 not_ok**；工作树复原后仍空 |
+| bats 全量 | **1098**（1096 + 本任务 2 例） |
+| 台账 | len **50** · 末条 `{"id":"T-FIX-20","commit_sha":"75526996a6108815a7fc71882baaa53bf848310a","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T05:54:33+08:00"}` · Δ=**12 s** · 无 `.goal` 幽灵键 · 顶层 `updated_at` 仍 epoch 整数 |
+| 权威门禁 | job `bash-403`（安静树 HEAD `11564fb`）**RC=0** · 21 ✅ / 0 ❌ · 隐私 候选 1616 / 实际扫描 1610 / 自排除 6 / index 侧 15 / 命中 0 · NFR ✅ |
+
+**回执核对**：六项齐备；自报 numstat 与实测一致；遗留风险 3 条（`:167` 注入腿以子壳重放 setup 查找逻辑而非直调 setup · `test_combined_metric.bats:62` 两腿独立断言而非单腿自红 · `:176-182` 环境面用例异机 skip）均属如实披露，不构成判据缺口。
+
+**观察（登记 `TD-098` 🟢）**：fail-fast 报文在仓库根解析失败时打印 `//flow-kit-bundle/…`（`FK_ROOT=/`）。功能无影响（bats 仍 13/13 转红），仅报文整洁性；v2 一行可修。
+
+**过程偏差**：主 agent 因上下文压缩在同一分钟内**重复派发** T-FIX-20（`87c08079-…` 05:35:43 · `de2f1cea-…` 05:36:06）⇒ `list_agents` 查重后立即 `interrupt_agent` 后启者（当时仍在勘察阶段，零落盘）；复查工作树空、台账未双写。已固化 `L-177`。
+
+**写面**：`test/test_independent_review_model.bats` + `test/test_combined_metric.bats` + 两件镜像 + `T-FIX-20-SUMMARY.md` + `TASK.md`（`status="done"` + `<done>`）。
