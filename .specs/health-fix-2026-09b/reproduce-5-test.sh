@@ -73,6 +73,10 @@
 #     `T-FIX-13` 改动了 `flow-kit-bundle/hooks/pre-push/pre-push.sh` 与 `pre-commit/pre-commit.sh` 两个生产件
 #     ⇒ 第 10 次的证据面对**当前 HEAD 不再权威**；REPRO9 的原始回执仍留档于 §S（不作为本次判定面）。
 #   · 基线：**1064 ok / 0 not ok**（1061 + `T-FIX-13` 新增 3 例静态断言；[A] 段文案与实跑同源）。
+#   · 第 11 次执行（REPRO11 · 2026-09-28）新增 **[G] 段**：直接调用
+#     `.specs/health-fix-2026-09b/reproduce-5-fixloop.sh`（`T-FIX-14…T-FIX-23` 的可复算确切值判据网，
+#     因这些任务的 `<verify>` 是散文式多条、塞进 `DEFAULT_IDS` 会被当 bash 跑成假红）；
+#     同时把 [A] 段 bats 文案里的硬编码「基线 1064」改为**本次实测**（每轮新增 bats 后该行即失真 · TD-099 同族）。
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -158,7 +162,7 @@ run_gates() {
   bok=$(grep -cE '^ok [0-9]+' "$tap"); bno=$(grep -cE '^not ok [0-9]+' "$tap")
   if [ "$brc" -eq 0 ] && [ "${bno:-1}" -eq 0 ]; then brc2=0; else brc2=1; fi
   emit_gate "bats --count" 0 "用例数 ${cnt:-?}（源码面 test/*.bats）"
-  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（基线 1064 ok / 0 not ok = 1061 + T-FIX-13 3 例，skip 计入 ok 行）"
+  emit_gate "bats test/" "$brc2" "rc=$brc ok=$bok not-ok=$bno（**本次实测**；历史口径：第 10 次 1064 = 1061 + T-FIX-13 3 例 —— 用「基线 …」硬编码会在每轮新增 bats 后失真，TD-099 同族）"
 
   echo
   echo "== [B] make check（全门禁）=="
@@ -227,6 +231,17 @@ run_gates() {
     emit_gate "阶段门沙箱复现" "$grc" "健康层 A/B/C ✅ · 无效标记 B2/B3/B4 一律 rc=2 ✅（TD-059 已闭合 · ADR-029 · commit 6cff7a2）· 原文 $LOG_DIR/phase-gate.txt"
   else
     emit_gate "阶段门沙箱复现" 1 "缺 .specs/health-fix-2026-09b/reproduce-phase-gate.sh"
+  fi
+
+  echo
+  echo "== [G] fix loop 判据（T-FIX-14…T-FIX-23 · 可复算确切值）=="
+  fl="$ROOT/.specs/health-fix-2026-09b/reproduce-5-fixloop.sh"
+  if [ -f "$fl" ]; then
+    bash "$fl" > "$LOG_DIR/fixloop.txt" 2>&1; frc=$?
+    tail -4 "$LOG_DIR/fixloop.txt" | sed 's/^/       /'
+    emit_gate "fixloop 14…23" "$frc" "$(grep -E '^== 汇总' "$LOG_DIR/fixloop.txt" | tail -1 | sed 's/^== //')（原文 $LOG_DIR/fixloop.txt）"
+  else
+    emit_gate "fixloop 14…23" 1 "缺 .specs/health-fix-2026-09b/reproduce-5-fixloop.sh"
   fi
 }
 
