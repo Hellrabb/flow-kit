@@ -1782,3 +1782,29 @@ fi
 **过程偏差**：主 agent 因上下文压缩在同一分钟内**重复派发** T-FIX-20（`87c08079-…` 05:35:43 · `de2f1cea-…` 05:36:06）⇒ `list_agents` 查重后立即 `interrupt_agent` 后启者（当时仍在勘察阶段，零落盘）；复查工作树空、台账未双写。已固化 `L-177`。
 
 **写面**：`test/test_independent_review_model.bats` + `test/test_combined_metric.bats` + 两件镜像 + `T-FIX-20-SUMMARY.md` + `TASK.md`（`status="done"` + `<done>`）。
+
+## ✅ T-FIX-21 复核记录（主 agent · 2026-09-28 · R5-8 🟡 / R5-1 🟡 / R5-2 🟢）
+
+**提交链**：`dfca459`（`06:18:54`，`TEST.md` +13/−6）→ `3129ea7`（`06:20:04`，`T-FIX-21-SUMMARY.md` +121 · `TASK.md` +7/−1）→ 补提交 `e00beb9`（`06:28:54`，`TEST.md` +3/−3，§1.1 AC 表订正）→ 主 agent 订正 `089fd0b`（判据下界断言）· `7ee26ab`（§回归保护 计数与 AC-3 行号）。
+
+**数据面 / 文档面**
+- `.flow-active` 归一：删掉 index 37 的**伪条目**（`T-FIX-09`，`commit_sha` 值为字面 `$(git rev-parse HEAD)`，与 index 46 的真条目 `81c920e61101f599bf9e29f7ec5bc3dbe429a887` 重 id）；23 条 7 位短 sha 全部 `git rev-parse --verify --quiet <short>^{commit}` 解析为 40 位；6 条 int epoch `completed_at`（`T-FIX-09` ×2 = `1790325853`/`1790325860`、`T-FIX-10` `1790327360`、`T-FIX-11` `1790330769`、`T-FIX-12` `1790339356`、`T-FIX-13` `1790507877`）归一为 `+08:00` ISO8601；2 条 `Z`（UTC）条目换算**同一瞬时**（`T01` `2026-09-23T02:04:12Z` ⇒ `2026-09-23T10:04:12+08:00`、`T02` `2026-09-23T02:29:10Z` ⇒ `2026-09-23T10:29:10+08:00`）；`deferred` 非空的 3 条（`T07` `['T07-1']` / `T08` / `T11`，均阶段 4 原始任务）语义**原样保留**。
+- `TEST.md`：§1.3 复算表改第 12 次实测（收集/有效 `1098/1097`；专项 `45 / 34 / 14 / 15 / 15`；15 文件），新增「数量口径生成规则」块（4 条命令原文 + 实测数）；§1.1 AC 表补同步（AC-4 `11→15`、AC-6 `30→34`、AC-8 `976/975→1098/1097`、三件合计 `53→63`）；`:54` AC-1 的 `TD-053` 改为 **`R5-9` 已闭合**（15 用例）。
+
+**亲验表（主 agent 独立实测）**
+
+| 项 | 实测 |
+| --- | --- |
+| `git show --numstat` | `dfca459` = `TEST.md` +13/−6 · `3129ea7` = SUMMARY +121 / TASK +7−1 · `e00beb9` = `TEST.md` +3/−3（与自报一致） |
+| 台账 10 项断言（独立 python） | len **50** · 无 `.goal` 幽灵键 · 全部 sha 40 位 · 无 `$(` · 全部 `+08:00` · 字段恰 5 键 · `completed_at` 单调不降 · 无重复 id · `deferred` 3 条保留 · `updated_at` 仍 int ⇒ **全过** |
+| 台账末条 | `{"id":"T-FIX-21","commit_sha":"dfca45966a44f01be60b3ec2a444924011113781","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T06:19:51+08:00"}` · Δ=**57 s** |
+| 计数现取复核 | `test_archive_commit_gate.bats` **45** · `test_check_gate_sync.bats` **15** · `test_path_privacy_gate.bats` **34** · `test_nfr_portability_gate.bats` **14** · `test_runtime_edit_guard.bats` **15** · `npx bats --count test/` **1098** ⇒ 执行者数字全部对得上 |
+| 判据脚本空跑 | `reproduce-5-fixloop.sh`（HEAD `7ee26ab`）✅ 25 · 🔴 8 —— 红项全部落在未完成的 `T-FIX-22`（3）/`T-FIX-23`（5），T-FIX-14…21 段**全绿**（无假红） |
+
+**判据脚本缺陷（主 agent 自查：交付正确却会假红）**
+1. `089fd0b`：T-FIX-21 段对 `数量口径生成规则` 用「=1」相等断言，而 `TEST.md` 有 2 处同名规则行（§1.1 + §1.3）⇒ 新增 `grepge()` 下界断言并改为「≥1」。
+2. `7ee26ab`：§回归保护 常设面文案仍是第 11 次口径（`1064/1063`）、`check-validate` 写 `321`（实测「实际文件: **324** 项 / 漏配 0 / 源缺失 0」）。
+3. AC-3 行号订正为现取锚点：`:139` 实为**允许清单缺失** fail-closed（旧写「畸形 stdin」错位）· `:171` 畸形 stdin fail-closed · `:199-200` ⛔ 泄漏 ref 拒绝 · `:208` `[ -z "$leaky_ref" ] || exit 1` · `:212-213` 尾部 `make check`。
+⇒ 登记 `TD-099` 🟢（「报告当前值计数」无机器门禁 ⇒ 每轮必漂移）与 `L-178`（判据脚本别对散文文件用相等计数断言）。
+
+**写面**：`.flow-active`（数据面，不入提交）· `.specs/health-fix-2026-09b/TEST.md` · `.specs/health-fix-2026-09b/T-FIX-21-SUMMARY.md` · `.specs/health-fix-2026-09b/TASK.md`（`status="done"` + `<done>`）。

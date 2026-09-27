@@ -131,8 +131,12 @@ fi
 grepge "T-FIX-21 TEST.md 数量口径生成规则" .specs/health-fix-2026-09b/TEST.md '数量口径生成规则' 1
 
 echo "-- T-FIX-22（R5-20/R5-21/R5-22/R5-5 具名诊断 + 短路次序 + 归档面 + 自排除）"
-grepc "T-FIX-22 非法 JSON 具名诊断" flow-kit-bundle/lib/install_hooks.sh 'settings\.json.*jq\|jq.*settings\.json' 1
-grepc "T-FIX-22 SELF_EXCLUDE 含 IR-5/IR-6" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh 'INDEPENDENT-REVIEW-[56]' 2
+# TODO(主 agent)：T-FIX-22 回执后把下面这条从下界断言升级为**确切值**（执行者交付形态已知时再钉）。
+grepge "T-FIX-22 非法 JSON 具名诊断" flow-kit-bundle/lib/install_hooks.sh 'settings\.json.*jq\|jq.*settings\.json' 1
+# SELF_EXCLUDE 断言刻意用**锚定整行**（不是 INDEPENDENT-REVIEW-[56] 计数）：基线里该 ERE 已有 1 处
+# 注释命中（check-path-privacy.sh:613「INDEPENDENT-REVIEW-6 ③」），计数口径会随散文漂移（TD-099 同族）。
+grepc "T-FIX-22 SELF_EXCLUDE 含 IR-5" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5\.md$' 1
+grepc "T-FIX-22 SELF_EXCLUDE 含 IR-6" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6\.md$' 1
 if _t22d=$(mktemp -d) && : >"$_t22d/empty.done" && printf '%s' '{"goal":{"phases_done":["4"]}}' >"$_t22d/.flow-active" \
    && PROJECT_ROOT="$_t22d" bash -c '. flow-kit-bundle/hooks/stop/lib/done-validation.sh; fk_validate_done_marker "$1" 4 cid' _ "$_t22d/empty.done"; then
   bad "T-FIX-22 空 .done 必须 rc=2" "实际 rc=0（phases_done 短路仍然先于非空校验）"
