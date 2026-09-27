@@ -2,7 +2,7 @@
 
 - change: `health-fix-2026-09b` · phase 4 · round 5 fix loop · task `T-FIX-15`
 - commit: `330a4e9422ffd83fc6f022e3d5952a157420bb9d` (`%cI` = `2026-09-28T01:01:10+08:00`)
-- SUMMARY commit: `本提交 sha`（提交后回填）
+- SUMMARY commit: `231c74fabd462589ab6c6467e260081571b1eda9` (`%cI` = `2026-09-28T01:02:11+08:00`)
 - HEAD before: `fcffe3e76e3b3e4f9f1d8b8a1a4a3e5f7c8d9e0f1`（T-FIX-14 SUMMARY sha 订正）
 - findings: R5-6 🔴 / R5-27 🟢
 

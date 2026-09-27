@@ -2643,7 +2643,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
 </task>
 
 <task id="T-FIX-15" parallel="false" status="done" model-tier="top">
-  <!-- <done> T-FIX-15 · 2026-09-28 · commit 330a4e9（代码/测试）+ <SUMMARY commit sha>（SUMMARY）
+  <!-- <done> T-FIX-15 · 2026-09-28 · commit 330a4e9（代码/测试）+ 231c74f（SUMMARY）
        R5-6 🔴 闭合：新增 test/test_install_jq_guard.bats 4 例（路A install.sh 入口 check_jq + 路B install_hooks.sh 两道守卫 + 无 *.tmp 残片 + 变异反向控制腿）。
        变异验证：删 install_hooks.sh:189-192 + :365-368 两道守卫 ⇒ 路B 腿②/③ 转 not ok（rc=0 不满足 rc=1）+ 腿④ 确认 4× ⚠️ 合并失败 静默谎报。
        R5-27 🟢 闭合：TEST.md:55 「字节不变」→「未被截断为空 + allow/hook 存活（非字节相等）」。
