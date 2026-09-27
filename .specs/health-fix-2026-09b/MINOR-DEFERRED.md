@@ -1650,3 +1650,36 @@ T29 首版 `<verify>` 同样以 `export LC_ALL=C;` 开头，而它会先跑 `mak
 **过程偏差（本轮两项）**：① 执行者 `082e037b-68c9-480d-8797-3b7a642eba6f` 在提交 `b3c03fa` 之后**失败退出**（harness 报 `failed before it finished`）⇒ 未写台账五字段；由主 agent 按其提交时间补写 `completed_at=2026-09-28T01:45:02+08:00`（Δ=10 s ≤ 120 s），`goal.task_progress` len 45 → 46、`.goal` 幽灵键不存在、`33-flow-active-integrity.sh` rc=0（`TD-091` 家族再证：写入权在主线，执行者缺席时必须由主 agent 补）。② 派发词背景称「仓库 reference 无 allowlist」为**过时信息**（`f315b64` T21 已把常设权威清单冻结进 HEAD：`flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt` 已 tracked）——执行者自行核实并改以沙箱自建 reference 精确命中状态②，判据未变；教训：派发词的事实前提也必须现取（`TD-083` 家族）。
 
 **写面**：本节 + `.specs/CONTEXT.md`（`TD-093`）+ `.specs/LESSONS.md`（`L-173`）+ `.specs/health-fix-2026-09b/TASK.md`（判据修订：`T-FIX-17` step2 grep 形式订正、`T-FIX-19` 抽取污染与产品侧变异腿）。
+
+## ✅ T-FIX-17 复核记录（主 agent · 2026-09-28 · `R5-15` 🟡 + `R5-16` 🟡）
+
+**提交链**：`60f0835 fix(privacy): 磁盘侧检索隔离 + rev 面批量化（T-FIX-17 · R5-15/R5-16）`（%cI `2026-09-28T02:23:29+08:00`；numstat = `flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` +134/−10 · `test/test_path_privacy_gate.bats` +140 · `flow-kit-bundle/test/test_path_privacy_gate.bats` +140）→ `485839b`（`02:25:14`；`T-FIX-17-SUMMARY.md` +151 · `TASK.md` +2/−1）→ `47f627b`（`02:26:09`；SUMMARY +1/−1 = 探针字面拼接化 L-137）。
+
+**亲验（主 agent 独立，不复用执行者夹具）**
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 常设腿 | `npx bats test/test_path_privacy_gate.bats` | 全 ok rc=0；`grep -cE '^[[:space:]]*@test'` = **34**（30 → 34：腿 31 `-q` 双泄漏双归因 · 腿 32 干净 `-q` + 他处泄漏仍检出 · 腿 33 rev 计时夹具 max=0.063 s · 腿 34 反向控制「摘掉 `-e`/`--` + 共用 stdin ⇒ 腿①转红」） |
+| 镜像一致 | `cmp -s test/test_path_privacy_gate.bats flow-kit-bundle/test/test_path_privacy_gate.bats` | SAME |
+| 计数 | `npx bats --count test/` | **1086**（1082 + 4） |
+| 真仓 worktree 实跑 | `make check-path-privacy` | rc=0；候选 **1612** / 实际扫描 **1606** / 自排除 **6** / index 侧 15 / 不可读 0 / 命中 0 / 清单外 0 ⇒ 不变式 1612 = 1606 + 6 ✓ |
+| rev 面耗时 | `CHECK_REV=HEAD` × 5（主 agent 独立计时） | **4.55 / 4.50 / 4.48 / 4.40 / 4.43 s**（基线 `aaf5a4e` 7.084–7.509 s ⇒ ~40% 改善，≤5 s 预算 ✓；与执行者 SUMMARY 的 4.405–4.544 s 一致） |
+| 权威门禁 | `make check`（HEAD `47f627b` · job `bash-399` · 日志 `/tmp/p6d/v17b-make-check.log`） | **RC=0 全部通过**：bats 1086 · `shellcheck: no errors` · `check-validate` 实际文件 324 / 漏配 0 / 源缺失 0 · `check-dist` dist 与源一致 · 校验对 3/14 · 隐私五数同上 · NFR 通过（锚点 `.specs/health-fix-2026-09b/.change-base`） |
+| 台账 | `goal.task_progress` len **47**，末条 `{"id":"T-FIX-17","commit_sha":"60f0835fad3648f76a84e2e3d37e58a617ee041b","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T02:25:02+08:00"}` | append ✓ · Δ = 93 s ≤ 120 s ✓ · 无 `.goal` 幽灵键 ✓ · `33-flow-active-integrity.sh` rc=0 ✓ |
+
+**独立夹具（`/tmp/p6d/v17-main-fixture.sh` + `/tmp/p6d/v17fix/`，主 agent 自建）**：候选 `-q`（含泄漏 1）+ `normal.txt`（含泄漏 2），注释-only allowlist。
+
+| 被测件 | 候选 | 实际扫描 | index 侧 | 命中 | 判定 |
+|---|---|---|---|---|---|
+| 旧版（`git show aaf5a4e:…` ⇒ `old.sh`） | 2 | **1** | **1** | **1** | `normal.txt` 的泄漏被**静默丢弃** ❌ |
+| 新版（HEAD） | 2 | 2 | 2 | **2** | 两处均归因 ✅ |
+
+**机理（实测报文）**：候选名形似选项时，检查器内部「以候选名当 pattern」的 `grep -qxF "$key"` 被 `-q` 吞成无文件操作数 ⇒ grep **转读 stdin**，而 stdin 正是被遍历的命中/候选流 ⇒ 吃掉后续命中；原始索引侧批量 `git grep --cached -naE --null "$PAT"` 实测返回 **2** 条，证明丢失发生在下游而非索引面。**诚实口径**：单候选变体（泄漏仅在 `-q`）旧版也能检出（rc=1，1/1）⇒ 该缺陷**次序/相邻性相关**，不是无条件 fail-open（SUMMARY 与本记录均未夸大为「旧版全漏」）。
+
+**新发现（主 agent 实测 ⇒ `TD-094`）**：rev 面循环内每候选一次 `git cat-file -t "$RESOLVED_REV:$file"` ⇒ 200 次 = 0.35 s（≈1.75 ms/次）⇒ 1612 候选 ≈ **2.8 s**，占整轮 4.4–4.55 s 的 ~62%；而一次 `git ls-tree -r -z HEAD` = 0.00 s / 172 747 B / 1612 条即可拿全 mode；批量化本身有效（一次 `git grep -naE --null "$PAT" HEAD` = 0.05 s / 35 215 B）。
+
+**执行者回执核对**：五字段与两条提交时间自洽（`fix_rounds=1`、`deferred=[]`）；其 SUMMARY 同时披露「真仓 rev 4.405–4.544 s」与「夹具腿 0.061 s」两组数 ⇒ 未用夹具尺度数冒充真仓性能；`47f627b` 只回填探针字面（L-137），非判据变动。
+
+**过程偏差（本轮一项，主 agent 侧）**：首次跑权威门禁时用 `make check &` 在后台 job 内自行后台化（job `bash-398`）⇒ job 结束后进程仍存活，卡在 `lint` 步的 shellcheck 循环（pid 3211582，~48 min），同期执行者也在跑 `timeout 900 make check`；其间宿主疑似休眠（时钟 02:34 → 03:44 跳 70 min，`sleep 240` 工具调用超时）。处置：`kill` 2923654/2923653/2923651（无残留 `find`/`shellcheck`、无 `.git/index.lock`），改用工具级 `run_in_background: true` 重跑（job `bash-399`）⇒ RC=0。**教训：长命令不要用 `&` 在 job 内后台化。**
+
+**写面**：本节 + `.specs/CONTEXT.md`（`TD-094`）+ `.specs/LESSONS.md`（`L-174`）；未触碰生产件、未改判据正文。
