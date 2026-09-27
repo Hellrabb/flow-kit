@@ -203,7 +203,7 @@ FXB18() {
   local f="$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md"
   local nlines
   nlines=$(wc -l < "$f")
-  sed -i '${s/.*/X-CONTENT-DRIFT-SAME-LINE-COUNT/}' "$f"
+  sed '${s/.*/X-CONTENT-DRIFT-SAME-LINE-COUNT/}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   # 前提断言：行数不变但内容已改
   [ "$(wc -l < "$f")" -eq "$nlines" ]
   run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
