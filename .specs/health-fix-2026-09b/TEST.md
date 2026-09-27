@@ -496,7 +496,7 @@ make check-path-privacy                      # 脱敏门禁 + 自证四行
 
 ## 回归保护
 
-**常设（每次 `make check` / pre-push 都跑）**：`test`（**1064 收集 / 1063 有效 —— 含 1 条 TD-033 mock，不计入 AC 结论面**（L3 第 10 轮 minor ① + 第 14 轮 minor ② 收口：所有引用该数字的结论按此读）· **第 11 次执行实测**；演进 976 / 975（第 1–4 次执行）→ 1012 / 1011（第 5–6 次）→ 1025 / 1024（第 7 次）→ 1029 / 1028（第 8 次）→ **1064 / 1063**（第 11 次））· `lint`（shellcheck error 级）· `check-validate`（**321 文件 / 漏配 0 / 源缺失 0**，期望 315 · 第 5 次执行实测；第 1 轮为 317 / 311）· `check-test-sync` · `check-hooks-sync`（六镜像）· `check-dist` · `check-gate-sync` · `check-path-privacy` · `check-nfr-portability`。
+**常设（每次 `make check` / pre-push 都跑）**：`test`（**1098 收集 / 1097 有效 —— 含 1 条 TD-033 mock，不计入 AC 结论面**（L3 第 10 轮 minor ① + 第 14 轮 minor ② 收口：所有引用该数字的结论按此读）· **第 12 次执行实测**；演进 976 / 975（第 1–4 次执行）→ 1012 / 1011（第 5–6 次）→ 1025 / 1024（第 7 次）→ 1029 / 1028（第 8 次）→ 1064 / 1063（第 11 次）→ **1098 / 1097**（第 12 次 · 第 5 轮 fix loop 后））· `lint`（shellcheck error 级）· `check-validate`（**324 文件 / 漏配 0 / 源缺失 0** · 第 12 次执行实测；历史：315/311（第 1 轮）→ 317（第 5 次）→ 321 → 324）· `check-test-sync` · `check-hooks-sync`（六镜像）· `check-dist` · `check-gate-sync` · `check-path-privacy` · `check-nfr-portability`。
 
 **change 期（归档后按需复算）**：19 条判据 + 本文 §1.4 的 8 条边界/错误路径。
 
