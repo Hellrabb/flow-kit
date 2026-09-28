@@ -58,13 +58,13 @@
 | 5 | 顶层 Goal 条件自检通过 | ✅ | §2（6/6 满足；AC-8 保持 ⚠️） |
 | 6 | 上游阶段产物均存在 | ✅ | `CHANGE/REQUIREMENT/DESIGN/TASK/TEST/REVIEW.md` 齐备（change 目录共 69 个 `.md`） |
 | 7 | 无 pending 的 `T-FIX-*` | ✅ | `grep -cE '^<task [^>]*status="pending"' TASK.md` = **0**（54 个 task 全 done） |
-| 8 | 归档已完成（`.specs/<id>/` → `archive/` + STATE + CHANGELOG） | ⏳ **待执行** | 见 §5（须先裁决 `TD-114` 的归档面隐私策略） |
+| 8 | 归档已完成（`.specs/<id>/` → `archive/` + STATE + CHANGELOG） | ⏳ **待执行**（策略已裁决 · 执行随归档 commit） | 见 §5 —— `TD-114` 的归档面隐私策略**已由用户裁决为策略①（归档时就地脱敏 · 2026-09-28）**；按 `L-183` 次序，归档在本阶段 L2/L3 之后执行 |
 | 8a | CHANGELOG LESSONS 列已同步 | ⏳ **待执行** | 随 §8 的 CHANGELOG 行一并写入（本 change 提名的 L 编号列明） |
 | 9 | Sub-goal 汇总 | ✅ N/A | `goal.phase_sub_goals` = `{}` |
 | 10 | PR 已提交（如适用） | ✅ N/A | 本仓为本地分发件（无远端 PR 流程）；`pre-push` 门禁已由 T19/T-FIX-14 覆盖 |
 | 11 | `.flow-active` 关键字段已落盘 | ✅ | `phase="7"` · `phases_done=["0"…"6"]` · `gates` 六门全 `passed` · `updated_at` = epoch int · `task_progress` len **54** · `33-flow-active-integrity.sh` rc=0 |
 
-## 5. 归档计划与 `TD-114` 待裁决项
+## 5. 归档计划与 `TD-114` 已裁决项（策略① · 2026-09-28）
 
 **归档目标**：`.specs/health-fix-2026-09b/` → `.specs/archive/2026-09-28-health-fix-2026-09b/`（含 `ARCHIVE-MANIFEST.txt`：文件 · 字节 · sha256 前缀 · 生成时间 · HEAD · 未提交项数）· 随后追加 `.specs/CHANGELOG.md` 行 · 更新 `.specs/STATE.md`（`last_change_archived` 链）· 单次归档 commit。
 
@@ -76,4 +76,4 @@
 | ② 豁免随文件迁移 | 把 3 条 `SELF_EXCLUDE` 条目改指归档路径 | 不动审查档原文 | 豁免面**按 change 数线性增长**（每个归档 change 都可能要 3 条）· 与 T13/T17「永不无界」的初衷相悖 |
 | ③ 判据面排除归档根 | 隐私门禁扫描面显式跳过 `.specs/archive/**`（归档快照 = 冻结历史） | 一次性规则 · 豁免面不增长 · 与 `T-FIX-23` 对 NFR 面的处置**同构** | 归档面成为**隐私盲区**（未来归档若含真实路径不会被发现）· 属「宽排除」 |
 
-> 该决策属本 change 已两度裁决过的「豁免面策略」，故按协议**呈用户裁决**；裁决结果与理由将写入本文件 §5 与本 change 的 `MINOR-DEFERRED.md`，并据此更新 `TD-114` 的 v2 口径。
+> **裁决结果（2026-09-28 · 用户）**：选 **策略①（归档时就地脱敏）** —— 归档副本内的真实/合成账号路径统一替换为 `/home/<acct>/`（原文仍在 git 历史），映射随 `ARCHIVE-MANIFEST.txt` 披露；`TD-114` 的 v2 口径据此收窄为「归档时脱敏 + manifest 披露」的固定流程。
