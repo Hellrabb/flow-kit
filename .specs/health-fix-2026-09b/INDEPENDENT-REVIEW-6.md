@@ -650,3 +650,24 @@ bash ./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh; echo "rc=$?"   
 L3_artifact_hash: 98da9073b3c01a0ca9677bb0f2ae4e31fdef379bb8306e8799d82ec97697299b
 
 <!-- /L3-SECTION -->
+
+
+---
+
+## 主 agent 响应（阶段 6 · L3 第 22 轮 · 2026-09-28 · `verdict=pass`）
+
+> **判定：`verdict=pass` 接受**（critical 0）；**3 major + 4 minor 全部采纳**，按 L3 自陈「均属 major 级可改进项，**不构成放行阻断**」⇒ 1 条就地修复、2 条登记 v2、4 条登记或说明。**L3 原文一字未改**。
+
+| # | 级别 | L3 发现 | 主 agent 处置 |
+|---|---|---|---|
+| M1 | major | `REVIEW.md` 头部多个 verdict 行并存，现行结论只能按轮次手工辨识 | **`Fixed in: REVIEW.md` 头部** —— 合并为**唯一权威结论行**「⚠️ 现行结论（阶段 6 · 2026-09-28 · 唯一权威结论行）」：阶段 6 已闭合 · L2 第 1/2 轮 pass · L3 第 22 轮 pass · AC-9 = ⚠️ 有条件通过；其余 verdict 行统一标注「（历史）…不再是现行结论」。 |
+| M2 | major | `T-FIX-10` 的 `<verify>` 第 3 条静态判据过宽（不能区分「吞 rc 的缺陷形态」与「防 set-e 中止的合法用法」） | **已修（本轮之前）**：`T-FIX-10 <verify>` 已按 `TD-104` 改为**双面断言**（缺陷形态缺席 + `diff_rc=$?`/`rc≥2` 修复形态在场），并由 `T-FIX-25` 把行为级判别力补进常设网（16 例）⇒ **`TD-104` 标记本 change 内已闭合**。`T-FIX-10-SUMMARY.md` 的该段自述反映的是**修复前**状态（历史产物不追改，按 L3 发现同向）。 |
+| M3 | major | `T-FIX-25` 只加 1 条腿，未覆盖其它机械故障形态（`diff` 不存在 / 参数错误 / 输出截断） | **`Tech-debt: TD-106`** —— v2 = 参数化影子命令或表驱动增 2–3 条同族腿（本 change 不扩面：该腿的目标是 `TD-104` 所述**特定**缺陷形态，已由双证据确认有判别力）。 |
+| m1 | minor | `T-FIX-10-SUMMARY.md`（4205 B）超补充产物预算 3000 B 被截断，关键细节不可见 | **`Tech-debt: TD-107`**（与 `TD-103` 的 L3 预算问题同族）—— v2 = SUMMARY 首屏结构约束（判据偏差/修法/复跑 rc 必含）或提高补充产物预算到 8–10 KB。 |
+| m2 | minor | `T-FIX-20-SUMMARY.md` 的 AC-7 删除注入腿在 `stop-hook.json` 缺失时 skip ⇒ 该断言在无安装态环境永不执行 | **`Tech-debt: TD-108`** —— v2 = 拆「文件在 / 文件缺」两态，后者断言不 crash + 走默认读序（消除静默 skip 缺口）。 |
+| m3 | minor | `T-FIX-23-SUMMARY.md` 披露「子 agent 中断后由主 agent 代笔收口」削弱证据链独立性 | **`Not-applicable:`（已披露且另有独立复核）** —— 该披露**本身**是诚实留痕（`L-180` 家族的登记）；代笔事实另有 **L2 第 6 轮 + L3 第 18 轮**的独立复审与主 agent 逐项复算（§U/§U-5）作为外部证据链，非单一自证。 |
+| — | — | 其余 minor（如 `T-FIX-20` 同族跳过面） | 见上表 m2；无额外处置。 |
+
+> **阶段 6 判定**：**L2 第 1/2 轮 pass + L3 第 22 轮 pass ⇒ `gate_config["6-review"]=both` 满足**；**AC-9 = ⚠️ 有条件通过**（AC-8 跨 OS 实机面未验证 · `TD-055` 开放 · 不阻塞但不得读作 AC-8 通过）。进入 **Toll-gate 6→7** 前按协议停下等用户裁决。
+>
+> **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-6.md`；`REVIEW.md`（头部权威结论行 + §H.3 前提句）与 `.specs/CONTEXT.md`（`TD-106`/`TD-107`/`TD-108`）由主 agent 同轮订正。**未改**生产件、**未改**判据正文、**未改写**任何 L2/L3 段原文。

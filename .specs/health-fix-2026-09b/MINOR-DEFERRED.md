@@ -2075,3 +2075,20 @@ fi
 | 🟢 L2-6R2-6 | Minor | 本轮增量未引入新 6 维衰退 | `Not-applicable:` |
 
 **边界登记**：3 条未独立重跑项（全量门禁 / `T-FIX-10` 完整 verify 超时 / `TD-105` 机制未构造写入夹具）已随响应写入，均不构成 AC 结论面证据。
+
+---
+
+## ✅ L3 第 22 轮处置（阶段 6 · 2026-09-28 · `verdict=pass` · critical 0 / major 3 / minor 4）
+
+**L3 段位置**：`INDEPENDENT-REVIEW-6.md`（第 22 轮 · 17:5x–18:2x 区间写入 · 工件 hash `98da9073…`）· phase-6 审查握手已由子系统落盘 · **本响应位置**：同档其后。**L3 原文一字未改**。
+
+| # | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| M1 | major | `REVIEW.md` 头部多 verdict 行并存 | `Fixed in: REVIEW.md` 头部（唯一权威结论行 + 其余标「历史」） |
+| M2 | major | `T-FIX-10` verify 静态判据过宽 | 已修（`TD-104` 双面断言 + `T-FIX-25` 行为级腿 ⇒ 本 change 内闭合）；历史 SUMMARY 不追改 |
+| M3 | major | `T-FIX-25` 腿只覆盖一种机械故障形态 | `Tech-debt: TD-106`（v2 表驱动多形态） |
+| m1 | minor | `T-FIX-10-SUMMARY` 超 3000 B 预算被截断 | `Tech-debt: TD-107`（与 `TD-103` 同族） |
+| m2 | minor | `T-FIX-20` AC-7 腿在无安装态 skip | `Tech-debt: TD-108`（拆两态消除静默缺口） |
+| m3 | minor | `T-FIX-23` 代笔收口的独立性 | `Not-applicable:`（已诚实披露 + L2 第 6 轮/L3 第 18 轮独立复审作为外部证据链） |
+
+**结论**：**阶段 6 独立审查闭合**（L2 第 1/2 轮 pass · L3 第 22 轮 pass）· **AC-9 = ⚠️ 有条件通过**（AC-8 · `TD-055`）⇒ 可进入 Toll-gate 6→7（等用户裁决）。

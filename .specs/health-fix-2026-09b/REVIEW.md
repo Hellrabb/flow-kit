@@ -1,6 +1,8 @@
 # 阶段 6 · REVIEW — health-fix-2026-09b
 
-**⚠️ 现行结论（阶段 6 重入 · 2026-09-28 · L3 第 21 轮 major ② 收口）**：**本阶段尚未闭合** —— L2 第 1 轮 = `pass`；**L3 第 19/20/21 轮 = `fail`**（第 19 轮 2 major、第 20 轮 2 critical + 3 major + 3 minor、第 21 轮 1 critical + 2 major + 3 minor），逐条处置见 `INDEPENDENT-REVIEW-6.md` 的三段「主 agent 响应」与 §H.3 结论（**L3 `pass` 之前不构成 6→7 放行依据**）；L3 第 21 轮的 critical 属**机制自引用**（工件里可见的 L3 判定永远是上一轮，见 `TD-105`）⇒ 已提请用户裁决。**下列历史 verdict 行按轮次读，不得当作现行结论**：
+**⚠️ 现行结论（阶段 6 · 2026-09-28 · 唯一权威结论行 · L3 第 22 轮 major ① 收口）**：**阶段 6 已闭合** —— **L2 第 1/2 轮 = pass**（第 2 轮为 `T-FIX-25` 后的增量复审）· **L3 第 22 轮 = pass**（critical 0 · 3 major + 4 minor 均为「可改进项，不构成放行阻断」，逐条处置见 `INDEPENDENT-REVIEW-6.md` 的对应响应段）· 判据面/门禁面见 `PHASE5-RECEIPTS.md` §U/§U-5 ⇒ **AC-9 = ⚠️ 有条件通过**（AC-8 跨 OS 实机面未验证 · `TD-055` 开放 · 不阻塞但不得读作 AC-8 通过）。**下列历史 verdict 行按轮次读，不再是本阶段的现行结论**：
+
+**（历史）verdict（阶段 6 第 19–21 轮 · L3 未通过时点）: fail** —— L2 第 1 轮 = `pass`；**L3 第 19/20/21 轮 = `fail`**（第 19 轮 2 major、第 20 轮 2 critical + 3 major + 3 minor、第 21 轮 1 critical + 2 major + 3 minor），逐条处置见 `INDEPENDENT-REVIEW-6.md` 的三段「主 agent 响应」与 §H.3 结论（**L3 `pass` 之前不构成 6→7 放行依据**）；L3 第 21 轮的 critical 属**机制自引用**（工件里可见的 L3 判定永远是上一轮，见 `TD-105`）⇒ 已提请用户裁决。**下列历史 verdict 行按轮次读，不得当作现行结论**：
 
 **verdict（第 3 轮 · 历史）: fail** —— 审查面扩到「2 个独立审计 subagent 的对抗式深审 + 主 agent 逐条亲验」后，在 fix 循环后的 HEAD `7b624dc` 上共得 **5 🔴 Critical + 13 🟡 Important + 12 🟢 Minor**。五条 🔴 全部由主 agent **独立复跑夹具坐实**：R3-1/R3-2（本 change 新建的 `check-path-privacy.sh` 的 C 引号化静默跳过 + index/工作树内容面错配 ⇒ 假绿，后者直接击穿本 change 自身的 `pre-commit.sh:33 → Makefile:127` 拦截链）· R3-14（`pre-push`/`pre-commit` 在消费者项目 fail-closed ⇒ 拒一切 push/commit，且使 ADR-027② 失效）· R3-15/R3-16（NFR 门禁 `realpath` 死模式 + 未加引号 `for` 静默跳过 ⇒ 假绿）。⇒ **出口 = 回退 `4-dev`，追加 `T-FIX-07` … `T-FIX-10`**（分解见 §0″.6）；12 条 🟢 入 `MINOR-DEFERRED.md` 交阶段 7 triage。
 
@@ -1051,6 +1053,6 @@ X-DRIFT-SKILL-ONLY
 
 **结论（L3 第 20 轮 major ① 收口 · 措辞已收紧）**：**9/9 自检项「已完成」**，但**其中第 5 项（AC-9）为 ⚠️ 有条件通过**（AC-8 跨 OS 实机面未验证 · `TD-055` 开放）—— **不得读作「9/9 全过」或「AC 全通过」**。
 
-⇒ **进入 Toll-gate 6→7 的前提 = `gate_config["6-review"]=both` 的 L2/L3 独立审查均 `pass`**：L2 第 1 轮 = **pass**；**L3 尚待通过** —— 本阶段 L3 第 19 轮 `fail`（2 major）与第 20 轮 `fail`（2 critical + 3 major + 3 minor）的逐条处置见 `INDEPENDENT-REVIEW-6.md` 的两段「主 agent 响应」（第 20 轮的处置含：AC 表的证据归属修正 · 「不阻塞」依据附用户裁决原文 · 本节措辞收紧 · `TD-104` 登记）。**处置后必须重跑 L3，并以 L3 给出的 `pass` 判定为放行依据；在 L3 `pass` 之前，本节不构成 6→7 的放行依据。**
+⇒ **进入 Toll-gate 6→7 的前提 = `gate_config["6-review"]=both` 的 L2/L3 独立审查均 `pass`**：**L2 第 1/2 轮 = pass · L3 第 22 轮 = pass ⇒ 前提已满足**（第 19/20/21 轮 fail 的处置链见下）： 本阶段 L3 第 19 轮 `fail`（2 major）与第 20 轮 `fail`（2 critical + 3 major + 3 minor）的逐条处置见 `INDEPENDENT-REVIEW-6.md` 的两段「主 agent 响应」（第 20 轮的处置含：AC 表的证据归属修正 · 「不阻塞」依据附用户裁决原文 · 本节措辞收紧 · `TD-104` 登记）。**处置后必须重跑 L3，并以 L3 给出的 `pass` 判定为放行依据；在 L3 `pass` 之前，本节不构成 6→7 的放行依据。**
 
 ⇒ 用户裁决：`auto_advance=false` ⇒ 即使 L2/L3 均 `pass`，也必须停下等用户裁决。
