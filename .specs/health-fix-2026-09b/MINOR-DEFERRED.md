@@ -1874,3 +1874,32 @@ fi
 **收口复扫（52 个 `task` 全量交叉核对 · 发现并修复 1 处 · `L-180` / `TD-101`）**：`T-FIX-15` 的 `status` 仍为 `pending` 且**无 `done` 块**，而其产品提交 `330a4e9` / SUMMARY `231c74f` / 台账条目 `78e2fc4` / 本文件复核记录**四者齐备** —— 属 `TD-092` 销毁式还原的**契约残骸**（恢复的是主 agent 的内容 hunk；执行者写面的完成标记不在备份里 ⇒ 永久丢失），自 `78e2fc4`（`01:02`）静默存活 **11.5 h**（`make check` 与 `check-validate` 都不校验此项）。已按台账 + `T-FIX-15-SUMMARY.md` + 本文件复核记录**事后补记**（`done` 块内显式标注「补记（T-FIX-23 收口轮）」+ 依据）。同批复扫口径与结论：52 个 `task` 与台账 `id` **一一对应**（无孤条）· `done` 块的 `sha` 与台账 `commit_sha` **零不符** · 异常仅 `T-FIX-15` 一处。
 
 **既有 ❌ 备查（非本次引入 · 不在 `make check` 面）**：`make verify-claims` §10c「§0.5.1 覆盖被改文件」对 fix loop 期间新增触碰件报 ❌（冻结的 `DESIGN.md` 不回填）· 同批 `MINOR-DEFERRED.md` M 编号口径 ❌（第 5 轮整轮既有）。`verify-claims` 不在 `Makefile:5` 的 `check:` 目标集合内。
+
+---
+
+## 🚦 阶段 4 完成自检（4→5 · 8 项 · 主 agent · 2026-09-28 · `health-fix-2026-09b`）
+
+> 触发：第 5 轮 fix loop 最后一个任务 `T-FIX-23` 收口（台账 len **52** = 29 条 `T01…T29` + 23 条 `T-FIX-01…23`）。
+> 协议源：`flow-kit-bundle/flow-kit/prompts/4-dev.md:90-106`（8 项）· toll-gate 单一源 `reference/pipeline-gates.md`。
+
+| # | 项 | 实测 | 判定 |
+|---|---|---|---|
+| 1 | `TASK.md` 全部 task `status="done"` | `grep -cE '^<task [^>]*status="pending"'` = **0** · `^<task … status="done"` = **52** · 块数 = 52 | ✅ |
+| 2 | 每 task 的 `*-SUMMARY.md` 已写入 | `T01…T29` 29/29 · `T-FIX-01…23` 23/23 齐（**本轮首次穷举**：`T-FIX-16-SUMMARY.md` 原被写进**仓库根**（`b3c03fa`）⇒ `git mv` 归位，见 `L-180`/`TD-101`） | ✅ |
+| 3 | 所有 verify 通过 + 6 维 self-review | verify：`T01…T29` 逐条在各自 SUMMARY · `T-FIX-14…23` 逐条在本文件复核记录 + 判据脚本 `reproduce-5-fixloop.sh` **✅ 41 · 🔴 0** · 一键脚本 `reproduce-5-test.sh` 第 12 次执行（阶段 5 重跑）。6 维：`T01…T29` 各自 SUMMARY 含「6 维自查」段；fix loop 的生产件 diff 由**阶段 6 四方独立审查**（审计 A/B/C + ADR-014 跨模型 spot-check ⇒ `R5-1…R5-27`）覆盖，本轮另跑**内置 6 维快查**（见下） | ✅ |
+| 4 | diff 边界 verify（`git diff --stat` ↔ `write_files`） | 机械核对 base `534e3e8`→HEAD **133 个路径**：命中 `TASK.md` 的 `write_files` 声明（313 条）或属已知工件族（change 工件 / `.specs/CONTEXT·LESSONS·STATE` / ADR / 健康档 / bats 双源）。**5 条未直接命中**，逐条溯源后全部合规：`flow-kit-bundle/{README.md,OPENCODE-INSTALL.md,install.sh}` 在 `T-FIX-08` 的 `write_files`（声明用 `·` 连写，抽取器未拆）· `package-flow-kit.sh` 与 `flow-kit-bundle/lib/validate_staging.sh` = **用户裁决「TD-048 本 change 内修」**（提交 `d613134`，diff 内注释自带出处「T11 change · Part C glob 扩展」）⇒ **越界 0** | ✅ |
+| 5 | 沿用既有抽象 grep（R6.4 / 1.4）结果在 SUMMARY | `T01…T29` 各自 SUMMARY 有「沿用既有抽象」结论。fix loop 的等价物逐条落在复核记录：`T-FIX-23` 的 `install_brooks` 原子写沿用 `install_hooks.sh:41-60` 的既有 `tmp + mv`+清理范式；全量入口**复用同一 `-internals` 判据正文**而非另造第二套（`4-dev` R6.4 的正例） | ✅（口径披露见下） |
+| 6 | Sub-goal 自检 | `goal.phase_sub_goals["4"]` = **空** ⇒ N/A | ✅ |
+| 7 | bats 已跑且 0 fail（L-010） | `npx bats test/` ⇒ `1..1114 ok=1114 not_ok=0 skip=0` · `npx bats --count test/` = 1114 | ✅ |
+| 8 | `.flow-active` 关键字段落盘 | `test -s .flow-active` ✓ · `jq -e '.updated_at'` ✓（epoch int `1790569784`）· `goal.current_phase="4"` · `task_id="T-FIX-23"` · `phases_done=["0","1","2","3"]` | ✅ |
+
+**内置 6 维快查（fix loop 生产件 diff · 本轮现跑 · 路径 B）**
+
+- **R1 认知过载**：变更面确有一批 >50 行函数（`check-path-privacy.sh:611 scan_file` 120 行 · `l3-prompt.sh:322 _l3_build_prompt` 200 行 · `install_hooks.sh:179 install_hooks` 289 行 · `done-validation.sh:112 fk_validate_done_marker` 64 行 · `Makefile` 的 `check-nfr-portability-internals` 单一 `bash -c` 正文约 200 行），**但全部是「改动落在既有长函数内」而非新增长函数**；`T-FIX-23` 新增的 `check-nfr-portability-full` 目标本体 6 行。⇒ 🟢（存量结构，登记 `TD-099`/`TD-101` 同族的「无拆分门禁」，不在本 change 收口面）。
+- **R2 变更传播**：见自检第 4 项 —— 越界 **0**。尤其：仓库根误置件 `T-FIX-16-SUMMARY.md` 是**工作面**残骸（tracked 11 h），已归位；`dist/`、`.git/config`、`.git/hooks` 零改动（本仓 `core.hooksPath` 为空 ⇒ 本 change 从未声称「钩子已校验」）。
+- **R3 知识重复**：便携读循环 `X=(); while IFS= read -r _l; do X+=("$_l"); done < <(…)` 在 `sync-hooks.sh`(×3) 与 `verify-claims.sh`(×2) **共 5 处** —— 有意不抽公共函数：两件是**顶层独立脚本**（可被单独拷走运行），抽库会引入新的加载耦合，且该惯用法仅一行。⇒ 🟢（理由入档，不修）。
+- **R4 偶然复杂**：`nfr-portability-baseline.txt` 被 `Makefile` + 常设 bats（双源）+ 判据脚本引用 ⇒ 非「以后可能用到」。基线的 `map[f]ile` 书写是**为避免基线文件自身被字面判据扫红**的必要规避（`TD-097` 家族的已知取舍），非冗余。⇒ 无发现。
+- **R5 依赖混乱**：本 change 的依赖方向未变（`hooks/**` 不反向 import `lib/**`；`Makefile` 仍是唯一门禁入口；`reference/*.sh` 保持可独立执行的检查器定位）⇒ 无发现。
+- **R6 领域扭曲**：新增命名均为领域/机制词（`nfr-portability-baseline` · `check-nfr-portability-full` · `_NFR_ALL_HITS`/`_BASE_KEYS`/`_NFR_NEW` · `_hook_tmp`），无 `data`/`info`/`item` 类技术词 ⇒ 无发现。
+
+**口径披露（诚实项 · 供阶段 5/6 复核）**：本自检的**第 2 项是首次真跑** —— 它一次抓出两处 11 小时无人发现的残骸（`T-FIX-15` 缺完成标记 · `T-FIX-16` 回执误置仓库根）。⇒ 结论：**此前各轮的「4→5/rollback 门」都没有执行过该 8 项穷举**；本轮的 ✅ 是**首次**全绿，而非既有状态的延续。该系统性缺口已登记 `L-180` / `TD-101`（v2 = `make check-task-ledger`）。
