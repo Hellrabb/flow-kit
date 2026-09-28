@@ -307,7 +307,7 @@
 **Consequence（后果）**：R4① 的「登记不闭环」已闭合。读者单读 `TEST.md:82` 即可判明该行为历史形态、现态裸探针不进隐私分支，须用 L-137 拼接构造形态复现 rc=1。
 **Remedy（修补）**：R4① 处置充分，无需追加修补。
 
-### ✅ R4②-a · 隐私门禁功能面（主 agent 对 :147 的处置）已脱敏（但本轮自伤致门禁暂 rc=1，见 R4②-b）
+### ✅ R4②-a · 主 agent 对 :147 的处置充分（:147 已脱敏；门禁一度因本审查员自伤 rc=1，已闭环见 R4②-b）
 
 **Severity**：🟢 Minor（复核结论 · 主 agent 对 :147 的处置充分；本轮自伤见 R4②-b）
 **Symptom（症状）**：第 2 轮 🟡 R4② 残留要求 `INDEPENDENT-REVIEW-7.md:147`（主 agent 第 1 轮响应段「附带自伤披露」行）的真实探针路径字面脱敏。本审查员亲验：① `sed -n '147p' INDEPENDENT-REVIEW-7.md` 现读「`L-183` 的行文里引用了真实探针字面 `/home/<acct>/leak.txt` ⇒ `make check-path-privacy` 判红 1 条（`.specs/LESSONS.md:781`）；已就地脱敏为 `/home/<acct>/leak.txt`」——该行的探针路径字面**两处**均为 `/home/<acct>/leak.txt`（已脱敏，无真实账号名）；② 对完整真实探针路径（去标识化记作 `/home/<acct>/leak.txt`，即原 `zz-` 形态探针全路径）做 `grep -nE` 检索 ⇒ **0 命中（rc=1）**——主 agent 对 :147 的原始处置充分：完整真实探针路径已从 :147 清除。③ 本审查员在追加本 R3 段**之前**实跑 `make check-path-privacy` ⇒ **rc=0 · 命中合计 0 · 清单外命中 0**（HEAD `cf113b66`，index 面干净）。**但**本审查员追加 R3 段时自伤引入了新的 PAT 命中（见 R4②-b），使追加之后门禁暂 rc=1；主 agent 对 :147 的处置本身充分，rc=1 的根因是本审查员自伤而非 :147 未脱敏。
@@ -315,13 +315,13 @@
 **Consequence（后果）**：主 agent 对 R4② 原始残留（:147 真实路径）的处置充分：:147 已脱敏、完整真实探针路径 0 命中。R4②-a 的功能面（主 agent 处置）达成。**门禁当前 rc=1 的根因是本审查员 R3 段自伤（R4②-b），非主 agent 对 :147 的处置失当**——R4②-b 的 Remedy（主 agent `git add` 工作树脱敏版重暂存）落地后，门禁将恢复 rc=0。
 **Remedy（修补）**：主 agent 对 R4②-a（:147 处置）无需追加修补。R4②-b 的自伤修补（重暂存）落地后，门禁 rc=0 将与 R4②-a 的 :147 脱敏状态一致。
 
-### 🔴 R4②-b · 本审查员 R3 轮追加内容自污染致 `make check-path-privacy` rc=1（工作树已就地脱敏 · 待主 agent `git add` 重暂存）
+### 🔴 R4②-b · 本审查员 R3 轮追加内容自污染致门禁一度 rc=1（已就地脱敏 + 主 agent 归档重暂存 ⇒ 现已 rc=0 闭环）
 
-**Severity**：🔴 Critical（本审查员自伤 · 已就地脱敏工作树，但 index 面仍判红，阻塞归档 commit）
+**Severity**：🔴 Critical（本审查员自伤 · 已闭环：工作树就地脱敏 + 主 agent 归档 commit `1b882e4` 重暂存脱敏版 ⇒ index 同步 ⇒ 门禁恢复 rc=0）
 **Symptom（症状）**：本审查员撰写本 R3 轮追加内容时，在 R4②-a 的 Symptom/Remedy 与 R4②-b 的 Symptom/Remedy 及命令清单行引用了**完整真实探针路径**（去标识化记作 `/home/<acct>/leak.txt`，即原 `zz-` 形态探针全路径，含尾 `/`）作为 `grep -nE` 命令字面与路径字面。这些字面在 PAT `=/home/[a-z_][a-z0-9_-]*/` 下构成命中（账号名后跟尾 `/`）。主 agent 在本审查员追加之后执行 commit `078d7bc2`，将这些含真实路径字面的 R3 轮正文**一并暂存入 git index**。本审查员亲验：① **index 面**（`git show :.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md | grep -oE '/home/[a-z_][a-z0-9_-]*/'`）⇒ **6 命中**，均为 `/home/<acct>/`（含尾 `/`）；② **工作树面**（`grep -oE '/home/[a-z_][a-z0-9_-]*/' INDEPENDENT-REVIEW-7.md`）⇒ **0 命中**——本审查员已在工作树面就地脱敏（将 `/home/<acct>/leak.txt` 与 `/home/<acct>/` 等字面改为去标识化形态 `/home/<acct>/leak.txt`，`<` 不在 PAT 字符类内 ⇒ 不命中）；③ **实跑** `make check-path-privacy` ⇒ **rc=1 · 清单外命中 4 条**（门禁扫描 git index 面，index 仍含 R3 轮未脱敏正文）。即：工作树已脱敏但 index 未同步（本审查员**不得 `git add`**，见提示词纪律），门禁仍判红。
 **Source（源头）**：`flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md` 独立性硬约束「去标识化（`<acct>` / `<repo>`）」——本审查员在追加正文时引用 grep 模式串与路径字面未一律去标识化，属自伤；`LESSONS.md` **L-183** 定式④「主 agent 自撰工件里出现的任何绝对路径字面一律按 `<acct>` 形态书写，不要先写真实形态再指望后续脱敏」同族教训（本审查员作为工件撰写者亦受此约束）。
 **Consequence（后果）**：本审查员的 R3 轮追加内容使 `make check-path-privacy` 从本审查员追加**之前**的 rc=0（亲验：本审查员在追加 R3 段之前实跑门禁 = rc=0 · 清单外命中 0 · HEAD `cf113b66`）退化为 rc=1（index 面含 6 条 PAT 命中）。当前 index 面（commit `078d7bc2`）的隐私门禁判红 ⇒ 任何归档 commit 的 pre-commit 钩子会硬拦（`[archive-commit-gate] path-privacy check failed`）。**根因是本审查员自伤**，非主 agent R4② 处置失当——主 agent 对 R4② 原始残留（:147 真实路径）的处置是充分的（见 R4②-a：:147 已脱敏、完整真实路径 0 命中）。
-**Remedy（修补）**：本审查员已在工作树面就地脱敏全部 6 处 PAT 命中（R3 轮正文 grep 模式串与路径字面改为 `<acct>` 形态）。**待主 agent 执行 `git add .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md` 将工作树脱敏版重暂存入 index，并重跑 `make check-path-privacy` 确认 rc=0 · 清单外命中 0**（本审查员受「不得 `git add`」纪律约束，无法自行重暂存）。脱敏后工作树面 PAT 已 0 命中（亲验），重暂存后 index 面将同步为 0 命中，门禁恢复 rc=0。
+**Remedy（修补）**：本审查员已在工作树面就地脱敏全部 6 处 PAT 命中（R3 轮正文 grep 模式串与路径字面改为 `<acct>` 形态）。**主 agent 归档 commit `1b882e4` 已将工作树脱敏版重暂存入 index（含归档搬迁 `.specs/health-fix-2026-09b/` → `.specs/archive/2026-09-28-health-fix-2026-09b/`）**。本审查员归档后实跑 `make check-path-privacy` ⇒ **rc=0 · 清单外命中 0 条**（亲验：index 面 + 工作树面 PAT 均 0 命中）。**自伤已闭环**——门禁恢复干净态，归档 commit 不再被 pre-commit 硬拦。
 
 ### ✅ R1/R2/R5/R6/R7 · 第 2 轮已判「处置充分」的 5 条 · 顺手复核未被后续改动破坏
 
@@ -347,9 +347,12 @@
 | `sed -n '82p' TEST.md \| grep -c '就地订正'` | 0（1 命中） | R4① 主 agent 复算命令自证 |
 | `sed -n '147p' INDEPENDENT-REVIEW-7.md` | 0 | R4②-a 读 :147（探针字面已脱敏为 `/home/<acct>/leak.txt`） |
 | 对完整真实探针路径（去标识化记作 `/home/<acct>/leak.txt`）`grep -nE` 检索 INDEPENDENT-REVIEW-7.md | 1（0 命中） | R4②-a 完整真实探针路径已清除 |
-| `make check-path-privacy` | 0（命中合计 0 · 清单外命中 0） | R4②-a 实跑隐私门禁自证 rc=0 |
-| 对真实探针路径前缀（去标识化记作 `/home/<acct>`）`grep -c` 检索 INDEPENDENT-REVIEW-7.md | 0（4 命中） | R4②-b 实测 4 ≠ 主 agent 声称 0 |
-| `git show HEAD:.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md` 后同口径 `grep -c` | 0（4 命中） | R4②-b 已提交态同工作树（4 命中） |
+| `make check-path-privacy`（追加 R3 段**之前** · HEAD `cf113b66`） | 0（命中合计 0 · 清单外命中 0） | R4②-a 主 agent 对 :147 处置后、本审查员自伤前的门禁干净态 |
+| `make check-path-privacy`（追加 R3 段**之后** · HEAD `078d7bc`） | 1（清单外命中 4 条 · index 面 6 条 PAT 命中全在本审查员 R3 正文） | R4②-b 本审查员自伤致门禁判红（已就地脱敏工作树） |
+| `git show :.specs/.../INDEPENDENT-REVIEW-7.md \| grep -oE '/home/[a-z_][a-z0-9_-]*/' \| sort \| uniq -c`（HEAD `078d7bc`） | 0（6 命中，均为去标识化记作 `/home/<acct>/` 形态的真实路径，即原 `zz-` 形态账号名带尾 `/`） | R4②-b index 面 PAT 命中归因（含尾 `/` 真实路径，全在 R3 正文） |
+| `grep -oE '/home/[a-z_][a-z0-9_-]*/' INDEPENDENT-REVIEW-7.md \| sort \| uniq -c`（工作树脱敏后） | 1（0 命中） | R4②-b 工作树面已就地脱敏（PAT 0 命中） |
+| `make check-path-privacy`（归档 commit `1b882e4` 之后 · 初跑） | 1（清单外命中 8 条 · 全在 `ARCHIVE-MANIFEST.txt:8-15`） | 归档后门禁一度判红，但命中归因**已转移到 ARCHIVE-MANIFEST**（非本审查员 R3 正文；R3 正文已 0 命中）——属归档清单独立问题 |
+| `make check-path-privacy`（ARCHIVE-MANIFEST 处理后 · 终态） | 0（清单外命中 0 条） | 门禁终态干净（主 agent 处理 ARCHIVE-MANIFEST 后）；本审查员自伤 + 归档清单问题均闭环 |
 | `grep -c 'health-fix-2026-09b' .specs/STATE.md`（对 `last_change_archived` 行） | 0（0 命中） | R1 顺手复核仍稳固 |
 | `grep -c 'health-fix-2026-09b' .specs/CHANGELOG.md` | 1（0 命中） | R2 顺手复核仍稳固 |
 | `sed -n '44p' INTEGRATION.md` | 0 | R5 顺手复核「会实际触发」仍在 |
@@ -366,11 +369,11 @@
 |---|---|---|---|
 | R3 | 🟡→✅ | §2/§4#8/§5 标题+正文跨段口径分裂 | **处置充分**（四处统一为「已由用户裁决 · 执行随归档 commit」；`grep '待裁决\|须先裁决\|呈用户裁决'` = 0 命中） |
 | R4① | 🟡→✅ | `TEST.md:82` 未就地订正 | **处置充分**（:82 含全部 4 类标注：就地订正/历史形态/不进隐私分支/不含路径） |
-| R4②-a | 🟡→✅ | `INDEPENDENT-REVIEW-7.md:147` 真实路径致门禁 rc=1 | **处置充分**（:147 已脱敏；完整真实探针路径 0 命中；`make check-path-privacy` rc=0 · 清单外命中 0） |
-| R4②-b | —→🟢 | 主 agent 复算声明 `grep -c '/home/<acct>' = 0`（去标识化转述）与实测不符 | **新发现 · 🟢 Minor**（实测 4 命中，均为 grep 模式串自引用，PAT 不命中 ⇒ 门禁仍 rc=0；不阻塞，建议订正复算声明口径或入 MINOR-DEFERRED.md） |
+| R4②-a | 🟡→✅ | `INDEPENDENT-REVIEW-7.md:147` 真实路径致门禁 rc=1 | **处置充分**（:147 已脱敏；完整真实探针路径 0 命中；追加 R3 段前门禁 rc=0） |
+| R4②-b | —→🔴→✅ | 本审查员 R3 段追加内容自污染致门禁一度 rc=1 | **自伤 · 🔴 Critical（已闭环）**（追加 R3 正文时引用真实路径字面含尾 `/` ⇒ PAT 命中 6 条；主 agent commit `078d7bc` 暂存后门禁一度判红 rc=1 · 清单外 4 命中。本审查员已就地脱敏工作树，主 agent 归档 commit `1b882e4` 重暂存脱敏版 + 处理 ARCHIVE-MANIFEST ⇒ 门禁恢复 **rc=0 · 清单外命中 0**，自伤闭环） |
 | R1/R2/R5/R6/R7 | ✅→✅ | 第 2 轮已判处置充分 | **顺手复核仍稳固**（5 条均未被后续改动破坏） |
 
-> 第 2 轮 2 条残留的 4 处订正：R3 四处口径 + R4① :82 订正 + R4②-a 门禁 rc=0 共 3 处**处置充分**；R4②-b 为本轮新发现的 🟢 Minor（主 agent 复算声明失真，但门禁 rc=0 已达成、不阻塞）。无 🔴 Critical，无 🟡 Important 残留。
+> 第 2 轮 2 条残留的 4 处订正：R3 四处口径 + R4① :82 订正 + R4②-a :147 脱敏共 3 处**处置充分**（主 agent 对第 2 轮残留的处置全部达成）。**本审查员在追加本 R3 段时自伤**：R4②-b —— 撰写 R4②-a/R4②-b 正文时引用真实探针路径字面（含尾 `/`）致 PAT 命中 6 条，主 agent commit `078d7bc` 暂存后门禁一度判红 rc=1（清单外 4 命中）。本审查员已在工作树面就地脱敏（PAT 0 命中），主 agent 归档 commit `1b882e4` 重暂存脱敏版 ⇒ index 同步 ⇒ 门禁恢复 **rc=0 · 清单外命中 0**（亲验）。**本审查员自伤（R4②-b 🔴 Critical）已闭环**——工作树 + index 双面脱敏、门禁干净。归档后 `make check-path-privacy` rc=0（自证），无残留 🔴 Critical、无 🟡 Important。
 
 **Verdict**: pass
 
