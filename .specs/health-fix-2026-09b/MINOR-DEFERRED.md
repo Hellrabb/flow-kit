@@ -2017,3 +2017,23 @@ fi
 **L2 未验证边界（4 条 · 主 agent 侧回执指向）**：`R5-6`/`R5-7` 变异实证 → `T-FIX-15`/`T-FIX-16` 复核记录；`R5-18` 端到端安装形态 → `T-FIX-14` 复核记录（`test_install_layout.bats` 8 例含反向控制）；`R5-15` 候选塌缩夹具 → `T-FIX-17` 复核记录；`--gates-only` 超时 → `PHASE5-RECEIPTS.md` §U-2 门禁回执原文（`/tmp/p6d/r12/`）。
 
 **被审 HEAD 差异**：L2 指出的 `74a3f72` vs `77984cc` 差异已核实为 **docs-only**（`git diff 77984cc..74a3f72 --stat` = 6 个 `.specs` 路径 / +400 −62），**生产件与 `test/` 零改动**。
+
+---
+
+## ✅ T-FIX-25 复核记录（主 agent 独立复验 · 2026-09-28 · `TD-104` 收口 / L3 第 20/21 轮 major②）
+
+**提交链**（`git show --numstat` 实证）：`380679b`（`%cI` `18:30:10` · `test/test_check_gate_sync.bats` +41 · `flow-kit-bundle/test/…` 镜像 +41）→ `86d427d`（`18:30:56` · `T-FIX-25-SUMMARY.md` +97 · `TASK.md` +2/−1）。
+
+| 项 | 主 agent 实测 | 判定 |
+|---|---|---|
+| 生产件零改动 | `sha256sum check-gate-sync.sh` = `36565810ed7f71…`（与执行者回执一致） | ✅ |
+| 常设网 | `test_check_gate_sync.bats` **15 → 16 例** · 两镜像 `cmp -s` **IDENTICAL** · `npx bats --count test/` = **1116** | ✅ |
+| 新腿结构（自读源码） | `FXB25()` 独立夹具生成器（拷真实 SUT + 3 对 PCSC 载体 + gate-config bats）· 影子 `diff`（`exit 2`）· **前置自检 `[ "$shadow_rc" -eq 2 ]`（确切值）** · 三断言：`rc≠0` / 含 `🔴 MECHANICAL` / **不得**含 `✅…一致` | ✅ |
+| **判别力（主 agent 自建忠实缺陷态复算）** | 我按 `R3-20` **原形**造忠实缺陷件（删两处 `; diff_rc=$?` 捕获 + 两处 `rc≥2` 分支 + 改回 `local diff_out`）⇒ 影子 `diff`（自检 rc=2）驱动 ⇒ **门禁 rc=0 且打印 5 处 `✅…一致`、`🔴 MECHANICAL` 计数 0** ⇒ 新腿三条断言**全部不成立** ⇒ **该腿对缺陷形态确有判别力**（且比执行者的变异腿更强：执行者变异因 `set -u` 未绑定变量先崩，只证伪了断言②；忠实缺陷态同时证伪 ①②③） | ✅ |
+| 订正后的 `T-FIX-10 <verify>` | 现取抽取（79 行）后原样实跑 ⇒ **RC=0**（日志 `/tmp/p6d/v_TFIX10-final.out`；含三条 R3-20 双面断言 + 影子 diff 腿 + 全量 bats `1116 ok / 0 not-ok`） | ✅ |
+| 门禁 | `make check` **21 ✅ / 0 ❌**（执行者回执 + 本轮全量 bats 复跑一致） | ✅ |
+| 台账 | len **53 → 54**；末条 `{"id":"T-FIX-25","commit_sha":"380679b…","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T18:31:13+08:00"}`（五字段 · Δ=**17 s**）· `TASK.md` `status="pending"` 计数 = **0** | ✅ |
+
+**判据曲线补充**：`reproduce-5-fixloop.sh` 新增 T-FIX-25 段 6 条（行为级腿的 `🔴 MECHANICAL` 断言 / 影子 diff 构造 / 前置自检确切值 / 生产件 `diff_rc=$?` ×2 / 生产件 `rc≥2` 分支 ×2 / 常设网 ≥16 例）。
+
+**遗留边界（诚实登记）**：新腿与既有 `T-FIX-10 R3-20` 静态腿（`test_check_gate_sync.bats:143-152`）**并存**——后者断言较松（`rc≠0 + 泛化 🔴`），前者是更严超集；两者不冲突。`TD-104` 的 v2 两条已全部落地（判据双面断言 + 行为级常设腿）⇒ **`TD-104` 可标记为「本 change 内已闭合」**（`CONTEXT.md` 的 v2 描述保留作历史）。

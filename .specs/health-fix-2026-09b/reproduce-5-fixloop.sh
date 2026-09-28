@@ -221,6 +221,18 @@ fi
 rm -rf "$_t24d"
 batsnet "T-FIX-24 隐私常设网（含豁免面冻结腿）" test/test_path_privacy_gate.bats 35
 
+echo "-- T-FIX-25（TD-104 收口：check-gate-sync diff 机械故障判别力常设化）"
+# 判别力要求两条同时成立：① 常设网存在「影子 diff ⇒ 🔴 MECHANICAL + 非绿」的行为级腿；
+#   ② T-FIX-10 的 change 期判据已由单面 grep 升级为**双面断言**（缺陷形态缺席 + 修复形态在场）。
+_t25b=test/test_check_gate_sync.bats
+grepge "T-FIX-25 行为级腿的 🔴 MECHANICAL 断言" "$_t25b" '🔴 MECHANICAL' 1
+grepge "T-FIX-25 行为级腿的影子 diff 构造" "$_t25b" 'shadows/diff' 1
+grepc "T-FIX-25 前置自检取确切值 rc=2" "$_t25b" 'shadow_rc.*-eq 2' 1
+_t25f=flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
+grepge "T-FIX-25 生产件保留 diff_rc 显式捕获" "$_t25f" 'diff_rc=\$\?' 2
+grepge "T-FIX-25 生产件保留 rc≥2 机械故障分支" "$_t25f" 'diff_rc.*-ge 2' 2
+batsnet "T-FIX-25 gate-sync 常设网（16 例）" test/test_check_gate_sync.bats 16
+
 echo "== 汇总：✅ $PASS · 🔴 $FAIL =="
 [ "$FAIL" -eq 0 ] || exit 1
 exit 0
