@@ -3036,7 +3036,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   </done>
 </task>
 
-<task id="T-FIX-25" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-25" parallel="false" status="done" model-tier="top">
   <name>【L3 第 20/21 轮 major② 收口】`check-gate-sync.sh` 的 diff 机械故障（rc≥2）判别力常设化：新增行为级 bats 腿（`TD-104`）</name>
   <read_files>
     <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh:111-125`（R3-20 收敛第一处：`local diff_out diff_rc` → `diff_out=$(diff "$tmp_p" "$tmp_s" 2>/dev/null); diff_rc=$?` → `if [ "$diff_rc" -ge 2 ]` ⇒ `🔴 MECHANICAL: diff 返回 rc=$diff_rc…`）· `:237-246`（第二处同型：gate-config 预设比对）>
@@ -3070,4 +3070,5 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑤ `make check` **21 ✅ / 0 ❌**。
   </verify>
   <depends_on>T-FIX-24（串行：全仓门禁为独占步骤）</depends_on>
+  <done>2026-09-28 · commit 380679b · 16 例全绿（+1 行为级腿：T-FIX-25 TD-104 · 含前置自检影子 diff rc=2 + 断言 🔴 MECHANICAL + 不得 ✅ 一致）· 变异反向控制（SUT 副本两处 diff_rc=$? → || true 形态 ⇒ 新腿 not ok）· T-FIX-10 verify rc=0 · count=1116 · 0 not ok · make check 21✅/0❌</done>
 </task>
