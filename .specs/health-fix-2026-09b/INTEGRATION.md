@@ -7,7 +7,7 @@
 | # | UAT 面 | 命令 | 本轮实测 | 判定 |
 |---|---|---|---|---|
 | ① | T19 隔离 bare remote 的 pre-push 拦截（四形态泄漏 + 干净 ref） | `reproduce-5-test.sh --criteria-only --only T19` | **rc=0**（36 行判据 · §U-1） | ✅ |
-| ② | pre-commit 门禁显式调用两态 | 真泄漏探针（拼接构造 L-137）+ `bash .git/hooks/pre-commit` | **rc=1** · `命中合计 1 条` / `清单外命中 1 条` · 具名 `.zz-uat-probe.txt:1: see /home/zz-uat-probe/leak.txt here` · `[archive-commit-gate] path-privacy check failed, commit rejected`；清理后工作树干净 | ✅ |
+| ② | pre-commit 门禁显式调用两态 | 真泄漏探针（拼接构造 L-137）+ `bash .git/hooks/pre-commit` | **rc=1** · `命中合计 1 条` / `清单外命中 1 条` · 具名 `.zz-uat-probe.txt:1: see /home/<acct>/leak.txt here` · `[archive-commit-gate] path-privacy check failed, commit rejected`；清理后工作树干净 | ✅ |
 | ③ | DSH 装载面阶段门拦截（沙箱等价复现 · 六态） | `reproduce-phase-gate.sh`（§U-2 内嵌） | **rc=0**：对照 0 门禁外 commit 成功 · A rc=2 + HEAD 未变 · B rc=0 且 commit 真生效 · B2/B3/B4 一律 rc=2 · C rc=0 | ✅ |
 | ④ | 安装器覆盖完整性 | `bash package-flow-kit.sh --validate` | **期望覆盖 320 / 实际文件 326 · 🔴 漏配 0 · ⚠️ 源缺失 0** | ✅ |
 

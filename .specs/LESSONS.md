@@ -772,6 +772,16 @@
 
 <!-- health-fix-2026-09b 追加 ↓ -->
 
+### L-183 · 阶段 7 的归档必须晚于本阶段的 L2/L3：门禁按 `.specs/<change_id>/` 定位 change 目录，先搬目录会让门禁「找不到握手」而拦下归档提交
+
+**症状**：阶段 7 收尾时先执行了归档搬迁（`git mv .specs/health-fix-2026-09b .specs/archive/2026-09-28-health-fix-2026-09b`）+ 脱敏 + manifest + CHANGELOG/STATE 更新，然后提交 ⇒ **PreToolUse 门禁拒绝**，报文指向「需先完成 L2（盲审子 agent → `INDEPENDENT-REVIEW-7.md`）+ L3，再由主 agent 写 `<repo>/.specs/health-fix-2026-09b/` 下的**阶段 7 审查握手标记**（`IR-7` 对应的 `.done` 文件）后重试」。
+
+根因：`independent-review-gate.sh` 按 `.flow-active` 的 `change_id` 解析 change 目录（`.specs/<change_id>/`），**握手标记与 IR 文件都在该目录内**；目录一搬，门禁在任何 `git commit` 前都看不到握手 ⇒ 归档提交被硬拦（而这正是「阶段 7 产物须过 L2/L3 才可 commit」的设计意图）。
+
+**连带教训**：① 准备归档时**手写了一件带真实探针路径的工件**（`INTEGRATION.md` 引用 `/home/zz-uat-probe/leak.txt`）⇒ 它一旦脱离豁免表覆盖范围就会**自我判红**（实测：归档后 43 条命中里含主 agent 自己这一条）；**主 agent 自撰工件同样受 AC-6 约束**，写入前就该按 `<acct>` 形态落笔。② 隐私门禁扫的是 **git index**（「已 add / 已提交」）⇒ 就地脱敏后**必须 `git add`**，否则判据仍按旧内容判红（实测：脱敏但未 add ⇒ 仍 rc=2 / 43 条；`git add` 后 ⇒ rc=0 / 0 条）。③ 先 `git reset`（取消暂存）再 `git mv` 搬回去会失败（源目录只剩未跟踪文件、tracked 面已是删除态）⇒ 正确撤销路径是 `git checkout HEAD -- .specs/<id>` + `rm -rf` 归档目录。
+
+**定式**：① **阶段 7 次序固定为**：UAT / Goal 自检 / triage → **L2 → L3（写握手）** → **最后**归档（`git mv` + manifest + CHANGELOG/STATE + 提交）；② 归档的 `git mv` 与 `git commit` **放在同一条 Bash 命令**里，让门禁在搬迁**之前**的磁盘状态下判定（握手仍在旧路径 ⇒ 放行），避免「先搬后提交」必然被拦；③ 脱敏后必须 `git add` 再跑判据（index 面扫描）；④ 主 agent 自撰工件里出现的任何绝对路径字面（含探针）一律按 `<acct>` 形态书写，**不要先写真实形态再指望后续脱敏**。
+
 ### L-182 · 以 `append` 模式更新文档时，禁止把「已读全文 + 新块」写回同一文件（文件自我复制）
 
 **症状**：给 `PHASE5-RECEIPTS.md` 追加 §U-4 自检段时，脚本写法是 `s = open(p).read()` → 构造新块 → `open(p, 'a').write(s.rstrip() + '\n' + 新块)` —— `'a'` 模式**不会**截断文件，于是「已读全文」被当成新内容再写一遍 ⇒ 文件从 2231 行变成 **4476 行（整档重复副本 + 新块）**，`grep -c '^## §U'` 从 1 变 2、`§U-1 判据面` 在 2199 与 4430 两处并存。**这一版差点进入 L3 的受审工件**（L3 会对工件取 hash 并纳入提示词）。
