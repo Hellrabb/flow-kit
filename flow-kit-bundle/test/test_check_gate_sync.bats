@@ -151,6 +151,47 @@ FXB10() {
   rm -rf "$SBX"
 }
 
+# ── T-FIX-25 TD-104 行为级判别力（常设网） ──
+# 收口 L3 第 20/21 轮 major②：T-FIX-10 的静态 grep 判据对「缺陷形态（diff_out=$(diff … || true) 吞 rc）」
+# 与「修复形态（显式 diff_rc=$? 捕获 + rc≥2 机械故障分支）」无判别力。本腿把判别力从
+# change 期静态 grep 升级为常设网里的**行为级用例**：真造一次 diff 机械故障（rc≥2），断言生产件
+# 判红并具名 🔴 MECHANICAL（不是泛化 🔴），且不打印任何 ✅ 一致 放行行。
+# 反向控制（变异腿，先红留档于 /tmp/tfix25/）：把 SUT 副本两处 diff_rc=$? 还原为 || true 形态 ⇒
+#   缺陷形态下既不打印 🔴 MECHANICAL 也不打印 ✅ 一致（set -u 下 diff_rc 未绑定即崩）⇒ 本腿 not ok。
+# 独立夹具生成器（与 FXB10 同款构造，避免与既有腿耦合）。
+FXB25() {
+  SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix25-XXXXXX")
+  mkdir -p "$SBX/fk/flow-kit-bundle/flow-kit/reference" "$SBX/fk/flow-kit-bundle/flow-kit/prompts" "$SBX/fk/flow-kit-bundle/skills" "$SBX/fk/flow-kit-bundle/test"
+  cp "$SCRIPT" "$SBX/fk/flow-kit-bundle/flow-kit/reference/"
+  cp flow-kit-bundle/flow-kit/prompts/A-evolve.md flow-kit-bundle/flow-kit/prompts/I-intel-scan.md flow-kit-bundle/flow-kit/prompts/L-restyle.md "$SBX/fk/flow-kit-bundle/flow-kit/prompts/"
+  for sk in flow-evolve flow-intel flow-restyle flow; do
+    mkdir -p "$SBX/fk/flow-kit-bundle/skills/$sk"
+    cp "flow-kit-bundle/skills/$sk/SKILL.md" "$SBX/fk/flow-kit-bundle/skills/$sk/"
+  done
+  cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/"
+}
+
+@test "T-FIX-25 TD-104: PATH 影子 diff（恒 rc=2）→ rc≠0 + 具名 🔴 MECHANICAL + 不打印 ✅ 一致" {
+  FXB25
+  # 影子命令：$FIXTURE/shadows/diff（#!/bin/sh + exit 2）
+  mkdir -p "$SBX/fk/shadows"
+  printf '#!/bin/sh\nexit 2\n' > "$SBX/fk/shadows/diff"
+  chmod +x "$SBX/fk/shadows/diff"
+  # 前置自检：影子 diff 在该 PATH 下确实 rc=2（前置不成立 ⇒ not ok，不静默空转）
+  # bats test body 在 run 之外 set -e 生效 ⇒ 用 { … ; } || true 包裹取 rc，不触发中止
+  printf 'a\n' > "$SBX/fk/p_a"
+  printf 'b\n' > "$SBX/fk/p_b"
+  shadow_rc=0
+  { PATH="$SBX/fk/shadows:$PATH" command diff "$SBX/fk/p_a" "$SBX/fk/p_b" >/dev/null 2>&1; } || shadow_rc=$?
+  [ "$shadow_rc" -eq 2 ]   # 确切值（L-173）：前置自检必须 rc=2，否则本腿 not ok
+  # SUT 在影子 diff 下运行：机械故障不得被折算为「一致」
+  run bash -c "cd '$SBX/fk' && PATH='$SBX/fk/shadows:$PATH' bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]                                    # ① rc ≠ 0（机械故障必须判红）
+  [[ "$output" == *"🔴 MECHANICAL"* ]]                  # ② 具名 🔴 MECHANICAL（非泛化 🔴）
+  [[ "$output" != *"✅"*"一致"* ]]                      # ③ 不得打印 ✅ … 一致 放行行
+  rm -rf "$SBX"
+}
+
 # ── T-FIX-18 R5-14/R5-10 判别式 ──
 # 复制真实生产件进 mktemp -d 夹具（3 对 PCSC + gate-config 两侧），构造缺件态：
 #   R5-14：缺 test_gate_config_presets.bats 或缺 skills/flow/SKILL.md ⇒ 必须 rc≠0 + 🔴 MISSING + 具名路径
