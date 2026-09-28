@@ -2986,7 +2986,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   </done>
 </task>
 
-<task id="T-FIX-24" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-24" parallel="false" status="done" model-tier="top">
   <name>【T17 回归 🔴 · R5-5 处置订正】SELF_EXCLUDE 恢复冻结集 1–3 + 契约注释对齐阶段 5 裁决 + 常设腿（豁免面冻结）</name>
   <read_files>
     <`.specs/health-fix-2026-09b/TASK.md` 的 `T13`（`:537` 段「审查档排除面与 T17 门禁的排除表同源」）与 `T17`（verify 尾部「排除表边界」段）—— 阶段 5 已裁决：**新增审查档一律不豁免**，被追加进排除表即红；放宽须 ADR 裁决（`L-149` / `TD-054`）>
@@ -3021,4 +3021,10 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑤ `make check` 21 ✅ / 0 ❌；`npx bats --count test/` = **1115**。
   </verify>
   <depends_on>T-FIX-23（串行：全仓门禁为独占步骤）</depends_on>
+  <done>
+    sha: 1900425cbabdd60e50f3283fc1693baf7825042a
+    completed_at: 2026-09-28T14:58:54+08:00
+    verify: ① 先红留档：T17 <verify> 修前 rc=1 + 报文「🔴 审查档 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md 被纳入门禁排除表（豁免面不得超出冻结集 1–3；放宽须 ADR 裁决 · L-149/TD-054）」 · ② 修复后 T17 <verify> 原样抽取实跑 rc=0（三项子断言全过：宽通配 0 · 冻结 3 档在表内 · 枚举 IR 档 ≥3 且新增档不在表内）· ③ grep -c 'INDEPENDENT-REVIEW-[56]\.md' = 0 · SELF_EXCLUDE 成员数 = 6 · ④ make check-path-privacy rc=0（候选 1622 / 实际扫描 1616 / 自排除 6 / 命中 0 / 清单外 0）· npx bats test/test_path_privacy_gate.bats 35 例全绿含新腿 · 判别力实证：副本注入伪条目 INDEPENDENT-REVIEW-4.md ⇒ 成员数 7 ≠ 冻结集（not ok）；去行 ⇒ 6 = 冻结集（复绿）· SUT sha256 b28eab76… 注入前后一致 · ⑤ make check 21 ✅ / 0 ❌ · npx bats --count test/ = 1115
+    写面: flow-kit-bundle/flow-kit/reference/check-path-privacy.sh(SELF_EXCLUDE 删两行 + 契约注释重写) · test/test_path_privacy_gate.bats(+1 例 T-FIX-24 豁免面冻结 + 判别力) · flow-kit-bundle/test/test_path_privacy_gate.bats(镜像) · .specs/health-fix-2026-09b/T-FIX-24-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress append · gitignored 不提交)
+  </done>
 </task>
