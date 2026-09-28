@@ -2037,3 +2037,24 @@ fi
 **判据曲线补充**：`reproduce-5-fixloop.sh` 新增 T-FIX-25 段 6 条（行为级腿的 `🔴 MECHANICAL` 断言 / 影子 diff 构造 / 前置自检确切值 / 生产件 `diff_rc=$?` ×2 / 生产件 `rc≥2` 分支 ×2 / 常设网 ≥16 例）。
 
 **遗留边界（诚实登记）**：新腿与既有 `T-FIX-10 R3-20` 静态腿（`test_check_gate_sync.bats:143-152`）**并存**——后者断言较松（`rc≠0 + 泛化 🔴`），前者是更严超集；两者不冲突。`TD-104` 的 v2 两条已全部落地（判据双面断言 + 行为级常设腿）⇒ **`TD-104` 可标记为「本 change 内已闭合」**（`CONTEXT.md` 的 v2 描述保留作历史）。
+
+---
+
+## 🚦 阶段 4 完成自检（第 3 次 · 4→5 重入 · 8 项 · 主 agent · 2026-09-28）
+
+> 触发：`rollback_5`（阶段 6 L3 连续三轮 fail，含机制自引用 `TD-105`）后用户裁决「回退 4-dev 真修 `T-FIX-10`」⇒ `T-FIX-25` 收口（台账 len **54** = 29 条 `T01…T29` + 25 条 `T-FIX-01…25`）。
+
+| # | 项 | 本轮实测 | 判定 |
+|---|---|---|---|
+| 1 | 全部 task `status="done"` | `<task>` 块 = **54** · `^<task … status="pending"` = **0** | ✅ |
+| 2 | 每 task 的 `*-SUMMARY.md` 已写入 | `T01…T29` + `T-FIX-01…25` **穷举 54/54 齐备**（`T-FIX-25-SUMMARY.md` 新建） | ✅ |
+| 3 | verify 通过 + 6 维 self-review | ① `reproduce-5-fixloop.sh` = **✅ 53 · 🔴 0**（新增 T-FIX-25 段 6 条）；② **订正后的 `T-FIX-10 <verify>` 现取抽取后原样实跑 ⇒ RC=0**（79 行判据；含三条 R3-20 双面断言 + 影子 diff 腿）；③ **L3 第 20/21 轮 major② 的判别力要求已落地并经主 agent 忠实缺陷态复算**（缺陷态 ⇒ 门禁 rc=0 + 5 处「✅…一致」+ `🔴 MECHANICAL` 计数 0 ⇒ 新腿三断言全不成立） | ✅ |
+| 4 | diff 边界 verify | `7fcc0ad..HEAD` 路径全部落在声明写面（`T-FIX-24`/`T-FIX-25` 的生产件与 bats 双源 + 主 agent 的 `.specs` 工件）⇒ **越界 0** | ✅ |
+| 5 | 沿用既有抽象 grep | 同前两轮口径（沿用 `install_hooks.sh` 原子写范式 · 复用同一 `-internals` 判据正文 · 新腿沿用既有 `FXB*` 夹具生成器风格） | ✅ |
+| 6 | Sub-goal | `goal.phase_sub_goals["4"]` = 空 ⇒ N/A | ✅ |
+| 7 | bats 0 fail | `npx bats --count test/` = **1116**（1115 → +1 = `T-FIX-25` 行为级腿）· `npx bats test/` = `ok=1116 / not ok=0 / skip=0` | ✅ |
+| 8 | `.flow-active` 关键字段 | `updated_at` = epoch int `1790591473` · `phase="4"` · `phases_done=["0"…"3"]` · `task_id="T-FIX-25"` · `task_progress` len **54** · `33-flow-active-integrity.sh` rc=0 | ✅ |
+
+**权威门禁（本轮 · 安静树 · HEAD `86d427d`）**：`make check` **RC=0 · 21 ✅ / 0 ❌**（18:42:12 → 18:47:19 · 日志 `/tmp/p6d/v25-make-check.log`）——全量 bats 1116 · shellcheck 无错 · validate 通过 · 三一致性 rc=0 · 隐私五数 = 候选 **1624** / 实际扫描 **1618** / 自排除 **6** / 不可读 0 / 命中 0（不变式 1624 = 1618 + 6）· NFR rc=0。
+
+**与第 2 次自检的差异**：任务数 53 → **54** · bats 1115 → **1116** · 判据脚本 ✅47 → **✅53** · 候选 1623 → **1624** / 扫描 1617 → **1618**（`T-FIX-25-SUMMARY.md` 入库）。
