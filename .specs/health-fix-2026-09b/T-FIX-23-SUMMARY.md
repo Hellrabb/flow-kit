@@ -45,9 +45,9 @@
 | `make test-sync` | 0 | test 双源已同步（未产生改动） |
 | `./package-dsh-plugin.sh` · `bash package-flow-kit.sh` | 0 · 0 | 新件已入 `dist/dsh-flow-kit/flow-kit/reference/nfr-portability-baseline.txt`（+ vendor 副本） |
 | `make check-hooks-sync` · `check-test-sync` · `check-dist` | 0 · 0 · 0 | 漂移 0 · 双源一致 · dist 与源一致 |
-| `make check-path-privacy` | 0 | 候选 1620 / 扫描 1612 / 自排除 8 / 不可读 0 / 命中 0（不变式 1620 = 1612 + 8） |
+| `make check-path-privacy` | 0 | 候选 1620 → **1622** / 扫描 1612 → **1614** / 自排除 8 / 不可读 0 / 命中 0（不变式成立；1620 为提交前工作树态，1622 为 `make check` 时点含 `T-FIX-15/16` 契约件的 index 态） |
 | 全量 `npx bats test/` | 0 | `1..1114 ok=1114 not_ok=0 skip=0` |
-| `make check`（21 步复合） | 见下（主 agent 复跑） | 日志 `/tmp/p6d/v23-make-check.log`（主 agent · docs 提交后安静树） |
+| `make check`（21 步复合） | **0** | **21 ✅ / 0 ❌** · 安静树 HEAD `7fcc0ad` · 12:33:16 → 12:38:54（**338.0 s**）· 日志 `/tmp/p6d/v23-make-check.log`（`bats all passed` · `shellcheck no errors` · `validate staging coverage OK` · 三一致性 rc=0 · `清单外命中 0` · NFR rc=0；日志里唯一 `🔴` 字样是 `🔴 漏配 (ERROR): 0`） |
 
 ## §E 台账
 
