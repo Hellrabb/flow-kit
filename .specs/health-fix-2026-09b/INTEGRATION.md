@@ -23,7 +23,7 @@
 | 🔴② `settings.json` 截断 | AC-2（`T06`）· `install_hooks.sh` 两道 `command -v jq` 守卫 + fail-closed · `test_install_jq_guard.bats` 4 例（`T-FIX-15` · 含变异腿 · `R5-6` 闭合） | ✅ |
 | 🔴③ 本地 main 泄漏重发 | AC-3（`T11`/`T19`）· pre-push 四形态拦截 + `test_pre_push_behavior.bats` 6 例（`T-FIX-16` · 真跑 hook · `R5-7` 闭合） | ✅ |
 | 🔴④ 坏门禁 | AC-4（`T13`/`T18`）· `check-gate-sync.sh` 缺件 fail-closed + 双态腿（`T-FIX-18`）+ `T-FIX-25` 的 diff 机械故障行为级腿（`TD-104` 闭合） | ✅ |
-| 隐私前向门禁 | AC-6（`T20`/`T22`/`T26`）· `check-path-privacy.sh` 三面（index/rev/磁盘侧）+ 常设网 35 例 + 归档排除（NFR 面） | ✅（**归档面的豁免策略待裁决** · `TD-114`） |
+| 隐私前向门禁 | AC-6（`T20`/`T22`/`T26`）· `check-path-privacy.sh` 三面（index/rev/磁盘侧）+ 常设网 35 例 + 归档排除（NFR 面） | ✅ **在位**；归档面的豁免策略**已由用户裁决**（`TD-114` 策略① = 归档时就地脱敏，2026-09-28）—— **执行随归档 commit**（脱敏映射与 manifest 同提交；`L-183` 次序：先 L2/L3 后归档） |
 | 假绿测试 | AC-7（`T27`/`T29`）· 4 个假绿文件各含注入型用例（注入失败源 ⇒ 红）· `test_combined_metric.bats` / `test_auto_checkpoint.bats` / `test_independent_review_model.bats` / `test_lessons_cleanup.bats` | ✅ |
 
 **结论**：`goal.condition` **全部满足**（4 🔴 全收口 + 隐私前向门禁在位 + 假绿测试已加严）；AC-8（跨 OS）保持 **⚠️ 有条件通过**（`TD-055` 开放 · 不属 `goal.condition` 条目）。
@@ -41,11 +41,11 @@
 | 7 | `F15` ADR 预算字面量 | `l3-prompt.sh:353`（`_adr_budget=18000`）· `:357`（`-lt 8`）**仍在** | **登记 `TD-113`**（v2 = 环境旋钮） |
 | 8 | `F16` 守卫两种拒绝惯用法 | 实测 `exit 2` **7 处** / `return 1` **0 处** ⇒ 惯用法已统一（T05/`T-FIX-19` 轮次收敛） | **本 change 内已闭合** |
 | 9 | `F17` AC-5 边界（`.specs/**` 含内部项目名） | — | **既有 `TD-063`**（保留） |
-| 10 | `S1` `SELF_EXCLUDE` 归档/复制失真 | **本轮归档动作实际触发**（IR-1/2/3 含真实账号路径，归档后豁免失效 ⇒ 门禁会判红） | **登记 `TD-114`** + **须用户裁决**三条策略（见 §5） |
+| 10 | `S1` `SELF_EXCLUDE` 归档/复制失真 | **归档动作会实际触发**（预演实测：IR-1/2/3 含真实账号路径，归档搬迁后豁免失效 ⇒ 门禁判红 rc=2 / 43 条命中；故须按策略①脱敏） | **登记 `TD-114`** + **须用户裁决**三条策略（见 §5） |
 | 11 | `S2` `REVIEW.md` 例数声明错误 | `REVIEW.md:54` 现为表头（该声明随轮次重写消失） | **本 change 内已闭合** |
 | 12 | `S3` 「AC-9」术语出处 | 说明性（AC-9 出自 `6-review.md`，不在 `REQUIREMENT.md`）—— 非缺陷 | **Not-a-defect**（不登记） |
 
-**section 级 triage**（`MINOR-DEFERRED.md` 的其余 deferred 段）：早期阶段 2/3/4/5/6 的登记项（`:9` / `:38` / `:52`–`:79` / `:206` / `:643` / `:982` / `:1000` / `:1102` / `:1164` / `:1171` / `:1186` / `:1551`）**均已逐条映射到 `.specs/CONTEXT.md` 的 TD 表**（当前 **108 条** `TD-001…TD-114`，其中本 change 新增 `TD-062`…`TD-114`）⇒ 裁决 = **保留 TD（v2 承接）**，无孤儿条目。
+**section 级 triage**（`MINOR-DEFERRED.md` 的其余 deferred 段）：早期阶段 2/3/4/5/6 的登记项（`:9` / `:38` / `:52`–`:79` / `:206` / `:643` / `:982` / `:1000` / `:1102` / `:1164` / `:1171` / `:1186` / `:1551`）**均已逐条映射到 `.specs/CONTEXT.md` 的 TD 表**（登记面覆盖 `TD-001`…`TD-114` 的编号区间；**本 change 新增 53 条**（`TD-062`…`TD-114`），区间内非本 change 的编号属历史 change）⇒ 裁决 = **保留 TD（v2 承接）**，无孤儿条目。
 
 ## 4. 阶段完成自检（11 项 · `7-integration.md:113-131`）
 

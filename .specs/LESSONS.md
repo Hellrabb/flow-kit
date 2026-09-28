@@ -778,7 +778,7 @@
 
 根因：`independent-review-gate.sh` 按 `.flow-active` 的 `change_id` 解析 change 目录（`.specs/<change_id>/`），**握手标记与 IR 文件都在该目录内**；目录一搬，门禁在任何 `git commit` 前都看不到握手 ⇒ 归档提交被硬拦（而这正是「阶段 7 产物须过 L2/L3 才可 commit」的设计意图）。
 
-**连带教训**：① 准备归档时**手写了一件带真实探针路径的工件**（`INTEGRATION.md` 引用 `/home/zz-uat-probe/leak.txt`）⇒ 它一旦脱离豁免表覆盖范围就会**自我判红**（实测：归档后 43 条命中里含主 agent 自己这一条）；**主 agent 自撰工件同样受 AC-6 约束**，写入前就该按 `<acct>` 形态落笔。② 隐私门禁扫的是 **git index**（「已 add / 已提交」）⇒ 就地脱敏后**必须 `git add`**，否则判据仍按旧内容判红（实测：脱敏但未 add ⇒ 仍 rc=2 / 43 条；`git add` 后 ⇒ rc=0 / 0 条）。③ 先 `git reset`（取消暂存）再 `git mv` 搬回去会失败（源目录只剩未跟踪文件、tracked 面已是删除态）⇒ 正确撤销路径是 `git checkout HEAD -- .specs/<id>` + `rm -rf` 归档目录。
+**连带教训**：① 准备归档时**手写了一件带真实探针路径的工件**（`INTEGRATION.md` 引用 `/home/<acct>/leak.txt`）⇒ 它一旦脱离豁免表覆盖范围就会**自我判红**（实测：归档后 43 条命中里含主 agent 自己这一条）；**主 agent 自撰工件同样受 AC-6 约束**，写入前就该按 `<acct>` 形态落笔。② 隐私门禁扫的是 **git index**（「已 add / 已提交」）⇒ 就地脱敏后**必须 `git add`**，否则判据仍按旧内容判红（实测：脱敏但未 add ⇒ 仍 rc=2 / 43 条；`git add` 后 ⇒ rc=0 / 0 条）。③ 先 `git reset`（取消暂存）再 `git mv` 搬回去会失败（源目录只剩未跟踪文件、tracked 面已是删除态）⇒ 正确撤销路径是 `git checkout HEAD -- .specs/<id>` + `rm -rf` 归档目录。
 
 **定式**：① **阶段 7 次序固定为**：UAT / Goal 自检 / triage → **L2 → L3（写握手）** → **最后**归档（`git mv` + manifest + CHANGELOG/STATE + 提交）；② 归档的 `git mv` 与 `git commit` **放在同一条 Bash 命令**里，让门禁在搬迁**之前**的磁盘状态下判定（握手仍在旧路径 ⇒ 放行），避免「先搬后提交」必然被拦；③ 脱敏后必须 `git add` 再跑判据（index 面扫描）；④ 主 agent 自撰工件里出现的任何绝对路径字面（含探针）一律按 `<acct>` 形态书写，**不要先写真实形态再指望后续脱敏**。
 

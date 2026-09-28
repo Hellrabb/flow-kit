@@ -102,7 +102,9 @@ sed -n '/<task id="T19"[^>]*>/,/<\/task>/p' .specs/health-fix-2026-09b/TASK.md \
 
 # ② pre-commit 门禁的显式真实调用（不依赖 git 是否加载 hook —— 本仓 git hook 路径为空，见 L-144）
 printf 'x\n' > .zz-probe1.txt && git add -f .zz-probe1.txt && bash .git/hooks/pre-commit; echo "rc=$?"
-#   期望：rc≠0 且报文 [archive-commit-gate] path-privacy check failed, commit rejected（指名 file:line）；实际：rc=1，指名 .zz-probe1.txt:1
+#   ⚠️ 【就地订正 · 主 agent 2026-09-28 · 阶段 7 L2 🟡 R4】原记录「期望 rc≠0 指名 .zz-probe1.txt:1」**与现态不符**：`printf 'x\n'` 的探针**不含路径字面** ⇒ 不进隐私分支（实测 `清单外命中 0 条`），hook 随后进入 `make test`（全量 bats）而**不会**因隐私判红。**要复现「具名 file:line + rc=1」必须让探针含路径字面**（拼接构造 L-137）：
+P='/home/'"'zz-uat-probe'"'/leak.txt'; printf 'see %s here\n' "$P" > .zz-uat-probe.txt; git add -f .zz-uat-probe.txt; bash .git/hooks/pre-commit; echo "rc=$?"
+#   ⇒ 实测 rc=1 · `命中合计 1 条` / `清单外命中 1 条` · 具名 `.zz-uat-probe.txt:1` · `[archive-commit-gate] path-privacy check failed, commit rejected`（阶段 7 UAT ② 实跑 · 见 INTEGRATION.md §1）
 git rm -q --cached .zz-probe1.txt && rm -f .zz-probe1.txt && bash .git/hooks/pre-commit; echo "rc=$?"
 #   期望：干净树放行 rc=0；实际：rc=0（第二形态探针 README.md:151 见 T20 复核记录）
 
