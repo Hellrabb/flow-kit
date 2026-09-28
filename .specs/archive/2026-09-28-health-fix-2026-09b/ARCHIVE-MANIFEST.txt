@@ -1,0 +1,92 @@
+# 归档清单 · health-fix-2026-09b
+# 生成时间: 2026-09-29T01:11:38+08:00
+# HEAD: 078d7bc docs(health-fix-2026-09b): 阶段 7 L3 pass 响应（3 major + 2 minor 处置：对象错位 2 条 + 已修 1 条 + 时序 2 条）
+# 工作区未提交: 76 项
+#
+# ⚠️ 归档时就地脱敏（TD-114 策略① · 用户 2026-09-28 裁决）：对本归档副本内出现的真实账号路径与合成探针账号名，
+#    统一替换为 /home/<acct>/（原文仍在 git 历史中，未重写历史）。映射：
+#   /home/<redacted>/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
+#   /home/<redacted>alice/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
+#   /home/<redacted>root/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
+#   /home/l2probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md）
+#   /home/test/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
+#   /home/zz-path-probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
+#   /home/zz-path-probe-differential/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
+#   /home/zz-uat-probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-7.md）
+
+## 文件（75 项）
+.change-base                                                   41 B  sha256:8c6013061c1bc7b7
+.independent-review-7.done                                    439 B  sha256:287b2bbe9546e4af
+CHANGE.md                                                   23693 B  sha256:6c3001d9bd7b792d
+DESIGN.md                                                   60846 B  sha256:5cbbdc575cad3ed5
+INDEPENDENT-REVIEW-1.md                                    251143 B  sha256:182cdbb665149096
+INDEPENDENT-REVIEW-2.md                                    294348 B  sha256:673c099d0478d8bd
+INDEPENDENT-REVIEW-3.md                                     58985 B  sha256:cd9dac53818631db
+INDEPENDENT-REVIEW-5.md                                    154141 B  sha256:e61f02844c6afe56
+INDEPENDENT-REVIEW-6.md                                    101826 B  sha256:207d8f6334059a33
+INDEPENDENT-REVIEW-7.md                                     66395 B  sha256:aa915978789dc441
+INTEGRATION.md                                              11608 B  sha256:c4daf37ae9d5dc9e
+MINOR-DEFERRED.md                                          339479 B  sha256:6180c05fec683520
+PHASE5-RECEIPTS.md                                         331583 B  sha256:fc99a96277928d5c
+REQUIREMENT.md                                              55692 B  sha256:692fc0d667baa25e
+REVIEW.md                                                  183298 B  sha256:f4897650e613bbe5
+T-FIX-01-SUMMARY.md                                         15309 B  sha256:cbdbf28974cceef8
+T-FIX-02-SUMMARY.md                                         15856 B  sha256:bd17f7219b72061a
+T-FIX-03-SUMMARY.md                                         12040 B  sha256:5f8b9693a0c32fdd
+T-FIX-04-SUMMARY.md                                         10946 B  sha256:460cc2c51b116cbd
+T-FIX-05-SUMMARY.md                                         11494 B  sha256:0edea59a66ac34d6
+T-FIX-06-SUMMARY.md                                         15963 B  sha256:665d38a63829e5d9
+T-FIX-07-SUMMARY.md                                          7376 B  sha256:630546436b0abeae
+T-FIX-08-SUMMARY.md                                         10717 B  sha256:1e9225863896281f
+T-FIX-09-SUMMARY.md                                          5805 B  sha256:25ee8ab596ae6166
+T-FIX-10-SUMMARY.md                                          4205 B  sha256:561ac8a6edb849bc
+T-FIX-11-SUMMARY.md                                          8781 B  sha256:7125b54a0c35b83a
+T-FIX-12-SUMMARY.md                                          7389 B  sha256:f42526b5de85baad
+T-FIX-13-SUMMARY.md                                          9790 B  sha256:4bddf1720cc4dc18
+T-FIX-14-SUMMARY.md                                          8614 B  sha256:edab2610671685f5
+T-FIX-15-SUMMARY.md                                          7342 B  sha256:a401649951980f31
+T-FIX-16-SUMMARY.md                                          9094 B  sha256:16202a3fc0f7d2c5
+T-FIX-17-SUMMARY.md                                         12484 B  sha256:c3026a2990f375c2
+T-FIX-18-SUMMARY.md                                          6777 B  sha256:81e523197762e3f7
+T-FIX-19-SUMMARY.md                                          7711 B  sha256:ab25bb6843ffb8b9
+T-FIX-20-SUMMARY.md                                          5919 B  sha256:87e92b2f52c90e52
+T-FIX-21-SUMMARY.md                                          8143 B  sha256:63553a5411db3a23
+T-FIX-22-SUMMARY.md                                          8513 B  sha256:b4c1f8139feef3a8
+T-FIX-23-SUMMARY.md                                          9946 B  sha256:ef80a47ea4eb1cc4
+T-FIX-24-SUMMARY.md                                          8618 B  sha256:bc9387c645dcf44c
+T-FIX-25-SUMMARY.md                                          5727 B  sha256:22e7d606a3bc1764
+T01-SUMMARY.md                                               8099 B  sha256:e80a50928551f43e
+T02-SUMMARY.md                                              15655 B  sha256:aa41da4c0543962b
+T03-SUMMARY.md                                              20092 B  sha256:24c73f71138e5a10
+T04-SUMMARY.md                                              30953 B  sha256:6334ab1dde394766
+T05-SUMMARY.md                                               9254 B  sha256:5c5ca9246f424882
+T06-SUMMARY.md                                              16358 B  sha256:7924cbae49aa3c1a
+T07-SUMMARY.md                                              14130 B  sha256:a1082d0e2c77ed17
+T08-SUMMARY.md                                               7274 B  sha256:155d50965d674ce3
+T09-SUMMARY.md                                              15637 B  sha256:66f200e531bbea5d
+T10-SUMMARY.md                                              13118 B  sha256:7a77450e5cd03b49
+T11-SUMMARY.md                                              24116 B  sha256:c7506d81a5828dc4
+T12-SUMMARY.md                                              12733 B  sha256:3729fb88d19599cd
+T13-SUMMARY.md                                              11247 B  sha256:6ad8c0a6ca9bb7ed
+T14-SUMMARY.md                                               7542 B  sha256:a3e35591614f022b
+T15-SUMMARY.md                                              13311 B  sha256:611a60c525329673
+T16-SUMMARY.md                                              13620 B  sha256:885830789fc0face
+T17-SUMMARY.md                                              21564 B  sha256:7c6663bf10047116
+T18-SUMMARY.md                                               8875 B  sha256:a22e18cbf6349f74
+T19-SUMMARY.md                                               9905 B  sha256:58baa7882384ce2d
+T20-SUMMARY.md                                               7388 B  sha256:15aa919ea624c2ba
+T21-SUMMARY.md                                               8437 B  sha256:f134b2850339b90c
+T22-SUMMARY.md                                               6106 B  sha256:acc8241ccff35bc2
+T23-SUMMARY.md                                               8437 B  sha256:ada28b970865d9bb
+T24-SUMMARY.md                                               8206 B  sha256:e34c9d0be824fd19
+T25-SUMMARY.md                                               7653 B  sha256:f98b37c00e5e7361
+T26-SUMMARY.md                                              11519 B  sha256:d7f3895cb9cd0e27
+T27-SUMMARY.md                                               5605 B  sha256:c9e1f654eee11dbd
+T28-SUMMARY.md                                              36867 B  sha256:879e3f98471b2f36
+T29-SUMMARY.md                                               7524 B  sha256:a6100542c3e74592
+TASK.md                                                    372815 B  sha256:993e298c961ed5fd
+TEST.md                                                    218717 B  sha256:8da4703a5aead0c2
+path-privacy-allowlist.txt                                    960 B  sha256:72ff005cca6aa642
+reproduce-5-fixloop.sh                                      14868 B  sha256:2a25cbf76d1f4256
+reproduce-5-test.sh                                         16999 B  sha256:3a5dbe0650807584
+reproduce-phase-gate.sh                                      8334 B  sha256:81700f125c1c2557
