@@ -5,14 +5,14 @@
 #
 # ⚠️ 归档时就地脱敏（TD-114 策略① · 用户 2026-09-28 裁决）：对本归档副本内出现的真实账号路径与合成探针账号名，
 #    统一替换为 /home/<acct>/（原文仍在 git 历史中，未重写历史）。映射：
-#   /home/<redacted>/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
-#   /home/<redacted>alice/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
-#   /home/<redacted>root/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
-#   /home/l2probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md）
-#   /home/test/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
-#   /home/zz-path-probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
-#   /home/zz-path-probe-differential/ → /home/<acct>/  （INDEPENDENT-REVIEW-2.md）
-#   /home/zz-uat-probe/ → /home/<acct>/  （INDEPENDENT-REVIEW-7.md）
+#   /home/<acct>/（= 真实账号名 · 原字面已在此清单内以 <...> 包裹，避免清单自身被隐私判据判红）  （INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
+#   /home/<hellrabbitalice>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-2.md）
+#   /home/<hellrabbitroot>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-2.md）
+#   /home/<l2probe>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-1.md）
+#   /home/<test>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-2.md）
+#   /home/<zz-path-probe>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-1.md, INDEPENDENT-REVIEW-2.md）
+#   /home/<zz-path-probe-differential>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-2.md）
+#   /home/<zz-uat-probe>/  →  /home/<acct>/  （合成探针名 · INDEPENDENT-REVIEW-7.md）
 
 ## 文件（75 项）
 .change-base                                                   41 B  sha256:8c6013061c1bc7b7
