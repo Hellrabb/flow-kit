@@ -1920,3 +1920,48 @@ fi
 **回退（`rollback_4`）**：`from=5 → to=4` · `phases_done` 移除 4/5（保留 0–3）· `goal.current_phase`/顶层 `.phase` = `4` · `gates[4→5]`/`[5→6]` 置 `pending` · `33-flow-active-integrity.sh` **rc=0**。
 
 **独立性/诚实性披露**：`T17` 的冲突**源自主 agent 自己写的 `T-FIX-22` 任务指示**（`REVIEW.md` 的 `R5-5` Remedy 与 `T13`/`T17` 相冲，派发时未做「改动面 ↔ 既有判据」对账）；`T-FIX-04` 的夹具缺陷亦源自主 agent 手列目录的夹具写法。两条都不归因执行者 —— `T-FIX-22` 执行者按派发词忠实施作且回执齐全。
+
+---
+
+## ✅ T-FIX-24 复核记录（主 agent 独立复验 · 2026-09-28 · `T17` 回归收口 / `R5-5` 处置订正）
+
+**提交链**（`git show --numstat` 实证）：`1900425`（`%cI` `14:58:12` · `check-path-privacy.sh` +5/−3 · `test/test_path_privacy_gate.bats` +84 · `flow-kit-bundle/test/…` 镜像 +84）→ `77984cc`（`14:59:25` · `T-FIX-24-SUMMARY.md` +101 · `TASK.md` +7/−1）。
+
+**主 agent 亲验（不复用执行者自陈）**
+
+| 项 | 实测 | 判定 |
+|---|---|---|
+| `T17 <verify>` 原样抽取实跑（**权威红面判据**） | 修复前 **rc=1** + `🔴 审查档 …INDEPENDENT-REVIEW-5.md 被纳入门禁排除表…`；修复后 **rc=0** | ✅ |
+| `SELF_EXCLUDE` 成员 | 精确 **6 条**（脚本 + 两允许清单 + `IR-1/2/3`），IR-5/IR-6 两行已删；`grep -c 'INDEPENDENT-REVIEW-[56]\.md'` = **0** | ✅ |
+| 契约注释 | 旧口径「新增审查档必须显式追加」已替换为阶段 5 裁决口径；**未含任何完整路径字面**（用 `INDEPENDENT-REVIEW-{5,6}.md`），不触发 `T17` 的 `grep -qF <路径>` | ✅ |
+| 常设腿 | `test/test_path_privacy_gate.bats` **34 → 35 例**全绿；新腿在 `$SUT_SRC` 上做「集合 ≡ 冻结 6 条」精确比对，并在**副本**上注入伪条目 ⇒ 7 ≠ 冻结（红）/ 去行 ⇒ 6（绿）——**判据的判别力由副本三态证明，真件不被改** | ✅ |
+| `make check-path-privacy` | rc=0 · 自排除 **8 → 6** · 实际扫描 1614 → **1617** · 候选 1622 → **1623** · 命中 **0** · 清单外 **0** | ✅ |
+| 判据脚本 | `bash .specs/health-fix-2026-09b/reproduce-5-fixloop.sh` ⇒ **✅ 47 · 🔴 0**（41 → 47，T-FIX-24 段 6 条全绿 · 含「T17 原样实跑 rc=0」与「常设网 35 例」） | ✅ |
+| bats | `npx bats --count test/` = **1115** · 两镜像 `cmp -s` **IDENTICAL** · `TASK.md` `status="pending"` 计数 = **0** | ✅ |
+| 台账 | len **52 → 53**；末条 `{"id":"T-FIX-24","commit_sha":"1900425…","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T14:58:54+08:00"}`（五字段 · Δ=**42 s** ≤ 120 s · 顶层与 `goal` 的 `updated_at` 均 epoch int） | ✅ |
+
+**归一说明（非缺陷 · 避免与执行者回执数字冲突）**：执行者回执写「候选 1622 / 扫描 1616 / 自排除 6」——那是**其 docs 提交（`77984cc`）之前**的实测；本表 1623 / 1617 是**含 `T-FIX-24-SUMMARY.md` 入库后**的时点值（+1 = 新增 tracked 文件）。两者同源、差 1 可解释。
+
+**执行者自陈的遗留风险（主 agent 判定）**：① `make verify-claims` 的 §10c ❌ 与 M 编号 ❌ = 既有流程性预期（不在 `make check` 面）⇒ 沿用；② 注释用花括号表述规避 `T17` 的全文匹配 ⇒ **成立且必要**（已在 `T-FIX-24` 任务块中写成硬约束）；③ 常设腿的 `sed` 块提取依赖 `SELF_EXCLUDE` 的单引号起始/终止风格 ⇒ **成立**，若未来改引号风格该腿会假绿 —— 已并入 `TD-102` 同族的「判据夹具/提取器与受测形态耦合」口径，交阶段 7 triage。
+
+---
+
+## 🚦 阶段 4 完成自检（第 2 次 · 4→5 重入 · 8 项 · 主 agent · 2026-09-28）
+
+> 触发：第 6 轮 fix 循环任务 `T-FIX-24` 收口（台账 len **53** = 29 条 `T01…T29` + 24 条 `T-FIX-01…24`）。
+> 第 1 次自检（`7fcc0ad`）见上文；本轮只列**增量与实测值**，8 项全部重跑。
+
+| # | 项 | 本轮实测 | 判定 |
+|---|---|---|---|
+| 1 | 全部 task `status="done"` | `^<task … status="pending"` = **0** · `<task>` 块 = **53** · `status="done"` = **53** | ✅ |
+| 2 | 每 task 的 `*-SUMMARY.md` 已写入 | `T01…T29` + `T-FIX-01…24` **穷举 53/53 齐备**（`T-FIX-24-SUMMARY.md` 8,618 B） | ✅ |
+| 3 | verify 通过 + 6 维 self-review | ① `reproduce-5-fixloop.sh` **✅ 47 · 🔴 0**（T-FIX-24 段 6 条全绿含「T17 原样实跑 rc=0」）；② 阶段 5 第 12 次执行首跑的 2 条红面（`T17` / `T-FIX-04`）均已收口并留档（见上文 ❌ 段 + `T-FIX-24 复核记录`）；③ `T01…T29` 各自 SUMMARY 含 6 维自查段，fix loop 生产件 diff 由阶段 6 四方独立审查覆盖 | ✅ |
+| 4 | diff 边界 verify | `7fcc0ad..HEAD` 仅 **10 个路径**，逐条落在声明写面（主 agent 的 `CONTEXT`/`LESSONS`/`MINOR-DEFERRED`/`TASK.md`/`reproduce-5-fixloop.sh` · `T-FIX-23/24-SUMMARY.md` · `T-FIX-24` 的 `check-path-privacy.sh` + 2 bats 双源）⇒ **越界 0**（base→HEAD 全量 133+3 路径的溯源见第 1 次自检） | ✅ |
+| 5 | 沿用既有抽象 grep | 同第 1 次自检口径（口径披露见该段） | ✅ |
+| 6 | Sub-goal | `goal.phase_sub_goals["4"]` = 空 ⇒ N/A | ✅ |
+| 7 | bats 0 fail | `npx bats --count test/` = **1115** · `npx bats test/` = `1..1115` · 0 not ok · 0 skip | ✅ |
+| 8 | `.flow-active` 关键字段 | `updated_at` = **epoch int** `1790578777` · `phase="4"` · `phases_done=["0","1","2","3"]` · `task_id="T-FIX-24"` · `33-flow-active-integrity.sh` rc=0 | ✅ |
+
+**权威门禁（本轮 · 安静树 · HEAD `77984cc`）**：`make check` **RC=0 · 21 ✅ / 0 ❌**（日志 `/tmp/p6d/v24-make-check.log`，15:0x 起跑 → 15:07:12 结束）——`bats all passed` · `shellcheck no errors` · `validate staging coverage OK` · 三一致性 rc=0 · 隐私五数 = 候选 **1623** / 实际扫描 **1617** / 自排除 **6** / 不可读 0 / 命中 0（不变式 1623 = 1617 + 6 成立）· NFR rc=0。日志里唯一 `🔴` 字样是 `🔴 漏配 (ERROR): 0`。
+
+**与第 1 次自检的差异**：① 任务数 52 → **53**；② bats 1114 → **1115**；③ 自排除 8 → **6**（`T-FIX-24` 恢复冻结集）、实际扫描 1614 → **1617**、候选 1622 → **1623**；④ 第 3 项从「verify 全绿」变为「verify 全绿 **+ 阶段 5 首跑红面已收口**」。
