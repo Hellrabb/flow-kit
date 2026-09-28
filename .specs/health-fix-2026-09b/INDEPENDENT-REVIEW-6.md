@@ -403,22 +403,6 @@ bash ./flow-kit-bundle/flow-kit/reference/check-path-privacy.sh; echo "rc=$?"   
 
 > **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-6.md`；`REVIEW.md`（§H.2 的 AC-1/AC-3/AC-6/AC-8 行与判定段 · §H.3 结论）· `.specs/CONTEXT.md`（`TD-104`）· `PHASE5-RECEIPTS.md`（§U-4 横幅）由主 agent 在同一轮订正。**未改**任何生产件、**未改**判据正文、**未改写** L2 段与既有两段 L3 段任何文字。处置完成后**重跑 L3（第 21 轮）**，以其 `pass`/`fail` 判定为准。
 
----
-
-## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-28 17:48）
-
-> 自动生成于 2026-09-28 17:48。由 l3-review.sh 写入。
-
-### 审查结论
-
-```json
-{"critical":[{"file":".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md / REVIEW.md §H.3","issue":"工件内最后一段独立 L3 重审（deepseek-v4-flash-0731 · L3 第 20 轮）结论仍为 verdict: fail（2 critical + 3 major + 3 minor）；主 agent 响应声称「处置完成后重跑 L3（第 21 轮）」，但工件内没有该次重跑的 L3 审查块（无 verdict、无 critical/major 列表、无 AC-1~AC-8 判定）。REVIEW.md §H.3 结论也注明「L3 尚待通过」。","why":"阶段 6 门禁 AC-9 的通过必须以独立 L3 的最终 pass 判定为可复核证据。当前工件内可见的最后独立审查结论是 fail，重跑结果只存在于主 agent 自述，无法复核；工件自身也声明「在 L3 pass 之前本节不构成 6→7 放行依据」。因此该工件不能作为 spec 合规通过的工件验收，阶段 6 门禁实际处于未通过/未完成状态。","fix":"写入 L3 第 21 轮完整审查块（含 verdict、critical/major/minor 列表、AC-1~AC-8 判定）；若第 21 轮 fail 或未跑，则保持 fail/回退状态，不得宣称可进入 6→7。"}],"major":[{"file":".specs/health-fix-2026-09b/CONTEXT.md（TD-104）","issue":"L3 第 20 轮 M2（major）要求「修正 verify：断言存在 diff_rc=$? 显式捕获分支 + 增加行为级 bats 腿（制造 diff rc≥2 的机械故障形态并断言非绿）」。主 agent 处置仅登记 TD-104（tech-debt），未修正 T-FIX-10 的 <verify>，也未新增 L3 要求的行为级 bats 腿。","why":"登记 tech-debt 不等于完成 L3 major 的处置要求。T-FIX-10 的 verify 判据 grep -qE 'diff_out.*\\|\\| true' 仍对 R3-20 缺陷形态（diff_out=$(diff … || true) 吞 rc）无判别力；若 check-gate-sync.sh 未来回退为吞 rc 写法，该 verify 仍判绿，AC-4 的任务级常设防线仍缺失。L3 明确要求的判据修正未落地。","fix":"按 L3 M2 要求修正 verify 断言（显式 diff_rc=$? 捕获分支）+ 增加行为级 bats 腿；或将 T-FIX-10 放回 fix loop 实际修复而非仅记 TD。"},{"file":".specs/health-fix-2026-09b/REVIEW.md（头部）","issue":"REVIEW.md 顶部仍写「verdict（第 3 轮 · 本轮 · 现行结论）: fail」，而同一文件内已有「第 4 轮（历史 · 已闭合）pass」「第 5 轮（本轮 · 正式阶段 6 入场）」及追加的「§H 第 6 轮 fix 循环收口」；追加 §H 时未更新头部「现行结论」。","why":"REVIEW.md 是阶段 6 核心工件，头部「现行结论」指向第 3 轮 fail，与 §H 的「L3 尚待通过」及第 4/5 轮的历史结论并存，读者需自行梳理多个时点才能确定当前状态；多个「本轮/现行结论」标记造成认知过载（R1 衰退），工件内部时点口径不统一。","fix":"更新 REVIEW.md 头部：将「现行结论」改为「第 3 轮（历史）」，或将当前状态明确写为「L3 第 20 轮 fail 已处置，第 21 轮重跑结果待写入」。"}],"minor":[{"file":".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md（L2 段）","issue":"L2 段独立性声明「收工时 git status --porcelain 仅 M REVIEW.md」与未验证边界第 6 条「仅 M REVIEW.md + 本审查员即将追加的 INDEPENDENT-REVIEW-6.md」在同一段内时点描述不一致；主 agent 已在响应中澄清三个时点，但 L2 原文未改。","why":"独立性声明的可信度依赖「谁改了什么」的准确描述，同段矛盾即使后续澄清也会削弱盲审记录的严谨性。","fix":"将 L2 独立性声明拆为审查起点/审查结束/响应追加后三个明确时点。"},{"file":".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md（L2 段 Verdict）","issue":"L2 段 Verdict 写「pass」但自列 4 条未重跑边界（变异实证/端到端安装形态/候选塌缩夹具/全量门禁），Verdict 行未醒目标注「pass 仅覆盖抽查面（9/27 + 代码走查）」。","why":"L2 pass 的独立覆盖度有限，若读者只看 Verdict 行会高估其独立确认范围；主 agent 虽在 §H.2 加免责声明，但 L2 原文的 Verdict 行本身缺少覆盖范围标注。","fix":"Verdict 行补充「本 pass 基于 9/27 抽查 + 代码走查，未覆盖边界见列表」。"},{"file":".specs/health-fix-2026-09b/REVIEW.md §H.2","issue":"「AC-1…AC-8 的独立复算面」表格中大量「回执」单元格为「§U-1/§U-2 + 主 agent 回执」，仅少数为 L2 亲跑；表名「独立复算面」与表内容存在标签错位。","why":"表格标题易使读者误以为这些条目均经独立复算；虽有表下免责声明，但表名与大量「主 agent 回执」并列，仍可能造成独立覆盖度的高估。","fix":"将表名改为「AC 复算入口与回执来源」，或在每行「回执」列统一显式区分「L2 亲跑」与「主 agent 回执/§U-2」。"}],"verdict":"fail","summary":"工件存在 1 个 critical：最后可见的独立 L3 重审仍为 fail 且缺少第 21 轮重跑结果，AC-9 无可复核的通过证据；另有 TD-104 处置不充分（L3 M2 要求未落实）与 REVIEW.md 头部结论过时两个 major，故 verdict=fail。"}
-```
-
-L3_artifact_hash: 6222cce7358648484ffa1c7cd59d526da609b1e35b5113e592ff5ff1cca30240
-
-<!-- /L3-SECTION -->
-
 
 ---
 
@@ -600,3 +584,69 @@ L3_artifact_hash: 6222cce7358648484ffa1c7cd59d526da609b1e35b5113e592ff5ff1cca302
 > **L2 未验证边界（3 条 · 如实登记）**：① 未独立重跑全量门禁（`--gates-only` 确认 bats 1116 + `make check` rc=0，NFR 计时/沙箱/包校验采信 §U-5 回执）；② `T-FIX-10 <verify>` 完整复跑超时（>120 s），只亲验双面 grep 三条核心；③ `TD-105` 机制经源码走查自证，未构造 L3 写入夹具实跑（需触发 Stop hook）。三者均**不构成 AC 结论面**（§H.2 复算表首段已声明「依赖回执，不构成独立确认」）。
 >
 > **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-6.md`；`TEST.md`（三处计数订正）与 `.specs/CONTEXT.md`（`TD-104` 状态同步）由主 agent 同轮订正。**未改**生产件、**未改**判据正文、**未改写** L2 段与既有 L3 段任何文字。
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-28 20:14）
+
+> 自动生成于 2026-09-28 20:14。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{
+  "critical": [],
+  "major": [
+    {
+      "file": "REVIEW.md",
+      "issue": "顶部现行结论段落自述「本阶段尚未闭合」且 L3 第 21 轮仍为 fail，同时文件内已存在第 4 轮 pass 与第 5 轮正式入场段落，多个 verdict 行并存，现行结论只能靠读者按轮次手工辨识。",
+      "why": "作为阶段 6 的收口审查件，工件头部明确写着 L3 第 19/20/21 轮 = fail、L3 pass 之前不构成 6→7 放行依据，且自认存在「机制自引用（工件里可见的 L3 判定永远是上一轮）」并提请用户裁决。这使 REVIEW.md 无法被独立确认当前审查结论是 pass 还是 fail，spec 合规与放行状态均处于未决。",
+      "fix": "在文件最顶部用单一、无歧义的「现行结论」块给出当前 HEAD 的 verdict 与放行建议；历史各轮 verdict 移入明确的「历史轮次」小节并加分隔线，避免同一文件内出现多个可被误读为现行结论的 verdict 行；若 L3 第 21 轮 critical 确属机制自引用，应给出可机器核验的判定依据（如本轮 L3 重跑输出）而非仅提请用户裁决。"
+    },
+    {
+      "file": "T-FIX-10-SUMMARY.md",
+      "issue": "摘要中明确披露 verify 静态判据与修复目标存在偏差：`<verify>` 第 3 条 `grep -qE 'diff_out.*\\|\\| true'` 会误命中合法的 `grep -c ... || true` 行，即判据不能区分「吞 rc 的缺陷形态」与「防 set -e 中止的合法用法」。",
+      "why": "该 verify 判据是本修复任务的核心验收依据，但作者自己承认它过宽且未削弱 verify。这意味 T-FIX-10 的验收可能对缺陷形态无判别力，后续回归时同一缺陷可能再次漏检，spec 合规（AC-4 内容漂移/机械故障判别）缺少可靠常设保护。",
+      "fix": "将 verify 静态 grep 改为行为级断言：在夹具中制造 diff rc≥2 形态并断言脚本输出 `🔴 MECHANICAL` 且 rc≠0，或至少把静态 grep 收窄为锚定 `diff_out=$(diff ... || true)` 的精确行模式（如 `grep -nE 'diff_out=\\$?\\(diff .*\\|\\| true'`），确保判据只命中缺陷形态。"
+    },
+    {
+      "file": "T-FIX-25-SUMMARY.md",
+      "issue": "T-FIX-25 摘要声称收口 TD-104，但只新增了 1 条行为级 bats 腿，且该腿的夹具 `FXB25` 与 `FXB10` 同款构造、阴影 diff 恒 rc=2，未覆盖真实机械故障的其它形态（diff 不存在、diff 参数错误、diff 输出被截断等）。",
+      "why": "TD-104 的原始 major 要求是「修正 verify：断言存在 diff_rc=$? 显式捕获分支 + 增加行为级 bats 腿」，摘要显示生产件在 T-FIX-10 已修，但常设网仅钉住单一 rc=2 形态；若 diff 因其它原因失败（如文件消失、权限错误、路径含换行），行为级腿无法证明 fail-closed 仍生效，验收覆盖仍偏窄。",
+      "fix": "在 test/test_check_gate_sync.bats 中补充至少 2 条额外行为级腿：一条让 diff 因文件不可读或不存在而返回非 2 的机械故障，另一条让 gate-config diff 同样返回机械故障；每条都断言 rc≠0、输出含 `🔴 MECHANICAL`、且不打印 `✅ 一致`。"
+    }
+  ],
+  "minor": [
+    {
+      "file": "T-FIX-10-SUMMARY.md",
+      "issue": "摘要体量 4205B 超过补充产物预算 3000B，被整行截断；虽提示为预算产物，但关键 verify 偏差细节只出现在截断前，读者无法看到完整修复与验证闭环。",
+      "why": "该文件是 T-FIX-10 的唯一 SUMMARY，截断后缺少后续小节（如判据修订留痕、完整输出），独立审查者无法从工件本身完整复核修复正确性。",
+      "fix": "将 SUMMARY 拆分为多个 ≤3000B 的补充产物，或在 TASK.md 的 `<done>` 中保留完整验收输出，确保关键判据偏差与修复证据不依赖截断后的长文。"
+    },
+    {
+      "file": "T-FIX-20-SUMMARY.md",
+      "issue": "摘要中 AC-7 删除注入腿的验证依赖 `$HOME/.claude/stop-hook.json` 存在与否做 skip；文件缺失时用例直接 skip，可能使「stop-hook.json 仍为纯 model 字符串」的断言在无安装态环境下永远不执行。",
+      "why": "skip 条件使该用例在消费者/CI 环境（未部署 stop-hook.json）下不参与验证，AC-7 的环境面残留断言实际退化为「仅在已安装态运行」，回归判别力随环境变化。",
+      "fix": "在 setup 中为 stop-hook.json 用例自建临时 HOME 夹具（写入最小合法 stop-hook.json），使该断言在任何环境下都真实执行；若必须 skip，应把 skip 条件改为显式失败之外的已知环境标记，并在 TEST.md 登记该环境依赖。"
+    },
+    {
+      "file": "T-FIX-23-SUMMARY.md",
+      "issue": "摘要披露子 agent 在 make check 期间未落回执即终止，由主 agent 接管收口并「逐项独立复验」；这种执行中断后的代笔式 SUMMARY 削弱了证据链的独立可审计性。",
+      "why": "工件自身承认执行者未完成收尾，主 agent 的复验主观上可弥补，但独立审查者无法从工件区分哪些输出是执行者原始产出、哪些是主 agent 事后补写，存在自证风险。",
+      "fix": "将执行者原始输出与主 agent 接管补验输出分节存档（如 `T-FIX-23-EXECUTOR-RAW.md` / `T-FIX-23-MAIN-OVERRIDE.md`），并保留子 agent 终止时的现场日志时间戳，使证据链可独立重放。"
+    },
+    {
+      "file": "T27-SUMMARY.md",
+      "issue": "T27 摘要中的 bats 基线「973 ok」被标注为陈旧措辞，实测 976 ok；但同一摘要又自称「基线 2026-09-23 实测 rc=0 / 973 ok」，与 T29 收口后的 976 口径不一致。",
+      "why": "多处 SUMMARY 的 ok 基数（973 vs 976 vs 1064 vs 1098）在工件间漂移，虽各有演进注记，但独立读者需逐条对照 PHASE5-RECEIPTS 才能确认当前权威基线，增加认知过载与误读风险。",
+      "fix": "在 TEST.md 或 STATE.md 维护单一权威基线计数器（含日期与 HEAD），所有 SUMMARY 引用的 ok 数一律指向该权威值；对历史 SUMMARY 的陈旧数字加「历史值，非现行基线」标注。"
+    }
+  ],
+  "verdict": "pass",
+  "summary": "非 critical 问题：阶段 6 工件整体展示了严密的修复闭环与大量行为级测试证据，但 REVIEW.md 头部现行结论自述未闭合、T-FIX-10 的 verify 判据存在已知过宽偏差、T-FIX-25 行为级腿覆盖单一，均属 major 级可改进项，不构成放行阻断。"
+}
+```
+
+L3_artifact_hash: 98da9073b3c01a0ca9677bb0f2ae4e31fdef379bb8306e8799d82ec97697299b
+
+<!-- /L3-SECTION -->
