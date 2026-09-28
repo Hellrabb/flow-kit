@@ -169,7 +169,18 @@ rm -rf "$_t22d"
 rc0 "T-FIX-22 隐私检查器实跑" make check-path-privacy
 
 echo "-- T-FIX-23（R5-23 NFR 全量面三分法）"
-rc0 "T-FIX-23 全量入口" make check-nfr-portability-full
+# 全量入口不仅要 rc=0，还必须真的走到「存量基线 ratchet」路径 —— 否则三分法里的「登记基线」这一分
+# 可能是空跑（rc=0 也可能是「压根没扫到那些存量构造」）。
+if make check-nfr-portability-full >"$TMPD/g23" 2>&1; then
+  ok "T-FIX-23 全量入口 rc=0"
+  if grep -q '存量基线' "$TMPD/g23"; then
+    ok "T-FIX-23 全量模式输出含「存量基线」（$(grep -m1 '存量基线' "$TMPD/g23" | sed 's/^[[:space:]]*//')）"
+  else
+    bad "T-FIX-23 存量基线行" "$(tail -3 "$TMPD/g23" | tr '\n' ' ')"
+  fi
+else
+  bad "T-FIX-23 全量入口" "$(tail -3 "$TMPD/g23" | tr '\n' ' ')"
+fi
 # 注：下面两条断言刻意写成 map[f]ile / readarr[a]y —— NFR 判据（Makefile:162）按源码**字面**
 # 扫 bash4-only 构造，本脚本自身也是「新增的 .sh」而被扫，含该字面即被判违规（实测 :138/:139）。
 # 方括号形式对 `grep -E` 语义等价（匹配的仍是同一组内建名），但不构成源码字面。

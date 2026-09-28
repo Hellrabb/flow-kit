@@ -1846,4 +1846,29 @@ fi
 
 **判据脚本空跑（HEAD `44eef94` + 主 agent 归一）**：`bash .specs/health-fix-2026-09b/reproduce-5-fixloop.sh` ⇒ **✅ 35 · 🔴 5**，红项**全部**是尚未开工的 `T-FIX-23` 五项（`make check-nfr-portability-full` 未定义 · `sync-hooks.sh` `mapfile` 3 处 · `verify-claims.sh` 2 处 · 基线文件缺 · 常设网 14 < 20 例），T-FIX-14…22 段全绿、无假红。
 
+**权威门禁（主 agent · 安静树 · HEAD `8bdfa6b` · 后台 job 日志 `/tmp/p6d/v22-make-check.log`）**：**RC=0 · 21 ✅ / 0 ❌**——bats 全量 1108 · shellcheck 无错 · `check-validate` 通过 · `check-dist` 一致 · 校验对 3/14 · 隐私五数 = 候选 **1620** / 实际扫描 **1612** / 自排除 **8** / index 侧 15 / 命中 0（不变式 1620 = 1612 + 8 成立）· NFR 通过。
+
 **写面**：`T-FIX-22-SUMMARY.md` · 4 个产品件 · 5 对 bats/镜像 · `TASK.md`；主 agent 侧：`.specs/health-fix-2026-09b/reproduce-5-fixloop.sh` · 本文档 · `.specs/CONTEXT.md`（`TD-100`）· `.specs/LESSONS.md`（`L-179`）。
+
+---
+
+## ✅ T-FIX-23 复核记录（`R5-23` 🟡 · NFR 可移植性存量基线 ratchet + 全量入口 + 5 处便携化）
+
+**执行者中断 ⇒ 主 agent 接管**：子 agent（`qwen-token-plan-cn`/`glm-5.2`）写完 8 个产品件、跑完过程验证（含基线陈旧探针）后，在 `make check` 期间**未落回执即终止**（无 `T-FIX-23-SUMMARY.md`、`TASK.md` 未勾 `done`、台账未追加）。主 agent 逐项**独立复验** `<verify>` 六条（不复用执行者自陈），并追加 `install_brooks.sh` 失败路径 `.tmp` 清理（偏离登记见该 SUMMARY §F）。
+
+**先红 → 修后（主 agent 亲验）**
+
+| 腿 | 修前实测 | 修后实测 |
+|---|---|---|
+| ① `mapfile` | HEAD 态 **5 处**：`sync-hooks.sh:182`/`:197`/`:198` · `verify-claims.sh:119`/`:135`（另 `34-archive-commit-check.sh:47` `stat -c` · `install_brooks.sh:125` GNU `sed -i`） | `grep -c 'mapfile\|readarray'` 两件 **0** |
+| ② FULL 模式 | **pristine worktree** `/tmp/p6d/v23base` @ `8bdfa6b` ⇒ rc-file **1** · **19 行 / 12 文件**（归档面 7 / 可修 7 / 基线 5 三分法逐条对齐） | 真仓 rc **0** + `ℹ️ 存量基线 5 条` |
+| ③ 默认（变更集） | rc **0** —— 同一构造**不报** ⇒ 盲区成立 | rc **0**（语义未改） |
+| ④ 等效性 | GNU `sed -i` 与 `sed > tmp && mv` 同输入 ⇒ `cmp -s` **IDENTICAL** | 成功路径 `.tmp` 无残留；只读目标失败路径 ⇒ 清 `.tmp` + rc=1 |
+| ⑤ 陈旧检测 | —（无此能力） | 真仓追加伪条目 `sync-hooks.sh:999:declare -A` ⇒ **非 0** + `⚠️ 基线陈旧：sync-hooks.sh:999`；基线 `sha256 f7bad353ed38aa39aabc3d5b58ceb7152064ed15452646a7c4981d57a8d61f82` **原样回滚**（H0=H1） |
+| ⑥ 常设腿 | 14 例 | **20 例**（+6：归档外注入 / 变更集不报 / 便携写法双模式 / 归档内排除 / 命中基线 / 基线陈旧）全绿；两镜像 `cmp -s` SAME |
+
+**旁证**：`./sync-hooks.sh --check` rc=0（漂移 0）· `verify-claims.sh` 第 1/2 节 `carriers=7` / `carriers=8`（读循环正确填充数组，非静默空数组）· `npx bats --count test/` = **1114**（1108 → +6）· 全量 `npx bats test/` = `1..1114 ok=1114 not_ok=0 skip=0` · `make check-path-privacy` rc=0（候选 1620 / 扫描 1612 / 自排除 8 / 不可读 0 / 命中 0）· `make test-sync` rc=0 · `package-dsh-plugin.sh` rc=0 · `bash package-flow-kit.sh` rc=0（新件已入 dist 两处：`dist/dsh-flow-kit/flow-kit/reference/` 与 `…/vendor/flow-kit-bundle/…`）· `make check-hooks-sync`/`check-test-sync`/`check-dist` rc=0。
+
+**台账**：len **51 → 52**；末条 `{"id":"T-FIX-23","commit_sha":"5bf6d2921c37743258e78cb057f347623e5acca8","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T12:29:44+08:00"}`（五字段齐 · 无 `.goal` 幽灵键 · 顶层与 `goal` 的 `updated_at` 均为 epoch int）；**Δ = 52 s**（≤ 120 s ✓）。第 5 轮 fix loop 任务 `T-FIX-14…T-FIX-23` **全部 done**（TASK.md 52 个 `<task>` 中 fix 段无 pending）。
+
+**既有 ❌ 备查（非本次引入 · 不在 `make check` 面）**：`make verify-claims` §10c「§0.5.1 覆盖被改文件」对 fix loop 期间新增触碰件报 ❌（冻结的 `DESIGN.md` 不回填）· 同批 `MINOR-DEFERRED.md` M 编号口径 ❌（第 5 轮整轮既有）。`verify-claims` 不在 `Makefile:5` 的 `check:` 目标集合内。

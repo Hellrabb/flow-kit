@@ -2927,7 +2927,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   </done>
 </task>
 
-<task id="T-FIX-23" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-23" parallel="false" status="done" model-tier="top">
   <name>【R5-23 🟡】NFR 可移植性判据存量基线 + `sync-hooks.sh` 的 `mapfile` 替换</name>
   <read_files>
     <`Makefile:129-160`（目标族说明）· `:162-306`（判据正文：`BASE` 解析 `:233-276`、全量分支 `:167`/`:195`/`:268`/`:286`）· `:308-334`（包装层三态转译）>
@@ -2969,4 +2969,10 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑥ 常设腿 ≥6 例全绿（含 ①②③④⑤ 六种形态）；`make check` 21 ✅ / 0 ❌。
   </verify>
   <depends_on>T-FIX-22（串行：全仓门禁为独占步骤）</depends_on>
+  <done>
+    sha: 5bf6d2921c37743258e78cb057f347623e5acca8
+    completed_at: 2026-09-28T12:29:44+08:00
+    verify: ① 先红三腿留档（HEAD 态 5 处 mapfile：sync-hooks 182/197/198 + verify-claims 119/135；pristine worktree /tmp/p6d/v23base@8bdfa6b FULL 模式 rc-file=1 · 19 行/12 文件；默认变更集 rc=0 同构造不报） · ② bash -n 五脚本 rc=0 · 两脚本 bash4 内建=0 · ./sync-hooks.sh --check rc=0/漂移 0 · verify-claims 第1/2节 carriers=7/8 · ③ 默认 rc=0 · 归档外注入 rc≠0 具名 file:line · 归档内注入 rc=0（排除生效） · ④ make check-nfr-portability-full rc=0 且含「ℹ️ 存量基线 5 条」· FLOW_KIT_CHANGE_BASE=FULL make check-nfr-portability rc=0 · ⑤ 真仓基线陈旧探针 ⇒ 非 0 + 「⚠️ 基线陈旧：sync-hooks.sh:999」，基线 sha256 f7bad353… 原样回滚（H0=H1） · ⑥ 常设网 test/test_nfr_portability_gate.bats 20 例（14→+6）全绿 · npx bats 1..1114 ok=1114 notok=0 skip=0 · make check 见 MINOR-DEFERRED 复核记录末段
+    写面: Makefile(R5-23 全量入口 check-nfr-portability-full + 归档面排除 + 存量基线 ratchet) · sync-hooks.sh(mapfile×3 → 便携读循环) · verify-claims.sh(mapfile×2) · flow-kit-bundle/hooks/stop/34-archive-commit-check.sh(stat -c → GNU先BSD后双分支) · flow-kit-bundle/lib/install_brooks.sh(GNU sed -i → tmp+mv · 失败路径清理) · flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt(新建 5 条) · test/test_nfr_portability_gate.bats(+6) · flow-kit-bundle/test/test_nfr_portability_gate.bats(镜像) · .specs/health-fix-2026-09b/T-FIX-23-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress append · gitignored 不提交)
+  </done>
 </task>
