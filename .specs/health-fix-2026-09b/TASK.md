@@ -2646,7 +2646,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
   <done>R5-18 🔴：`pre-push.sh` 与 `pre-commit.sh` 新增 `_resolve_self_path()`（`command -v readlink` + 深度上限 40 循环解析 `BASH_SOURCE[0]`，相对目标按 `dirname` 拼接），`HOOK_DIR` 经 `.git/hooks/*` symlink 调用时仍解析为 `<proj>/.claude/hooks/<hook>`；`resolve_reference_dir()` 候选由 3 条扩为 4 条，新增 `$HOOK_DIR/../../reference`（安装形态正确位置：`<proj>/.claude/hooks/<hook>` → `<proj>/.claude/reference`），源码树候选保留。R5-19 🟡：`pre-commit.sh` 隐私扫描块整体前置于无 Makefile / npx 早退（两早退只跳过测试门禁）。R5-24 🟢：删 `pure_delete_seen`（全文件无读取，纯写）。`install_hooks.sh:277-292` 注释与实物对齐。新增 `test/test_install_layout.bats`（8 例全绿，含反向控制腿）。验证 ①–⑥ 全满足：先红 `grep -c '未找到可用的路径隐私检查器' /tmp/tfix14/pre.txt` ≥ 2；后绿 `npx bats test/test_install_layout.bats` not ok=0 / ok=8；反向控制 strip 候选 ⇒ not ok=2；静态 `pure_delete_seen` 计数=0、pre-commit 隐私行(5) < 无 Makefile 行(107)；`bash -n` 三件 rc=0；全量 bats 1072 例（基线 1064 +8）`make check` 21 ✅。T-FIX-13 三态语义①未回退（真缺失态 rc=0 + 逐字跳过消息）。</done>
 </task>
 
-<task id="T-FIX-15" parallel="false" status="pending" model-tier="top">
+<task id="T-FIX-15" parallel="false" status="done" model-tier="top">
   <name>【R5-6 🔴 · R5-27 🟢】AC-2「缺 jq 不毁配置」固化为常设 bats（含变异反向控制）+ `TEST.md:55` 措辞订正</name>
   <read_files>
     <`flow-kit-bundle/lib/install_hooks.sh:35-55`（`mktemp` 原子写）· `:180-195`（入口 `command -v jq` 守卫 + 具名报文中止）· `:350-365`（合并前第二道守卫）>
@@ -2677,6 +2677,7 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     ⑤ `make check` 21 ✅ / 0 ❌；`npx bats --count test/` ≥ 1070。
   </verify>
   <depends_on>T-FIX-14（串行：镜像/打包/门禁为全仓步骤）</depends_on>
+  <done>78e2fc43d771afa0d28cc813a68ef99e4e733c8f · 2026-09-28T01:02:43+08:00 · R5-6 🔴 AC-2「缺 jq 不毁配置」固化为常设网 test/test_install_jq_guard.bats（4 例 · +238 行 ×2 镜像）+ TEST.md:55 的 AC-2 行措辞订正（R5-27 🟢 顺带闭合）；先红 grep -rn 'permissions' test/*.bats = 0；变异反向控制（删 install_hooks.sh:189-192 与 :365-368 两道守卫 ⇒ 腿 2/3 转 not ok）；npx bats --count test/ = 1076（1072 → +4）；make check 21 ✅ / 0 ❌（日志 /tmp/p6d/v15-make-check.log）；fix_rounds=0〔主 agent 亲验〕 · 补记（T-FIX-23 收口轮）：本 done 块与 status="done" 为**事后补记** —— TD-092 销毁式还原后完成标记丢失（自 78e2fc4 起即缺，静默 11.5 h），依据 = 台账条目 + T-FIX-15-SUMMARY.md + MINOR-DEFERRED 复核记录；教训 L-180 / TD-101</done>
 </task>
 
 <task id="T-FIX-16" parallel="false" status="done" model-tier="top">

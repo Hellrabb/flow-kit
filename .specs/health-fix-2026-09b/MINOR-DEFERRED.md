@@ -1871,4 +1871,6 @@ fi
 
 **台账**：len **51 → 52**；末条 `{"id":"T-FIX-23","commit_sha":"5bf6d2921c37743258e78cb057f347623e5acca8","fix_rounds":1,"deferred":[],"completed_at":"2026-09-28T12:29:44+08:00"}`（五字段齐 · 无 `.goal` 幽灵键 · 顶层与 `goal` 的 `updated_at` 均为 epoch int）；**Δ = 52 s**（≤ 120 s ✓）。第 5 轮 fix loop 任务 `T-FIX-14…T-FIX-23` **全部 done**（TASK.md 52 个 `<task>` 中 fix 段无 pending）。
 
+**收口复扫（52 个 `task` 全量交叉核对 · 发现并修复 1 处 · `L-180` / `TD-101`）**：`T-FIX-15` 的 `status` 仍为 `pending` 且**无 `done` 块**，而其产品提交 `330a4e9` / SUMMARY `231c74f` / 台账条目 `78e2fc4` / 本文件复核记录**四者齐备** —— 属 `TD-092` 销毁式还原的**契约残骸**（恢复的是主 agent 的内容 hunk；执行者写面的完成标记不在备份里 ⇒ 永久丢失），自 `78e2fc4`（`01:02`）静默存活 **11.5 h**（`make check` 与 `check-validate` 都不校验此项）。已按台账 + `T-FIX-15-SUMMARY.md` + 本文件复核记录**事后补记**（`done` 块内显式标注「补记（T-FIX-23 收口轮）」+ 依据）。同批复扫口径与结论：52 个 `task` 与台账 `id` **一一对应**（无孤条）· `done` 块的 `sha` 与台账 `commit_sha` **零不符** · 异常仅 `T-FIX-15` 一处。
+
 **既有 ❌ 备查（非本次引入 · 不在 `make check` 面）**：`make verify-claims` §10c「§0.5.1 覆盖被改文件」对 fix loop 期间新增触碰件报 ❌（冻结的 `DESIGN.md` 不回填）· 同批 `MINOR-DEFERRED.md` M 编号口径 ❌（第 5 轮整轮既有）。`verify-claims` 不在 `Makefile:5` 的 `check:` 目标集合内。
