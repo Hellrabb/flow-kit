@@ -81,7 +81,11 @@ PLACEHOLDER_NAMES='user ubuntu acct yourname foo bar someone'
 # 必须从扫描面排除 —— 否则门禁会被自己的工件击穿。
 # 禁用 reference/* / skills/* / .specs/* 之类宽通配（D10′② 实测：通配会吞掉
 # 31 处 <acct> 字样含 10+ 处真实账号路径，且永久无界）。
-# 后续阶段新增审查档时必须**显式追加精确路径**到本清单（不得改宽通配）。
+# 冻结集 = 本脚本 + 两份允许清单 + INDEPENDENT-REVIEW-1/2/3.md（成文早于脱敏
+# 规则、原文含真实账号路径，逐条精确豁免）；此后新增的审查档一律不豁免 ——
+# 它们是脱敏泄漏的第一现场，必须由本门禁就地判红并 de-shape；放宽豁免面须
+# ADR 裁决（L-149 / TD-054 / T13 / T17）。T-FIX-22 曾误把新增审查档追加进本
+# 清单（INDEPENDENT-REVIEW-{5,6}.md），与阶段 5 裁决冲突，T-FIX-24 已移除。
 SELF_EXCLUDE='
 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
 flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
@@ -89,8 +93,6 @@ flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md
 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md
-.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md
-.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md
 '
 
 # 允许清单读序（R8 定级裁决 · 强制 · fail-closed）：

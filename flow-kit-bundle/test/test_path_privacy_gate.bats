@@ -637,3 +637,87 @@ run_sut_override() {
   [[ "$output" != *"zz_control.txt:1"* ]]
   echo "# T-FIX-17④ 反向控制：摘掉 -e/-- + 独立 FD ⇒ zz_control 磁盘泄漏漏报（扫描面塌缩 ✅ 证据）" >&3
 }
+
+# ============================================================================
+# T-FIX-24（R5-5 处置订正 · 豁免面冻结常设腿 · 判别力优先）
+# SELF_EXCLUDE 成员集合精确等于冻结 6 条（= 本脚本 + 两份允许清单 +
+# INDEPENDENT-REVIEW-1/2/3.md）；此后新增的审查档一律不豁免 —— 它们是脱敏
+# 泄漏的第一现场，必须由本门禁就地判红并 de-shape（L-149 / TD-054 / T13 / T17）。
+# 判别力：在 SUT 副本上注入伪条目（形似新增审查档）⇒ 集合膨胀 ⇒ not ok；
+# 去行 ⇒ 复绿。两态同例内完成（注入态断言膨胀、去行态断言复原）。
+# ============================================================================
+
+@test "T-FIX-24：SELF_EXCLUDE 成员集合精确等于冻结 6 条；副本注入伪条目（新增审查档）⇒ 膨胀 not ok，去行复绿（豁免面冻结 · L-149/TD-054）" {
+  # 冻结集（顺序无关，按排序后比对）。
+  local frozen
+  frozen="$(printf '%s\n' \
+    'flow-kit-bundle/flow-kit/reference/check-path-privacy.sh' \
+    'flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt' \
+    '.specs/health-fix-2026-09b/path-privacy-allowlist.txt' \
+    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md' \
+    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md' \
+    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md' \
+    | sort)"
+
+  # 从 SUT 源码提取 SELF_EXCLUDE 块成员（剥首尾引号行、去空白、排序）。
+  extract_self_exclude() {
+    sed -n '/^SELF_EXCLUDE=/,/^'"'"'$/p' "$1" \
+      | sed '1d;$d' \
+      | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+      | grep -v '^$' \
+      | sort
+  }
+
+  # 基线态：原 SUT 的 SELF_EXCLUDE 集合 = 冻结集（精确等于 6 条）。
+  local actual_base
+  actual_base="$(extract_self_exclude "$SUT_SRC")"
+  [ "$actual_base" = "$frozen" ]
+  # 成员数精确为 6（防膨胀/收窄的标量断言）。
+  local n_base
+  n_base="$(printf '%s\n' "$actual_base" | wc -l | tr -d ' ')"
+  [ "$n_base" -eq 6 ]
+
+  # —— 判别力实证（在副本上注入伪条目 · L-137 拼接构造，不含可运行整串）——
+  local sut_copy="$FIXTURE/sut-copy.sh"
+  cp -- "$SUT_SRC" "$sut_copy"
+
+  # 伪条目形似新增审查档路径（用变量拼接，仓库文件内不出现可运行整串）。
+  local ir_base=".specs/health-fix-2026-09b/INDEPENDENT-REVIEW"
+  local fake_entry="${ir_base}-4.md"
+
+  # 注入伪条目：在 SELF_EXCLUDE 块的结束引号行前插入。
+  local tmp_inject
+  tmp_inject="$(mktemp "${TMPDIR:-/tmp}/fk-inject.XXXXXX")"
+  awk -v fake="$fake_entry" '
+    /^SELF_EXCLUDE=/ { in_block=1 }
+    in_block && /^'"'"'$/ { print fake; in_block=0 }
+    { print }
+  ' "$sut_copy" > "$tmp_inject"
+  mv -- "$tmp_inject" "$sut_copy"
+
+  # 前提断言：注入成功（副本含伪条目；原 SUT 不含）。
+  grep -qF "$fake_entry" "$sut_copy"
+  ! grep -qF "$fake_entry" "$SUT_SRC"
+
+  # 注入态：副本 SELF_EXCLUDE 集合 ≠ 冻结集 ⇒ not ok（判别力：膨胀即红）。
+  local actual_injected n_injected
+  actual_injected="$(extract_self_exclude "$sut_copy")"
+  n_injected="$(printf '%s\n' "$actual_injected" | wc -l | tr -d ' ')"
+  [ "$n_injected" -eq 7 ]
+  [ "$actual_injected" != "$frozen" ]
+
+  # —— 复原证据：从副本移除伪条目后，集合重新等于冻结集 ⇒ 复绿 ——
+  local tmp_restored
+  tmp_restored="$(mktemp "${TMPDIR:-/tmp}/fk-restore.XXXXXX")"
+  grep -vF "$fake_entry" "$sut_copy" > "$tmp_restored"
+  mv -- "$tmp_restored" "$sut_copy"
+
+  # 前提断言：伪条目已移除。
+  ! grep -qF "$fake_entry" "$sut_copy"
+
+  local actual_restored n_restored
+  actual_restored="$(extract_self_exclude "$sut_copy")"
+  n_restored="$(printf '%s\n' "$actual_restored" | wc -l | tr -d ' ')"
+  [ "$n_restored" -eq 6 ]
+  [ "$actual_restored" = "$frozen" ]
+}
