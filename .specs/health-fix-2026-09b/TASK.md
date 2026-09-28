@@ -2236,7 +2236,14 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     S=flow-kit-bundle/flow-kit/reference/check-gate-sync.sh;
     bash -n "$S" || { echo "🔴 生产件语法错误"; rc=1; };
     grep -qE 'grep -c \. \|\| true|wc -l' "$S" || { echo "🔴 R3-19：preset 计数仍可能在 set -e 下中止"; rc=1; };
-    grep -qE 'diff_out.*\|\| true' "$S" && { echo "🔴 R3-20：diff 的 rc 仍被 || true 吞掉"; rc=1; };
+    # 【判据订正 · 主 agent 2026-09-28 · L3 第 20/21 轮 major② 收口 · TD-104】
+    #   旧断言 `grep -qE 'diff_out.*\|\| true' "$S"` **过宽**：同一模式可能命中修复后合法的消费行，
+    #   对「缺陷形态」与「修复形态」都给绿灯（判据对目标缺陷无判别力 · TD-071…081 / TD-093 同族）。
+    #   现改为**双面断言**：① 缺陷形态（同一行 `diff_out=$(diff …)` 后接 `|| true`）必须缺席；
+    #   ② 修复形态（显式 `diff_rc=$?` 捕获 **且** `diff_rc -ge 2` 机械故障分支）必须存在。
+    grep -qE 'diff_out=\$\(diff [^)]*\|\| true' "$S" && { echo "🔴 R3-20：diff 的 rc 仍被**同一行** || true 吞掉（缺陷形态）"; rc=1; };
+    grep -qE 'diff_rc=\$\?' "$S" || { echo "🔴 R3-20：缺 diff_rc 显式捕获（修复形态缺席 · TD-104）"; rc=1; };
+    grep -qE 'diff_rc.*-ge 2' "$S" || { echo "🔴 R3-20：缺 rc≥2 机械故障分支（修复形态缺席 · TD-104）"; rc=1; };
     grep -q 'skill 侧' "$S" || { echo "🔴 R3-18：未逐侧具名（缺 skill 侧 字样）"; rc=1; };
     # ① 真实仓正常面：rc=0 且必须打印覆盖度「校验对 3/14 一致」
     OUT=$(bash "$S" 2>&1); SRC=$?;
@@ -3027,4 +3034,40 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     verify: ① 先红留档：T17 <verify> 修前 rc=1 + 报文「🔴 审查档 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md 被纳入门禁排除表（豁免面不得超出冻结集 1–3；放宽须 ADR 裁决 · L-149/TD-054）」 · ② 修复后 T17 <verify> 原样抽取实跑 rc=0（三项子断言全过：宽通配 0 · 冻结 3 档在表内 · 枚举 IR 档 ≥3 且新增档不在表内）· ③ grep -c 'INDEPENDENT-REVIEW-[56]\.md' = 0 · SELF_EXCLUDE 成员数 = 6 · ④ make check-path-privacy rc=0（候选 1622 / 实际扫描 1616 / 自排除 6 / 命中 0 / 清单外 0）· npx bats test/test_path_privacy_gate.bats 35 例全绿含新腿 · 判别力实证：副本注入伪条目 INDEPENDENT-REVIEW-4.md ⇒ 成员数 7 ≠ 冻结集（not ok）；去行 ⇒ 6 = 冻结集（复绿）· SUT sha256 b28eab76… 注入前后一致 · ⑤ make check 21 ✅ / 0 ❌ · npx bats --count test/ = 1115
     写面: flow-kit-bundle/flow-kit/reference/check-path-privacy.sh(SELF_EXCLUDE 删两行 + 契约注释重写) · test/test_path_privacy_gate.bats(+1 例 T-FIX-24 豁免面冻结 + 判别力) · flow-kit-bundle/test/test_path_privacy_gate.bats(镜像) · .specs/health-fix-2026-09b/T-FIX-24-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress append · gitignored 不提交)
   </done>
+</task>
+
+<task id="T-FIX-25" parallel="false" status="pending" model-tier="top">
+  <name>【L3 第 20/21 轮 major② 收口】`check-gate-sync.sh` 的 diff 机械故障（rc≥2）判别力常设化：新增行为级 bats 腿（`TD-104`）</name>
+  <read_files>
+    <`flow-kit-bundle/flow-kit/reference/check-gate-sync.sh:111-125`（R3-20 收敛第一处：`local diff_out diff_rc` → `diff_out=$(diff "$tmp_p" "$tmp_s" 2>/dev/null); diff_rc=$?` → `if [ "$diff_rc" -ge 2 ]` ⇒ `🔴 MECHANICAL: diff 返回 rc=$diff_rc…`）· `:237-246`（第二处同型：gate-config 预设比对）>
+    <`test/test_check_gate_sync.bats`（现 15 例；**须读懂既有夹具构造方式**，新腿沿用同款：临时夹具仓 + `cp` 真实 SUT，必要时用 PATH 影子命令制造机械故障）>
+    <`.specs/health-fix-2026-09b/TASK.md` 的 `T-FIX-10`（`<verify>` 已在 2026-09-28 由主 agent 按 `TD-104` 订正为**双面断言**：缺陷形态缺席 + 修复形态在场；本任务把「行为级判别力」补进**常设网**）>
+    <`.specs/CONTEXT.md` 的 `TD-104`（v2 两条：断言改为「存在 `diff_rc=$?` 显式捕获分支」+ **行为级 bats 腿**）· `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md` 的 L3 第 20/21 轮 major 段>
+  </read_files>
+  <write_files>
+    <`test/test_check_gate_sync.bats`（**+1 例**：PATH 影子 `diff` 恒返回 rc=2 ⇒ 门禁必须非绿且打印 `🔴 MECHANICAL`；含前置自检「影子 `diff` 在夹具里确实 rc=2」）>
+    <`flow-kit-bundle/test/test_check_gate_sync.bats`（镜像，逐字相同）>
+    <`.specs/health-fix-2026-09b/T-FIX-25-SUMMARY.md`>
+    <`.specs/health-fix-2026-09b/TASK.md`（**仅** 本任务 `status="done"` 与 `<done>` 注记）>
+  </write_files>
+  <action>
+    0. **背景（已裁决，不要重新论证）**：L3 第 20/21 轮 major② 指出 `T-FIX-10` 的静态断言 `grep -qE 'diff_out.*\|\| true'` 对「缺陷形态」与「修复形态」无判别力（`TD-104`）。主 agent 已订正该 `<verify>` 为双面断言；**本任务负责把判别力从「change 期静态 grep」升级为「常设网里的行为级用例」** —— 即：真的制造一次 `diff` 机械故障（rc≥2），断言生产件判红并具名。
+    1. **先红留档**（命令 + rc + 报文）：在**未加新腿前**，用 PATH 影子 `diff`（恒 `exit 2`）驱动**真实仓**的 `check-gate-sync.sh`，记下现态行为（预期已经是 `🔴 MECHANICAL` + rc≠0 —— 即生产件已修好，**缺的是常设网**）。**同时**做**变异反向控制**：把夹具里 SUT 副本的两处 `diff_rc=$?` 捕获临时还原为 `diff_out=$(diff … || true)` 形态 ⇒ 新腿必须 `not ok`（证明该腿对 `TD-104` 所述缺陷形态**有判别力**）。变异只在 `/tmp` 副本上做，真件前后 `sha256sum` 必须一致。
+    2. **新增用例**（`test/test_check_gate_sync.bats` · 沿用既有夹具风格）：
+       - 夹具：`mktemp -d` 建 `flow-kit-bundle/flow-kit/reference/` + `flow-kit-bundle/flow-kit/prompts/` + `flow-kit-bundle/skills/` + `flow-kit-bundle/test/`（拷真实 SUT 与门禁读取的载体；可复用既有用例的构造代码，但**不得**改动既有用例的断言）。
+       - 影子命令：`$FIXTURE/shadows/diff`（`#!/bin/sh` + `exit 2`），以 `PATH="$FIXTURE/shadows:$PATH"` 运行 SUT。
+       - **前置自检**：先断言影子 `diff` 在该 PATH 下确实 rc=2（`PATH=… command diff a b; [ $? -eq 2 ]`）—— 前置不成立时用例必须 `not ok`（不得静默空转）。
+       - 断言：① SUT `rc ≠ 0`；② stdout/stderr 含 `🔴 MECHANICAL`；③ 不得打印 `✅ … 一致` 类放行行。
+    3. **复跑面（原样实跑并贴 rc/选段）**：① `npx bats test/test_check_gate_sync.bats`（15 → **16** 例全绿）· ② 两镜像 `cmp -s` 相同 · ③ `bash /tmp/<你的目录>/v_TFIX10-fixed.sh`（**主 agent 已订正的 `T-FIX-10 <verify>` 全文** · 用 `awk` 从 `TASK.md` 现取后再 `sed -n '/<verify>/,/<\/verify>/p' | sed '1d;$d'`）⇒ **rc=0** · ④ `npx bats --count test/` = **1116** · ⑤ 全量 `npx bats test/` 0 not ok · ⑥ `make check` **21 ✅ / 0 ❌**。
+    4. **同步与提交**：`make test-sync` → `package-dsh-plugin.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check`；`git add` 逐路径 + `git commit -m "test(health-fix-2026-09b): T-FIX-25 check-gate-sync diff 机械故障判别力常设化（TD-104 · L3 第 20/21 轮 major②）" -- <路径…>`。
+    5. 提交后写 `T-FIX-25-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红/变异双留档：真实仓 + PATH 影子 `diff`（恒 rc=2）⇒ 现态 `🔴 MECHANICAL` + rc≠0；SUT 副本还原为 `|| true` 形态 ⇒ **新腿 `not ok`**（判别力）；真件 sha256 前后一致。
+    ② `npx bats test/test_check_gate_sync.bats` ⇒ **16 例** · `not ok` = 0；两镜像 `cmp -s` 相同。
+    ③ **订正后的 `T-FIX-10 <verify>` 原样抽取实跑 ⇒ rc=0**（含三条 R3-20 双面断言）。
+    ④ `npx bats --count test/` = **1116**；全量 `npx bats test/` `not ok` = 0。
+    ⑤ `make check` **21 ✅ / 0 ❌**。
+  </verify>
+  <depends_on>T-FIX-24（串行：全仓门禁为独占步骤）</depends_on>
 </task>

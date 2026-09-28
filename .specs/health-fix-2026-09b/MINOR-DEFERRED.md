@@ -1998,3 +1998,22 @@ fi
 | m2–m4 | minor | 无 CI · 无 lockfile · UAT ③ 沙箱等价 | `Tech-debt:`（均为既有登记/已声明项） |
 
 **⚠️ 送审面披露**：L3 提示词**被截断**（`396490 B` → 实发 `299998 B` · **丢弃 24%** · `FLOW_KIT_L3_MAX_ARTIFACT_BYTES=300000`）；对照第 11 次执行仅丢 1% ⇒ 已登记 **`TD-103`**（v2：提高预算/分包送审 + 截断率升为判据）。**完整性由 L2 侧补齐**（独立子 agent 读盘全文 · 无预算约束 · `pass`）。
+
+---
+
+## ✅ L2 阶段 6 第 1 轮盲审发现处置（2026-09-28 · Verdict = pass · 🔴0 / 🟡1 / 🟢5）
+
+**L2 段位置**：`INDEPENDENT-REVIEW-6.md:209-333`（128 行 · 段末 `**Verdict**: pass`）· **本响应位置**：同档其后。**L2 原文一字未改**。
+
+| # | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| 🟡 L2-6R4 | Important | AC-9 判定把 AC-8 ⚠️ 排除在 critical 之外，应显式入 warn 级 | `Fixed in: REVIEW.md` §H.2 —— 新增**独立 warn 行**「AC-8 未完全通过：⚠️ 有条件通过（仅静态面）· 跨 OS 实机面未验证 · `TD-055` 跨 change 开放 ⇒ 不阻塞 toll-gate 但不得读作 AC-8 通过」+ 判定行收紧 |
+| 🟢 L2-6R1 | Minor | 独立确认：`R5-6`/`R5-7` 常设化属真行为级测试 | `Not-applicable:`（独立确认入档） |
+| 🟢 L2-6R2 | Minor | 独立确认：`R5-15`/`R5-16`/`R5-21`/`R5-23` 代码层闭合 | `Not-applicable:`（独立确认入档） |
+| 🟢 L2-6R3 | Minor | 独立判定：`R5-5` 方向反转属**正当裁决冲突处置**，原始诉求已解决 | `Not-applicable:` —— 对 `T-FIX-24` 反转处置的**外部背书**，入档 |
+| 🟢 L2-6R5 | Minor | `§H.3` 第 9 项与 `§U-4` 第 7 项 `phases_done` 时点口径分裂 | `Fixed in: REVIEW.md` §H.3 第 9 项 —— 标注「时点 = 阶段 6 重入后」+ 时点对照句（`§U-4` = 阶段 5 时点，差一个 5→6 transition） |
+| 🟢 L2-6R6 | Minor | 独立观察：本轮 fix 循环未引入新的 6 维衰退风险 | `Not-applicable:`（观察记录入档） |
+
+**L2 未验证边界（4 条 · 主 agent 侧回执指向）**：`R5-6`/`R5-7` 变异实证 → `T-FIX-15`/`T-FIX-16` 复核记录；`R5-18` 端到端安装形态 → `T-FIX-14` 复核记录（`test_install_layout.bats` 8 例含反向控制）；`R5-15` 候选塌缩夹具 → `T-FIX-17` 复核记录；`--gates-only` 超时 → `PHASE5-RECEIPTS.md` §U-2 门禁回执原文（`/tmp/p6d/r12/`）。
+
+**被审 HEAD 差异**：L2 指出的 `74a3f72` vs `77984cc` 差异已核实为 **docs-only**（`git diff 77984cc..74a3f72 --stat` = 6 个 `.specs` 路径 / +400 −62），**生产件与 `test/` 零改动**。

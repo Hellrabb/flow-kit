@@ -1,6 +1,8 @@
 # 阶段 6 · REVIEW — health-fix-2026-09b
 
-**verdict（第 3 轮 · 本轮 · 现行结论）: fail** —— 审查面扩到「2 个独立审计 subagent 的对抗式深审 + 主 agent 逐条亲验」后，在 fix 循环后的 HEAD `7b624dc` 上共得 **5 🔴 Critical + 13 🟡 Important + 12 🟢 Minor**。五条 🔴 全部由主 agent **独立复跑夹具坐实**：R3-1/R3-2（本 change 新建的 `check-path-privacy.sh` 的 C 引号化静默跳过 + index/工作树内容面错配 ⇒ 假绿，后者直接击穿本 change 自身的 `pre-commit.sh:33 → Makefile:127` 拦截链）· R3-14（`pre-push`/`pre-commit` 在消费者项目 fail-closed ⇒ 拒一切 push/commit，且使 ADR-027② 失效）· R3-15/R3-16（NFR 门禁 `realpath` 死模式 + 未加引号 `for` 静默跳过 ⇒ 假绿）。⇒ **出口 = 回退 `4-dev`，追加 `T-FIX-07` … `T-FIX-10`**（分解见 §0″.6）；12 条 🟢 入 `MINOR-DEFERRED.md` 交阶段 7 triage。
+**⚠️ 现行结论（阶段 6 重入 · 2026-09-28 · L3 第 21 轮 major ② 收口）**：**本阶段尚未闭合** —— L2 第 1 轮 = `pass`；**L3 第 19/20/21 轮 = `fail`**（第 19 轮 2 major、第 20 轮 2 critical + 3 major + 3 minor、第 21 轮 1 critical + 2 major + 3 minor），逐条处置见 `INDEPENDENT-REVIEW-6.md` 的三段「主 agent 响应」与 §H.3 结论（**L3 `pass` 之前不构成 6→7 放行依据**）；L3 第 21 轮的 critical 属**机制自引用**（工件里可见的 L3 判定永远是上一轮，见 `TD-105`）⇒ 已提请用户裁决。**下列历史 verdict 行按轮次读，不得当作现行结论**：
+
+**verdict（第 3 轮 · 历史）: fail** —— 审查面扩到「2 个独立审计 subagent 的对抗式深审 + 主 agent 逐条亲验」后，在 fix 循环后的 HEAD `7b624dc` 上共得 **5 🔴 Critical + 13 🟡 Important + 12 🟢 Minor**。五条 🔴 全部由主 agent **独立复跑夹具坐实**：R3-1/R3-2（本 change 新建的 `check-path-privacy.sh` 的 C 引号化静默跳过 + index/工作树内容面错配 ⇒ 假绿，后者直接击穿本 change 自身的 `pre-commit.sh:33 → Makefile:127` 拦截链）· R3-14（`pre-push`/`pre-commit` 在消费者项目 fail-closed ⇒ 拒一切 push/commit，且使 ADR-027② 失效）· R3-15/R3-16（NFR 门禁 `realpath` 死模式 + 未加引号 `for` 静默跳过 ⇒ 假绿）。⇒ **出口 = 回退 `4-dev`，追加 `T-FIX-07` … `T-FIX-10`**（分解见 §0″.6）；12 条 🟢 入 `MINOR-DEFERRED.md` 交阶段 7 triage。
 
 **verdict（第 2 轮 · fix 循环后重审）: pass** —— 第 1 轮的 2 条 🔴 + 6 条 🟡 已**全部闭合并逐条活性重放**；9 条 🟢 维持 `MINOR-DEFERRED.md`；第 2 轮另增 **3 条 🟡**（F-18 扫描面标签过度声明 · F-19「0 实际扫描」仍报 ✅ · F-20 `mktemp` 立即终止未生效）——**三条均经用户裁决在本 change 内修**（F-18 = 只改措辞；F-19 + F-20 = 同批修复）⇒ 已回退 4-dev 追加 `T-FIX-06`，修后重跑 5-test → 6-review；深审 🟢 F-21（jobserver 警告）裁决 `Not-applicable` 并登记 `MINOR-DEFERRED.md`。
 
@@ -961,3 +963,88 @@ X-DRIFT-SKILL-ONLY
 2. 执行通用回退 jq（`$TARGET="4"`）⇒ `current_phase="4"`、`phases_done=["0","1","2","3"]`、`gates["5→6"]` 复位 `pending`；
 3. 回退实况与**recipe 偏离说明**见 `.flow-active.goal.rollback`（REMOVE 取 `>= TARGET` 同时移除 `"4","5"`，避免 4→5 transition 时 `phases_done += ["4"]` 产生重复值，`4-dev.md:133`；移除 `"4"` 不影响任何检查 —— phase 4 未开门禁，3b 仅需 `gates["3→4"]="passed"`）；
 4. 修完重跑 **5-test**（TEST.md 会被 fix 改动 ⇒ L3 重审由 `_l3_check_rerun` 强制触发）与 **6-review**（含 L2 + L3，`gate_config=both`）。
+
+
+---
+
+## H. 第 6 轮 fix 循环收口与 R5/AC-9 复审（阶段 6 重入 · 2026-09-28）
+
+> 背景：第 5 轮审查（`§0⁗`）判定 **3 🔴 + 15 🟡 + 9 🟢**（`R5-1`…`R5-27`）⇒ 用户裁决「方案 A」回退 `4-dev` ⇒ fix 循环 `T-FIX-14`…`T-FIX-24`（11 个任务 · 台账 len **53**）⇒ 阶段 5 第 12 次执行（REPRO11）重验全绿 ⇒ 本阶段重入。
+
+### H.1 R5 findings 闭环映射（27/27 有归属）
+
+**由 fix 任务闭合（23 条 / 11 个任务）**
+
+| finding | 任务 | 提交 | 闭合证据 |
+|---|---|---|---|
+| `R5-18` | `T-FIX-14` | `775acc8` | `pre-push.sh`/`pre-commit.sh` 新增 `_resolve_self_path()`（symlink 深度解析）+ `resolve_reference_dir()` 第 4 候选；`test/test_install_layout.bats` 8 例（含反向控制） |
+| `R5-19` | `T-FIX-14` | `775acc8` | `pre-commit.sh` 隐私扫描块前置于无 Makefile / npx 早退 |
+| `R5-24` | `T-FIX-14` | `775acc8` | `pure_delete_seen` 死变量已删 |
+| `R5-6` | `T-FIX-15` | `330a4e9` | `test/test_install_jq_guard.bats` 4 例（缺 jq 具名诊断 + `settings.json` 未被截断 + 变异腿） |
+| `R5-27` | `T-FIX-15` | `330a4e9` | `TEST.md:55` AC-2 行措辞与断言面（非字节相等）对齐 |
+| `R5-8` | `T-FIX-15`/`T-FIX-21` | `330a4e9`/`3129ea7` | jq 守卫 + `TEST.md` §1.1/§1.3 复算表 |
+| `R5-7` | `T-FIX-16` | `b3c03fa` | `test/test_pre_push_behavior.bats` 6 例（真跑 hook；M1 变异 ⇒ 2 腿红） |
+| `R5-15` | `T-FIX-17` | `60f0835` | 磁盘侧 `grep -naE -e "$PAT" -- "$file"` 隔离候选 + 「扫描面塌缩」不变式 ×3 |
+| `R5-16` | `T-FIX-17` | `60f0835` | rev 面批量化（4.40–4.55 s ≤ 5 s 预算；基线 7.08–7.51 s） |
+| `R5-14` | `T-FIX-18` | `4ce0d5e` | `check-gate-sync.sh` 缺件 fail-closed（`🔴 MISSING: gate-config 同步无法校验（未比对）` + 具名路径） |
+| `R5-10` | `T-FIX-18` | `4ce0d5e` | 常设网腿 14（行数不变仅改内容 ⇒ 判漂移） |
+| `R5-13` | `T-FIX-18` | `4ce0d5e` | `test_check_gate_sync.bats` 补 `$status` 断言 |
+| `R5-9` | `T-FIX-19` | `40b909a` | AC-1 载荷注入 6 腿（含正控）+ 副本/dist 归档面；`test_runtime_edit_guard.bats` 9 → 15 |
+| `R5-26` | `T-FIX-20` | `11564fb` | 删 `$HOME/.claude` 回落（`test_independent_review_model.bats` 13 例含注入腿） |
+| `R5-12` | `T-FIX-20` | `11564fb` | 同上（判据自足） |
+| `R5-1`/`R5-2`/`R5-3` | `T-FIX-21` | `3129ea7` | `TEST.md` §1.3 复算表 + 数量口径生成规则 + AC-3 行号现取 + 计数同步 |
+| `R5-20` | `T-FIX-22` | `44eef94` | `install_hooks.sh` jq 失败三段具名诊断 + fail-closed（原文件未改动） |
+| `R5-21` | `T-FIX-22` | `44eef94` | `done-validation.sh` Tier-1（非空 + 行数 + KVP）前移于 `phases_done` 短路 |
+| `R5-22` | `T-FIX-22` | `44eef94` | `l3-prompt.sh` ADR 上限落「已丢弃 N 条」标记 |
+| `R5-23` | `T-FIX-23` | `5bf6d29` | 存量 `mapfile`/`stat -c`/`GNU sed -i` 清零 + `.specs/archive/*` 排除 + **存量基线 ratchet**（`nfr-portability-baseline.txt` 5 条）+ 新入口 `make check-nfr-portability-full` + 常设网 14 → 20 |
+| **`R5-5`** | **`T-FIX-24`**（**取代 `T-FIX-22` 的处置**） | `1900425` | **方向反转并留痕**：`R5-5` 的原始 Remedy（把 `INDEPENDENT-REVIEW-5/6.md` 追加进 `SELF_EXCLUDE`）与阶段 5 已裁决的 `T13`/`T17` **直接冲突**（豁免面冻结集 1–3；新增审查档是脱敏第一现场，须就地 de-shape）⇒ `T-FIX-22` 照原 Remedy 实施后 `T17` 于第 12 次执行首跑 **rc=1**（并致两文件移出隐私扫面 fail-open）⇒ `T-FIX-24` 恢复冻结集 6 条 + 订正契约注释 + 新增「豁免面冻结」常设腿（34 → 35）+ `TD-085` 处置反转登记 |
+
+**登记为技术债（4 条 🟢）**：`R5-4` → `TD-083` · `R5-11` → `TD-087` · `R5-17` → `TD-089` · `R5-25` → `TD-090`。
+
+**第 6 轮 fix 循环新登记的债（与 R5 无关但同批产出）**：`TD-091`/`TD-092`（台账路径漂移 · 销毁式还原）· `TD-093`…`TD-100`（判据确切值 · 判据面缺陷族 · `.done` 校验库调用约定）· `TD-101`（完成契约缺交叉判据）· `TD-102`（判据夹具未随被测对象新增必需输入同步）· `TD-103`（L3 提示词截断 24%）。教训 `L-172`…`L-182`。
+
+### H.2 AC-9 动态门禁判定（第 6 轮 · 取代 §E）
+
+| 检查项 | 级别 | 结果 | 依据 |
+|---|---|---|---|
+| spec 合规失败（AC 未覆盖 / 无法满足） | critical | **无** | §A + `TEST.md` §1.1：AC-1…AC-7 达标；AC-8 = ⚠️ **有条件通过（仅静态面 · macOS 实机未验证 · `TD-055` 开放）**，四处口径一致，不得读作 8/8 |
+| brooks-review 🔴 Critical | critical | **0 条** | 第 5 轮的 3 🔴（`R5-6`/`R5-7`/`R5-18`）已由 `T-FIX-15`/`T-FIX-16`/`T-FIX-14` 修复并常设化；第 12 次执行判据面 **25/25 rc=0**、门禁 **7/7 rc=0**、`make check` **21 ✅ / 0 ❌** |
+| **AC-8 未完全通过** | **warn** | ⚠️ **有条件通过（仅静态面）** —— 跨 OS/macOS **实机面未验证**，`TD-055` 跨 change 开放 | `REQUIREMENT.md` AC-8（跨 OS 兼容为验收面之一）· `TEST.md` §1.1/§U-3 同口径；**不阻塞 toll-gate，但不得读作 AC-8 通过**（L2 第 1 轮 🟡 L2-6R4 收口：本行把该口径从「critical 行内的括号注释」升为**独立 warn 行**） |
+| brooks-review 🟡 Major | warn | 15 条 → **全部处置**（14 修 + 1 方向反转修复） | H.1 表；`R5-5` 的处置被 `T-FIX-24` 反转（见该行） |
+| 🟢 Minor | info | 9 条 → 4 条登记 `TD-083`/`TD-087`/`TD-089`/`TD-090`；其余随 fix 顺带闭合 | H.1 表 |
+| 跨模型分歧（spot-check） | warn | **无分歧** | 第 5 轮 ADR-014 `qwen3.8-flash` spot-check 命中 2 条 🔴（`F1`/`F2` ⇒ 与主审一致，未推翻定级）；本轮 fix 后未再现分歧 |
+
+**判定（L3 第 19 轮 major 1/2 收口后 · 口径下调）**：**AC-9 ⚠️ 有条件通过** —— 无 🔴 Critical，但 **AC-8 未完全通过**（跨 OS/macOS 实机面未验证 · `TD-055` 开放）按 AC-9 级别表属「**AC 未覆盖**」面，故**不再写 ✅ 通过**；该项**不阻塞 6→7** 的依据 = **用户在 5→6 Toll-gate 的显式裁决**（L3 第 20 轮 major ③ 要求附原文）：主 agent 于 2026-09-28 的 Toll-gate 5→6 提示**原文**写明「⚠️ 两项披露：① L3 提示词**截断 24%**…；② **AC-8 仍为 ⚠️ 有条件通过（仅静态面 · macOS 实机未验证 · `TD-055`）**，不得读作 8/8 AC 全通过。」；用户在四选项（**1 继续 → 6-review** / 2 暂停 / 3 回退 4-dev / 4 全自动推进）中选择 **1**。`.flow-active.goal.gates["5→6"]="passed"` 即该裁决的结果状态；`TD-055` 保留开放交阶段 7 triage。**其余任何处不得把「用户已知情」当作免检依据。****仍不得读作「AC-8 通过」或「8/8 AC 全通过」**。**但 AC-8 计为 warn**：⚠️ **未完全通过**（仅静态面 · 跨 OS 实机面未验证 · `TD-055` 跨 change 开放）⇒ **不阻塞 toll-gate，但本判定不得读作「AC-8 通过」**（L2 第 1 轮 🟡 L2-6R4 收口）。
+
+**AC-1…AC-8 的复算入口与回执来源（L3 第 19 轮 major 1 + 第 21 轮 minor ③ 收口 · 表名已由「独立复算面」更正）**：下表给出**每条 AC 的可复算入口**（判据均为 `TASK.md` 的 `<verify>` 原文，`awk` 抽取后字面执行）。**❌ 不等于「已由外部审查者独立确认」**：L2 第 1 轮自陈 4 条未重跑（变异实证 / 端到端安装形态 / 候选塌缩夹具 / 全量门禁），这些面**依赖主 agent 回执，不构成独立确认**（详见 L2 段「未验证边界」与本阶段响应的处置）。
+
+| AC | 判据 | 独立复算入口 | 回执来源（**显式区分「L2 亲跑」/「主 agent 回执」**） |
+|---|---|---|---|
+| AC-1 | `T05` | `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T05` | §U-1（rc=0 · 12 行判据）+ **主 agent**：`runtime-edit-guard.sh` 的 `eval` 面归零 + `test_runtime_edit_guard.bats` 15 例（含载荷注入 6 腿 · `T-FIX-19`）；~~L2 亲跑 `T17`（同族 eval 面）~~ **已撤**（`T17` 是隐私豁免面/冻结集判据，与 AC-1 的 eval 载荷不同族 · L3 第 20 轮 minor ② 收口） |
+| AC-2 | `T06` | 同上 `--only T06` | §U-1（rc=0 · 22 行）+ `test_install_jq_guard.bats` 4 例 |
+| AC-3 | `T11`/`T19`（`T17` 仅作**拒绝面**旁证） | 同上 `--only T11` / `T19` | §U-1（rc=0）；**行为级主证据 = `test/test_pre_push_behavior.bats` 6 例**（真跑 hook：干净放行 / 泄漏拒绝+指名 ref / 纯删除跳过 / 畸形 stdin fail-closed / 检查器在位+清单缺 rc=2 / 消费者形态无 Makefile 仍拒）；**L2 第 1 轮亲跑 `T17` rc=0 属「拒绝面」旁证（豁免面冻结），不构成 AC-3 四推送形态的独立确认**（L3 第 20 轮 minor ② 收口） |
+| AC-4 | `T13` | 同上 `--only T13` | §U-1（rc=0 · 34 行）+ **L2 亲跑 `T13` rc=0** |
+| AC-5 | `T24` | 同上 `--only T24` | §U-1（rc=0 · 18 行） |
+| AC-6 | `T20`/`T22`/`T26` | 同上 `--only T20` / `T22` / `T26` | §U-1（rc=0）+ **主 agent §U-2 回执**：`make check-path-privacy` rc=0（候选 1623 / 扫描 1617 / 自排除 6 / 命中 0 · 原文 `/tmp/p6d/r12/make-check.txt`）；L2 第 1 轮的**最终回执**亦列有该命令 rc=0，但**该命令未写进 L2 段正文** ⇒ 只按回执证据读，**不构成段内独立确认**（L3 第 20 轮 critical ② 收口） |
+| AC-7 | `T27`/`T29` | 同上 `--only T27` / `T29` | §U-1（rc=0）+ 4 假绿件注入型用例 |
+| AC-8 | `T29` + `make check` + `make check-nfr-portability(-full)` | `--only T29`；`make check`；`make check-nfr-portability-full` | §U-1/§U-2（rc=0）；**跨 OS 实机面 = 未验证（`TD-055`）** ⇒ ⚠️ **有条件通过** |
+
+### H.3 阶段完成自检（9 项 · 第 6 轮 · 来源 `6-review.md:152-166`）
+
+| # | 自检项 | 判定 | 依据 |
+|---|---|---|---|
+| 1 | `REVIEW.md` 存在 | ✅ | 本文件（含 §0′…§0⁗ + §H） |
+| 2 | Spec 合规审查已完成（AC-1~AC-8 逐条判定） | ✅ | §A + `TEST.md` §1.1（AC-8 ⚠️ 仅静态面 · `TD-055`） |
+| 3 | 代码质量 6 维衰退风险审查已完成 | ✅ | §B（F1~F17）+ 第 5 轮四方独立审查（`R5-1`…`R5-27`）+ fix 后逐条闭环（H.1） |
+| 4 | UI 视觉审查已完成或已声明跳过 | ✅ | §C（N/A：非前端项目） |
+| 5 | 动态门禁判定（AC-9）已通过 | **⚠️ 有条件通过** | **H.2：0 🔴**（第 5 轮的 3 🔴 已闭合并经 REPRO11 复验）；**AC-8 未完全通过**（跨 OS 实机面未验证 · `TD-055` 开放）⇒ AC-9 口径下调为「有条件通过」（L3 第 19 轮 major 1/2 收口），不阻塞 6→7 的依据 = 用户在 5→6 Toll-gate 被显式告知后裁决继续 |
+| 6 | Gate 失败项已记录在 REVIEW.md | ✅ | §E（第 5 轮 ❌ 的历史记录保留）+ H.2（第 6 轮 ✅） |
+| 7 | 技术债已同步到 `.specs/CONTEXT.md` | ✅ | `TD-083`…`TD-103`（第 6 轮新增 13 条：`TD-091`…`TD-103`）· 复核命令 `grep -c '^| TD-1[0-9][0-9]' .specs/CONTEXT.md` |
+| 8 | `TEST.md` 5 轮金字塔完整性已验证 | ✅ | `TEST.md` §0（第 1…12 次执行）+ §1.1 AC 矩阵 + §U（`PHASE5-RECEIPTS.md`）|
+| 9 | `.flow-active` 关键字段已通过 jq 写入磁盘 | ✅ | **时点 = 阶段 6 重入后（本行写入时刻）**：`phase="6"` · `phases_done=["0"…"5"]` · `gates["5→6"]="passed"` · `updated_at` = epoch int · `33-flow-active-integrity.sh` rc=0 · `task_progress` len **53**。**时点对照（防误读 · L2 第 1 轮 🟢 L2-6R5 收口）**：`PHASE5-RECEIPTS.md` §U-4 第 7 项记的是**阶段 5 执行时点**（`phase="5"` · `phases_done=["0"…"4"]` · len 53）—— 两者**不矛盾，差一个 5→6 transition**。 |
+
+**结论（L3 第 20 轮 major ① 收口 · 措辞已收紧）**：**9/9 自检项「已完成」**，但**其中第 5 项（AC-9）为 ⚠️ 有条件通过**（AC-8 跨 OS 实机面未验证 · `TD-055` 开放）—— **不得读作「9/9 全过」或「AC 全通过」**。
+
+⇒ **进入 Toll-gate 6→7 的前提 = `gate_config["6-review"]=both` 的 L2/L3 独立审查均 `pass`**：L2 第 1 轮 = **pass**；**L3 尚待通过** —— 本阶段 L3 第 19 轮 `fail`（2 major）与第 20 轮 `fail`（2 critical + 3 major + 3 minor）的逐条处置见 `INDEPENDENT-REVIEW-6.md` 的两段「主 agent 响应」（第 20 轮的处置含：AC 表的证据归属修正 · 「不阻塞」依据附用户裁决原文 · 本节措辞收紧 · `TD-104` 登记）。**处置后必须重跑 L3，并以 L3 给出的 `pass` 判定为放行依据；在 L3 `pass` 之前，本节不构成 6→7 的放行依据。**
+
+⇒ 用户裁决：`auto_advance=false` ⇒ 即使 L2/L3 均 `pass`，也必须停下等用户裁决。
