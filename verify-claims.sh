@@ -116,7 +116,8 @@ enumerate() { # <basename>
 
 # ── 1. L2 固化指令的所有载体都含契约第 4 条 ──
 hdr "1. L2 固化指令载体（动态枚举）"
-mapfile -t _prompts < <(enumerate 'L2-blind-review.md')
+# 便携读循环（bash 3.2 / macOS 兼容 · 禁 map[f]ile/readarr[a]y · T-FIX-23）
+_prompts=(); while IFS= read -r _l; do _prompts+=("$_l"); done < <(enumerate 'L2-blind-review.md')
 if [ "${#_prompts[@]}" -eq 0 ]; then
   fail "未找到任何 L2-blind-review.md 载体（枚举失效？）"
 else
@@ -132,7 +133,8 @@ fi
 
 # ── 2. L2 reviewer agent（复合载体）所有副本都含该契约 ──
 hdr "2. L2 reviewer agent 复合载体（动态枚举）"
-mapfile -t _agents < <(enumerate 'flow-kit-l2-reviewer.md')
+# 便携读循环（bash 3.2 / macOS 兼容 · 禁 map[f]ile/readarr[a]y · T-FIX-23）
+_agents=(); while IFS= read -r _l; do _agents+=("$_l"); done < <(enumerate 'flow-kit-l2-reviewer.md')
 if [ "${#_agents[@]}" -eq 0 ]; then
   fail "未找到任何 flow-kit-l2-reviewer.md 载体"
 else

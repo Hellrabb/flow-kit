@@ -122,8 +122,17 @@ _install_brooks_claude() {
   for hook_dir in "$plugin_dst" "$mkt_dst"; do
     local hook_file="$hook_dir/hooks/session-start"
     if [ -f "$hook_file" ]; then
-      sed -i 's|cp "\$plugin_dir"/commands/brooks-\*\.md "\$cmd_dir/"|for f in "$plugin_dir"/commands/brooks-*.md; do\n            [ -f "$f" ] \&\& cp "$f" "$cmd_dir/"\n        done|' "$hook_file"
-      echo "   🔧 已修补 $hook_file（空 commands 容错）"
+      # 便携替换（bash 3.2 / macOS · T-FIX-23）：禁 GNU `sed -i`（macOS/BSD 的 `-i` 语义不同）。
+      #   sed … > tmp && mv tmp 同目录 rename 原子替换；两条失败路径都清理 .tmp（不留残留），
+      #   且失败即 return 1（调用方 set -e 下照旧中止 ⇒ 不改失败语义）。
+      local _hook_tmp="${hook_file}.tmp"
+      if sed 's|cp "\$plugin_dir"/commands/brooks-\*\.md "\$cmd_dir/"|for f in "$plugin_dir"/commands/brooks-*.md; do\n            [ -f "$f" ] \&\& cp "$f" "$cmd_dir/"\n        done|' "$hook_file" > "$_hook_tmp" && mv "$_hook_tmp" "$hook_file"; then
+        echo "   🔧 已修补 $hook_file（空 commands 容错）"
+      else
+        rm -f "$_hook_tmp"
+        echo "   ❌ 修补失败（sed/mv 非 0）：$hook_file" >&2
+        return 1
+      fi
     fi
   done
 

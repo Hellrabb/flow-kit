@@ -1,0 +1,14 @@
+# NFR 可移植性判据存量基线（T-FIX-23 · R5-23）
+# 生成日期：2026-09-28
+# 生成命令：NFR_RC_FILE=/tmp/nfr-full.rc FLOW_KIT_CHANGE_BASE=FULL make check-nfr-portability-internals
+# 语义：只登记**本 change（health-fix-2026-09b）之前**既有的命中；新增构造一律不得入基线。
+#   命中不在基线内 ⇒ 🔴 + rc=1；命中在基线内 ⇒ ℹ️ 存量基线 N 条（不置错）；
+#   基线条目在真仓已消失或行号漂移 ⇒ ⚠️ 基线陈旧 + rc=1（防基线腐烂）。
+#   基线只在全量模式（BASE=FULL）生效；变更集模式保持「新增行命中即红」。
+#   注意：基线条目对应的行号会随源文件编辑而漂移；行号漂移即「基线陈旧」⇒ 须更新本清单。
+# 格式：路径:行号:标记（每行一条；表头注释行以 # 开头，不计入条目数）
+flow-kit-bundle/hooks/stop/lib/common.sh:432:declare -A
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:51:declare -A
+flow-kit-bundle/hooks/stop/lib/l3-truncate.sh:100:declare -A
+flow-kit-bundle/hooks/stop/lib/l3-truncate.sh:167:map[f]ile
+package-flow-kit.sh:394:declare -A

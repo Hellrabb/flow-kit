@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy check-nfr-portability check-nfr-portability-internals dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
 
 # ── test: 跑全量 bats 测试 ──
 test:
@@ -169,8 +169,7 @@ check-nfr-portability-internals:
 					{ c=NR; line=$$0; \
 					if (line ~ /^[[:space:]]*#/) { next } \
 					gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", line); \
-					if (line ~ ENVIRON["P"]) { printf "%s:%d:%s\n", FN, c, line > "/dev/stderr"; found=1 } } \
-					END { if (found) print "1" > TF } \
+					if (line ~ ENVIRON["P"]) { printf "%s:%d\n", FN, c > TF } } \
 				'\'' "$$_f"; \
 			else \
 				git -c core.quotepath=false diff -U0 "$$BASE" -- "$$_f" 2>/dev/null | awk -v FN="$$1" -v TF="$$2" '\'' \
@@ -192,17 +191,31 @@ check-nfr-portability-internals:
 			_pat="$$1"; _hdr="$$2"; \
 			_found=0; \
 			export P="$$1"; \
+			# 归档排除（T-FIX-23）：归档快照是冻结的历史记录，修改它没有行动价值；可执行脚本的当前形态由非归档面守护。 \
 			if [ "$$BASE" = "FULL" ]; then \
 				while IFS= read -r -d "" _f; do \
+					case "$$_f" in .specs/archive/*) continue;; esac; \
 					case "$$_f" in *.sh) ;; *) continue;; esac; \
 					[ -e "$$_f" ] || continue; \
 					_tf=$$(mktemp); \
 					_scan_tracked_file "$$_f" "$$_tf"; \
-					[ -s "$$_tf" ] && _found=1; \
+					[ -s "$$_tf" ] && { cat "$$_tf" >> "$$_NFR_ALL_HITS"; _found=1; }; \
 					rm -f "$$_tf"; \
 				done < <(git -c core.quotepath=false ls-files -z -- "*.sh" 2>/dev/null || true); \
+				while IFS= read -r -d "" _nf; do \
+					case "$$_nf" in .specs/archive/*) continue;; esac; \
+					case "$$_nf" in *.sh) ;; *) continue;; esac; \
+					[ -e "$$_nf" ] || continue; \
+					awk -v NF="$$1" '\'' \
+						/^[[:space:]]*#/ { next } \
+						{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ ENVIRON["P"]) printf "%s:%d\n", NF, NR } \
+					'\'' "$$_nf" 2>/dev/null >> "$$_NFR_ALL_HITS" || true; \
+				done < <(git -c core.quotepath=false ls-files -oz --exclude-standard 2>/dev/null || true); \
+				# 命中收集到 _NFR_ALL_HITS（基线过滤在主 body 完成） \
+				[ "$$_found" = "1" ] && return 0 || return 1; \
 			else \
 				while IFS= read -r -d "" _f; do \
+					case "$$_f" in .specs/archive/*) continue;; esac; \
 					case "$$_f" in *.sh) ;; *) continue;; esac; \
 					[ -e "$$_f" ] || continue; \
 					_tf=$$(mktemp); \
@@ -210,23 +223,24 @@ check-nfr-portability-internals:
 					[ -s "$$_tf" ] && _found=1; \
 					rm -f "$$_tf"; \
 				done < <(git -c core.quotepath=false diff -z --name-only "$$BASE" -- "*.sh" 2>/dev/null || true); \
+				while IFS= read -r -d "" _nf; do \
+					case "$$_nf" in .specs/archive/*) continue;; esac; \
+					case "$$_nf" in *.sh) ;; *) continue;; esac; \
+					[ -e "$$_nf" ] || continue; \
+					_hits=$$(awk '\'' \
+						/^[[:space:]]*#/ { next } \
+						{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ ENVIRON["P"]) printf "%d:%s\n", NR, $$0 } \
+					'\'' "$$_nf" 2>/dev/null || true); \
+					if [ -n "$$_hits" ]; then \
+						printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
+							_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \
+							_rest=$$(printf "%s" "$$_h" | sed -n "s/^[0-9]*://p"); \
+							printf "%s:%s:%s\n" "$$_nf" "$$_ln" "$$_rest" >&2; \
+						done; \
+						_found=1; \
+					fi; \
+				done < <(git -c core.quotepath=false ls-files -oz --exclude-standard 2>/dev/null || true); \
 			fi; \
-			while IFS= read -r -d "" _nf; do \
-				case "$$_nf" in *.sh) ;; *) continue;; esac; \
-				[ -e "$$_nf" ] || continue; \
-				_hits=$$(awk '\'' \
-					/^[[:space:]]*#/ { next } \
-					{ l=$$0; gsub(/stat[[:space:]]+-c[^|]*\|\|[[:space:]]*stat[[:space:]]+-f[^|]*/, "", l); if (l ~ ENVIRON["P"]) printf "%d:%s\n", NR, $$0 } \
-				'\'' "$$_nf" 2>/dev/null || true); \
-				if [ -n "$$_hits" ]; then \
-					printf "%s\n" "$$_hits" | while IFS= read -r _h; do \
-						_ln=$$(printf "%s" "$$_h" | sed -n "s/^\([0-9]*\):.*/\1/p"); \
-						_rest=$$(printf "%s" "$$_h" | sed -n "s/^[0-9]*://p"); \
-						printf "%s:%s:%s\n" "$$_nf" "$$_ln" "$$_rest" >&2; \
-					done; \
-					_found=1; \
-				fi; \
-			done < <(git -c core.quotepath=false ls-files -oz --exclude-standard 2>/dev/null || true); \
 			unset P; \
 			[ "$$_found" = "1" ] && { printf "%s\n" "$$_hdr" >&2; return 0; } || return 1; \
 		}; \
@@ -276,13 +290,58 @@ check-nfr-portability-internals:
 			echo "SKIP: 相对 $$BASE 无 .sh 新增（未验证，非通过）"; _write_rc 3; exit 0; \
 		fi; \
 		BAN="declare[[:space:]]+-A|mapfile|readarray|readlink[[:space:]]+-[fe]|(^|[^[:alnum:]_])realpath([^[:alnum:]_]|$$)|stat[[:space:]]+-c|sed[[:space:]]+-i|grep[[:space:]]+-P|find[[:space:]].*-printf"; \
-		if _report_viol "$$BAN" "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）："; then \
-			_write_rc 1; exit 0; \
-		fi; \
 		TMOUT="(^|[^-[:alnum:]_])timeout[[:space:]]"; \
-		if _report_viol "$$TMOUT" "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）："; then \
-			_write_rc 1; exit 0; \
+		_NFR_ALL_HITS=$$(mktemp); _NFR_FOUND=0; \
+		export P="$$BAN"; _report_viol "$$BAN" "🔴 新增行含 bash4-only / GNU-only 构造，命中位置（file:line）：" && _NFR_FOUND=1; \
+		# 全量模式仅扫 BAN 族（bash4-only/GNU-only 构造）并走基线 ratchet；TMOUT（timeout） \
+		#   只在变更集模式扫新增行——全量模式下存量 timeout 用法既无基线条目也不属本任务收口范围， \
+		#   扫它会恒红（违背 verify ④），且原设计本就是 BAN 先出即 exit、TMOUT 在全量从不执行。 \
+		if [ "$$BASE" != "FULL" ]; then \
+			export P="$$TMOUT"; _report_viol "$$TMOUT" "🔴 新增行含 GNU-only timeout（须探测 gtimeout 或声明 Linux-only），命中位置（file:line）：" && _NFR_FOUND=1; \
 		fi; \
+		unset P; \
+		if [ "$$BASE" = "FULL" ]; then \
+			# 基线 ratchet（T-FIX-23 · R5-23 · 仅全量模式）： \
+			#   命中在基线内 ⇒ 存量基线计数（不置错）；不在基线 ⇒ 🔴 + rc=1； \
+			#   基线条目在真仓已消失或行号漂移 ⇒ ⚠️ 基线陈旧 + rc=1（防基线腐烂）。 \
+			#   变更集模式保持「新增行命中即红」（否则在基线件上新增 declare -A 会被豁免）。 \
+			_BASELINE_FILE="flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt"; \
+			_BASE_KEYS=$$(mktemp); _NFR_NEW=0; _NFR_BASE_CNT=0; \
+			if [ -f "$$_BASELINE_FILE" ]; then \
+				# `|| true` 防基线全注释/空文件时 grep rc=1 在 set -e+pipefail 下炸脚本（T-FIX-23 bats 夹具教训）。 \
+				{ grep -E '^[^#].*:[0-9]+:' "$$_BASELINE_FILE" || true; } | sed 's/:[^:]*$$//' | sort -u > "$$_BASE_KEYS"; \
+			fi; \
+			if [ -s "$$_NFR_ALL_HITS" ]; then \
+				while IFS= read -r _hk; do \
+					[ -n "$$_hk" ] || continue; \
+					if [ -s "$$_BASE_KEYS" ] && grep -qxF "$$_hk" "$$_BASE_KEYS"; then \
+						_NFR_BASE_CNT=$$((_NFR_BASE_CNT+1)); \
+					else \
+						printf "%s\n" "$$_hk" >&2; \
+						_NFR_NEW=1; \
+					fi; \
+				done < "$$_NFR_ALL_HITS"; \
+			fi; \
+			if [ -s "$$_BASE_KEYS" ]; then \
+				while IFS= read -r _bk; do \
+					[ -n "$$_bk" ] || continue; \
+					if ! grep -qxF "$$_bk" "$$_NFR_ALL_HITS"; then \
+						printf "⚠️ 基线陈旧：%s\n" "$$_bk" >&2; \
+						_NFR_NEW=1; \
+					fi; \
+				done < "$$_BASE_KEYS"; \
+			fi; \
+			[ "$$_NFR_BASE_CNT" -gt 0 ] && printf "ℹ️ 存量基线 %d 条（已登记：%s）\n" "$$_NFR_BASE_CNT" "$$_BASELINE_FILE"; \
+			rm -f "$$_BASE_KEYS"; \
+			if [ "$$_NFR_NEW" = "1" ]; then \
+				rm -f "$$_NFR_ALL_HITS"; _write_rc 1; exit 0; \
+			fi; \
+		else \
+			if [ "$$_NFR_FOUND" = "1" ]; then \
+				rm -f "$$_NFR_ALL_HITS"; _write_rc 1; exit 0; \
+			fi; \
+		fi; \
+		rm -f "$$_NFR_ALL_HITS"; \
 		if [ "$$BASE" = "FULL" ]; then \
 			CHK=$$(git -c core.quotepath=false ls-files -- "*.sh" 2>/dev/null | grep -E "\.sh$$" || true); \
 			NEWF=$$(printf "%s" "$$NEWF" | grep -E "\.sh$$" || true); \
@@ -326,6 +385,21 @@ check-nfr-portability:
 	bash -c 'make --no-print-directory check-nfr-portability-internals >"'"$$NFR_OUT"'" 2>&1 || true'; \
 	rc=$$(cat "$$NFR_RC" 2>/dev/null || echo 2); \
 	case "$$rc" in \
+		0) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC" ;; \
+		3) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 0 ;; \
+		1) cat "$$NFR_OUT" 1>&2; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 1 ;; \
+		*) cat "$$NFR_OUT" 1>&2; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 1 ;; \
+	esac
+
+# ── check-nfr-portability-full: 全量模式入口（T-FIX-23 · R5-23）──
+# 日常 `make check` 用变更集模式（只扫相对锚点的新增行）；
+# 收尾/归档必须再跑本入口：归档后 .change-base 随 change 移出 .specs/*/，
+# 默认判据自动落进全量模式（BASE=FULL），存量违禁构造进扫描面。
+# 本入口以 FLOW_KIT_CHANGE_BASE=FULL 调用同一 -internals 并沿用三态包装语义。
+# 不改 `make check` 的默认目标集合（避免变慢）——本入口默认不纳入 check:。
+check-nfr-portability-full:
+	@echo "🔍 make check-nfr-portability-full: NFR 兼容性判据全量模式（收尾/归档必跑）..."
+	@NFR_OUT=$$(mktemp); NFR_RC=$$(mktemp); 	export NFR_RC_FILE="$$NFR_RC"; 	export FLOW_KIT_CHANGE_BASE=FULL; 	bash -c 'make --no-print-directory check-nfr-portability-internals >"'"$$NFR_OUT"'" 2>&1 || true'; 	rc=$$(cat "$$NFR_RC" 2>/dev/null || echo 2); 	case "$$rc" in \
 		0) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC" ;; \
 		3) cat "$$NFR_OUT"; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 0 ;; \
 		1) cat "$$NFR_OUT" 1>&2; rm -f "$$NFR_OUT" "$$NFR_RC"; exit 1 ;; \

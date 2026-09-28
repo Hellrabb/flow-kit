@@ -179,7 +179,9 @@ collect_prompt_paths() {
   # 复合载体：L2 reviewer agent（其拷贝段由 regen_l2_agent 保证与源一致）
   [ -f "$SCRIPT_DIR/flow-kit-bundle/flow-kit/$AGENT_REL" ] && printf '%s\n' "$AGENT_REL"
 }
-mapfile -t PROMPT_PATHS < <(collect_prompt_paths)
+# 便携读循环（bash 3.2 / macOS 兼容 · 禁 map[f]ile/readarr[a]y · T-FIX-23）
+# set -u 下空数组迭代须用 "${PROMPT_PATHS[@]:-}"（bash <4.4 把空数组当未绑定变量）。
+PROMPT_PATHS=(); while IFS= read -r _l; do PROMPT_PATHS+=("$_l"); done < <(collect_prompt_paths)
 
 
 # 反向告警：stop/ 下存在但不在 HOOK_MODULE_NAMES 里的脚本 —— 安装器不会安装它们，
@@ -194,8 +196,9 @@ collect_stop_extras() {
     printf '%s\n' "$names" | grep -qxF "$b" || printf '%s\n' "$b"
   done
 }
-mapfile -t REL_PATHS < <(collect_rel_paths | sort -u)
-mapfile -t STOP_EXTRAS < <(collect_stop_extras | sort -u)
+# 便携读循环（bash 3.2 / macOS 兼容 · 禁 map[f]ile/readarr[a]y · T-FIX-23）
+REL_PATHS=(); while IFS= read -r _l; do REL_PATHS+=("$_l"); done < <(collect_rel_paths | sort -u)
+STOP_EXTRAS=(); while IFS= read -r _l; do STOP_EXTRAS+=("$_l"); done < <(collect_stop_extras | sort -u)
 
 drift_total=0
 orphan_total=0
@@ -220,7 +223,7 @@ for root in "${DEST_ROOTS[@]}"; do
   missing_dst=0
   nonexec=0
   miss_prompt=0
-  for rel in "${REL_PATHS[@]}"; do
+  for rel in "${REL_PATHS[@]:-}"; do
     src_f="$SRC/$rel"
     dst_f="$root/$rel"
     if [ ! -f "$dst_f" ]; then
@@ -291,7 +294,7 @@ for root in "${DEST_ROOTS[@]}"; do
         *) continue ;;
       esac
       [ -f "$SRC/$_rel" ] && continue          # 源里在 → 不是残留
-      case " ${REL_PATHS[*]} " in *" $_rel "*) continue ;; esac   # 源里在（镜像清单）→ 跳过
+      case " ${REL_PATHS[*]:-} " in *" $_rel "*) continue ;; esac   # 源里在（镜像清单）→ 跳过
       orphans+="$_rel "
     done
   done

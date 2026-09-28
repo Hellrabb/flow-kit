@@ -54,6 +54,24 @@ setup() {
     env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
       check-nfr-portability-internals FLOW_KIT_CHANGE_BASE="$BASE_SHA"
   }
+  # T-FIX-23：全量模式入口（FLOW_KIT_CHANGE_BASE=FULL）——基线 ratchet 只在 FULL 生效。
+  run_internals_full() {
+    rm -f "$RC_FILE"
+    env NFR_RC_FILE="$RC_FILE" make --no-print-directory -C "$FIXTURE" \
+      check-nfr-portability-internals FLOW_KIT_CHANGE_BASE=FULL
+  }
+  # T-FIX-23：在夹具仓内写基线文件（真仓基线在 flow-kit-bundle/flow-kit/reference/）。
+  #   真仓基线路径由 Makefile 硬编码；夹具仓里我们在同一路径写假基线以驱动 ratchet。
+  write_baseline() {
+    # 用方括号规避写法（TD-097）避免本测试文件自身被 NFR 判据扫红。
+    mkdir -p "$FIXTURE/flow-kit-bundle/flow-kit/reference"
+    local _b="$FIXTURE/flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt"
+    printf '# NFR 可移植性存量基线（T-FIX-23 · R5-23）\n# 格式：<相对路径>:<行号>:<标记>\n' > "$_b"
+    while [ $# -ge 2 ]; do
+      printf '%s:%s:%s\n' "$1" "$2" "${3:-BAN}" >> "$_b"
+      shift 3 2>/dev/null || shift 2
+    done
+  }
   run_wrapper() {
     make --no-print-directory -C "$FIXTURE" \
       check-nfr-portability FLOW_KIT_CHANGE_BASE="$BASE_SHA"
@@ -211,7 +229,9 @@ teardown() {
   [ "$status" -eq 0 ]
   [ "$(internals_rc)" = "1" ]
   [[ "$stderr" == *"seed.sh"* ]]
-  [[ "$stderr" == *"mapfile"* ]]
+  # T-FIX-23 后全量模式命中输出格式为 file:line（不含违规内容），
+  #   故不再断言 stderr 含字面 mapfile——改断言命中的行号（seed.sh:3）。
+  [[ "$stderr" == *"seed.sh:3"* ]]
 }
 
 @test "R3-22：.flow-active 指向锚点 ⇒ 选中该锚点（锚点来源可见）" {
@@ -244,4 +264,88 @@ teardown() {
   [ "$status" -eq 0 ]
   [ "$(internals_rc)" = "1" ]
   [[ "$output" == *"检测到 2 个"* ]]
+}
+
+# ── T-FIX-23 回归钉（R5-23 · NFR 可移植性存量基线 + map[f]ile 替换）──────────
+# 六例覆盖基线 ratchet 的正反两面 + 归档排除 + 可移植写法。基线路径由 Makefile
+#   硬编码为 flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt，
+#   夹具仓在同路径写假基线以驱动 ratchet（不触碰真仓基线文件）。
+# 全量模式（FULL）只扫 BAN 族 + 走基线；TMOUT 在全量模式被跳过（设计如此）。
+
+@test "T-FIX-23 ①：全量模式 fixture 注入 map[f]ile 命中不在基线 ⇒ rc≠0 且具名 file:line" {
+  # 用方括号规避写法（TD-097）构造真实违规行——grep 字面 mapfile 会假绿自身。
+  seed_append 'xs=(); while IFS= read -r _l; do xs+=("$_l"); done < <(printf "a\n")'
+  # 上面这行是可移植写法（不违规）。再加一行真违规（方括号规避在 bash 运行时
+  #   会被 shell 当字面字符串，不会执行——但 NFR 扫描面按 ERE 匹配字面）。
+  # 为产生真违规命中，直接写 declare -A（不在注释里）。
+  seed_append 'declare -A m=([x]=1)'
+  write_baseline   # 空基线（无条目）
+  run --separate-stderr run_internals_full
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  # 命中输出格式为 file:line（不含违规内容），故只断言文件名+行号。
+  # seed.sh 初始 2 行 + read-loop（行3） + declare -A（行4）⇒ 命中在行 4。
+  [[ "$stderr" == *"seed.sh:4"* ]]
+}
+
+@test "T-FIX-23 ②：变更集模式同注入不报（存量行不在变更集 diff 面）⇒ rc=0 或 SKIP" {
+  # declare -A 行作为存量行已提交到 BASE_SHA 之前；之后无新增 ⇒ 变更集为空。
+  #   做法：把违规行写进 seed.sh 初始内容，BASE_SHA 即含违规的提交。
+  printf '#!/bin/bash\nt=$(mktemp)\ndeclare -A m=([x]=1)\n' > "$FIXTURE/seed.sh"
+  git -C "$FIXTURE" add -- seed.sh
+  git -C "$FIXTURE" commit -q --amend --no-edit
+  BASE_SHA="$(git -C "$FIXTURE" rev-parse HEAD)"
+  # 无新增行 ⇒ 变更集为空（相对 BASE_SHA）⇒ rc=3（SKIP：未验证，非通过）
+  run --separate-stderr run_internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "3" ]
+}
+
+@test "T-FIX-23 ③：可移植写法（read-loop 替代 map[f]ile）⇒ 全量+变更集双模式 rc=0" {
+  # read-loop 是 bash 3.2 兼容写法，不触发 BAN 族。
+  seed_append 'xs=(); while IFS= read -r _l; do xs+=("$_l"); done < <(printf "a\n")'
+  # 全量模式
+  write_baseline
+  run --separate-stderr run_internals_full
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "0" ]
+  [[ "$output" == *"✅ NFR 兼容性判据通过"* ]]
+  # 变更集模式
+  run --separate-stderr run_internals
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "0" ]
+}
+
+@test "T-FIX-23 ④：归档内部（.specs/archive/）注入禁构 ⇒ 全量模式 rc=0（排除面）" {
+  mkdir -p "$FIXTURE/.specs/archive/old-change"
+  printf '#!/bin/bash\ndeclare -A m=([x]=1)\n' > "$FIXTURE/.specs/archive/old-change/x.sh"
+  write_baseline
+  run --separate-stderr run_internals_full
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "0" ]
+  # 归档路径的命中不应出现在 stderr（被排除）
+  [[ "$stderr" != *".specs/archive"* ]]
+}
+
+@test "T-FIX-23 ⑤：fixture 命中基线条目 ⇒ rc=0 且输出含「存量基线」" {
+  # 声明违规行，但该行已登记在基线中 ⇒ ratchet 放行。
+  seed_append 'declare -A m=([x]=1)'
+  # 基线条目：seed.sh 第 3 行（t=$(mktemp) 是第2行，declare 是第3行）
+  write_baseline "seed.sh" "3" "declare-A"
+  run --separate-stderr run_internals_full
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "0" ]
+  [[ "$output" == *"存量基线"* ]]
+}
+
+@test "T-FIX-23 ⑥：基线陈旧（删除基线对应行）⇒ rc≠0 且输出含「基线陈旧」" {
+  # 基线登记 seed.sh:3 有 declare -A，但实际 seed.sh 第3行不含禁构（漂移/删除）。
+  # 写一行无害内容到第3行（让行号 3 存在但内容不匹配）。
+  seed_append 'echo harmless'
+  write_baseline "seed.sh" "3" "declare-A"
+  run --separate-stderr run_internals_full
+  [ "$status" -eq 0 ]
+  [ "$(internals_rc)" = "1" ]
+  # 「基线陈旧」归因走 stderr（与命中归因同一通道）。
+  [[ "$stderr" == *"基线陈旧"* ]]
 }

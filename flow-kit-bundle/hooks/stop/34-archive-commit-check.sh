@@ -44,7 +44,11 @@ _check_archive_commit_body() {
     # 单阶段分支：最近归档 mtime > 最近 commit %ct
     arch_dir=$(ls -t "${PROJECT_ROOT:-}/.specs/archive/" 2>/dev/null | head -1)
     [[ -n "$arch_dir" ]] || return 0
-    arch_mtime=$(stat -c %Y "${PROJECT_ROOT:-}/.specs/archive/$arch_dir" 2>/dev/null || echo 0)
+    # 便携双分支（bash 3.2 / macOS · T-FIX-23）：必须 GNU 先、BSD 后。
+    #   GNU stat 的 `-f %m <file>` 会把文件系统信息打到 stdout、错误打 stderr 且 rc=1
+    #   ⇒ 若写成 BSD 先，命令替换会把那段垃圾信息当结果收进去。
+    #   判据的 awk 正是用 gsub(/stat -c … || stat -f …/) 预剥离这一形态。
+    arch_mtime=$(stat -c %Y "${PROJECT_ROOT:-}/.specs/archive/$arch_dir" 2>/dev/null || stat -f %m "${PROJECT_ROOT:-}/.specs/archive/$arch_dir" 2>/dev/null || echo 0)
     last_commit_ts=$(cd "${PROJECT_ROOT:-}" && git log -1 --format=%ct 2>/dev/null || echo 0)
     [[ "$arch_mtime" -gt "$last_commit_ts" ]] || return 0
   fi
