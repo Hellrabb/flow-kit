@@ -437,3 +437,166 @@ L3_artifact_hash: 6222cce7358648484ffa1c7cd59d526da609b1e35b5113e592ff5ff1cca302
 
 > **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-6.md`；`REVIEW.md`（头部现行结论 + §H.2 表名/列头 + §H.3 结论）与 `.specs/CONTEXT.md`（`TD-105`）由主 agent 同轮订正。**未改**生产件、**未改**判据正文、**未改写** L2 段与既有 L3 段任何文字。
 > **下一步**：C1 属机制性不可满足 ⇒ 已按协议（`6-review.md`「检测到 ≥1 critical ⇒ 停下，禁止自动继续」）**提请用户裁决**，不再自行重跑 L3。
+
+---
+
+## L2 盲审（第 2 轮 · 阶段 6 · T-FIX-25 收口后的增量复审）
+
+**独立性声明**：本段由 L2 独立盲审员（阶段 6 · 第 2 轮 · 增量复审）产出。输入仅为调用方指定的工件路径与内容：`REVIEW.md` §H（含 H.1 追加修复段 / H.2 口径刷新引注 / H.3 第 7·9 项 / 文件头「给 L3 审查者的判定对象说明（TD-105）」块）+ `PHASE5-RECEIPTS.md` §U-5 + `TEST.md`「第 12 次执行补充」+ `T-FIX-25-SUMMARY.md` + `TASK.md` T-FIX-10 `<verify>` 与 T-FIX-25 块 + `CONTEXT.md` TD-104/TD-105 登记 + 被测生产件 `check-gate-sync.sh` / `l3-section.sh` / `l3-api.sh` / `l3-truncate.sh` 源码 + `test/test_check_gate_sync.bats`。工件内含的主 agent 自评、响应段、闭环表、`Fixed in:`/`Tech-debt:` 声明、沿革注记、以及「给 L3 审查者的判定对象说明（TD-105）」块一律当作**被审查对象**，未采信为结论；本段判定只基于我亲手读到的原文、代码与复跑命令输出。审查期间仓库只读，探针全在 `/tmp/l2p6r2/`；`git status --porcelain` 收工为空（工作树干净）。**独立性：完好。** 未检测到主 agent 上下文注入。
+
+**被审 HEAD**：`61a0cde82eed115a545061bc72fb8b88d5472458`（实跑 `git rev-parse HEAD`）。注：§U-5 记证据运行点为 `b7cc7a7`、§H/TEST 记 `77984cc`，本审查员读到时 HEAD 已前移至 `61a0cde`；差异若影响判定会在条目内标注。
+
+### 复跑与核验记录（我亲跑）
+
+| 命令 | rc | 摘要 |
+|---|---|---|
+| `git rev-parse HEAD` | 0 | `61a0cde` |
+| `sha256sum flow-kit-bundle/flow-kit/reference/check-gate-sync.sh` | 0 | `36565810ed7f71…3cc326e`（与 §U-5 声称一致 ⇒ 生产件本轮零改动） |
+| `grep -cE '^[[:space:]]*@test' test/test_check_gate_sync.bats` | 0 | **16**（15 + T-FIX-25 腿） |
+| `diff -q test/test_check_gate_sync.bats flow-kit-bundle/test/test_check_gate_sync.bats` | 0 | 镜像一致 |
+| 自建夹具 `/tmp/l2p6r2/tfix25-XXXXXX` + 影子 diff（`exit 2`）+ 真实体 SUT | 0 | rc=1 + 含 `🔴 MECHANICAL` + 无 `✅ 一致` ⇒ **三断言全 PASS** |
+| 自建夹具 + 影子 diff + 变异体（删两处 `diff_rc=$?` 块） | 0 | rc=0 + 无 MECHANICAL + 有 `✅ 校验对 3/14 一致` ⇒ **三断言全 FAIL**（判别力成立） |
+| 自建夹具 + 影子 diff + 变异体（只删 PCSC 第一处，保留 gate-config 第二处） | 0 | rc=1 + 有 MECHANICAL（gate-config 提供）+ 有 `✅ 内容一致`（PCSC 被吞）⇒ **断言①② PASS、断言③ FAIL** |
+| `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T-FIX-04` | 0 | 52 行判据 rc=0 |
+| `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T-FIX-13` | 0 | 53 行判据 rc=0 |
+| `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T17` | 0 | 74 行判据 rc=0 |
+| `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T-FIX-10` | — | 超时（>120 s，判据含多夹具反向控制腿）；双面断言核心三条 grep 亲验全满足 |
+| `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --gates-only` | 0 | bats 1116 + `make check` rc=0 |
+| `make check-gate-sync` | 0 | `✅ 校验对 3/14 一致` |
+| `npx bats --count test/` | 0 | 1116 |
+| 代码走查：`l3-section.sh:258-292` `_l3_strip_sections` + `l3-api.sh:160-199` 写入逻辑 | — | 证实 L3 段「先整块删除旧段 → 再追加新段」，且发生在 Stop hook（模型读完工件后）⇒ 模型只能看到上一轮 L3 块 |
+| `jq -r '.goal.task_progress \| length' .flow-active` | 0 | **54**（与 §H.3 第 9 项一致） |
+| `grep -oE 'TD-(0[8-9][0-9]\|10[0-5])' .specs/CONTEXT.md \| sort -u` | 0 | TD-080…TD-105 全在（26 条） |
+
+### 1. TD-105「给 L3 审查者的判定对象说明」是否正当
+
+**判断结论**：该块是**正当的机制说明，不是辩解**。我独立读 `l3-section.sh` 与 `l3-api.sh` 源码自证：
+
+- `l3-api.sh:171` 在写入新 L3 段前先调用 `_l3_strip_sections "$review_md" "$tmp_review"`（删除全部既有 L3 段），再在 `:186-194` 追加新段（`section_title` + 载荷 + `L3_artifact_hash` + `<!-- /L3-SECTION -->`）。
+- `_l3_strip_sections`（`l3-section.sh:258-292`）用 awk 按 `_l3_section_spans` 的行区间删除旧段（含回收上方空行 + `---`）。
+- 该写入发生在 Stop hook（`l3-review.sh` 是 stop 钩子库的一部分）⇒ **模型在生成审查结论时，工件里的 L3 段还是上一轮的**；新段只在模型回答结束后由子系统覆写。
+- 因此「工件内最后一段 L3 = 上一轮 fail」**在结构上不可能由本轮消除**——本轮的判定块只会在本轮判完后被系统写入。TD-105 的主张（「工件里可见的 L3 判定永远是上一轮」）与代码实测**逐字吻合**。
+- §H.3 结论行（`REVIEW.md:1052-1054`）确实**未声称** 6→7 放行——它写「进入 Toll-gate 6→7 的前提 = L2/L3 独立审查均 pass；L3 尚待通过……在 L3 pass 之前，本节不构成 6→7 的放行依据」。这与 TD-105 块的「本档不声称任何尚未落盘的 pass」一致。
+- 反证检验：若 TD-105 是辩解（即 L3 实际已 pass 但被说成机制问题），则 §H.3 应有「可放行」的表述——实测**没有**。且头部现行结论行（`REVIEW.md:3`）明写「L3 pass 之前不构成 6→7 放行依据」「已提请用户裁决」。
+
+**结论**：TD-105 的机制说明**有代码层自证、与 §H.3 保守口径一致、未偷渡放行主张**。不是「把未闭合的 L3 fail 说成机制问题」的辩解。
+
+#### 🟢 L2-6R2-1 · TD-105 判定对象说明经独立代码自证为正当机制说明（非辩解）
+
+**Severity**：🟢 Minor
+**Symptom（症状）**：`REVIEW.md:972`（§H 头部「给 L3 审查者的判定对象说明（TD-105）」块）主张「L3 块由子系统整块覆写 ⇒ 工件里可见的 L3 判定永远是上一轮」。本轮独立读 `l3-api.sh:160-199` + `l3-section.sh:258-292` 源码自证：写入流程确为「先 `_l3_strip_sections` 删旧段 → 追加新段」，且发生在 Stop hook（模型读完工件后）⇒ 模型只能看到上一轮 L3 块。
+**Source（源头）**：`flow-kit-bundle/hooks/stop/lib/l3-api.sh:171,186-199` + `l3-section.sh:258-292` + `l3-review.sh`（Stop hook 归属）。
+**Consequence（后果）**：无——机制说明正当。记录以示独立判定（非采信主 agent 自评）。该判定对本轮 verdict 无影响（本轮只审增量，L3 的最终 pass/fail 不在 L2 职权内）。
+**Remedy（修补）**：无。
+
+### 2. T-FIX-25 是否真闭合 TD-104
+
+**判断结论**：**真闭合**——T-FIX-25 把 TD-104 所述「判据对目标缺陷无判别力」的问题从**两个层面**解决：(a) `TASK.md` T-FIX-10 `<verify>` 由单面 `grep` 改为**双面断言**（缺陷形态缺席 + 修复形态在场）；(b) `test/test_check_gate_sync.bats` 新增 +1 行为级腿（FXB25），用影子 diff 恒 rc=2 制造真实机械故障。
+
+**独立构造机械故障的实证**（我亲跑，非信回执）：
+
+- **真实体**（影子 diff rc=2 + 未改 SUT）：SUT rc=1 + 输出含 `🔴 MECHANICAL` + 无 `✅ 一致` ⇒ T-FIX-25 腿三断言（① rc≠0 ② 含 MECHANICAL ③ 不含 ✅ 一致）**全 PASS**。
+- **变异体 A**（删两处 `diff_rc=$?` 块，即 SUMMARY 所述完整变异态）：SUT rc=0 + 无 MECHANICAL + 有 `✅ 校验对 3/14 一致` ⇒ 三断言**全 FAIL** ⇒ 腿 `not ok` ⇒ **判别力成立**（与 SUMMARY 第 57-64 行一致）。
+- **变异体 B**（只删 PCSC 第一处 `diff_rc`，保留 gate-config 第二处）：SUT rc=1 + 有 MECHANICAL（gate-config 提供）+ 有 `✅ 内容一致`（PCSC 被吞）⇒ 断言①② PASS、**断言③ FAIL**。这说明断言③（不得打印 `✅ 一致`）是捕获「PCSC 单点退化而 gate-config 仍守」这一**部分退化形态**的关键判据——该形态下断言①②无法单独判红，断言③补上了缺口。
+- **双面 grep 断言**（T-FIX-10 verify 核心）：① `diff_out=$(diff … || true` 同行）**缺席** ✅；② `diff_rc=$?` **在场** ✅；③ `diff_rc.*-ge 2` **在场** ✅。
+- **真件 sha256**：`36565810…3cc326e`，与 §U-5 声称一致 ⇒ 生产件本轮零改动（T-FIX-25 只增测试腿）。
+
+**T-FIX-25-SUMMARY.md 的变异反向控制**（第 42-64 行）声称「删两处后 bats 新腿断言②失败」——我的变异体 A 实测是**三断言全 FAIL**（不只断言②）。SUMMARY 的「失败在断言②」描述略窄（实际断言①③也会 FAIL），但**结论方向一致**（变异态 ⇒ not ok）。不构成误判。
+
+#### 🟢 L2-6R2-2 · T-FIX-25 真闭合 TD-104（双面断言 + 行为级腿经独立变异实证有判别力）
+
+**Severity**：🟢 Minor
+**Symptom（症状）**：`test/test_check_gate_sync.bats:154-193`（T-FIX-25 腿 + FXB25 夹具）+ `TASK.md:2234-2246`（T-FIX-10 `<verify>` 双面断言订正）。本轮独立构造影子 diff（rc=2）+ 真实体/变异体（删两处/删一处）三态实证：真实体三断言全 PASS；删两处变异态三断言全 FAIL（腿 not ok）；删一处变异态断言③ FAIL（捕获部分退化）。双面 grep 断言三条全满足。
+**Source（源头）**：`TASK.md` T-FIX-10 `<verify>`（双面断言）+ `test/test_check_gate_sync.bats` FXB25 腿 + `check-gate-sync.sh:115-124,239-248`（`diff_rc=$?` + `rc≥2` 分支）。
+**Consequence（后果）**：无——TD-104 真闭合。记录以示独立判定（非信回执）。
+**Remedy（修补）**：无。
+
+### 3. §U-5 增量范围声明是否诚实
+
+**判断结论**：§U-5 的增量范围声明**诚实**——只重跑 4 条判据 + 七项门禁（而非 25 条全量）的理由「本轮只增测试腿、零生产件改动」**成立**，因为我亲验 `check-gate-sync.sh` sha256 前后一致（`36565810…`），且 T-FIX-25-SUMMARY 写面表确认只改了 `test/test_check_gate_sync.bats` + 镜像 + SUMMARY + TASK。受影响面（T-FIX-04/T-FIX-10/T-FIX-13/T17 + 七项门禁）的选取**合理**：T-FIX-25 新腿落在 `test_check_gate_sync.bats`，直接关联的是 check-gate-sync 系判据（T-FIX-04/T-FIX-10/T-FIX-13）与隐私冻结集（T17）；七项门禁覆盖 bats count/全量/make check/NFR/包校验/阶段门/fix loop。
+
+**TEST.md「第 12 次执行补充」声明**（TEST.md:19）把「1115 时点 vs 1116 时点」写清楚了——它明示「bats 收集面 1115 → 1116、有效 1114 → 1115」「其余判据/门禁的权威回执仍为 §U（HEAD 77984cc · bats 1115 时点）」。时点切分**清晰**。
+
+但 TEST.md:129 同一段落内有一处**计数口径残留不一致**（见 L2-6R2-3）。
+
+#### 🟡 L2-6R2-3 · TEST.md:129「有效验证用例 = 1097」与段首「有效用例 1115」在同段并存（旧值未更新）
+
+**Severity**：🟡 Important
+**Symptom（症状）**：`TEST.md:129`（§1.3 第 2 条「收集面 = 执行面」）段首写「`npx bats --count test/` = **1116**（**有效用例 1115**，见第 5 条 —— **当前值 = 第 12 次执行**）」，但同段中后部写「其中 **1 条为 TD-033 mock**（见第 5 条）⇒ **有效验证用例 = 1097**」。`1097` 是第 5 轮 fix loop 中间态（HEAD `e722dfe`，1098 − 1 mock）值，非当前值（1116 − 1 = 1115）。该段前缀标了「当前值 = 第 12 次执行」，但中间夹的「有效验证用例 = 1097」是旧值未更新。
+**Source（源头）**：`TEST.md:129` 自身的时点标记规则（`:123`「未标历史轮次者一律为当前值」）+ L-171「总结面必须与最新执行同步」。该段是 §U-5 增量复验口径刷新（1115 → 1116）后未彻底清扫的残留——段首已更新为 1115，段中 1097 漏改。
+**Consequence（后果）**：阶段 7 triage 或后续 change 按「有效验证用例 = 1097」核对会得到比实际少 18 例的错误基线（1115 − 1097 = 18）；同段两个「有效」数字（1115 与 1097）并存易误读为两种口径。不阻塞 toll-gate（§U-5 与 §0 行 9 的 1115 口径正确），但属总结面失真，与 L-171 同族。
+**Remedy（修补）**：`TEST.md:129` 把「⇒ **有效验证用例 = 1097**」改为「⇒ **有效验证用例 = 1115**（当前值 = 第 12 次执行；第 5 轮 fix loop 中间态为 1097）」，或整段重写以消除旧值残留。
+
+### 4. TD-104 登记与 §H.3「已闭合」声明口径不一致
+
+#### 🟡 L2-6R2-4 · CONTEXT.md 把 TD-104 登记为 🟢（v2 才修）但 §H.3 第 7 项称「本 change 内已闭合」
+
+**Severity**：🟡 Important
+**Symptom（症状）**：`CONTEXT.md:651`（TD-104 行）登记为 🟢，描述写「**v2**：断言改为『存在 `diff_rc=$?` 显式捕获分支』+ 增加行为级 bats 腿」——即把修复推到 v2。但 `REVIEW.md:1048`（§H.3 第 7 项）写「**其中 `TD-104` 已由 `T-FIX-25` 真修 ⇒ 本 change 内闭合**」。T-FIX-25 **已经**做了 CONTEXT.md TD-104 行 v2 描述的两件事（双面断言 + 行为级 bats 腿），TD-104 的修复**已落地**，但 CONTEXT.md 的 TD-104 登记**未同步更新**为「已闭合」——它仍以「v2 待修」的 🟢 形态存在。
+**Source（源头）**：`CONTEXT.md:651` TD-104 登记 vs `REVIEW.md:1048` §H.3 第 7 项 + `T-FIX-25-SUMMARY.md` 写面表。TD-104 的「v2」描述与 T-FIX-25 的实际修复内容**逐项重合**（断言改 `diff_rc=$?` + 行为级 bats 腿），说明 v2 项已在本 change 内完成。
+**Consequence（后果）**：阶段 7 triage 读 CONTEXT.md 会把 TD-104 当未闭合的 🟢 tech-debt 推到下一 change，而 §H.3 却说本 change 内已闭合——两处口径冲突会让 triage 者误判 TD-104 仍开放。与 L-171「总结面必须同步」同族。
+**Remedy（修补）**：`CONTEXT.md:651` TD-104 行更新为「**已由 T-FIX-25 本 change 内闭合**（双面断言 + 行为级腿 FXB25 · 2026-09-28 · commit `380679b`）」，状态从 🟢 改为「已闭合」；或在 §H.3 第 7 项补注「CONTEXT.md TD-104 登记待同步」。
+
+### 5. §H.3 第 7/9 项刷新自检
+
+**判断结论**：§H.3 第 7 项与第 9 项的刷新**基本属实**，但第 7 项的「TD-104 已闭合」与 CONTEXT.md 口径冲突（见 L2-6R2-4）。
+
+- **第 7 项**（`REVIEW.md:1048`）：`TD-083…TD-105`（第 6 轮新增 15 条），`TD-104` 已由 `T-FIX-25` 真修，`TD-105` 开放。我亲验 `CONTEXT.md` 含 TD-080…TD-105 全 26 条；`T-FIX-25-SUMMARY.md` 存在且写面表确认修复落地。但 TD-104 在 CONTEXT.md 仍登记 🟢（见 L2-6R2-4）。
+- **第 9 项**（`REVIEW.md:1050`）：`phase="6"` · `phases_done=["0"…"5"]` · `gates["5→6"]="passed"` · `task_progress` len **54**。我亲跑 `jq` 证实与现 `.flow-active` 一致（len=54）。时点标注「阶段 6 第 3 次重入后」与 §U-4 第 7 项的「阶段 5 时点」对照句**仍保留**（L2 第 1 轮 L2-6R5 收口）。
+
+#### 🟢 L2-6R2-5 · §H.3 第 9 项刷新属实（task_progress len 54 经亲验）
+
+**Severity**：🟢 Minor
+**Symptom（症状）**：`REVIEW.md:1050`（§H.3 第 9 项）记 `task_progress` len **54**（`T-FIX-25` 入库后）。本轮亲跑 `jq -r '.goal.task_progress | length' .flow-active` = **54**，且 `T-FIX-25` 条目存在（`commit_sha=380679b` · `completed_at=2026-09-28T18:31:13+08:00`，ISO-8601 字符串符合 ADR-015）。
+**Source（源头）**：`.flow-active` 实测 vs `REVIEW.md:1050` 声明。
+**Consequence（后果）**：无——声明属实。记录以示独立确认。
+**Remedy（修补）**：无。
+
+### 6. 本轮增量是否引入新的 6 维衰退风险
+
+**判断结论**：**未发现**本轮增量（T-FIX-25）引入新的 🔴/🟡 级 6 维衰退风险。T-FIX-25 只新增 1 条 bats 腿（FXB25 夹具生成器 + 影子 diff + 三断言），结构与既有 FXB10/FXB18 同款（mktemp -d + 复制载体 + PATH 影子），无新跨模块耦合；生产件零改动（sha256 一致）。FXB25 的夹具复制 4 个 prompt + 4 个 skill + 1 个 bats，与 FXB18 完全同构——属 R3 知识重复的**可接受度**（每条判据独立夹具避免耦合，是测试隔离的正当权衡，非衰退）。断言用 `[[ ]]` + `grep -q`，bash 3.2 兼容（SUMMARY 第 97 行自检）。
+
+#### 🟢 L2-6R2-6 · 本轮增量未引入新的 6 维衰退风险（独立观察记录）
+
+**Severity**：🟢 Minor
+**Symptom（症状）**：本轮审查重点 5「上列之外你自行发现的问题」——检查 T-FIX-25 涉及的改动面（`test/test_check_gate_sync.bats` +1 腿 + 镜像），未见新引入的 🔴/🟡 级 R1-R6 衰退。FXB25 夹具与 FXB18 同构（隔离权衡），三断言简洁，无新耦合。
+**Source（源头）**：`test/test_check_gate_sync.bats:154-193`（FXB25 + T-FIX-25 腿）实测。
+**Consequence（后果）**：无——未引入新衰退。记录以示独立观察。
+**Remedy（修补）**：无。
+
+### 7. 对主 agent §H 增量面的漏判/误判检查
+
+**检查结论**：**未发现主 agent §H 增量面对 🔴/🟡 的漏判或误判**。§H.1 追加修复段（T-FIX-25 / TD-104 闭合）的声明经独立变异实证成立；§H.2 口径刷新引注块（bats 1116 / 有效 1115 / §U-5 4/4 + 8/8 / NFR 75.7%）的数字与我亲跑一致（bats 1116、make check rc=0）；§H.3 第 7/9 项刷新基本属实（L2-6R2-4 的 TD-104 登记口径不一致属 🟡，不构成主 agent 对 §H.3 第 7 项本身的误判——第 7 项的「TD-104 已闭合」声明属实，缺口在 CONTEXT.md 未同步）。本审查员独立得出「verdict = pass」的结论，非抄主 agent。
+
+### 8. Verdict
+
+**Verdict**: pass —— 本轮增量（T-FIX-25 收口 TD-104 + §U-5 增量复验 + §H 刷新）经独立复审**均成立**：TD-105 机制说明经代码自证为正当（非辩解）；T-FIX-25 双面断言 + 行为级腿经独立变异实证有判别力（真实体三断言全 PASS、删两处变异态全 FAIL、删一处变异态断言③ FAIL）；§U-5 增量范围声明诚实（sha256 一致 ⇒ 零生产件改动 ⇒ 只重跑受影响面合理）；§H.3 第 9 项 len 54 经亲验。本审查员另得 **0 🔴 · 2 🟡 · 4 🟢**（L2-6R2-3 TEST.md:129 计数残留 / L2-6R2-4 TD-104 登记口径不一致 为 🟡；L2-6R2-1/R2-2/R2-5/R2-6 为 🟢 独立确认/观察记录）。按 Severity Gating：2 🟡 入 fix loop（task 内解决，不阻塞 toll-gate）；4 🟢 入 `MINOR-DEFERRED.md` 交阶段 7 triage。无 🔴 ⇒ verdict = pass。
+
+**未验证边界（如实记录）**：
+1. 未运行全量 `npx bats test/` 或 `make check`（任务禁止）；`--gates-only` 复跑确认 bats 1116 + make check rc=0，但七项门禁的完整 TAP（NFR ×5 计时 / 阶段门六态 / 包校验）采信 §U-5 回执（主 agent 第 12 次执行补充原始输出 `/tmp/p6d/r12sup-g/`），未由本审查员独立重跑全量。
+2. T-FIX-10 `<verify>` 完整复跑超时（>120 s，判据含多夹具反向控制腿）⇒ 只亲验双面 grep 断言三条核心，未跑完整 verify 脚本（含基线夹具 + R3-18 双向反向控制腿）。
+3. TD-105 的「L3 块整块覆写」机制经 `l3-section.sh` / `l3-api.sh` 源码走查自证，但未由本审查员构造 L3 写入夹具实跑（需触发 Stop hook，超审查范围）。
+4. 变异体 B（只删 PCSC 第一处）的发现基于单次实验；SUMMARY 声称的变异态是删两处（变异体 A），两者结论方向一致但覆盖的退化形态不同——变异体 B 揭示的「断言③是 PCSC 单点退化的关键判据」属本审查员的独立增量观察，SUMMARY 未提及该形态。
+5. 被审 HEAD `61a0cde` 与 §U-5 证据运行点 `b7cc7a7` 存在差异——§U-5 判定基于 `b7cc7a7`，本审查员读到时 HEAD 已前移至 `61a0cde`。抽查的生产件（`check-gate-sync.sh` sha256）在 `61a0cde` 上与 §U-5 描述一致。
+6. 收工时 `git status --porcelain` 为空（工作树干净）⇒ 仓库代码面全程未被本审查员触碰；探针全在 `/tmp/l2p6r2/`。
+
+
+
+---
+
+## 主 agent 响应（阶段 6 · L2 第 2 轮盲审 · 2026-09-28）
+
+> **判定：6 条全部采纳**（🟡 2 / 🟢 4），无一条降级或驳回；`Verdict: pass`（0 🔴）接受。两条 🟡 均**本轮就地修复**。
+
+| # | 级别 | L2 发现 | 主 agent 处置 |
+|---|---|---|---|
+| 🟡 L2-6R2-3 | Important | `TEST.md` §1.3 同段内旧值「有效验证用例 = 1097」与段首当前值 1115 并存 | **`Fixed in: TEST.md`** —— 三处旧值订正为**当前值 1115**（第 2/5 条的有效用例数 + 处置选项段的引用），**中间态 1097 一律加「第 5 轮 fix loop 中间态」前缀**保留为历史值。 |
+| 🟡 L2-6R2-4 | Important | `CONTEXT.md` 把 `TD-104` 登记为 🟢（v2 才修）而 `REVIEW.md` §H.3 第 7 项称「本 change 内已闭合」 | **`Fixed in: .specs/CONTEXT.md`** —— `TD-104` 行追加**状态同步**：「本条的两条 v2 要求已在本 change 内落地（`T-FIX-10` 双面断言 + `T-FIX-25` 行为级腿）· 判别力经主 agent 忠实缺陷态复算与 L2 第 2 轮独立变异实证双重确认 ⇒ **标记为本 change 内已闭合**（保留 v2 描述作历史）」。 |
+| 🟢 L2-6R2-1 | Minor | **独立确认**：`TD-105` 的「判定对象说明」经 `l3-section.sh:258-292` / `l3-api.sh:160-199` 源码自证为**正当机制说明（非辩解）** | `Not-applicable:` —— **该独立确认即对本轮 L3 派发口径的第三方背书**（工件里可见的 L3 块 = 上一轮，判定对象 = 上一轮 findings 的处置）。 |
+| 🟢 L2-6R2-2 | Minor | **独立确认**：`T-FIX-25` 真闭合 `TD-104`（独立变异实证：真实体三断言全 PASS / 删两处全 FAIL / 删一处断言③ FAIL） | `Not-applicable:` —— 与主 agent 的忠实缺陷态复算（`MINOR-DEFERRED.md` 的 `T-FIX-25` 复核记录）**两条独立路径互证**；L2 另发现「断言③是 PCSC 单点退化的关键判据」这一增量观察，已随本响应登记。 |
+| 🟢 L2-6R2-5 | Minor | **独立确认**：`§H.3` 第 9 项 `task_progress` len 54 属实 | `Not-applicable:`。 |
+| 🟢 L2-6R2-6 | Minor | 本轮增量**未引入新的 6 维衰退风险** | `Not-applicable:`。 |
+
+> **L2 未验证边界（3 条 · 如实登记）**：① 未独立重跑全量门禁（`--gates-only` 确认 bats 1116 + `make check` rc=0，NFR 计时/沙箱/包校验采信 §U-5 回执）；② `T-FIX-10 <verify>` 完整复跑超时（>120 s），只亲验双面 grep 三条核心；③ `TD-105` 机制经源码走查自证，未构造 L3 写入夹具实跑（需触发 Stop hook）。三者均**不构成 AC 结论面**（§H.2 复算表首段已声明「依赖回执，不构成独立确认」）。
+>
+> **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-6.md`；`TEST.md`（三处计数订正）与 `.specs/CONTEXT.md`（`TD-104` 状态同步）由主 agent 同轮订正。**未改**生产件、**未改**判据正文、**未改写** L2 段与既有 L3 段任何文字。
