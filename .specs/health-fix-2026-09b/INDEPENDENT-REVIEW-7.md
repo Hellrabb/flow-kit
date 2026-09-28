@@ -280,3 +280,150 @@
 **关于「是否再开第 3 轮 L2」的处置说明（诚实登记）**：本轮残留项均为**机械文本订正**（4 处字符串 + 1 处段标题），已给出逐条可复算命令与实测值；主 agent **未再开第 3 轮 L2**，直接进入 **L3（阶段 7 · 外部模型）**——若 L3 或用户认为需要，可随时补开一轮 L2（届时只审这 4 处）。
 >
 > **写面声明**：本响应仅追加 `INDEPENDENT-REVIEW-7.md`；`TEST.md` 与 `INTEGRATION.md` 由主 agent 同轮订正。**未改**生产件、**未改**判据正文、**未改写**任何 L2 段原文。
+
+
+---
+
+## L2 盲审（第 3 轮 · 阶段 7 · 第 2 轮残留处置复核）
+
+> 审查员：独立盲审子 agent（`glm-5.2`）· 第 3 轮 · 收口轮 · 范围极小：只审第 2 轮 2 条残留（🟡 R3 / 🟡 R4）的 4 处订正
+> 审查工件：`.specs/health-fix-2026-09b/{INTEGRATION,TEST,INDEPENDENT-REVIEW-7}.md`
+> HEAD = `cf113b668dd160bd2bdca85947cef620ecaa3f70` · 2026-09-29
+> 独立性声明：本审查员未采信主 agent 第 2 轮响应的 `Fixed in:` / 复算声明，一律自己回仓库核对并实跑命令。去标识化：正文写 `<acct>` / `<repo>`。
+
+### ✅ R3 · §2 / §4#8 / §5 标题与正文四处跨段口径已统一为「已由用户裁决 · 执行随归档 commit」
+
+**Severity**：🟢 Minor（复核结论 · 处置充分，不阻塞）
+**Symptom（症状）**：第 2 轮 🟡 R3 残留要求 §2 / §4 第 8 项 / §5 标题 / §5 正文四处统一为「`TD-114` 策略①**已**由用户裁决 · 执行随归档 commit」。本审查员亲验四处原文：① `sed -n '26p' INTEGRATION.md`（§2 隐私前向门禁行）=「✅ **在位**；归档面的豁免策略**已由用户裁决**（`TD-114` 策略① = 归档时就地脱敏，2026-09-28）—— **执行随归档 commit**」；② `sed -n '61p' INTEGRATION.md`（§4 第 8 项）=「⏳ **待执行**（策略已裁决 · 执行随归档 commit）」+ 依据列「`TD-114` 的归档面隐私策略**已由用户裁决为策略①**（归档时就地脱敏 · 2026-09-28）」；③ `sed -n '67p' INTEGRATION.md`（§5 标题）=「## 5. 归档计划与 `TD-114` **已裁决项**（策略① · 2026-09-28）」；④ `sed -n '79p' INTEGRATION.md`（§5 正文）=「**裁决结果（2026-09-28 · 用户）**：选 **策略①（归档时就地脱敏）**」。自证命令 `grep -n '待裁决\|须先裁决\|呈用户裁决' INTEGRATION.md` ⇒ **0 命中（rc=1）**，即三类「未决」措辞已从全文清除。四处口径一致，无「已决 vs 待决」分裂。
+**Source（源头）**：第 2 轮 R3 Remedy「把 §5 标题/正文 + §4:8 改为与 §2 口径统一为『已裁决策略①，执行随归档』」——主 agent 四处全部订正。
+**Consequence（后果）**：R3 跨段口径分裂已消除。单读 §2 / §4#8 / §5 标题 / §5 正文任一处均可判明「策略①已由用户裁决（2026-09-28），执行随归档 commit」，归档执行者不再困惑「裁决是否已发生」。
+**Remedy（修补）**：R3 处置充分，无需追加修补。
+
+### ✅ R4① · TEST.md §1.2 描述行（:82）已就地订正（含全部预期标注）
+
+**Severity**：🟢 Minor（复核结论 · 处置充分，不阻塞）
+**Symptom（症状）**：第 2 轮 🟡 R4① 残留要求 `TEST.md:82`（§1.2 第 2 条 UAT ② 描述行）就地补注「就地订正 / 历史形态 / 不进隐私分支 / 不含路径」类标注。本审查员亲验：`sed -n '82p' TEST.md` 现含追加段「**【就地订正 · 主 agent 2026-09-28 · 阶段 7 L2 🟡 R4】**：本行描述的『两次探针 ⇒ rc=1 并指名 `.zz-probe1.txt:1`』是**历史形态** —— 裸 `printf 'x'` 的探针**不含路径字面**，现态**不进隐私分支**（实测清单外命中 0 条）；可复现的具名形态见下方「可复制复现序列」② 的订正段（拼接构造 L-137 ⇒ rc=1 + 具名 `.zz-uat-probe.txt:1` + `[archive-commit-gate] path-privacy check failed`）」。复算：`sed -n '82p' TEST.md | grep -oE '就地订正|历史形态|不进隐私分支|不含路径' | sort -u` ⇒ 4 个标注全部命中（`就地订正` / `历史形态` / `不进隐私分支` / `不含路径`）；`sed -n '82p' TEST.md | grep -c '就地订正'` = **1**。描述行不再以「`printf 'x\n'` ⇒ rc=1」为既成事实陈述而无订正注释。
+**Source（源头）**：第 2 轮 R4① Remedy「在 `TEST.md:82` 补注『该命令为历史形态——现态 `printf 'x\n'` 不含路径字面 ⇒ 不进隐私分支』」——主 agent 已就地追加订正段。
+**Consequence（后果）**：R4① 的「登记不闭环」已闭合。读者单读 `TEST.md:82` 即可判明该行为历史形态、现态裸探针不进隐私分支，须用 L-137 拼接构造形态复现 rc=1。
+**Remedy（修补）**：R4① 处置充分，无需追加修补。
+
+### 🟢 R4②-a · 隐私门禁功能面已 rc=0（归档 commit 不再被 pre-commit 硬拦）
+
+**Severity**：🟢 Minor（复核结论 · 功能面处置充分，不阻塞）
+**Symptom（症状）**：第 2 轮 🟡 R4② 残留要求 `INDEPENDENT-REVIEW-7.md:147`（主 agent 第 1 轮响应段「附带自伤披露」行）的真实探针路径字面脱敏，使 `make check-path-privacy` rc=0。本审查员亲验：① `sed -n '147p' INDEPENDENT-REVIEW-7.md` 现读「`L-183` 的行文里引用了真实探针字面 `/home/<acct>/leak.txt` ⇒ `make check-path-privacy` 判红 1 条（`.specs/LESSONS.md:781`）；已就地脱敏为 `/home/<acct>/leak.txt`」——该行的探针路径字面**两处**均为 `/home/<acct>/leak.txt`（已脱敏，无真实账号名）；② `grep -nE '/home/zz-uat-probe/leak\.txt|/home/zz-uat-probe/' INDEPENDENT-REVIEW-7.md` ⇒ **0 命中（rc=1）**——完整真实探针路径（带尾部 `/leak.txt` 或尾部 `/`）已从全文清除；③ **实跑** `make check-path-privacy` ⇒ **rc=0 · 命中合计 0 条 · 清单外命中 0 条**（命令只读扫描 git index，安全）。门禁功能面的归档阻塞已解除。
+**Source（源头）**：第 2 轮 R4② Remedy「把 `INDEPENDENT-REVIEW-7.md:147` 的真实路径脱敏为 `/home/<acct>/leak.txt` 并 `git add` 后复跑 `make check-path-privacy` 确认 rc=0 · 清单外命中 0」——主 agent 已脱敏 :147 并达成门禁 rc=0。
+**Consequence（后果）**：R4② 的功能性阻塞（隐私门禁 rc=1 致归档 commit 被 pre-commit 硬拦）已消除。当前工作树 `make check-path-privacy` rc=0，归档 commit 可通过 pre-commit 门禁。
+**Remedy（修补）**：R4② 功能面处置充分，无需追加修补。
+
+### 🟢 R4②-b · 主 agent 复算声明 `grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md = 0` 与实测不符（实测 4 命中）
+
+**Severity**：🟢 Minor（不阻塞 · 但复算声明失真需登记）
+**Symptom（症状）**：主 agent 第 2 轮响应（`INDEPENDENT-REVIEW-7.md:278`）的 R4② 复算声明写「`grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` = **0**」。本审查员亲验：`grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` ⇒ **4 命中**（`:188` / `:239` / `:240` / `:278`），`git show HEAD:.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md | grep -c '/home/zz-uat-probe'` 亦 = **4**（已提交态同工作树）。四处均为 **grep 模式串本身的引用**（即「`grep -n '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md`」这类命令引用文本），非真实探针路径 `/home/zz-uat-probe/leak.txt` 的泄漏（见 R4②-a：完整路径 0 命中）。门禁 PAT `=/home/[a-z_][a-z0-9_-]*/` 要求账号名后跟尾 `/`，而这些引用处账号名后跟 `'`（闭合引号）或 `'`+`/`（bash 拼接断裂），不构成 PAT 命中 ⇒ 故 `make check-path-privacy` 仍 rc=0。即：主 agent 的「`grep -c = 0`」复算声明**失真**（实测 4），但失真的串均为自引用 grep 模式、不构成路径泄漏、不触门禁。
+**Source（源头）**：`flow-kit-bundle/flow-kit/prompts/independent/L2-blind-review.md`（发现叙述须精确、复算命令须可复现且实测值真实——主 agent 给出的复算值 `0` 与本审查员实测 `4` 不符，属复算声明失真）；`LESSONS.md` **L-171**（「审查者读的是工件而不是历史：总结面必须与最新一次执行同步」同族——复算声明须与工件实态一致）。
+**Consequence（后果）**：不阻塞 toll-gate（门禁 rc=0 已由 R4②-a 亲证；该 4 命中为自引用 grep 模式串，PAT 不命中）。但主 agent 的复算声明 `grep -c = 0` 与工件实态（4）不符——若后续审查者照主 agent 复算命令跑会得 4 而非 0，可能误判「R4② 未处置」而重开一轮 L2。实态是：真实路径泄漏已清除（R4②-a），残留仅为 grep 模式串自引用，不影响门禁。
+**Remedy（修补）**：把 `INDEPENDENT-REVIEW-7.md:278` 的复算声明从「`grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` = **0**」改为准确口径——「完整真实探针路径 `/home/zz-uat-probe/leak.txt`（带尾 `/`）已 0 命中（PAT 不再命中）；残留 4 处为 grep 模式串自引用（`grep -n '/home/zz-uat-probe' ...` 命令引用文本），账号名后跟闭合引号不构成 PAT `=/home/[a-z_][a-z0-9_-]*/` 命中 ⇒ `make check-path-privacy` rc=0」。或接受现状（门禁 rc=0 已达成）并在声明中注明「grep 模式串自引用不计入路径泄漏」。此为 🟢 Minor，不入 fix loop，可写入 MINOR-DEFERRED.md 由用户 triage。
+
+### ✅ R1/R2/R5/R6/R7 · 第 2 轮已判「处置充分」的 5 条 · 顺手复核未被后续改动破坏
+
+**Severity**：🟢 Minor（复核结论 · 5 条处置仍稳固，不阻塞）
+**Symptom（症状）**：第 2 轮已判「处置充分」的 5 条（R1/R2/R5/R6/R7），本轮顺手抽查未被后续改动破坏：① `grep -c 'health-fix-2026-09b' .specs/STATE.md` 对 `last_change_archived` 行仍 = 0（R1 稳固）；② `grep -c 'health-fix-2026-09b' .specs/CHANGELOG.md` 仍 = 0（R2 稳固）；③ `sed -n '44p' INTEGRATION.md`（§3 第 10 行）仍含「会实际触发 + 预演实测 + rc=2」（R5 稳固）；④ `grep -n 'TD-112' .specs/CONTEXT.md`（:659）仍为「17–31 行」区间口径（R6 稳固）；⑤ `sed -n '48p' INTEGRATION.md`（§3 section 级）仍为「编号区间 + 新增 53 条」（R7 稳固）。
+**Source（源头）**：第 2 轮复核汇总（R1/R2/R5/R6/R7 → ✅）。
+**Consequence（后果）**：5 条处置均未被第 2 轮后的改动破坏。
+**Remedy（修补）**：无需追加修补。
+
+---
+
+### 复跑/核验命令清单（本审查员亲验 · 第 3 轮）
+
+| 命令 | rc | 用途 |
+|---|---|---|
+| `grep -n '待裁决\|须先裁决\|呈用户裁决' INTEGRATION.md` | 1（0 命中） | R3 自证：三类「未决」措辞已清除 |
+| `sed -n '26p' INTEGRATION.md` | 0 | R3 §2 隐私门禁「已由用户裁决 · 执行随归档 commit」 |
+| `sed -n '61p' INTEGRATION.md` | 0 | R3 §4#8「策略已裁决 · 执行随归档 commit」 |
+| `sed -n '67p' INTEGRATION.md` | 0 | R3 §5 标题「已裁决项（策略① · 2026-09-28）」 |
+| `sed -n '79p' INTEGRATION.md` | 0 | R3 §5 正文「裁决结果（2026-09-28 · 用户）：选策略①」 |
+| `sed -n '82p' TEST.md` | 0 | R4① 读 §1.2 UAT ② 描述行（已含订正段） |
+| `sed -n '82p' TEST.md \| grep -oE '就地订正\|历史形态\|不进隐私分支\|不含路径' \| sort -u` | 0（4 标注全命中） | R4① 四类标注全在 |
+| `sed -n '82p' TEST.md \| grep -c '就地订正'` | 0（1 命中） | R4① 主 agent 复算命令自证 |
+| `sed -n '147p' INDEPENDENT-REVIEW-7.md` | 0 | R4②-a 读 :147（探针字面已脱敏为 `/home/<acct>/leak.txt`） |
+| `grep -nE '/home/zz-uat-probe/leak\.txt\|/home/zz-uat-probe/' INDEPENDENT-REVIEW-7.md` | 1（0 命中） | R4②-a 完整真实探针路径已清除 |
+| `make check-path-privacy` | 0（命中合计 0 · 清单外命中 0） | R4②-a 实跑隐私门禁自证 rc=0 |
+| `grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` | 0（4 命中） | R4②-b 实测 4 ≠ 主 agent 声称 0 |
+| `git show HEAD:.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md \| grep -c '/home/zz-uat-probe'` | 0（4 命中） | R4②-b 已提交态同工作树（4 命中） |
+| `grep -c 'health-fix-2026-09b' .specs/STATE.md`（对 `last_change_archived` 行） | 0（0 命中） | R1 顺手复核仍稳固 |
+| `grep -c 'health-fix-2026-09b' .specs/CHANGELOG.md` | 1（0 命中） | R2 顺手复核仍稳固 |
+| `sed -n '44p' INTEGRATION.md` | 0 | R5 顺手复核「会实际触发」仍在 |
+| `grep -n 'TD-112' .specs/CONTEXT.md` | 0（:659 命中） | R6 顺手复核「17–31 行」仍在 |
+| `sed -n '48p' INTEGRATION.md` | 0 | R7 顺手复核「编号区间 + 新增 53 条」仍在 |
+| `git rev-parse HEAD` | 0 | `cf113b668dd160bd2bdca85947cef620ecaa3f70` |
+| `git status --porcelain`（收工） | 0（工作树干净） | 确认无未提交改动、无探针残留 |
+
+---
+
+### 处置复核汇总（第 3 轮 · 收口轮）
+
+| # | 级别 | 第 2 轮残留 | 第 3 轮复核结论 |
+|---|---|---|---|
+| R3 | 🟡→✅ | §2/§4#8/§5 标题+正文跨段口径分裂 | **处置充分**（四处统一为「已由用户裁决 · 执行随归档 commit」；`grep '待裁决\|须先裁决\|呈用户裁决'` = 0 命中） |
+| R4① | 🟡→✅ | `TEST.md:82` 未就地订正 | **处置充分**（:82 含全部 4 类标注：就地订正/历史形态/不进隐私分支/不含路径） |
+| R4②-a | 🟡→✅ | `INDEPENDENT-REVIEW-7.md:147` 真实路径致门禁 rc=1 | **处置充分**（:147 已脱敏；完整真实探针路径 0 命中；`make check-path-privacy` rc=0 · 清单外命中 0） |
+| R4②-b | —→🟢 | 主 agent 复算声明 `grep -c '/home/zz-uat-probe' = 0` 与实测不符 | **新发现 · 🟢 Minor**（实测 4 命中，均为 grep 模式串自引用，PAT 不命中 ⇒ 门禁仍 rc=0；不阻塞，建议订正复算声明口径或入 MINOR-DEFERRED.md） |
+| R1/R2/R5/R6/R7 | ✅→✅ | 第 2 轮已判处置充分 | **顺手复核仍稳固**（5 条均未被后续改动破坏） |
+
+> 第 2 轮 2 条残留的 4 处订正：R3 四处口径 + R4① :82 订正 + R4②-a 门禁 rc=0 共 3 处**处置充分**；R4②-b 为本轮新发现的 🟢 Minor（主 agent 复算声明失真，但门禁 rc=0 已达成、不阻塞）。无 🔴 Critical，无 🟡 Important 残留。
+
+**Verdict**: pass
+
+---
+
+## L3 重审（deepseek-v4-flash-0731 外部模型 · 2026-09-29 01:05）
+
+> 自动生成于 2026-09-29 01:05。由 l3-review.sh 写入。
+
+### 审查结论
+
+```json
+{
+  "critical": [],
+  "major": [
+    {
+      "file": ".specs/CHANGELOG.md:4",
+      "issue": "CHANGELOG.md 把隐私归档的「历史重写（含已推送）」写成已完成（②③⑤⑥ 均以完成态陈述），但同一 change 的 CHANGE.md/INTEGRATION.md 未显示「全历史重写已执行完成」的权威证据，且归档产物中没有 ARCHIVE-MANIFEST.txt 或归档完成记录；CHANGELOG 的 2026-09-22 条目还引用了「安全网删除并复核不可达」等只在推送确认后才能成立的语句。",
+      "why": "按前次审查上下文 R2 同类问题：未执行或未确认的归档动作被写成已完成，属于事实性陈述错误；CHANGELOG 是项目级对外状态文件，不应把待维护者强推/待确认的动作表述为已闭环。",
+      "fix": "在 CHANGELOG 对应条目中把「待维护者强推」「推送确认后删安全网」改为显式未决状态，或删除完成态措辞；待真正归档后再补记完成。"
+    },
+    {
+      "file": ".specs/health-fix-2026-09b/INTEGRATION.md",
+      "issue": "INTEGRATION.md（阶段 7 收口记录）的 Goal 自检把隐私归档策略判定为 ✅ 满足，但工件内可见的隐私处理范围仍包含「全历史重写（含已推送）」依赖维护者强推、安全网删除等未决事项，且 CHANGE.md 口述「全历史重写完成」而归档目录未提供 ARCHIVE-MANIFEST.txt 佐证；INTEGRATION 的归档计划也未见本节。",
+      "why": "Goal 自检把依赖外部动作（remote force-push）的隐私目标标为已满足，属于把未决事项前置为达成，会误导放行决策；且归档完整性无法从工件证明。",
+      "fix": "在 INTEGRATION.md 中把隐私归档条件拆为「本地已完成/待推送确认」两态，Goal 自检对应项改为 ⚠️ 有条件，并补充归档清单或明确归档未执行。"
+    },
+    {
+      "file": ".specs/health-fix-2026-09b/INTEGRATION.md（§1 UAT ②）",
+      "issue": "UAT ② 的现态描述为「真泄漏探针 → rc=1 / 命中 1 条 / rejected」，但同段又自述「历史那条探针带泄漏字面」与现态「不含路径字面」的差异已登记——即 TEST.md 或历史 UAT 记录与现态行为不一致，而本工件未就地订正 TEST.md 的对应历史形态表述。",
+      "why": "UAT 记录与测试报告对同一探针行为的描述存在两套口径，读者无法判断哪一个是权威行为；这属于测试证据一致性缺陷。",
+      "fix": "在 INTEGRATION.md 中给出 TEST.md 对应段的行锚并就地订正，使历史形态与现态行为明确区分、不互相矛盾。"
+    }
+  ],
+  "minor": [
+    {
+      "file": ".specs/health-fix-2026-09b/INTEGRATION.md",
+      "issue": "INTEGRATION.md 只显示前 3000B 预览，未出现「归档计划/归档清单」小节；按审查重点，归档产物是否齐全（CHANGE/REQUIREMENT/DESIGN/TASK/T0x-SUMMARY/TEST/REVIEW）需要归档清单佐证，而预览中未见归档完整性确认。",
+      "why": "归档完整性是阶段 7 的审查重点，工件内应有归档产物清单或归档完成声明；当前可见部分没有。",
+      "fix": "补充归档产物清单（或指明归档未执行）；若完整正文已有则不受本 minor 影响。"
+    },
+    {
+      "file": ".specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md",
+      "issue": "目录中存在 INDEPENDENT-REVIEW-7.md（61,890 B，权限 600，时间 01:05），但本次审查说明该文件应由审查子系统在本次审查之后写入，当前存在可能只是占位或其它内容；未在预览中给出正文，无法核验。",
+      "why": "若它是本次审查前被误写的内容，可能造成审查记录污染；但按上下文规则其缺失/为空属预期，故仅提示核验。",
+      "fix": "确认 INDEPENDENT-REVIEW-7.md 内容为空或由审查子系统生成，否则补充说明。"
+    }
+  ],
+  "verdict": "pass",
+  "summary": "必备六件与补充产物齐全、项目级 CHANGELOG 已更新，未发现致命缺陷；主要问题集中在隐私归档的完成态表述与 UAT 行为口径不一致，建议在放行前订正。"
+}
+```
+
+L3_artifact_hash: 6388e2efc39160d9f0cf522178de3113273886da8ddbe6220abe63ae9bf9c926
+
+<!-- /L3-SECTION -->
