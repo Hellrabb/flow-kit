@@ -1903,3 +1903,20 @@ fi
 - **R6 领域扭曲**：新增命名均为领域/机制词（`nfr-portability-baseline` · `check-nfr-portability-full` · `_NFR_ALL_HITS`/`_BASE_KEYS`/`_NFR_NEW` · `_hook_tmp`），无 `data`/`info`/`item` 类技术词 ⇒ 无发现。
 
 **口径披露（诚实项 · 供阶段 5/6 复核）**：本自检的**第 2 项是首次真跑** —— 它一次抓出两处 11 小时无人发现的残骸（`T-FIX-15` 缺完成标记 · `T-FIX-16` 回执误置仓库根）。⇒ 结论：**此前各轮的「4→5/rollback 门」都没有执行过该 8 项穷举**；本轮的 ✅ 是**首次**全绿，而非既有状态的延续。该系统性缺口已登记 `L-180` / `TD-101`（v2 = `make check-task-ledger`）。
+
+---
+
+## ❌ 阶段 5 第 12 次执行（REPRO11）首跑失败与回退（主 agent · 2026-09-28）
+
+**运行**：`FK_REPRO_LOG_DIR=/tmp/p6d/r11 bash .specs/health-fix-2026-09b/reproduce-5-test.sh` · HEAD `2444e2a` · 13:30 起跑 · 判据面跑到第 19 条（`T05…T29` + `T-FIX-01…07`）时已得 **2 红**，用户裁决回退 `4-dev` 后中止（剩余 `T-FIX-08…13` 由修复后重跑取代）。原始日志留档 `/tmp/p6d/r11-first-attempt.txt`。
+
+| # | 判据 | rc | 归因（主 agent 亲验） | 处置 |
+|---|---|---|---|---|
+| 1 | `T17` | **1** | `check-path-privacy.sh` 的 `SELF_EXCLUDE` 含 `INDEPENDENT-REVIEW-5.md`/`-6.md` —— 由 `T-FIX-22` 按 `TASK.md:2893`/`:2908` 的指示追加，**与阶段 5 已裁决的 `T13`/`T17` 判据冲突**（豁免面不得超出冻结集 1–3；新增审查档是脱敏第一现场 · `L-149`/`TD-054`）；副作用 = 两文件移出隐私门禁扫面（fail-open）。实测两文件机器路径字面 = **0 / 0** ⇒ 取消豁免不使门禁变红 | `T-FIX-24`（产品件恢复冻结集 + 契约注释订正 + 常设腿）· `TD-085` 处置**反转**登记 |
+| 2 | `T-FIX-04` | **1** | 判据夹具缺 `flow-kit-bundle/test/test_gate_config_presets.bats`（`T-FIX-18` 的 gate-config fail-closed 诊断引入的**必需输入**）⇒「完整夹具本应 rc=0」这条腿自我误报；**生产件无 bug** | 主 agent 就地订正判据夹具（补 `cp` 必需输入，**断言一字未改**）· `TD-102` · `L-181` |
+
+**其余 17 条全绿**：`T05` · `T06` · `T11` · `T13` · `T19` · `T20` · `T22` · `T24` · `T26` · `T27` · `T29` · `T-FIX-01` · `T-FIX-02` · `T-FIX-03` · `T-FIX-05` · `T-FIX-06` · `T-FIX-07`。
+
+**回退（`rollback_4`）**：`from=5 → to=4` · `phases_done` 移除 4/5（保留 0–3）· `goal.current_phase`/顶层 `.phase` = `4` · `gates[4→5]`/`[5→6]` 置 `pending` · `33-flow-active-integrity.sh` **rc=0**。
+
+**独立性/诚实性披露**：`T17` 的冲突**源自主 agent 自己写的 `T-FIX-22` 任务指示**（`REVIEW.md` 的 `R5-5` Remedy 与 `T13`/`T17` 相冲，派发时未做「改动面 ↔ 既有判据」对账）；`T-FIX-04` 的夹具缺陷亦源自主 agent 手列目录的夹具写法。两条都不归因执行者 —— `T-FIX-22` 执行者按派发词忠实施作且回执齐全。

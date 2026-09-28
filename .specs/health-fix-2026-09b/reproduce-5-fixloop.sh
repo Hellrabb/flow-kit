@@ -136,10 +136,11 @@ echo "-- T-FIX-22（R5-20/R5-21/R5-22/R5-5 具名诊断 + 短路次序 + 归档�
 grepc "T-FIX-22 jq 合并失败具名诊断" flow-kit-bundle/lib/install_hooks.sh '合并失败：jq 解析/执行错误' 1
 grepc "T-FIX-22 jq 报文回显" flow-kit-bundle/lib/install_hooks.sh 'jq 报文：' 1
 grepc "T-FIX-22 jq 失败声明原文件未改动" flow-kit-bundle/lib/install_hooks.sh '原文件未改动（fail-closed）' 1
-# SELF_EXCLUDE 断言刻意用**锚定整行**（不是 INDEPENDENT-REVIEW-[56] 计数）：基线里该 ERE 已有 1 处
-# 注释命中（check-path-privacy.sh:613「INDEPENDENT-REVIEW-6 ③」），计数口径会随散文漂移（TD-099 同族）。
-grepc "T-FIX-22 SELF_EXCLUDE 含 IR-5" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5\.md$' 1
-grepc "T-FIX-22 SELF_EXCLUDE 含 IR-6" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6\.md$' 1
+# 【T-FIX-24 反转留痕】本段原有两条「SELF_EXCLUDE 含 IR-5 / 含 IR-6 = 1」断言 —— 那是 T-FIX-22
+#   依当时 TASK.md 指示所做的处置，**已被阶段 5 第 12 次执行判为冲突**（T13/T17 冻结判据：豁免面不得
+#   超出冻结集 1–3；L-149/TD-054），断言方向在下方 T-FIX-24 段**整体反转**为「不含」。
+# 断言口径仍用**锚定整行**（不是 INDEPENDENT-REVIEW-[56] 计数）：基线里该 ERE 已有 1 处注释命中
+#   （check-path-privacy.sh:613「INDEPENDENT-REVIEW-6 ③」），计数口径会随散文漂移（TD-099 同族）。
 # R5-22 归档面：ADR 截断须落「已丢弃 N 条」标记（旧实现只 break，artifact 无痕）
 grepc "T-FIX-22 ADR 上限丢弃计数标记" flow-kit-bundle/hooks/stop/lib/l3-prompt.sh '已丢弃' 1
 batsnet "T-FIX-22 ADR 截断常设网" test/test_l3_adr_truncation.bats 4
@@ -191,6 +192,35 @@ grepc "T-FIX-23 基线文件 5 条" flow-kit-bundle/flow-kit/reference/nfr-porta
 batsnet "T-FIX-23 NFR 门禁常设网" test/test_nfr_portability_gate.bats 20
 
 echo
+echo "-- T-FIX-24（T17 回归收口 · R5-5 处置订正：豁免面恢复冻结集 1–3）"
+# 背景：T-FIX-22 把 INDEPENDENT-REVIEW-5/6.md 追加进 SELF_EXCLUDE ⇒ T17 rc=1（豁免面不得超出冻结集
+#   1–3；新增审查档是脱敏第一现场，正确处置是就地 de-shape · L-149/TD-054）。主 agent 实测两文件
+#   机器路径字面 = 0/0 ⇒ 取消豁免不使门禁变红（自排除 8→6 · 实际扫描 1614→1616 · 候选与命中不变）。
+grepc "T-FIX-24 SELF_EXCLUDE 不含 IR-5" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5\.md$' 0
+grepc "T-FIX-24 SELF_EXCLUDE 不含 IR-6" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6\.md$' 0
+grepc "T-FIX-24 冻结档 1 仍在表内" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1\.md$' 1
+grepc "T-FIX-24 冻结档 2 仍在表内" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2\.md$' 1
+grepc "T-FIX-24 冻结档 3 仍在表内" flow-kit-bundle/flow-kit/reference/check-path-privacy.sh '^\.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3\.md$' 1
+# 冻结集成员数 = 6（脚本本体 + 两份允许清单 + IR-1/2/3）。用 awk 抽 SELF_EXCLUDE 区块计数，
+#   不依赖 grep 的全文化匹配（避免把注释里的路径字样算进来）。
+_t24f=flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
+_t24n=$(awk "/^SELF_EXCLUDE='/{f=1;next} f&&/^'$/{f=0} f&&NF{n++} END{print n+0}" "$_t24f")
+if [ "$_t24n" = "6" ]; then
+  ok "T-FIX-24 SELF_EXCLUDE 成员数 = 6（冻结集）"
+else
+  bad "T-FIX-24 SELF_EXCLUDE 成员数" "$_t24n（期望 6）"
+fi
+# T17 判据本体（从 TASK.md 原样抽取后字面执行）：这是本轮的**权威红面判据**
+_t24d=$(mktemp -d)
+awk '/<task id="T17"/,/^<\/task>/' .specs/health-fix-2026-09b/TASK.md | sed -n '/<verify>/,/<\/verify>/p' | sed '1d;$d' > "$_t24d/v_T17.sh"
+if [ -s "$_t24d/v_T17.sh" ] && bash "$_t24d/v_T17.sh" > "$_t24d/out17" 2>&1; then
+  ok "T-FIX-24 T17 判据原样实跑 rc=0（阶段 5 第 12 次执行的红面已收口）"
+else
+  bad "T-FIX-24 T17 判据" "$(tail -3 "$_t24d/out17" 2>/dev/null | tr '\n' ' ')"
+fi
+rm -rf "$_t24d"
+batsnet "T-FIX-24 隐私常设网（含豁免面冻结腿）" test/test_path_privacy_gate.bats 35
+
 echo "== 汇总：✅ $PASS · 🔴 $FAIL =="
 [ "$FAIL" -eq 0 ] || exit 1
 exit 0

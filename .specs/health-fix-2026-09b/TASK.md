@@ -1739,6 +1739,14 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     cp "$SUT" "$SBX/fk/flow-kit-bundle/flow-kit/reference/";
     cp -r flow-kit-bundle/flow-kit/prompts/. "$SBX/fk/flow-kit-bundle/flow-kit/prompts/";
     cp -r flow-kit-bundle/skills/. "$SBX/fk/flow-kit-bundle/skills/";
+    # 【判据订正 · 主 agent 2026-09-28 · 阶段 5 第 12 次执行抓出】`T-FIX-18` 给
+    #   `check-gate-sync.sh` 加了 gate-config fail-closed 诊断，其**必需输入** = 
+    #   `flow-kit-bundle/test/test_gate_config_presets.bats`；本夹具原先只拷
+    #   reference/prompts/skills ⇒ 「完整夹具本应 rc=0」这条腿因**缺必需输入**被判红
+    #   （实测：补齐前 rc=1 + `🔴 MISSING: gate-config 同步无法校验（未比对）`；补齐后 rc=0）。
+    #   判据面缺陷（同族 TD-071…TD-081），生产件无 bug ⇒ 就地补必需输入、断言一字未改。
+    mkdir -p "$SBX/fk/flow-kit-bundle/test";
+    cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/";
     ( cd "$SBX/fk" && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh ) > "$SBX/ok.out" 2>&1; OK=$?;
     [ "$OK" -eq 0 ] || { echo "🔴 完整夹具本应 rc=0 实得 $OK"; tail -8 "$SBX/ok.out"; rc=1; };
     # 判据修复（主 agent 2026-09-24 · TD-065）：原实现 `ls …/skills/*/SKILL.md | head -1`
@@ -2976,4 +2984,41 @@ CONTEXT.md 禁动清单原文命中的条目逐条核对：
     verify: ① 先红三腿留档（HEAD 态 5 处 mapfile：sync-hooks 182/197/198 + verify-claims 119/135；pristine worktree /tmp/p6d/v23base@8bdfa6b FULL 模式 rc-file=1 · 19 行/12 文件；默认变更集 rc=0 同构造不报） · ② bash -n 五脚本 rc=0 · 两脚本 bash4 内建=0 · ./sync-hooks.sh --check rc=0/漂移 0 · verify-claims 第1/2节 carriers=7/8 · ③ 默认 rc=0 · 归档外注入 rc≠0 具名 file:line · 归档内注入 rc=0（排除生效） · ④ make check-nfr-portability-full rc=0 且含「ℹ️ 存量基线 5 条」· FLOW_KIT_CHANGE_BASE=FULL make check-nfr-portability rc=0 · ⑤ 真仓基线陈旧探针 ⇒ 非 0 + 「⚠️ 基线陈旧：sync-hooks.sh:999」，基线 sha256 f7bad353… 原样回滚（H0=H1） · ⑥ 常设网 test/test_nfr_portability_gate.bats 20 例（14→+6）全绿 · npx bats 1..1114 ok=1114 notok=0 skip=0 · make check 见 MINOR-DEFERRED 复核记录末段
     写面: Makefile(R5-23 全量入口 check-nfr-portability-full + 归档面排除 + 存量基线 ratchet) · sync-hooks.sh(mapfile×3 → 便携读循环) · verify-claims.sh(mapfile×2) · flow-kit-bundle/hooks/stop/34-archive-commit-check.sh(stat -c → GNU先BSD后双分支) · flow-kit-bundle/lib/install_brooks.sh(GNU sed -i → tmp+mv · 失败路径清理) · flow-kit-bundle/flow-kit/reference/nfr-portability-baseline.txt(新建 5 条) · test/test_nfr_portability_gate.bats(+6) · flow-kit-bundle/test/test_nfr_portability_gate.bats(镜像) · .specs/health-fix-2026-09b/T-FIX-23-SUMMARY.md · .specs/health-fix-2026-09b/TASK.md(本件) · .flow-active(goal.task_progress append · gitignored 不提交)
   </done>
+</task>
+
+<task id="T-FIX-24" parallel="false" status="pending" model-tier="top">
+  <name>【T17 回归 🔴 · R5-5 处置订正】SELF_EXCLUDE 恢复冻结集 1–3 + 契约注释对齐阶段 5 裁决 + 常设腿（豁免面冻结）</name>
+  <read_files>
+    <`.specs/health-fix-2026-09b/TASK.md` 的 `T13`（`:537` 段「审查档排除面与 T17 门禁的排除表同源」）与 `T17`（verify 尾部「排除表边界」段）—— 阶段 5 已裁决：**新增审查档一律不豁免**，被追加进排除表即红；放宽须 ADR 裁决（`L-149` / `TD-054`）>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh:80-95`（`SELF_EXCLUDE` 现含 `INDEPENDENT-REVIEW-5.md`/`-6.md` 两行；区块注释仍写「后续阶段新增审查档时必须显式追加精确路径」——即该注释本身是导致 `T-FIX-22` 走错方向的契约文本）>
+    <`flow-kit-bundle/test/test_path_privacy_gate.bats`（34 例；`:314-330` 是 F19 的静态/夹具混合风格参考）>
+    <`.specs/health-fix-2026-09b/REVIEW.md` 的 `R5-5`（原处置 = 追加两行；其 Remedy 与 `T13`/`T17` 冲突）· `.specs/health-fix-2026-09b/MINOR-DEFERRED.md` 的 `T-FIX-22 复核记录`>
+    <`.specs/CONTEXT.md` 的 `TD-085`（v2 口径原写「差集非空即 rc≠0」= 与 `T17` 相反，须订正）>
+  </read_files>
+  <write_files>
+    <`flow-kit-bundle/flow-kit/reference/check-path-privacy.sh`（**只改 `SELF_EXCLUDE` 区块**：删两行 + 重写该区块注释。**不得**改扫描面 / 候选枚举 / 命中口径 / 自证行 / 允许清单读序 / `PAT`）>
+    <`test/test_path_privacy_gate.bats`（+1 例：豁免面冻结断言）>
+    <`flow-kit-bundle/test/test_path_privacy_gate.bats`（镜像，逐字相同）>
+    <`.specs/health-fix-2026-09b/T-FIX-24-SUMMARY.md`>
+    <`.specs/health-fix-2026-09b/TASK.md`（勾本任务 `status` + `<done>`）>
+  </write_files>
+  <action>
+    0. **背景已裁决，不要重新论证**：`T-FIX-22` 按当时 `TASK.md:2893`/`:2908` 的指示把 `INDEPENDENT-REVIEW-5.md`/`-6.md` 追加进 `SELF_EXCLUDE`。该指示与阶段 5 已裁决的 `T13`/`T17` 判据**直接冲突**（豁免面冻结集 = 本脚本 + 两份允许清单 + `INDEPENDENT-REVIEW-1/2/3.md`；新增审查档是脱敏第一现场，正确处置是**就地 de-shape**而非豁免）。阶段 5 第 12 次执行 `T17` rc=1 即该冲突的机器判据。主 agent 已实测：两文件当前机器路径字面命中 = **0 / 0** ⇒ 取消豁免不会让门禁变红。
+    1. **先红留档**（命令 + rc + 报文）：`awk` 抽取 `TASK.md` 的 `T17 <verify>` 全文 → `bash` 实跑 ⇒ 现态 **rc=1** + 报文 `🔴 审查档 .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md 被纳入门禁排除表（豁免面不得超出冻结集 1–3…）`（主 agent 2026-09-28 实测同报文，原始日志 `/tmp/p6d/r11-first-attempt.txt`）。
+    2. **生产件最小修**：从 `SELF_EXCLUDE` 中删除 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md` 与 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-6.md` 两行（**只删这两行**，其余 6 条一字不动）。
+    3. **契约注释重写**（同区块）：删除「后续阶段新增审查档时必须显式追加精确路径到本清单」旧口径，改为：「冻结集 = 本脚本 + 两份允许清单 + `INDEPENDENT-REVIEW-1/2/3.md`（成文早于脱敏规则、原文含真实账号路径，逐条精确豁免）；**此后新增的审查档一律不豁免** —— 它们是脱敏泄漏的第一现场，必须由本门禁就地判红并 de-shape；放宽豁免面须 ADR 裁决（`L-149`/`TD-054`/`T13`/`T17`）」。**硬约束**：注释里**不得**出现 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-5.md`（或 `-6.md`）的完整字面 —— `T17` 用 `grep -qF <路径>` 全文匹配，注释里写了同样判红（用「新增审查档」「`INDEPENDENT-REVIEW-{5,6}.md`」这类不含完整路径的表述）。
+    4. **常设腿（+1 例 · 双源镜像 · 判别力优先）**：新用例断言 `SELF_EXCLUDE` 的**成员集合精确等于冻结 6 条**（顺序可比对或排序后比对；新增任何条目 —— 尤其 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-{4,5,6,…}.md` —— 即 `not ok`）。用例名须写明「豁免面冻结 / 新增审查档被追加 ⇒ 红」并注明 `L-149`/`TD-054`。
+    5. **判别力实证（必须贴输出）**：在**副本**上（复制 SUT 到 `/tmp`，或用 `BATS` 变量指向副本）追加一行伪条目 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-4.md` ⇒ 新用例必须 `not ok`；去行后复绿。**禁止**直接改仓内真件后不复原；若确需临时改真件，必须前后 `sha256sum` 一致并贴两次数值。
+    6. **复跑面（原样实跑并贴 rc/报文选段）**：① `T17 <verify>` 抽取实跑 ⇒ **rc=0**；② `bash .specs/health-fix-2026-09b/reproduce-5-test.sh --criteria-only --only T17` ⇒ 该条 rc=0；③ `make check-path-privacy` rc=0 —— 自排除 **8 → 6** · 实际扫描 **1614 → 1616**（+2 = 两份审查档重新进扫面）· 候选 **1622 不变** · 命中合计 **0** · 清单外命中 **0**；④ `npx bats test/test_path_privacy_gate.bats` 全绿（含新腿）+ **同一镜像件 `cmp -s` 相同**；⑤ 全量 `npx bats test/` = `1..1115` · 0 not ok；⑥ `make check` **21 ✅ / 0 ❌**。
+    7. **同步与提交**：`make test-sync` → `package-dsh-plugin.sh` → `make check-hooks-sync check-test-sync check-dist` → `make check`；`git add` 逐路径 + `git commit -m "fix(health-fix-2026-09b): T-FIX-24 SELF_EXCLUDE 恢复冻结集 1–3（T17 回归收口 · R5-5 处置订正）" -- <路径…>`。
+    8. 提交后写 `T-FIX-24-SUMMARY.md` + 勾 `status="done"` + `<done>` + `task_progress` 五字段（Δ ≤ 120 s）。
+  </action>
+  <verify>
+    ① 先红留档：`T17 <verify>` 现态 rc=1 且报文指名 `INDEPENDENT-REVIEW-5.md` 被纳入排除表（贴原文）。
+    ② 修复后 `T17 <verify>` 原样抽取实跑 **rc=0**（三项子断言全过：宽通配 0 · 冻结 3 档在表内 · 枚举到的 IR 档 ≥ 3 且新增档不在表内）。
+    ③ `grep -c 'INDEPENDENT-REVIEW-[56]\.md' flow-kit-bundle/flow-kit/reference/check-path-privacy.sh` = **0** · `SELF_EXCLUDE` 成员数 = **6**。
+    ④ `make check-path-privacy` rc=0（自排除 6 · 实际扫描 1616 · 命中 0 · 清单外 0）；`npx bats test/test_path_privacy_gate.bats` 全绿含新腿，且新腿在注入伪条目时 `not ok`（判别力实证 + 复原证据）。
+    ⑤ `make check` 21 ✅ / 0 ❌；`npx bats --count test/` = **1115**。
+  </verify>
+  <depends_on>T-FIX-23（串行：全仓门禁为独占步骤）</depends_on>
 </task>
