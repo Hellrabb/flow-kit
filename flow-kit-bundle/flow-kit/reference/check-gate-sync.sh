@@ -4,9 +4,19 @@
 # 防止双入口漂移：prompt 改了但 skill 没改（或反之）
 # exit: 0=一致, 1=发现漂移, 2=脚本错误
 # ============================================================================
-set -euo pipefail
+# health-fix-2026-09c T07（DESIGN D1 / AC-7 / ADR-030）：本文件同时是**提取器宿主**。
+# gate-config 契约的「预设名/值解析」上提到本 .sh —— bats 测试 source 本文件获得
+# 与检查器**同一**提取器 resolve_gate_config（AC-7 Given：双侧读同一生产实现；
+# 测试 source 的是检查器自身，非生产 hook lib）。被 source 时只定义函数、不注入
+# shell 严格选项、不执行主流程；仅作为主程序执行时才启用严格模式并跑校验。
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail          # 主程序：严格模式（被 source 时不得污染调用方 shell 选项）
+  FK_CGS_MAIN=1
+else
+  FK_CGS_MAIN=0              # 被 source：函数定义即止（提取器供 bats 双侧同源使用）
+fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ERRORS=0
 COMPARED=0    # 实际参与内容比对的 PCSC 对数（两侧文件均在才算；缺失对不计）
@@ -17,9 +27,11 @@ COMPARED=0    # 实际参与内容比对的 PCSC 对数（两侧文件均在才�
 # 本门禁只校验 PCSC（prompt↔skill 一致性校验对）判据，判据为「比内容」：
 #   比较对 = 内容本应一致、仅平台 front-matter（SKILL 独有的 YAML 头）不同的
 #   prompt↔skill 载体对。v1 覆盖 3/PAIRS_TOTAL 对（实测 diff 恒为 6 行 = front-matter）。
-# 边界（DESIGN D5）：
-#   - 只改 PCSC 判据；**不碰**同文件 check_gate_config_sync() 的值比较逻辑
-#     （TD-033/TC1、TD-034/TC2 属 v2，本 change 不收）。
+# 边界（DESIGN D5；health-fix-2026-09c T07 修订）：
+#   - PCSC 判据维持「比内容」；gate-config 值比较已由 health-fix-2026-09c T07
+#     （D1/AC-7）升级：旧「只比预设名集合」边界被取代 —— 双侧经提取器
+#     resolve_gate_config 读生产文本、比**键值对集合**（值漂移可转红）。
+#     TD-033/TC1、TD-034/TC2 的 PCSC 侧判据仍属 v2，本面不收。
 #   - 排除 PCSC 表本身：reference/phase-prompt-template.md:144 明写其属
 #     「结构性文档化（不抽取）」，逐 phase 本就不应相同 —— 不纳入本门禁比较。
 #   - 排除 hooks 镜像面：已有 check-hooks-sync 专职守护，纳入属重复覆盖（L2 N2）。
@@ -27,9 +39,6 @@ COMPARED=0    # 实际参与内容比对的 PCSC 对数（两侧文件均在才�
 #   其中 N 为实际比对对数（COMPARED），防汇总行「✅ … 一致」被误读成全量全绿。
 #   任一校验对缺 prompt/skill 文件 ⇒ 计入错误（F6 收敛：不得裸 return + ✅ 全绿）。
 # ============================================================================
-
-echo "🔍 check-gate-sync: 校验 prompt↔skill 内容一致性..."
-echo ""
 
 # PCSC 校验对清单（v1：3/PAIRS_TOTAL；其余对已实质分叉，留 v2/TD-025）
 # 每项：prompt 文件名(无扩展名) ; skill 目录名
@@ -183,15 +192,125 @@ check_pair() {
   echo ""
 }
 
-# ── 校验对 2: gate-config 预设名同步（SKILL.md PRESET_MAP ↔ bats 镜像）──
-# G4 ADR: 语义 set-diff（非文本段 marker）。防"SKILL.md 加预设但 bats 镜像没跟"的漂移。
-# 提取两侧预设名集合做 diff；集合不等 → exit 1（计入 ERRORS）。
-# 【DESIGN D5 边界】本函数的值比较逻辑属 TC1/TC2（TD-033/TD-034），v2 范围，本 task 不改。
+# ── 提取器：resolve_gate_config（health-fix-2026-09c T07 · D1/AC-7/ADR-030）──
+# 从「生产文本」提取 gate-config 契约键值对集合（预设 → 各 phase 键=值）。
+# 双侧（skills/flow/SKILL.md PRESET_MAP ↔ test/test_gate_config_presets.bats
+# mock case 块）共用本提取器 —— bats 测试 source 本文件即获得与检查器同一实现
+# （AC-7 Given 字面：「预设名/值解析已提到生产 .sh，测试与 check-gate-sync.sh
+# 双侧 source 同一实现」；本文件即该 .sh）。
+#
+# ADR-030 豁免依据：本检查器位于 reference/（§2.2 纯文档目录），豁免条件之一是
+# 「只把生产代码/文档当作数据（文本）读取」—— 本提取器用 grep/sed/awk 逐行
+# 文本定位 + 锚点提取（ADR-030 决策 2「数据化解析」边界），**不 source、不
+# eval** 被检生产 hook/skill 代码；reference→生产 仅为文本依赖。
+#
+# 用法:  resolve_gate_config <skill|bats> <file>
+#   skill —— 读 skills/flow/SKILL.md：段锚点「预设名映射表（PRESET_MAP）」→
+#            「数字映射：」；行形如 `# <name> → {...}`（首 {...} 之后可带尾注，
+#            如 ⚠️ tokens 提示，提取时丢弃）。
+#   bats  —— 读 test_gate_config_presets.bats：段锚点 `case "$value" in` →
+#            `esac`；分支行（`full)` / `code-only|review)`，| 为别名）与其紧随
+#            `echo '{...}'` 值行配对。
+# 输出:  每行一个键值对，规范形 `<preset> <phase-key>=<value>`（sort -u）。
+#        {...} 值**完整展开**参与比对——旧判据 sed s/\).*// 在 `)` 截断、值
+#        从不参与比对（C5/C11 病灶），本提取器就此消除。
+# rc:    0=提取成功；1=参数错/文件不可读；2=格式漂移（段锚点缺失或零预设行）
+#        —— fail-closed：解析失败 ≠ 通过，格式漂移必须转红不得误绿（D1 取舍）。
+
+# _rgc_expand_json — '{"k":"v",...}' → 每行 `k=v`（私有辅助；值域为
+# both/L2/L3/independent 等简单词，无嵌套无逗号，可安全按 "," 切分）
+_rgc_expand_json() {
+  printf '%s\n' "$1" \
+    | sed -e 's/^{//' -e 's/}$//' -e 's/","/"\n"/g' \
+    | sed -e 's/^"//' -e 's/"$//' -e 's/":"/=/' \
+    | { grep -v '^$' || true; }
+}
+
+resolve_gate_config() {
+  local side="${1:-}" file="${2:-}"
+  if [ -z "$side" ] || [ -z "$file" ]; then
+    echo "resolve_gate_config: 用法: resolve_gate_config <skill|bats> <file>" >&2
+    return 1
+  fi
+  if [ ! -f "$file" ]; then
+    echo "resolve_gate_config: 文件不存在: $file" >&2
+    return 1
+  fi
+
+  # ① 段提取（锚点定位，ADR-030 数据化解析；锚点未命中 ⇒ 空段 ⇒ 走 rc=2 fail-closed）
+  local section=""
+  case "$side" in
+    skill)
+      section=$(sed -n '/预设名映射表（PRESET_MAP）/,/数字映射：/p' "$file") || return 1
+      ;;
+    bats)
+      section=$(sed -n '/^  case "$value" in/,/^  esac/p' "$file") || return 1
+      ;;
+    *)
+      echo "resolve_gate_config: 未知侧别 '$side'（应为 skill|bats）" >&2
+      return 1
+      ;;
+  esac
+
+  # ② 预设行 → `<name>\t{json}` 标记流（awk 纯文本提取，不执行被检文件任何代码）
+  local tagged=""
+  if [ "$side" = "skill" ]; then
+    tagged=$(printf '%s\n' "$section" | awk '
+      /^[[:space:]]*#[[:space:]]*[a-z][a-z0-9-]*[[:space:]]+→[[:space:]]*\{/ {
+        n = $0
+        sub(/^[[:space:]]*#[[:space:]]*/, "", n)
+        sub(/[[:space:]]+→.*/, "", n)
+        j = $0
+        sub(/^[^{]*/, "", j)
+        sub(/\}.*/, "", j)
+        print n "\t" j
+      }
+    ') || tagged=""
+  else
+    tagged=$(printf '%s\n' "$section" | awk '
+      /^[[:space:]]+[a-z][a-z0-9-]*([|][a-z][a-z0-9-]*)*\)[[:space:]]*$/ {
+        pend = $0
+        sub(/^[[:space:]]+/, "", pend)
+        sub(/\)[[:space:]]*$/, "", pend)
+        next
+      }
+      /^[[:space:]]*\*/ || /;;/ { pend = ""; next }
+      pend != "" && /echo/ && /\{/ {
+        j = $0
+        sub(/^[^{]*/, "", j)
+        sub(/\}.*/, "", j)
+        gsub(/[[:space:]]/, "", pend)
+        nb = split(pend, ns, /[|]/)
+        for (i = 1; i <= nb; i++) print ns[i] "\t" j
+        pend = ""
+      }
+    ') || tagged=""
+  fi
+  if [ -z "$tagged" ]; then
+    echo "resolve_gate_config: [$side] 段内零预设行（段锚点缺失或格式漂移）: $file" >&2
+    return 2
+  fi
+
+  # ③ {...} 展开为键值对 + 预设名前缀（别名分支已拆行）+ 集合规范化
+  printf '%s\n' "$tagged" \
+    | while IFS=$'\t' read -r gc_name gc_json; do
+        [ -n "$gc_name" ] || continue
+        _rgc_expand_json "$gc_json" | sed "s/^/$gc_name /"
+      done \
+    | sort -u
+}
+
+# ── 校验对 2: gate-config 预设键值对同步（SKILL.md PRESET_MAP ↔ bats 镜像）──
+# health-fix-2026-09c T07（D1/AC-7，取代 G4 旧判据）：旧判据只比「预设名集合」，
+# 且 bats 侧 sed 在 `)` 截断（s/\).*//）——值从不参与比对，「双侧比对」实为
+# 名字比对：mock 契约值漂移（生产已迁 both、mock 仍 independent）对门禁不可见
+# （更绿不更红，C5/C11 病灶）。新判据：双侧经同一提取器读生产文本、比键值对
+# 集合、任一键/值漂移（如 both→independent 回退）即转红、解析失败 fail-closed。
 check_gate_config_sync() {
   local skill_file="$BUNDLE_ROOT/skills/flow/SKILL.md"
   local bats_file="$BUNDLE_ROOT/test/test_gate_config_presets.bats"
 
-  echo "   校验: gate-config 预设名同步 (SKILL.md PRESET_MAP ↔ bats resolve_gate_config)"
+  echo "   校验: gate-config 预设键值对同步 (SKILL.md PRESET_MAP ↔ bats 镜像 · 提取器 resolve_gate_config)"
   echo "     skill:  $skill_file"
   echo "     bats:   $bats_file"
 
@@ -210,36 +329,25 @@ check_gate_config_sync() {
     return
   fi
 
-  # 提取 SKILL.md PRESET_MAP 段预设名集合
-  # 段标记：「预设名映射表（PRESET_MAP）」→「数字映射：」；每行格式 `# <name> → {...}`
-  # grep 必须含 → 约束：只认 `# name →` 格式，忽略段内英文注释（防误报）；行有前导空格故
-  # 允许 ^[[:space:]]*#（L-014：避免 \] 字符类陷阱，用 [a-z0-9-] + [[:space:]] POSIX 类）
-  # R3-19 收敛：grep 在空集合（如 SKILL.md 被清空）时 rc=1，set -e 下会中止脚本。
-  # 故 `|| true` 兜底 rc，空集合合法得到空串，交由后续 fail-closed 分支判定。
-  local skill_presets
-  skill_presets=$(sed -n '/预设名映射表（PRESET_MAP）/,/数字映射：/p' "$skill_file" \
-    | grep -E '^[[:space:]]*#[[:space:]]*[a-z][a-z0-9-]*[[:space:]]+→' \
-    | sed -E 's/^[[:space:]]*#[[:space:]]*([a-z0-9-]+).*/\1/' \
-    | sort -u || true)
+  # 双侧提取：同一提取器 resolve_gate_config 读生产文本（不 source 被检文件）
+  # `|| rc=$?` 捕获：set -e 下提取器失败不中止，转具名 🔴 PARSE（fail-closed）。
+  local skill_pairs bats_pairs skill_rc bats_rc
+  skill_rc=0; skill_pairs=$(resolve_gate_config skill "$skill_file") || skill_rc=$?
+  bats_rc=0;  bats_pairs=$(resolve_gate_config bats "$bats_file")  || bats_rc=$?
+  if [ "$skill_rc" -ne 0 ] || [ "$bats_rc" -ne 0 ]; then
+    echo "   🔴 PARSE: gate-config 提取器解析生产文本失败（skill rc=$skill_rc / bats rc=$bats_rc；rc=2=段锚点缺失或零预设行）——格式漂移 fail-closed 转红（ADR-030：解析失败 ≠ 通过）"
+    ERRORS=$((ERRORS + 1))
+    echo ""
+    return
+  fi
 
-  # 提取 bats resolve_gate_config 的 case 分支预设名集合
-  # 分支格式：`    full)` 或 `    code-only|review)`（| 分隔别名）
-  # R3-19 收敛：同上，grep 空集合 rc=1 ⇒ `|| true` 兜底（bats 文件被清空时走到这里）。
-  local bats_presets
-  bats_presets=$(sed -n '/^  case "$value" in/,/^  esac/p' "$bats_file" \
-    | grep -E '^    [a-z]' \
-    | sed -E 's/^[[:space:]]+//; s/\).*//' \
-    | tr '|' '\n' \
-    | sed 's/^[[:space:]]*//' \
-    | sort -u || true)
-
-  # 语义 set-diff（集合不等即漂移）
-  # R3-20 收敛：gate-config 的 diff 同样保留 rc，rc≥2 = 机械故障 ⇒ 具名 🔴 + ERRORS。
-  # 同上：set -e 下 diff rc=1 会触发中止，故 set +e … set -e 包裹（bash 3.2 兼容）。
+  # 键值对集合比对（提取器内已 sort -u；diff rc≥2 = 机械故障 ⇒ 具名 🔴，不折算一致）
   local diff_out diff_rc
-  set +e
-  diff_out=$(diff <(printf '%s\n' "$skill_presets") <(printf '%s\n' "$bats_presets") 2>/dev/null); diff_rc=$?
-  set -e
+  if diff_out=$(diff <(printf '%s\n' "$skill_pairs") <(printf '%s\n' "$bats_pairs") 2>/dev/null); then
+    diff_rc=0
+  else
+    diff_rc=$?
+  fi
   if [ "$diff_rc" -ge 2 ]; then
     echo "   🔴 MECHANICAL: gate-config diff 返回 rc=$diff_rc（机械故障，非内容判定）"
     ERRORS=$((ERRORS + 1))
@@ -248,26 +356,29 @@ check_gate_config_sync() {
   fi
 
   if [ -n "$diff_out" ]; then
-    echo "   🔴 DRIFT: gate-config 预设名集合不一致！"
+    echo "   🔴 DRIFT: gate-config 预设名集合不一致（键值对集合比对：名字或值漂移——任一侧 both↔independent/L2/L3 值变动即红，旧名比对对此不可见）"
     echo "$diff_out" | sed 's/^/     /'
     ERRORS=$((ERRORS + 1))
   else
-    # R3-19 收敛：两侧预设集合同时为空时，`grep -c .` 在 set -e 下 rc=1 ⇒ 静默中止。
-    # 修法：`|| true` 兜底 rc，并断言空集合 ⇒ fail-closed（未验证 ≠ 通过）。
-    # 任一侧预设集合为空 ⇒ 具名 🔴 + ERRORS，不得静默继续、不得打印 ✅ 一致。
-    local preset_count
-    preset_count=$(printf '%s\n' "$skill_presets" | grep -c . || true)
-    local bats_count
-    bats_count=$(printf '%s\n' "$bats_presets" | grep -c . || true)
-    if [ "$preset_count" -eq 0 ] || [ "$bats_count" -eq 0 ]; then
-      echo "   🔴 预设集合为空（skill 侧 ${preset_count} 个 / bats 侧 ${bats_count} 个）：无法判定一致性（未验证 ≠ 通过）"
+    # 集合空 fail-closed（防御纵深：提取器 rc=0 但零对的兜底；未验证 ≠ 通过）
+    local pair_count preset_count
+    pair_count=$(printf '%s\n' "$skill_pairs" | grep -c . || true)
+    preset_count=$(printf '%s\n' "$skill_pairs" | awk '{print $1}' | sort -u | grep -c . || true)
+    if [ "$pair_count" -eq 0 ]; then
+      echo "   🔴 键值对集合为空（skill 侧 0 对）：无法判定一致性（未验证 ≠ 通过）"
       ERRORS=$((ERRORS + 1))
     else
-      echo "   ✅ 预设名集合一致 ($preset_count 个预设)"
+      echo "   ✅ 预设名集合一致 ($preset_count 个预设) — 键值对集合比对通过 ($pair_count 对，双侧同一提取器 resolve_gate_config 读生产文本)"
     fi
   fi
   echo ""
 }
+
+# ── 主流程（source 时不执行：bats 测试 source 本文件取 resolve_gate_config，──
+#    仅直接运行时做 prompt↔skill 一致性巡检 + gate-config 键值对同步校验）
+if [[ "${FK_CGS_MAIN:-0}" -eq 1 ]]; then
+echo "🔍 check-gate-sync: 校验 prompt↔skill 内容一致性..."
+echo ""
 
 # ── 执行 PCSC 校验对（v1：3/PAIRS_TOTAL）──
 for pair in "${PAIRS[@]}"; do
@@ -290,4 +401,5 @@ if [ "$ERRORS" -gt 0 ]; then
 else
   echo "   ✅ 校验对 ${COMPARED}/${PAIRS_TOTAL} 一致（仅覆盖上述 ${COMPARED} 对，非全量 ${PAIRS_TOTAL} 对全绿）。"
   exit 0
+fi
 fi

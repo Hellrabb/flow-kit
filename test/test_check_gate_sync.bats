@@ -15,6 +15,12 @@
 # 并发固化破坏事故）；setup/teardown 备份改 mktemp 唯一路径（防并发双跑互踩）、还原去
 # || true（失败必须报警）；新增 AC-2 kill 注入腿（L2 r2 R10 修订 2026-09-29）：夹具
 # 运行中注入 SIGTERM/SIGKILL ⇒ rc≠0 且 tracked skills/ 零改动（防「沙箱化被回退」回归）。
+# T07（health-fix-2026-09c · C5+C11 · AC-7）：判据面换血——check-gate-sync.sh 内新增提取器
+# resolve_gate_config（把生产 .sh/SKILL.md 当文本解析，ADR-030 豁免；不 source/eval 被检
+# 文件），gate-config 段由「预设名集合比对」（bats 侧 sed s/\).*// 在 `)` 截断、值从不
+# 参与 = mock 自比假绿）升级为「键值对集合比对」（mock 契约值迁 both 后双侧 34 对全等）；
+# 文末追加 5 条跨层闭环腿（source 守卫 / 双侧同提取器 / 值形态保留 / both→independent
+# 反向篡改转红 / PARSE fail-closed）。
 
 SCRIPT="flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
 SKILL_REL="flow-kit-bundle/skills/flow/SKILL.md"   # 相对路径常量：沙箱内拼 $SBX/fk/$SKILL_REL
@@ -329,5 +335,60 @@ FXB18() {
     [ "$status" -eq 0 ]                           # ② git 本身不出错
     [ -z "$output" ]                              # ③ tracked skills/ 零改动（空输出）
   done
+  rm -rf "$SBX"
+}
+
+# ── T07（health-fix-2026-09c · C5+C11 · AC-7）跨层闭环腿：提取器 + 键值对集合比对 ──
+# 判据面换血的测试面：双侧（SKILL.md PRESET_MAP ↔ bats mock case 块）经 check-gate-sync.sh
+# 内**同一提取器** resolve_gate_config 读生产文本（AC-7 Given：「双侧 source 同一实现」——
+# 本组腿直接 source 生产 reference .sh），比键值对集合（<preset> <phase>=<value>）。
+# 沿用 T03/FXC1 mktemp 夹具范式，不新造沙箱框架；篡改只落夹具副本，tracked 文件零接触。
+@test "T07 ①: source check-gate-sync.sh → 主流程不执行、导出 resolve_gate_config、不泄漏 set -e" {
+  run bash -c "source '$SCRIPT' && declare -f resolve_gate_config >/dev/null && case \"\$-\" in *e*) echo E-ON;; *) echo RGC-DEFINED;; esac"
+  [ "$status" -eq 0 ]
+  [ "$output" = "RGC-DEFINED" ]                        # 仅此一行：source 无横幅（主流程未跑）且未向调用方泄漏 errexit
+}
+
+@test "T07 ②: 双侧同一提取器读真实生产件 → 键值对集合相等（34 对 / 17 预设）" {
+  source "$SCRIPT"                                     # AC-7：测试与检查器 source 同一提取器实现
+  SBX=$(mktemp -d "${TMPDIR:-/tmp}/t07-x-XXXXXX")
+  resolve_gate_config skill flow-kit-bundle/skills/flow/SKILL.md > "$SBX/skill.pairs"
+  resolve_gate_config bats flow-kit-bundle/test/test_gate_config_presets.bats > "$SBX/bats.pairs"
+  [ -s "$SBX/skill.pairs" ]                            # 提取非空（set -e 下提取失败即本腿红）
+  run diff "$SBX/skill.pairs" "$SBX/bats.pairs"
+  [ "$status" -eq 0 ]                                  # 集合相等：生产 PRESET_MAP ↔ bats mock（both 迁移后）
+  [ "$(grep -c . "$SBX/skill.pairs")" -eq 34 ]         # 34 键值对（full 3 + all 6 + … 见 T07-SUMMARY）
+  [ "$(awk '{print $1}' "$SBX/skill.pairs" | sort -u | grep -c .)" -eq 17 ]   # 17 预设
+  rm -rf "$SBX"
+}
+
+@test "T07 ③: 提取器保留 {...} 值形态 → 输出 <preset> <phase>=<value> 全值（无右括号截断）" {
+  source "$SCRIPT"
+  run resolve_gate_config skill flow-kit-bundle/skills/flow/SKILL.md
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"full 6-review=both"* ]]            # 值随行保留（旧判据 sed 在 `)` 截断丢值 = C5 病灶）
+  [[ "$output" == *"all 7-integration=both"* ]]
+  [[ "$output" != *"independent"* ]]                   # 生产 PRESET_MAP 已全 both，不得混出旧值
+  [[ "$output" != *"{"* ]]                             # 已展开为 k=v 规范形，非原始 JSON 残留
+}
+
+@test "T07 ④ 反向控制: 生产侧 both→independent 篡改 → 门禁转红（闭环有检测力）" {
+  FXC1
+  sed -i 's/"both"/"independent"/g' "$SBX/fk/$SKILL_REL"   # 篡改夹具内生产 SKILL.md 值域（tracked 文件零接触）
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]                                  # ① rc≠0：值漂移必须让门禁非 0（AC-7 When/Then）
+  [[ "$output" == *"gate-config 预设名集合不一致"* ]]    # ② 具名 DRIFT（保留旧措辞锚点，兼容既有腿）
+  [[ "$output" == *"independent"* ]]                   # ③ 漂移明细列出篡改值
+  [[ "$output" != *"键值对集合比对通过"* ]]              # ④ 不得放行（旧名比对对此漂移不可见 = 假绿病灶）
+  rm -rf "$SBX"
+}
+
+@test "T07 ⑤ fail-closed: 段锚点删除（格式漂移）→ 🔴 PARSE 转红（解析失败 ≠ 通过）" {
+  FXC1
+  sed -i '/预设名映射表（PRESET_MAP）/d;/数字映射：/d' "$SBX/fk/$SKILL_REL"   # 抽掉夹具内段锚点
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
+  [ "$status" -ne 0 ]                                  # ① rc≠0（ADR-030：解析失败 ≠ 通过）
+  [[ "$output" == *"🔴 PARSE"* ]]                      # ② 具名 PARSE（提取器 rc=2：段锚点缺失/零预设行）
+  [[ "$output" != *"✅ 预设名集合一致"* ]]              # ③ 格式漂移不得折算为一致
   rm -rf "$SBX"
 }
