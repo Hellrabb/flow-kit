@@ -153,3 +153,29 @@ FXS() {
   [[ "$output" == *"flow-kit/prompts/5-test.md"* ]]
   rm -rf "$SBX"
 }
+
+# ── T12c 更名触点迁移承接（C13/AC-11 · L2 r3 R4 修订 2026-09-29）──────────────
+# 旧 test_quality_baseline.bats AC-2 的同步门禁存在性腿（对 check-gate-sync.sh
+# 的 test -x 断言）摘除后由本文件承接：语义拆分后「skill 薄壳 ↔ prompt 权威载体
+# 同步」判据（含双同步门禁脚本在位）的断言载体 = 本文件；quality_baseline 仅保留
+# check-gate-sync 运行断言（gate-config 预设键值对同步，见彼处 AC-2 段注）。
+
+@test "T12c 迁移承接: 双同步门禁脚本在位且可执行（check-skills-sync + check-gate-sync）" {
+  run test -x flow-kit-bundle/flow-kit/reference/check-skills-sync.sh
+  [ "$status" -eq 0 ]
+  run test -x flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
+  [ "$status" -eq 0 ]
+}
+
+@test "T12c 迁移承接: quality_baseline 已摘除门禁存在性腿（断言归属收敛，防回潮）" {
+  # 防回潮：旧锚（对 check-gate-sync.sh 的 test -x 存在性断言）不得回流
+  # test_quality_baseline.bats（双源镜像同查）——存在性/同步判据断言归属：
+  # skills 侧 = 本文件、预设键值对侧 = test_check_gate_sync.bats、
+  # 运行断言 = quality_baseline（唯一保留项）。
+  run grep -c 'run test -x flow-kit-bundle/flow-kit/reference/check-gate-sync.sh' test/test_quality_baseline.bats
+  [ "$status" -ne 0 ]                # grep -c 计数 0 ⇒ 退出码 1（期望非零：计数为零）
+  [ "$output" = "0" ]
+  run grep -c 'run test -x flow-kit-bundle/flow-kit/reference/check-gate-sync.sh' flow-kit-bundle/test/test_quality_baseline.bats
+  [ "$status" -ne 0 ]
+  [ "$output" = "0" ]
+}

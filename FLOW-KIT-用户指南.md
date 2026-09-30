@@ -1582,7 +1582,7 @@ flow-kit 的独立审查分为两层：
 | `task-test-review` | 3-task + 5-test + 6-review | +15k-35k |
 | `spec-test` | 1-requirement + 2-design + 5-test | +15k-35k |
 
-> 预设名表在 `skills/flow/SKILL.md` 的 `PRESET_MAP` 中定义，共 **17** 项（`code-only` 与 `review` 是同一映射的别名），并由 `flow-kit/reference/check-gate-sync.sh` 守护与测试同步——**已发布的预设名不会改名，只会追加**。
+> 预设名表在 `skills/flow/SKILL.md` 的 `PRESET_MAP` 中定义，共 **17** 项（`code-only` 与 `review` 是同一映射的别名），并由 `flow-kit/reference/check-gate-sync.sh` 守护预设键值对与测试同步（skill 薄壳 ↔ prompt 权威载体的同步门禁为 `flow-kit/reference/check-skills-sync.sh`，两者各司其职）——**已发布的预设名不会改名，只会追加**。
 
 ### 数字简写
 

@@ -23,17 +23,18 @@
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
-# AC-2: check-gate-sync.sh 可执行
+# AC-2: check-gate-sync.sh（gate-config 预设键值对同步门禁）运行断言
+# T12c（health-fix-2026-09c · C13/AC-11 更名触点收敛 · L2 r3 R4 修订 2026-09-29）：
+# 旧 AC-2 以 check-gate-sync.sh 为唯一同步门禁（PCSC prompt↔skill 内容比对 +
+# gate-config 预设键值对）。T12b 语义拆分后 PCSC prompt↔skill 同步判据迁至
+# reference/check-skills-sync.sh——同步门禁的存在性/同步判据断言载体收敛为
+# test_skills_sync.bats（skills 侧）/ test_check_gate_sync.bats（预设键值对侧），
+# 本文件仅保留 check-gate-sync 运行断言（存留语义 = gate-config 预设键值对同步）。
 # ═══════════════════════════════════════════════════════════════════════════
-
-@test "AC-2: check-gate-sync.sh 存在且可执行" {
-  run test -x flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
-  [ "$status" -eq 0 ]
-}
 
 @test "AC-2: check-gate-sync.sh 运行无脚本错误" {
   run bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
-  # exit 0=一致, 1=发现漂移——两者都是正常执行（非脚本错误 exit 2）
+  # exit 0=预设键值对一致, 1=发现预设键值漂移——两者都是正常执行（非脚本错误 exit 2）
   [ "$status" -ne 2 ]
 }
 

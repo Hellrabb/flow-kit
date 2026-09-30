@@ -1,7 +1,7 @@
 # Pipeline Toll-Gate 共享协议
 
 > 本文件是 toll-gate 协议的**单一源**。所有 prompt 和 skill 文件通过 `@see reference/pipeline-gates.md` 引用此处。
-> 修改 toll-gate 协议时，**只改这一处**。改完后运行 `check-gate-sync.sh` 确认 prompt↔skill 一致。
+> 修改 toll-gate 协议时，**只改这一处**。改完后运行 `check-skills-sync.sh` 确认 skill 薄壳 ↔ prompt 权威载体同步（T12c · health-fix-2026-09c：原「prompt↔skill 一致」判据由 check-skills-sync 承接）。
 
 ---
 
