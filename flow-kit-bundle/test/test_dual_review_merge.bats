@@ -45,14 +45,29 @@ teardown() {
   echo "## L3 盲审（AI）" > "$review_md"
   echo "Verdict: pass" >> "$review_md"
 
-  # 本测试验证 D3 保护逻辑的存在性：代码中包含 gate 检查
-  run grep -q "L2 not yet complete" "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
-  [ "$status" -eq 0 ]
+  # C6 行为化：不再 grep 保护消息文本 —— 直调 _l3_write_done（gate=both），
+  # 观测 D3 保护行为：L2 未完成 → .done 不写、deferred 消息、rc=0。
+  local rc=0 se
+  se=$(bash -c "source '$L3_LIB_DIR/l3-done.sh' 2>/dev/null; _l3_write_done 1 test-change pass s fail '$artifacts_dir' both" 2>&1 1>/dev/null) || rc=$?
+  [ "$rc" -eq 0 ]
+  [ ! -f "$artifacts_dir/.independent-review-1.done" ]
+  [[ "$se" == *'deferred (L2 not yet complete, gate_config=both)'* ]]
 }
 
-@test "AC-4: .done deferred message exists in l3-review.sh" {
-  run grep -q "deferred" "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
-  [ "$status" -eq 0 ]
+@test "AC-4: .done deferred when L3 content missing (deferred path)" {
+  if [ ! -f "$L3_LIB" ]; then
+    skip "l3-review.sh not found"
+  fi
+  # C6 行为化：不再 grep "deferred" 字样 —— 工件有 L2 段但无 L3 段时直调
+  # _l3_write_done，观测 deferred 防御行为：拒绝写 .done + deferred 消息 + rc=3。
+  local artifacts_dir="$TEST_TMPDIR/.specs/test-change"
+  mkdir -p "$artifacts_dir"
+  printf '# IR\n\n## L2 盲审（AI）\n\n**Verdict**: pass\n' > "$artifacts_dir/INDEPENDENT-REVIEW-2.md"
+  local rc=0 se
+  se=$(bash -c "source '$L3_LIB_DIR/l3-done.sh' 2>/dev/null; _l3_write_done 2 test-change pass s pass '$artifacts_dir' both" 2>&1 1>/dev/null) || rc=$?
+  [ "$rc" -eq 3 ]
+  [ ! -f "$artifacts_dir/.independent-review-2.done" ]
+  [[ "$se" == *'.done deferred: L3 content not found'* ]]
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -160,8 +175,13 @@ EOF
   local fk_root
   fk_root="$(cd "$(dirname "$L3_LIB")/../../.." && pwd)"
   hook29="$fk_root/hooks/stop/29-independent-review.sh"
+  lib_l2="$fk_root/hooks/stop/lib/l2-detect.sh"
 
-  run grep -q "L2 not yet complete" "$hook29" 2>/dev/null
+  # T11(AC-15③)：报文抽至 lib::_l2_first_deny()，29 号以两处调用门承载（主门 + fallback）
+  run grep -c '_l2_first_deny "\$phase" "\$change_id"' "$hook29" 2>/dev/null
+  [ "$status" -eq 0 ]
+  [ "$output" -eq 2 ]
+  run grep -q "L2 not yet complete" "$lib_l2" 2>/dev/null
   [ "$status" -eq 0 ]
 }
 
@@ -244,8 +264,22 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════
 
 @test "AC-3: l3-review.sh preserves >> append logic" {
-  run grep -q '>>' "$L3_LIB_DIR"/l3-*.sh 2>/dev/null
-  [ "$status" -eq 0 ]
+  if [ ! -f "$L3_LIB" ]; then
+    skip "l3-review.sh not found"
+  fi
+  # C6 行为化：不再 grep '>>' 形态 —— 对既有评审文件（含文件头与 L2 段）真跑
+  # _l3_parse_result，观测追加语义：既有内容保留、L3 段追加其后（而非覆写截断）。
+  local artifacts_dir="$TEST_TMPDIR/.specs/test-change"
+  local review_md="$artifacts_dir/INDEPENDENT-REVIEW-1.md"
+  mkdir -p "$artifacts_dir"
+  printf '# IR header\n\n## L2 盲审（AI）\n\n**Verdict**: pass\n' > "$review_md"
+  bash -c "source '$L3_LIB' 2>/dev/null; _l3_parse_result '{\"verdict\":\"fail\",\"summary\":\"s\"}' 1 '$artifacts_dir' model-x" >/dev/null 2>&1 || true
+  # 既有内容逐字保留（追加而非覆写）
+  grep -qF '# IR header' "$review_md"
+  grep -qF '## L2 盲审（AI）' "$review_md"
+  grep -qF '**Verdict**: pass' "$review_md"
+  # L3 段被追加在既有内容之后（既有文件在场 → 重审标题，同为追加语义）
+  [ "$(grep -nF '# IR header' "$review_md" | cut -d: -f1)" -lt "$(grep -n '^## L3 重审（model-x' "$review_md" | cut -d: -f1)" ]
 }
 
 # ═══════════════════════════════════════════════════════════════════════

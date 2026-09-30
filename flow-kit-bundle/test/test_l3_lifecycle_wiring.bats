@@ -300,11 +300,39 @@ _make_big_requirement() {
 }
 
 @test "E4: 29 号把 config 值导出为 FLOW_KIT_L3_MAX_ARTIFACT_BYTES（供 l3_review_run 读取）" {
-  # 顺序断言：先 config_get，后 export，且导出的就是同一个变量
-  run grep -n 'max_bytes=$(config_get' "$HOOK_BASE_DIR/29-independent-review.sh"
-  [ "$status" -eq 0 ]
-  run grep -n 'export FLOW_KIT_L3_MAX_ARTIFACT_BYTES="$max_bytes"' "$HOOK_BASE_DIR/29-independent-review.sh"
-  [ "$status" -eq 0 ]
+  # C6 行为化：不再 grep 源码的赋值/导出形态 —— 沙箱里 stub 掉 l3_review_run，记录其被调
+  # 时实际可见的环境变量；29 号真跑一遍，断言导出值 = 配置值。（若 config_get 与 export
+  # 的顺序/变量名断链，子进程看到的将是空或默认值，而非配置值。）
+  local sd="$TEST_TMP/e4-sandbox" proj="$TEST_TMP/e4-proj" seen="$TEST_TMP/e4-seen.txt"
+  mkdir -p "$sd/lib" "$proj/.specs/test-change" "$TEST_TMP/e4-tmp"
+  cp "$HOOK_BASE_DIR"/lib/*.sh "$sd/lib/"
+  cp "$HOOK_BASE_DIR/29-independent-review.sh" "$sd/29-independent-review.sh"
+  cat > "$sd/lib/l3-review.sh" <<EOS
+l3_review_run() { printf 'BYTES=%s\n' "\${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-UNSET}" >> "$seen"; return 0; }
+l3_review_with_timeout() { return 0; }
+l3_dispatch_prompt() { return 0; }
+EOS
+  printf '{"modules":{"independent_review":{"enabled":true}},"independent_review":{"max_artifact_bytes":42424,"max_failures_before_bypass":0}}\n' \
+    > "$TEST_TMP/e4-config.json"
+  cat > "$proj/.flow-active" <<'FLOW'
+{"change_id":"test-change","phase":"1","task_id":null,
+ "goal":{"condition":"probe","status":"active","scope":"pipeline","start_phase":"1",
+         "current_phase":"1","phases_done":[],"gates":{},"auto_advance":false,
+         "gate_config":{"1-requirement":"both"},
+         "active_since":"2026-09-11T00:00:00+08:00","turns":0,"mode":"fallback","phase_sub_goals":{}},
+ "interrupt":null,"token_spent":0,"updated_at":"2026-09-11T00:00:00+08:00"}
+FLOW
+  printf '# REVIEW (fixture)\n\n## L2 盲审（stub）\n\nverdict=pass\n' \
+    > "$proj/.specs/test-change/INDEPENDENT-REVIEW-1.md"
+  printf '# REQUIREMENT (fixture)\n\n## NFR-1 示例\nGiven a\nWhen b\nThen c\n' \
+    > "$proj/.specs/test-change/REQUIREMENT.md"
+  env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+    HOOK_BASE_DIR="$sd" PROJECT_ROOT="$proj" \
+    CONFIG_FILE="$TEST_TMP/e4-config.json" HOOK_TMP_DIR="$TEST_TMP/e4-tmp" \
+    FLOW_KIT_L3_MODEL="stub-model" \
+    bash "$sd/29-independent-review.sh" >/dev/null 2>&1 || true
+  [ -f "$seen" ]
+  grep -qx 'BYTES=42424' "$seen"
 }
 
 @test "E5: l3.env 模板存在且含必填项（新环境部署不再踩死锁）" {

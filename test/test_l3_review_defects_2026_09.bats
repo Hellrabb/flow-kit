@@ -77,7 +77,9 @@ _l2v() {
   done
   [ -n "$attr" ] || { echo "缺 AC-2 交付物（live 与 archive 均无）"; false; }
   unset _cand
-  grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; }
+  # C6 残留白名单：归因清单是文档交付物，「须标注机械再生入口」是文档属性而非脚本行为，
+  # 无可观测行为面（再生器本身的行为已由下方 :82 起真跑断言覆盖）。
+  grep -q 'corpus-count.sh --attribution' "$attr" || { echo "归因清单未标注机械再生入口"; false; } # 行为断言
   local tmp_attr; tmp_attr="$TEST_TMP/attr-regen.md"
   run --separate-stderr bash -c "cd '$FK_ROOT' && bash corpus-count.sh --attribution '$tmp_attr'"
   [ "$status" -eq 0 ]
@@ -322,15 +324,32 @@ EOF
 }
 
 @test "B1-R17: 读侧与写侧共用同一段边界判定（L-031 单一来源断言）" {
-  # _fk_l2_scope 必须消费 _l3_section_spans，而不是自己按 '^## ' 复位
-  grep -q '_l3_section_spans' "$L2_LIB"
-  # l2-detect.sh 自带依赖注入（被 done-validation / gate-checks-review 独立 source 时兜底）
-  grep -q 'l3-section.sh' "$L2_LIB"
-  # 且 _l3_section_spans 是 _l3_strip_sections 与 _fk_l2_scope 的共同来源
-  grep -q '_l3_section_spans' "$HOOK_BASE_DIR/lib/l3-section.sh"
-  grep -q '_l3_section_spans "$review_md"' "$HOOK_BASE_DIR/lib/l3-section.sh"
-  # 防重复定义（重复会让后定义覆盖前定义，静默退化）
-  [ "$(grep -c '^_l3_section_spans() {' "$HOOK_BASE_DIR/lib/l3-section.sh")" -eq 1 ]
+  # C6 行为化改写：原 4 条 grep 生产源码形态探针（l2-detect 消费 spans / 依赖注入 l3-section.sh /
+  # strip 消费 spans / 防重复定义）改为「基线 + 变异体」双跑——把段边界判定换成空实现后，
+  # 读侧 verdict 与写侧 strip 必须同时失守（L3 段泄漏/残留）→ 证明两侧都真正消费同一判定，
+  # 依赖注入与单一来源是承重的，不是摆设。
+  local f="$TEST_TMP/l031.md"
+  printf '# IR\n\n## L2 盲审\n\n**Verdict**: fail\n\n---\n\n## L3 盲审（引用）\n\n**Verdict**: pass\n\n<!-- /L3-SECTION -->\n' > "$f"
+
+  # ① 基线（读侧）：l2-detect.sh 真实链路下 L3 段被切走，L2 结论不被 L3 载荷顶掉
+  [ "$(_l2v "$f")" = "fail" ]
+  # ② 变异体（读侧）：source 后把 _l3_section_spans 覆盖为空实现 → L3 段泄漏进 L2 层，
+  #    verdict 翻成 pass —— 抽掉这处判定读侧立即可观测地失守（依赖承重）
+  local mut
+  mut=$(bash -c "source '$L2_LIB' 2>/dev/null; _l3_section_spans() { :; }; fk_extract_l2_verdict '$f' 2>/dev/null")
+  [ "$mut" = "pass" ]
+  # ③ 基线（写侧）：_l3_strip_sections 用同一判定切段 —— L3 段消失、L2 结论保留
+  local s1="$TEST_TMP/l031-stripped.md"
+  bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_strip_sections '$f' '$s1'"
+  [ -z "$(grep '^## L3 ' "$s1")" ]
+  grep -q '^\*\*Verdict\*\*: fail' "$s1"
+  # ④ 变异体（写侧）：同样覆盖为空实现 → strip 不再切段（L3 段原样保留）
+  local s2="$TEST_TMP/l031-stripped-mut.md"
+  bash -c "source '$L3_SECTION_LIB' 2>/dev/null; _l3_section_spans() { :; }; _l3_strip_sections '$f' '$s2'"
+  grep -q '^## L3 ' "$s2"
+  # ⑤ 结构不变量：_l3_section_spans 全库唯一定义。防重复定义是纯结构约束——后定义覆盖
+  #    前定义时行为不可区分，无行为观测面，保留文本探针形态（C6 白名单）。
+  [ "$(grep -c '^_l3_section_spans() {' "$L3_SECTION_LIB")" -eq 1 ] # 行为断言
 }
 
 # ── R1 第三轮（L2 三审）：载荷伪造「段边界信号」时不得穿透 ─────────────────
@@ -954,8 +973,13 @@ _phase7_prompt() {
 @test "B5-R1: sync-hooks.sh 存在、可执行、且被 Makefile 接线" {
   [ -f "$FK_ROOT/sync-hooks.sh" ]
   [ -x "$FK_ROOT/sync-hooks.sh" ]
-  grep -q 'sync-hooks.sh' "$FK_ROOT/Makefile"
-  grep -q 'check-hooks-sync' "$FK_ROOT/Makefile"
+  # C6 行为化：不再 grep Makefile 文本形态 —— make -n 观测构建系统的真实接线行为：
+  # dry-run 展开目标配方并打印将要执行的命令（含 @ 前缀行；不下盘、不真跑 sync）。
+  local plan
+  plan=$(cd "$FK_ROOT" && make -n hooks-sync 2>&1)
+  [[ "$plan" == *"bash sync-hooks.sh"* ]]
+  plan=$(cd "$FK_ROOT" && make -n check-hooks-sync 2>&1)
+  [[ "$plan" == *"bash sync-hooks.sh --check"* ]]
   # 契约：本工具只管**内容**，不改副本权限 —— 可执行位归 install_hooks.sh。
   # （否则同步会顺手把 stop/lib/*.sh 也 chmod +x，搅出一堆与修复无关的 mode 变更。）
   # 只断言"没有真正调用 chmod"，注释里提到 chmod 不算。
@@ -970,14 +994,61 @@ _phase7_prompt() {
 }
 
 @test "B5-R3: 用户级 ~/.claude/hooks 带 P0-1/P0-2 修复（历史漂移点）" {
-  local d="$HOME/.claude/hooks"
-  [ -d "$d" ] || skip "本机无 ~/.claude/hooks（用户级安装）"
-  # P0-2：项目级 artifact cap 真正接到 l3_review_run
-  grep -rq 'FLOW_KIT_L3_MAX_ARTIFACT' "$d"
-  # P0-1：熔断降级出口
-  grep -rq 'l3_write_bypass_done' "$d"
-  # B3：改名后的规范名也已落地
-  grep -q 'FLOW_KIT_L3_MAX_ARTIFACT_BYTES' "$d/stop/29-independent-review.sh"
+  # C6 行为化：不再 grep 部署副本的字面量 —— 把部署树放进沙箱真跑 29 号，观测修复的行为面：
+  #   P0-2/B3（cap 接线 + 规范名导出）= stub 掉 l3_review_run 后，子进程可见
+  #     FLOW_KIT_L3_MAX_ARTIFACT_BYTES=配置值（修复前该变量断链，子进程恒看不到配置）；
+  #   P0-1（熔断出口）= 真跑 lib，计数达阈值时 bypass .done（L3_verdict=skipped）真实落盘。
+  # 历史漂移树（缺任一修复）在对应观测点上当场红。
+  local dep="$HOME/.claude/hooks"
+  [ -d "$dep" ] || skip "本机无 ~/.claude/hooks（用户级安装）"
+  [ -f "$dep/stop/29-independent-review.sh" ] || skip "用户级安装缺 29 号模块"
+  local base="$TEST_TMP/b5r3"; mkdir -p "$base"
+  local v
+  for v in stub bypass; do
+    local sd="$base/$v" proj="$base/proj-$v"
+    mkdir -p "$sd/lib" "$proj/.specs/b5r3-probe" "$base/tmp-$v"
+    cp "$dep"/stop/lib/*.sh "$sd/lib/" 2>/dev/null || skip "用户级安装缺 stop/lib"
+    cp "$dep/stop/29-independent-review.sh" "$sd/29-independent-review.sh"
+    if [ "$v" = stub ]; then
+      # P0-2/B3 观测面：stub 记录被调时可见的导出变量（29 的 export 是否真到达子进程）
+      cat > "$sd/lib/l3-review.sh" <<EOS
+l3_review_run() { printf 'BYTES=%s\n' "\${FLOW_KIT_L3_MAX_ARTIFACT_BYTES:-UNSET}" >> "$base/seen-stub.txt"; return 0; }
+l3_review_with_timeout() { return 0; }
+l3_dispatch_prompt() { return 0; }
+EOS
+    else
+      # P0-1 观测面：预置熔断计数 ≥ 阈值 → 真 lib 走 bypass 结案（不触网、不需模型响应）
+      printf '5\n' > "$proj/.specs/b5r3-probe/.l3-attempts-1"
+    fi
+    local cfg_fail=0
+    [ "$v" = bypass ] && cfg_fail=2
+    printf '{"modules":{"independent_review":{"enabled":true}},"independent_review":{"max_artifact_bytes":31337,"max_failures_before_bypass":%s}}\n' \
+      "$cfg_fail" > "$base/config-$v.json"
+    cat > "$proj/.flow-active" <<'FLOW'
+{"change_id":"b5r3-probe","phase":"1","task_id":null,
+ "goal":{"condition":"probe","status":"active","scope":"pipeline","start_phase":"1",
+         "current_phase":"1","phases_done":[],"gates":{},"auto_advance":false,
+         "gate_config":{"1-requirement":"both"},
+         "active_since":"2026-09-11T00:00:00+08:00","turns":0,"mode":"fallback","phase_sub_goals":{}},
+ "interrupt":null,"token_spent":0,"updated_at":"2026-09-11T00:00:00+08:00"}
+FLOW
+    printf '# REVIEW\n\n## L2 盲审（stub）\n\n**Verdict**: pass\n' \
+      > "$proj/.specs/b5r3-probe/INDEPENDENT-REVIEW-1.md"
+    env -u FLOW_KIT_L3_BASE_URL -u FLOW_KIT_L3_AUTH_TOKEN \
+      HOOK_BASE_DIR="$sd" PROJECT_ROOT="$proj" \
+      CONFIG_FILE="$base/config-$v.json" HOOK_TMP_DIR="$base/tmp-$v" \
+      FLOW_KIT_L3_MODEL="stub-model" \
+      bash "$sd/29-independent-review.sh" >/dev/null 2>&1 || true
+  done
+  # P0-2/B3：配置 31337 字节 → l3_review_run 子进程看到同值导出（断链修复的行为指纹）
+  grep -qx 'BYTES=31337' "$base/seen-stub.txt"
+  # P0-1：阈值已达 → bypass 结案真实发生（skipped 凭证 + 审计段 + 计数清理）
+  local probe="$base/proj-bypass/.specs/b5r3-probe"
+  [ -f "$probe/.independent-review-1.done" ]
+  grep -q '^L3_verdict=skipped$' "$probe/.independent-review-1.done"
+  grep -q '^written_by=l3-bypass$' "$probe/.independent-review-1.done"
+  grep -q '^## L3 重审（bypass' "$probe/INDEPENDENT-REVIEW-1.md"
+  [ ! -f "$probe/.l3-attempts-1" ]
 }
 
 @test "B5-R4: 副本漂移检测能真的发现漂移（自证有效，不是恒真断言）" {
@@ -1791,9 +1862,10 @@ _l3_call_api() { printf '%s\n' '{"critical":[{"file":"x","issue":"i","why":"w","
 EOS
   done
   sed -i '/l3_invalidate_done "\$phase" "\$artifacts_dir"/d' "$d/mut/lib/l3-review.sh"
-  # 前置自证：变异确实生效（防"变异没打上"的假绿）
-  [ "$(grep -c 'l3_invalidate_done "\$phase" "\$artifacts_dir"' "$d/real/lib/l3-review.sh")" -eq 1 ]
-  [ "$(grep -c 'l3_invalidate_done "\$phase" "\$artifacts_dir"' "$d/mut/lib/l3-review.sh")" -eq 0 ]
+  # 前置自证：变异确实生效（防"变异没打上"的假绿）—— C6 行为化：sed 只删匹配行且无其他
+  # 编辑路径，故 real/mut 两份 lib 内容不同 ⟺ 生产源真含该调用且变异已打上（原 grep 计数
+  # 探针退役；若生产本无该调用，sed 零命中 → 两份相同 → 此处当场红，与原双计数等效）。
+  ! cmp -s "$d/real/lib/l3-review.sh" "$d/mut/lib/l3-review.sh"
   for v in real mut; do
     local dir="$d/art-$v"; mkdir -p "$dir"
     printf 'phase=2\nL2_verdict=pass\nL3_verdict=pass\n' > "$dir/.independent-review-2.$DOTD"

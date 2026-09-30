@@ -609,8 +609,44 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
 
 ## C6 位点清单（T10 执行时以「文件:行号」逐位点回填 · L2 阶段 3 R4 修订）
 
-> 待 T10 执行时从 DESIGN C6 32 处清单转录为逐位点表（文件 × 行号 × 处置：改行为断言 / `# 行为断言` 白名单）；
-> verify 的文本探针归零对账以本表为准，不依赖全仓单模式 grep。
+> T10 已回填（2026-09-29）。行号为 T10 开工实文实测值（Wave 1/2 后 DESIGN 行号有漂移，分布 18/6/4/3/1 → 实测 9/14/4/3/1，总数 32 不变）。
+> 处置 legend：**行为化** = 沙箱夹具注入 + 行为观测（rc/stderr/stdout/产物文件）；**白名单** = 保留文本探针 + `# 行为断言` 注释（AC-9 机检白名单，实测保留 2 处）。
+> verify 文本探针对账：32 处全部处置完毕，残留锚定行 0（白名单 2 行被 `grep -v '# 行为断言'` 排除）。
+
+| # | 文件:行号（开工实文） | 处置 | 改法 / 保留理由 |
+|---|---|---|---|
+| 1 | test/test_l3_review_defects_2026_09.bats:80 | 白名单 | AC2 归因清单探针（文档属性，无行为面可观测）→ 保留 + 注释 |
+| 2 | test/test_l3_review_defects_2026_09.bats:328 | 行为化 | B1-R17 基线：_l2v 直跑断 fail（L2 层结论） |
+| 3 | test/test_l3_review_defects_2026_09.bats:330 | 行为化 | B1-R17 变异观测：覆盖 _l3_section_spans 后 L3 泄漏翻结论（读侧真消费段边界） |
+| 4 | test/test_l3_review_defects_2026_09.bats:331 | 行为化 | B1-R17 strip 基线：_l3_strip_sections 真切段（L3 消失、L2 保留） |
+| 5 | test/test_l3_review_defects_2026_09.bats:333 | 行为化 | B1-R17 strip 变异：空 spans 实现 → L3 段保留（写侧同源消费的因果自证） |
+| 6 | test/test_l3_review_defects_2026_09.bats:957 | 行为化 | B5-R1：make -n 干跑观测配方真实接线（bash sync-hooks.sh / --check 变体） |
+| 7 | test/test_l3_review_defects_2026_09.bats:980 | 行为化 | B5-R3：沙箱双跑 ~/.claude 部署树（stub 断言 BYTES=31337 导出链 + bypass 断言 skipped 凭证落盘） |
+| 8 | test/test_l3_review_defects_2026_09.bats:1795 | 行为化 | B12-R3 变异自证：与 :1796 合并为 `! cmp -s real mut`（sed 只删匹配行 ⟺ diff=变异生效且生产真含该调用） |
+| 9 | test/test_l3_review_defects_2026_09.bats:1796 | 行为化 | 同上（两行探针并一行 cmp 行为断言） |
+| 10 | test/test_fix_l3_gate.bats:240 | 行为化 | _l3_parse_result 双跑：首写盲审标题（is_review=false 行为面） |
+| 11 | test/test_fix_l3_gate.bats:243 | 行为化 | 重审轮：既有文件 → 重审标题 + L2 段保留 |
+| 12 | test/test_fix_l3_gate.bats:247 | 行为化 | 追加语义：旧 L3 段被替换恒 1 段、不累积（awk 覆写形态断言退役） |
+| 13 | test/test_fix_l3_gate.bats:253 | 行为化 | _l3_write_done fail → rc1 + .done 不落 + NOT written stderr；pass → rc0 + KVP 落盘 + written stderr |
+| 14 | test/test_fix_l3_gate.bats:256 | 行为化 | 同上（条件消息两探针合并为一组行为观测） |
+| 15 | test/test_fix_l3_gate.bats:261 | 行为化 | >50KB 夹具真跑 → stderr WARNING: review file exceeds 50KB（阈值行为面） |
+| 16 | test/test_fix_l3_gate.bats:290 | 行为化 | _transition_apply 提取 0-change.md 过渡 jq 真跑：.phase/.goal.current_phase=1、门禁 passed |
+| 17 | test/test_fix_l3_gate.bats:295 | 行为化 | 同法 1-requirement.md → 2 |
+| 18 | test/test_fix_l3_gate.bats:300 | 行为化 | 同法 2-design.md → 3 |
+| 19 | test/test_fix_l3_gate.bats:305 | 行为化 | 同法 3-task.md → 4 |
+| 20 | test/test_fix_l3_gate.bats:310 | 行为化 | 同法 5-test.md → 6 |
+| 21 | test/test_fix_l3_gate.bats:315 | 行为化 | 同法 6-review.md → 7 |
+| 22 | test/test_fix_l3_gate.bats:320 | 行为化 | 同法 4-dev.md（$next_phase 注入 5）→ 5 |
+| 23 | test/test_fix_l3_gate.bats:325 | 行为化 | 同法 pipeline-gates.md → 5 |
+| 24 | test/test_l2_pretooluse_dispatch.bats:164 | 行为化 | AC-11 正常路径：写入成功 + 无 tmp 残留（原子性观测） |
+| 25 | test/test_l2_pretooluse_dispatch.bats:165 | 行为化 | mv() 失败注入 → rc3 + CRITICAL atomic mv failed + 无半成品 |
+| 26 | test/test_l2_pretooluse_dispatch.bats:167 | 行为化 | _l3_has_section 失败注入 → rc3 + CRITICAL not persisted |
+| 27 | test/test_l2_pretooluse_dispatch.bats:169 | 行为化 | _l3_write_done 防御：有 L2 无 L3 → deferred rc3 + .done 不落 |
+| 28 | test/test_dual_review_merge.bats:49 | 行为化 | both 无 L2 段直调 _l3_write_done → rc0 + .done 不落 + deferred (L2 not yet complete…) stderr |
+| 29 | test/test_dual_review_merge.bats:54 | 行为化 | deferred 防御路径：有 L2 无 L3 → rc3 + .done deferred: L3 content not found |
+| 30 | test/test_dual_review_merge.bats:247 | 行为化 | >> 追加语义：既有内容逐字保留 + L3 段追加其后（重审标题） |
+| 31 | test/test_l3_lifecycle_wiring.bats:304 | 行为化 | E4 沙箱：stub l3_review_run 记录被调时可见导出值=42424（config_get→export 顺序的行为指纹） |
+| 32 | test/test_l3_lifecycle_wiring.bats:306 | 行为化 | 同上（两行顺序探针合并为一组导出值断言） |
 
 ---
 

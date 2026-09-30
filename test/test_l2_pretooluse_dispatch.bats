@@ -160,13 +160,33 @@ DONE
 # AC-11: L3 原子写入 + 写入后验证
 # ═══════════════════════════════════════════════════════════════
 @test "AC-11: l3-review.sh uses atomic write (tmp + mv)" {
-  # 验证原子写入模式（phase 4 拆分后分布在 l3-api.sh / l3-done.sh 中）
-  grep -q 'tmp_review.*tmp' "$L3_LIB_DIR"/l3-*.sh
-  grep -q 'mv.*tmp_review.*review_md' "$L3_LIB_DIR"/l3-*.sh
-  # 验证写入后检查
-  grep -q 'L3 content not persisted' "$L3_LIB_DIR"/l3-*.sh
-  # 验证 _l3_write_done 防御
-  grep -q 'done deferred.*L3 content not found' "$L3_LIB_DIR"/l3-*.sh
+  # C6 行为化：不再 grep l3-*.sh 源码形态 —— 注入 mv 失败 / 持久化校验失败，直跑生产
+  # 写入方 _l3_parse_result，观测原子写的实际行为面：失败不落半成品、无 tmp 残留、
+  # rc=3 + CRITICAL；_l3_write_done 对缺 L3 段的工件防御性拒绝（deferred + rc3）。
+  local d="$TMP_DIR/ac11"; mkdir -p "$d"
+  # (a) 正常路径：写入成功且无 tmp 残留（tmp+mv 原子性）
+  bash -c "source '$L3_REVIEW' 2>/dev/null; _l3_parse_result '{\"verdict\":\"pass\",\"summary\":\"s\"}' 1 '$d' model-x" >/dev/null 2>&1 || true
+  grep -q '^## L3 盲审（model-x' "$d/INDEPENDENT-REVIEW-1.md"
+  [ -z "$(ls -d "$d"/*.tmp.* 2>/dev/null)" ]
+  # (b) mv 失败注入：rc=3 + CRITICAL，且不落半成品文件
+  local rc=0 se
+  se=$(bash -c "source '$L3_REVIEW' 2>/dev/null; mv() { return 1; }; _l3_parse_result '{\"verdict\":\"pass\",\"summary\":\"s\"}' 2 '$d' model-x" 2>&1 1>/dev/null) || rc=$?
+  [ "$rc" -eq 3 ]
+  [[ "$se" == *'CRITICAL: atomic mv failed'* ]]
+  [ ! -f "$d/INDEPENDENT-REVIEW-2.md" ]
+  # (c) 写后持久化校验失败注入：rc=3 + CRITICAL not persisted
+  rc=0
+  se=$(bash -c "source '$L3_REVIEW' 2>/dev/null; _l3_has_section() { return 1; }; _l3_parse_result '{\"verdict\":\"pass\",\"summary\":\"s\"}' 3 '$d' model-x" 2>&1 1>/dev/null) || rc=$?
+  [ "$rc" -eq 3 ]
+  [[ "$se" == *'CRITICAL: L3 content not persisted'* ]]
+  # (d) _l3_write_done 防御：工件有 L2 段但无 L3 段 → 拒绝写 .done（deferred + rc3）
+  local d2="$TMP_DIR/ac11-nosec"; mkdir -p "$d2"
+  printf '# IR\n\n## L2 盲审\n\n**Verdict**: pass\n' > "$d2/INDEPENDENT-REVIEW-4.md"
+  rc=0
+  se=$(bash -c "source '$L3_LIB_DIR/l3-done.sh' 2>/dev/null; _l3_write_done 4 chg pass s pass '$d2' both" 2>&1 1>/dev/null) || rc=$?
+  [ "$rc" -eq 3 ]
+  [[ "$se" == *'.done deferred: L3 content not found'* ]]
+  [ ! -f "$d2/.independent-review-4.done" ]
 }
 
 # ═══════════════════════════════════════════════════════════════
