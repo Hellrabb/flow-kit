@@ -215,6 +215,20 @@ jq --arg ts "$(date -Iseconds)" \
 
 在一次审查 pass 中覆盖以下所有维度，产出单一 verdict：
 
+#### 2.0 TEST.md 5 轮金字塔完整性（先查）
+
+打开 `.specs/<id>/TEST.md`，检查"本次测试范围声明"段：
+
+- [ ] 5 轮状态都明确（无未填）
+- [ ] 跳过的轮次都有理由（不允许"暂时跳过"）
+- [ ] 第 1 轮（功能）每条 AC 有覆盖
+- [ ] 第 2 轮（性能）若必跑：实测 / 预算 / 上版基线三列齐全；退步项有处理
+- [ ] 第 3 轮（安全）若必跑：依赖 / 秘钥 / SAST / OWASP 各有处理记录
+- [ ] 第 4 轮（兼容）若必跑：跨浏览器矩阵 / 数据迁移 / 跨版本对应填齐
+- [ ] 第 5 轮（可观测）若必跑：日志 / 指标 / 告警 / 健康检查清单逐项验证
+
+任意一项不达 → 标 🔴 Critical，先回 5-test 阶段补完，再继续后续审查。
+
 #### A. Spec 合规
 
 对照 `.specs/<change-id>/REQUIREMENT.md` 的每条 AC：
@@ -283,6 +297,23 @@ verdict: pass|fail
 🟡 Important:  F2 · ...
 🟢 Minor:      F3 · ...
 ```
+
+#### 4.1 技术债评估（适用于里程碑 / 季度大版本 / 重构项目）
+
+**触发条件**：本次 change 是里程碑 / 季度大版本 / 重构项目，或 `.specs/CONTEXT.md` 「技术债」段多于 30 天未更新。
+
+```
+/brooks-debt              # 装了 brooks-lint 才能调
+```
+
+输出会给出：
+- 各项债务的 **Pain × Spread 优先级**
+- Critical / Scheduled / Monitored 的还债路线图
+
+拿到输出后：
+- 🔴 Critical · 本次必修 → 追加为 fix 任务
+- 🟡 Scheduled · 近 1~3 个迭代 → 追加为 backlog，记入 `.specs/CONTEXT.md` 的「技术债」段
+- 🟢 Monitored · 仅记录不处理 → LESSONS.md
 
 ### Severity 标记格式（强制 · ADR-017）
 

@@ -348,6 +348,22 @@ grep -q '_l3_escape_payload "\$content"' "$L2_LIB"
 
 **修法**：定**单一权威载体**（建议 prompts，回归面最大），skills 降级为生成物或「分叉必须登记」白名单；**覆盖率低于阈值时门禁必须 rc≠0**（把「信息可见」升级为「失败条件」）。
 
+**T12a 处置回填（2026-09 · 步骤 ① 弃用登记）**：按 D7 归一化段集 diff 实测，16 载体中 8 个净对无独有条款，6 个分叉载体共 25 条处置（并入 14 / 弃用 11），逐条对账见 TASK.md「C13 skill-独有条款处置清单」。弃用 11 条登记如下（每条一句理由）：
+
+1. flow-change「每轮最多 3 个问题，等用户回答再继续」——弃用：0-change.md 反问 gate（R3.5）已是强化版（≤3 问 + AC-7 理由 + 反问未完成禁产出 CHANGE.md 硬 gate）。
+2. flow-requirement「不能一句话验证的 AC 必须停下反问」——弃用：1-requirement.md 反问 gate 已有同款强化版（含 ❌/✅ 判例）。
+3. flow-integration 5.0.x 清理旧措辞——弃用：prompt 5.0.1/5.0.2/5.0.3 强化版已覆盖同语义。
+4. flow-integration 孤儿扫描 / L2 归档变体措辞——弃用：prompt 同节强化版覆盖，skill 侧为旧措辞残段。
+5. flow-review §4.2 跨模型 spot-check（旧版）——弃用：6-review.md ADR-014 Critical-Triggered 版取代，调度细节由 INDEPENDENT-REVIEW-6.md 承载。
+6. flow-review 三轮+第四轮轮次架构正文——弃用：prompt 单轮合并审查（A/B/C/D）语义全覆盖，轮次编排差异非条款。
+7. flow-go 查 reference 实际动作示例——弃用：loading-artifacts.md §3 已有同款示例。
+8. flow-go 用户视角的取舍表——弃用：GO.md 预算估算挡位菜单（完整/极简/单点/不走）已覆盖同款映射。
+9. flow-go 3.3「为什么这步重要」——弃用：说明性文字非强制条款，GO.md 3.x 各节自带判定。
+10. flow-go 典型 token 成本表明细——弃用：GO.md 保留摘要，明细委托 README「Token 成本表」段承载。
+11. flow-go 路由表/极少数情况/自检措辞变体——弃用：GO.md 已有对应节且含新增演进（Phase Completion Gate / Fallback 路由 / Goal 检测），以 GO.md 为准。
+
+另：flow-go→GO.md（D5 豁免映射特例，5 条独有条款已并入 GO.md）、flow-kit-install 豁免（安装器自包含，无对应 prompt 载体）、skills/flow 不辖（D5 glob 豁免）——三者为登记性豁免，非弃用条款。
+
 ---
 
 ### 14. 🟡 C14 · 其余补测新增项（择要，按可修性排序）

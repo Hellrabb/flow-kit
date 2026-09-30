@@ -55,13 +55,71 @@ flow-kit 的文件分两类，**加载策略不同**：
 
 已显式指定模式 / 恢复中断任务 / 跑横向命令时跳过预算估算。
 
+### 真实成本影响因子（让估算更准）
+
+在典型成本表基础上按项目实际叠加：
+
+| 因子 | 调整 | 说明 |
+|---|---|---|
+| 前端项目 | +20% | UI-DESIGN + 视觉自检 + 多轮截图 |
+| schema 变更 | +5~10% | 迁移 + 兼容性验证 |
+| brooks-lint 已装 | +10% | 各阶段多一轮工具审查 |
+| 跨模型审查 | +30% | 6-review 的 L3 外部模型轮 |
+| task 数 < 3 | -30% | 小 change 折扣 |
+| task 数 > 10 | +50% | 大 change 惩罚（建议拆） |
+
+---
+
+## 第〇步 · 确定 flow-kit 根目录（两级查找 · project-priority fallback）
+
+**必须在任何其他文件加载前完成**（比「第一步 · 读取项目状态」更早）。本步决定后续所有 `flow-kit/` 路径从哪读。
+
+### 查找优先级
+
+1. **项目级优先**：检查项目根目录是否存在 `flow-kit/GO.md`
+   - 存在（物理目录 或 symlink）→ `FLOW_KIT_ROOT = "flow-kit"`（相对路径）
+   - 这是默认行为——项目级 flow-kit 锁定版本，不受 user-scope 升级影响
+2. **user-scope 回退（claude/opencode）**：检查 `~/.claude/flow-kit/GO.md`
+   - 存在 → `FLOW_KIT_ROOT = "~/.claude/flow-kit"`（绝对路径）
+   - 说明：项目未安装项目级 flow-kit，但用户已在全局安装
+3. **dsh 插件回退**：当前会话若由 `dsh-flow-kit` 插件提供技能（`/flow` 命令可用），
+   - `FLOW_KIT_ROOT` 取 skill `resourceBase` 指向的包目录（例如
+     `~/.dsh/profiles/<profile>/node_modules/dsh-flow-kit/flow-kit`）
+   - 后续所有 `Read("flow-kit/...")` 调用都替换为 `Read("${FLOW_KIT_ROOT}/...")`
+4. **均不存在 → 报错并停止**：
+   ```
+   ❌ 未找到 flow-kit 核心引擎。
+
+   请安装：
+     bash ~/flow-kit-export/flow-kit-full-*/install.sh --global --user <项目路径>    ← 推荐（user-scope，一次安装所有项目共享）
+     bash ~/flow-kit-export/flow-kit-full-*/install.sh --project <项目路径>            ← 项目级（每项目一份）
+
+   如果已打包 flow-kit-export，先确认路径：
+     ls ~/flow-kit-export/flow-kit-full-*/install.sh || ls ./flow-kit-bundle/install.sh
+   ```
+
+**为什么这步重要**：跳过会导致 AI 用相对路径 `flow-kit/` 读文件，在 symlink 不存在时直接报 File not found；断链 symlink 也会被检测到（`flow-kit/GO.md` 不存在 → 落入错误提示分支）。
+
 ---
 
 ## 第一步 · 读取项目状态（必须，跳过即违反）
 
-1. 尝试读 `STATE.md`（仓库根）。不存在 → 视为新项目，跳过
-2. 关注字段：`活跃 Change` / `当前阶段` / `当前 Task` / `中断任务`
-3. 如果存在 `中断任务` 非空 → **优先级最高**，直接走"恢复中断任务"分支（见下表）
+1. 读 `.specs/STATE.md`（项目配置）。不存在 → 视为新项目，跳过
+2. 读 `.flow-active`（运行时工作流状态）。关注字段：`change_id` / `phase` / `task_id` / `interrupt`
+3. 如果 `.flow-active` 存在且 `interrupt` 非空 → **优先级最高**，直接走"恢复中断任务"分支（见下表）。恢复时先从 `.flow-active` 读取中断上下文（`interrupt.active_file`、`interrupt.last_action`、`interrupt.checkpoint_at`），再加载对应阶段 prompt
+4. 如果 `.flow-active` 不存在但 SessionStart hook 检测到→ AI 已通过 hook 横幅获知状态，只需确认用户意图
+
+### 可选 runtime adapter 检测
+
+flow-kit 默认不依赖任何运行时。若项目同时存在 `.claude/hooks/forge-pretool-guard.ps1` 与 `.claude/hooks/forge-session-audit.ps1`，说明可选 Forge runtime adapter 已安装。
+
+检测到 Forge 时，在路由声明里追加一行：
+
+```text
+Forge adapter: detected / not detected
+```
+
+若 detected，进入 `4-dev`、`5-test`、`6-review`、`7-integration` 时，可以把当前 `change-id`、阶段、task-id、风险、测试和 review 证据写入 Forge routing/state，供运行时门禁使用。Forge 缺失时不要报错，继续纯 markdown 流程。
 
 ## 第二步前 · Artifact Preflight Gate（强制）
 
@@ -272,6 +330,25 @@ flow-kit 后续阶段需要项目上下文给 AI 用。请选择：
 ### 加载工件
 
 > @see `flow-kit/reference/loading-artifacts.md` — 工件加载操作手册（grep + read + offset/limit + 150 行 cap）
+
+**语义约定**：
+- `⚡︎ 全读` ：进阶段首轮必须 read_file 整个文件（只出现在 SPEC / TEMPLATE 上）
+- `⚡︎ 查表` ：只 grep 指定节 或 read offset/limit，**禁止默认整读**（reference/* 都是这个）
+- `⚡︎ 按需` ：首轮不读，里面某个决定点需要时才 grep / 读
+
+| 阶段 | 全读（SPEC） | 查表（REFERENCE，只读指定节） | 按需 |
+|---|---|---|---|
+| 0 / 1 | —（新建）| `flow-kit/reference/ui-aesthetics.md` 只查「给 AI 在 0-change 阶段展示用的标准模板」一节（仅前端项目）| — |
+| 2 | `<id>/CHANGE.md` + `<id>/REQUIREMENT.md` + `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在 · brownfield 强烈推荐 · 重点读 § 2/§ 3/§ 4）| `flow-kit/reference/tech-stacks.md` 只查「适用矩阵」+ 过滤出的 5~6 张卡片 | ADR 阶段某项要深谈时再读 |
+| 2a | `<id>/CHANGE.md` + `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` `## 0` 段 + `.specs/CONTEXT.md` + `flow-kit/reference/ui-anti-patterns.md`（仅 75 行可全读）| `flow-kit/reference/ui-aesthetics.md` 查「5 维度」+ 「给 AI 的模板」 | uipro / impeccable 查询（装了才调）|
+| 3 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` + `<id>/UI-DESIGN.md`（前端项目）+ `.specs/CONTEXT.md` | — | 任务模板查询 |
+| 4 | `<id>/TASK.md`（只读当前 task 块）+ `<id>/DESIGN.md` `## 0` 段 + `<id>/UI-DESIGN.md`（UI 任务）+ `.specs/CONTEXT.md` + `.specs/LESSONS.md` | `flow-kit/reference/ui-anti-patterns.md`（UI 任务 · 75 行可全读）| — |
+| 5 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` `## 0` 段 + `<id>/TASK.md` + 各 `*-SUMMARY.md` | `flow-kit/reference/test-pyramid.md` 只查「适用矩阵」+ 需要的那几轮详情 | — |
+| 6 | `<id>/REQUIREMENT.md` + `<id>/DESIGN.md` + `<id>/TASK.md` + `<id>/TEST.md` + `git diff` | `flow-kit/reference/ui-anti-patterns.md`（前端项目第三轮 · 75 行可全读）| — |
+| 7 | `.specs/<id>/` 全部产物 + `.specs/LESSONS.md` | — | — |
+| **M** (health) | `.specs/CONTEXT.md` + `.specs/LESSONS.md` + 最近 1 份 `.specs/health/*.md`（如有，做对比基线）| — | 抽样 5 个最近改动频繁的 src/ 模块 + 5 个测试文件 + 最近 30 天 git log |
+| **A** (evolve) | `STATE.md` + `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在）+ 范围内每个 `.specs/archive/<change>/DESIGN.md` 的 § 9 段（仅 § 9，非整份 DESIGN）| — | 仅扫 `last_evolve_at` 之后归档的 change，禁止越界读 § 9 以外的 DESIGN 内容 |
+| **A** (architect) | `.specs/CONTEXT.md` + `.specs/ARCHITECTURE.md`（如存在）+ `.specs/CHANGELOG.md` + `flow-kit/templates/ARCHITECTURE.md`（模板）| — | `src/` 顶层结构 + `package.json` / 依赖文件 + 抽样几份 `.specs/archive/*/DESIGN.md` |
 
 ## 第五步 · 显式声明执行计划（必须）
 

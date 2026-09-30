@@ -602,8 +602,35 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
 
 ## C13 skill-独有条款处置清单（T12a 步骤 ① 回填 · L2 r2 R1 修订 2026-09-29）
 
-> 待 T12a 执行时以段集 diff（prompts vs skills/*/SKILL.md 归一化行集差集）逐条回填；
-> 列格式 `| 条款摘录 | 出处载体 | 处置（并入→目标 prompt 路径 / 弃用） | 理由 |`；「并入」条目由 T12a verify 逐字对账命中权威 prompt，杜绝 52 条款静默蒸发。
+> 段集 diff（norm = `grep -vE '^[[:space:]]*$|^---$|^\`\`\`'` + sort -u + comm，D7 判据）实测：16 载体中 8 个净对（architect/design/evolve/intel/restyle/task/test/ui-design——skill 侧归一化 unique 仅 frontmatter name+description 两行，无独有条款）；分叉 6 载体（change/requirement/health/integration/review/go）产出下表 25 条处置（并入 14 / 弃用 11）。flow-dev 由 T11 先行处置（范式样板）；flow-kit-install 豁免（D5 登记：安装器自包含，无对应 prompt 载体）；skills/flow 不辖（D5 glob 豁免）。预估 52 与实测 25 的差值 = DESIGN 时点旧计数 + 10/14 prompt 对在 T11 及此前波次已归零 unique（详见 T12a-SUMMARY 偏差说明）。
+
+| 条款摘录 | 出处载体 | 处置 | 理由 |
+|---|---|---|---|
+| 步骤 2.6 · 全量 bash -n 语法门禁 | flow-health | 并入→flow-kit-bundle/flow-kit/prompts/M-health.md | skill-独有整节（find 全仓 .sh 语法门禁 + 🔴Critical 判定 + 2026-06-30 漏检来由），已逐字并入 prompt 步骤 2.5 与步骤 3 之间 |
+| 步骤 2.6 bash -n 语法门禁已跑 | flow-health | 并入→flow-kit-bundle/flow-kit/prompts/M-health.md | 自检表行，已并入 prompt 自检清单 |
+| 归档完成。是否将当前分支合并到 main | flow-integration | 并入→flow-kit-bundle/flow-kit/prompts/7-integration.md | §6.1 合并到 main 协议（反问菜单 1/2），已并入 prompt §6 |
+| git checkout main && git pull && git merge | flow-integration | 并入→flow-kit-bundle/flow-kit/prompts/7-integration.md | §6.1 合并命令序列，已并入 prompt §6.1 |
+| 合并到 main 和创建 PR 均需用户明示确认，禁止自动执行 | flow-integration | 并入→flow-kit-bundle/flow-kit/prompts/7-integration.md | Git 收尾硬约束，已并入 prompt 约束段 |
+| 合并到 main 已询问用户 | flow-integration | 并入→flow-kit-bundle/flow-kit/prompts/7-integration.md | 自检表行，已并入 prompt 自检清单 |
+| 创建 PR 已询问用户 | flow-integration | 并入→flow-kit-bundle/flow-kit/prompts/7-integration.md | 自检表行，已并入 prompt 自检清单 |
+| 2.0 TEST.md 5 轮金字塔完整性 | flow-review | 并入→flow-kit-bundle/flow-kit/prompts/6-review.md | skill-独有小节（7 项检查 + 任一不达→🔴Critical 回 5-test）；prompt 自检表原引用「2.0 段」为悬空引用，已补齐 |
+| 4.1 技术债评估 | flow-review | 并入→flow-kit-bundle/flow-kit/prompts/6-review.md | skill-独有小节（触发条件 + /brooks-debt + Pain × Spread + 三级处置）；prompt 自检表原引用「4.1」为悬空引用，已补齐 |
+| FLOW_KIT_ROOT | flow-go | 并入→flow-kit-bundle/flow-kit/GO.md | 第〇步两级查找整节（项目级优先 → user-scope → dsh 插件回退 → 报错指引 + 断链 symlink 检测），已并入 GO.md |
+| 真实成本影响因子 | flow-go | 并入→flow-kit-bundle/flow-kit/GO.md | 6 因子调整表（前端+20% … task>10 +50%），已并入 GO.md 预算估算段 |
+| Forge adapter: detected / not detected | flow-go | 并入→flow-kit-bundle/flow-kit/GO.md | 可选 runtime adapter 检测（forge hooks 探测 + 路由声明追加行），已并入 GO.md 第一步后 |
+| interrupt.active_file | flow-go | 并入→flow-kit-bundle/flow-kit/GO.md | 第一步升级版（.specs/STATE.md + .flow-active 字段 + interrupt 恢复上下文 + SessionStart hook），已并入 GO.md 第一步 |
+| ⚡︎ 全读 | flow-go | 并入→flow-kit-bundle/flow-kit/GO.md | 加载工件语义约定（全读/查表/按需）+ per-phase 表 11 行，已并入 GO.md「加载工件」节 |
+| 每轮最多 3 个问题，等用户回答再继续 | flow-change | 弃用 | 旧弱版反问条款；0-change.md 反问 gate（R3.5）已是强化版（≤3 问 + AC-7 理由 + 反问未完成禁产出 CHANGE.md 硬 gate） |
+| 不能一句话验证的 AC 必须停下反问 | flow-requirement | 弃用 | 1-requirement.md 反问 gate 已有同款强化版（含 ❌/✅ 判例） |
+| 5.0.x 清理旧措辞（arch 归档/孤儿文件） | flow-integration | 弃用 | prompt 5.0.1/5.0.2/5.0.3 强化版已覆盖同语义（含更强判定与例外清单） |
+| 孤儿扫描 / L2 归档变体措辞 | flow-integration | 弃用 | prompt 同节强化版覆盖；skill 侧为旧措辞残段 |
+| §4.2 跨模型 spot-check（旧版） | flow-review | 弃用 | 6-review.md ADR-014 Critical-Triggered 版取代 + INDEPENDENT-REVIEW-6.md 承载调度细节 |
+| 三轮+第四轮轮次架构正文 | flow-review | 弃用 | prompt 单轮合并审查（A/B/C/D）语义全覆盖；轮次编排差异非条款 |
+| 查 reference 实际动作示例（grep + offset/limit） | flow-go | 弃用 | loading-artifacts.md §3 已有同款示例，GO.md @see 该文件 |
+| 用户视角的取舍表 | flow-go | 弃用 | GO.md 预算估算段挡位菜单（完整/极简/单点/不走）已覆盖同款映射 |
+| 3.3 为什么这步重要（brownfield 说明段） | flow-go | 弃用 | 说明性文字非强制条款；GO.md 3.x 各节自带判定与理由 |
+| 典型 token 成本表明细 | flow-go | 弃用 | GO.md 典型成本表保留摘要，明细委托 README「Token 成本表」段承载 |
+| 路由表 / 极少数情况 / 自检的措辞变体 | flow-go | 弃用 | GO.md 已有对应节，且含 skill 侧没有的新增演进（Phase Completion Gate / Fallback 路由 / Goal 检测），以 GO.md 为准 |
 
 ---
 

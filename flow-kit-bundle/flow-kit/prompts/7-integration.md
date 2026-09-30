@@ -379,12 +379,45 @@ test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && \
   N = `grep -c '^### 9\\.' DESIGN.md`，如果整段是"无架构层面沉淀建议"则 N=0，不必提示
 - **禁止**在本步直接修改 `.specs/CONTEXT.md`——它的更新统一走 `A-evolve` 或 `I-intel-scan`
 
-### 6. 出 PR（可选）
+### 6. Git 收尾（均需用户明示确认后才执行）
 
-如果用户用 git 流水线：
+以下两步互不依赖，各自独立询问用户。
+
+#### 6.1 合并到 main（可选）
+
+归档完成后，**反问用户**：
+
+```
+✅ 归档完成。是否将当前分支合并到 main？
+   1. 是，合并到 main（执行 git merge）
+   2. 否，保留分支不动
+```
+
+用户选 1 时执行：
+- `git checkout main && git pull && git merge <branch> && git push`
+- 遇到冲突停下，让用户手动解决
+- 合并完成后告知用户
+
+**约束**：未得到用户明确"选 1"之前，**不得**执行任何 git 操作。
+
+#### 6.2 创建 PR（可选）
+
+**反问用户**：
+
+```
+是否创建 Pull Request？
+   1. 是，创建 PR
+   2. 否，跳过
+```
+
+用户选 1 时执行：
 - 检查 PR 标题/正文已自动从 CHANGE.md + SUMMARY.md 拼装
 - 列出涉及的文件、AC 覆盖、UAT 结论
 - 把 `.specs/` 内的文件归类到 PR 描述（不污染代码 diff）
+- 执行 `gh pr create` 或等价命令
+- 贴出 PR 链接
+
+**约束**：未得到用户明确"选 1"之前，**不得**创建 PR。
 
 ## 输出
 
@@ -392,6 +425,8 @@ test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && \
 - 归档后的 `.specs/archive/<...>/`
 - 更新的 `.specs/CHANGELOG.md` 与 `STATE.md`
 - 0~N 个 fix-plan（如有失败）
+- 可选：合并到 main（需用户确认）
+- 可选：PR 链接（需用户确认）
 
 ## 约束（强制）
 
@@ -400,6 +435,7 @@ test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && \
 <!-- weak-model-guard: AskUserQuestion -->
 ❌ 如果你还没调用 AskUserQuestion 工具，现在停下来调用它。不要跳过。
 - 归档操作必须用户确认后才执行（移动/删除文件不可逆）
+- 合并到 main 和创建 PR 均需用户明示确认，禁止自动执行
 
 ## 自检
 
@@ -410,6 +446,8 @@ test -f ".specs/archive/$(date +%Y-%m-%d)-<change-id>/PROGRESS.md" && \
 - [ ] 归档目录已创建（用户确认后）
 - [ ] **归档后 .specs/<id>/ 工作目录已删除**（5.0.1 · L-013）
 - [ ] **孤儿 change 扫描已跑**（5.0.2 · 结果已贴出 · L-013）
+- [ ] 合并到 main 已询问用户（已执行 / 用户跳过）
+- [ ] 创建 PR 已询问用户（已执行 / 用户跳过）
 
 ## 触发下一步
 
