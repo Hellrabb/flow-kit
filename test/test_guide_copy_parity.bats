@@ -180,18 +180,24 @@ PY
 }
 
 @test "installed dsh plugin guide copy cmp-identical when present" {
+  # C14-c 显式化（AC-12-c · T15 修）：安装态环境探针（变体④ 间接赋值 inst="$HOME/.dsh/…"，
+  # 下游 $inst 读取同辖）——与 HOME夹具自包含 豁免族不同，本用例读 $HOME 真实安装态；
+  # 未安装必须显式 skip + 打印原因；且不允许零比对空转绿（安装在场而两处指南副本均
+  # 缺失 → 显式 skip 打印原因，原形 continue 静默放行 = 变体① 真空通过的循环内形态）。
   local prof="${DSH_PROFILE:-web}"
   local inst="$HOME/.dsh/profiles/$prof/node_modules/dsh-flow-kit"
-  [ -d "$inst" ] || skip "profile $prof 未安装 dsh-flow-kit"
-  local rel
+  [ -d "$inst" ] || skip "环境面残留：profile $prof 未安装 dsh-flow-kit（$inst 不存在），跳过安装态副本比对"
+  local rel checked=0
   for rel in "docs/$GUIDE_NAME" "vendor/flow-kit-bundle/$GUIDE_NAME"; do
     [ -f "$inst/$rel" ] || continue
     [ -f "$REPO_ROOT/dist/dsh-flow-kit/$rel" ] || skip "dist 缺席，无法比较 $rel"
+    checked=$((checked + 1))
     cmp -s "$REPO_ROOT/dist/dsh-flow-kit/$rel" "$inst/$rel" || {
       echo "已安装副本与 dist 不一致: $inst/$rel → 请跑 make dsh-sync"
       return 1
     }
   done
+  [ "$checked" -gt 0 ] || skip "环境面残留：$inst 在场但 docs/$GUIDE_NAME 与 vendor/flow-kit-bundle/$GUIDE_NAME 均缺失，零比对不可判绿"
 }
 
 @test "guide parity guard covers the dist-absent path: 只有 root+bundle 两份时注入漂移必须判定不一致" {

@@ -63,7 +63,9 @@ _l2v() {
   #   ① 现场再生归因清单到临时文件 → 其行数必须等于活语料空值数（再生器覆盖性，可失败：
   #      本用例曾因 rel 路径归一化 bug 得到 0 行）；
   #   ② 活语料零非枚举（AC-2 的实质不变量）；
-  #   ③ 数值预算「≤8」只对**基线语料**（commit be138c0 时点）成立 —— 原文口径。
+  #   ③ 数值预算「≤8」只对**基线语料**（l3-review 缺陷修复落地 commit 时点）成立 —— 原文口径；
+  #      基线 commit 由 git 按主题行动态反查（T15 修：原硬编码 be138c0 在 T16 历史重写后必失效，
+  #      且原形 ls-tree 失败 2>/dev/null 静默吞错 → base_empty 恒 0 → ③ 恒真；现解析失败显式红）。
   # 提交前纪律（写进 TEST.md/UAT.md）：`bash corpus-count.sh --attribution` 再生仓库内那份清单；
   # 本用例不比对它，避免"测试改工作区"与"快照过期即红"两种坏味道。
   local attr="" _cand
@@ -87,7 +89,11 @@ _l2v() {
   local report
   report=$(bash -c '
     source "$1" 2>/dev/null
-    base_list=$(git -C "$3" ls-tree -r --name-only be138c0 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
+    base_rev=$(git -C "$3" log --format=%H --grep="复测并修复 L3 审查链报告 5 条缺陷" -1 || true)
+    base_list=""
+    if [ -n "$base_rev" ]; then
+      base_list=$(git -C "$3" ls-tree -r --name-only "$base_rev" 2>/dev/null | grep -E "\.specs/.*INDEPENDENT-REVIEW-.*\.md$" | sed "s#^\.specs/##" | sort)
+    fi
     n=0; empty=0; base_empty=0; nonenum=0
     while IFS= read -r f; do
       n=$((n+1))
@@ -100,9 +106,14 @@ _l2v() {
         *) nonenum=$((nonenum+1)) ;;
       esac
     done < <(find "$3/.specs" -name "INDEPENDENT-REVIEW-*.md" | sort)
-    printf "n=%s empty=%s base_empty=%s nonenum=%s" "$n" "$empty" "$base_empty" "$nonenum"
+    printf "n=%s empty=%s base_empty=%s nonenum=%s base_rev=%s" "$n" "$empty" "$base_empty" "$nonenum" "${base_rev:-MISSING}"
   ' _ "$L2_LIB" "$attr" "$FK_ROOT")
   echo "$report rows=$rows"
+  # C14-c/T15（AC-12-c）：基线 commit 反查失败必须显式红——禁止静默按空基线把 ③ 判绿。
+  if [[ "$report" == *"base_rev=MISSING"* ]]; then
+    echo "基线 commit 反查失败：git log --grep 未命中主题行（复测并修复 L3 审查链报告 5 条缺陷）"
+    return 1
+  fi
   # ① 再生器覆盖性：清单行数 == 活语料空值数
   # 逐字段取值：不能用 `.*empty=\([0-9]*\)` —— 贪婪匹配会命中 base_empty=（曾因此误判 empty=8）
   local e; e=$(printf '%s\n' "$report" | tr ' ' '\n' | sed -n 's/^empty=//p')
@@ -1000,6 +1011,10 @@ _phase7_prompt() {
   #   P0-1（熔断出口）= 真跑 lib，计数达阈值时 bypass .done（L3_verdict=skipped）真实落盘。
   # 历史漂移树（缺任一修复）在对应观测点上当场红。
   local dep="$HOME/.claude/hooks"
+  # C14-c 显式化（AC-12-c · T15 修）：安装态环境探针（变体④ 间接赋值 dep="$HOME/.claude/hooks"，
+  # 下游 $dep 读取同辖）——与 HOME夹具自包含 豁免族不同，本用例以**本机安装副本**为受检对象
+  # （历史漂移点）；缺失必须显式 skip + 打印原因（下方三处 skip 均已打印原因），在场时沙箱
+  # 双跑行为断言（stub 导出链 + bypass 落盘）照常执行。
   [ -d "$dep" ] || skip "本机无 ~/.claude/hooks（用户级安装）"
   [ -f "$dep/stop/29-independent-review.sh" ] || skip "用户级安装缺 29 号模块"
   local base="$TEST_TMP/b5r3"; mkdir -p "$base"

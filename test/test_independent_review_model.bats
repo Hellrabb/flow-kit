@@ -171,6 +171,9 @@ teardown() {
 # ── stop-hook.json 未被修改（D5 决策） ─────────────────────────────────
 # 例外（判据⑤）：本用例属「已安装环境」面（stop-hook.json 仅存在于 $HOME 安装态，
 # 非仓库源件）。文件不存在或 jq 不可用时必须显式 skip，禁止静默回落/恒真。
+# C14-c 显式化（AC-12-c · T15 修）：安装态环境探针——与 HOME夹具自包含 豁免族不同，
+# 判定值取自 $HOME 安装态是本用例固有语义（环境面残留检查）；skip 已打印原因（合规
+# 终态），在场时 jq 判定照常执行，异机差异由 skip 原因显式可读。
 
 @test "stop-hook.json still has plain model string (not env var placeholder)" {
   if [ ! -f "$HOME/.claude/stop-hook.json" ]; then

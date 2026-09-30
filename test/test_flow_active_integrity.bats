@@ -58,6 +58,12 @@ teardown() {
 # ── AC-1: L2 PCSC self-check anchor text ─────────────────────────────
 
 @test "AC-1: all user-scope prompts contain PCSC anchor text" {
+  # C14-c 显式化（AC-12-c · T15 修）：安装态环境探针——与 HOME夹具自包含 豁免族不同，
+  # 本用例经 ~ 展开（≡ $HOME）读 ~/.claude/flow-kit 真实安装态；原形缺失时 count≠8 直接红
+  # （硬失败方向的异机结果不同）。现缺失时显式 skip + 打印原因；在场时 count=8 断言不变。
+  if [ ! -d "$HOME/.claude/flow-kit/prompts" ]; then
+    skip "环境面残留：$HOME/.claude/flow-kit/prompts 不存在（用户级安装未部署），跳过 user-scope 锚文本计数"
+  fi
   # health-fix-2026-09c T11(AC-15①)：4-dev.md §6.0 内联 PCSC 表 → @see reference/pipeline-gates.md
   # （单一源）；行 8（.flow-active 字段自检）由本文件所在族 + 33-flow-active-integrity hook 承载。
   # 故锚文本计数 9→8（4-dev 合法失去锚文本，检查力未丢）。

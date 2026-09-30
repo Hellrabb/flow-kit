@@ -559,8 +559,19 @@ _build_phase7_tree() {
 }
 
 @test "T06: AC-6 global ~/.claude copy cmp-identical when present" {
-  [ ! -f "$HOME/.claude/hooks/stop/lib/l3-prompt.sh" ] || \
-    cmp -s flow-kit-bundle/hooks/stop/lib/l3-prompt.sh "$HOME/.claude/hooks/stop/lib/l3-prompt.sh"
+  # C14-c 显式化（AC-12-c · T15 修）：安装态环境探针——与 HOME夹具自包含 豁免族不同，
+  # 本用例读 $HOME 真实安装态；原形 `[ ! -f ] || cmp` 是变体① 真空通过（缺文件 ⇒ 整体
+  # 记 ok，同一提交异机绿/红不同）。现缺失必须显式 skip 并打印原因；在场时以仓库源为
+  # 基准 cmp（沿用上一用例的位置无关根查找，不依赖调用 CWD）。
+  if [ ! -f "$HOME/.claude/hooks/stop/lib/l3-prompt.sh" ]; then
+    skip "环境面残留：$HOME/.claude/hooks/stop/lib/l3-prompt.sh 不存在（用户级安装未部署），跳过安装态副本比对"
+  fi
+  local d
+  d="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  while [ "$d" != "/" ] && [ ! -d "$d/flow-kit-bundle/hooks" ]; do
+    d=$(dirname "$d")
+  done
+  cmp -s "$d/flow-kit-bundle/hooks/stop/lib/l3-prompt.sh" "$HOME/.claude/hooks/stop/lib/l3-prompt.sh"
 }
 
 @test "T05fix: AC-4 quota ② response essentials <=200B and ③ total variable content <=800B" {
