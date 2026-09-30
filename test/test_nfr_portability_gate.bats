@@ -43,8 +43,20 @@ setup() {
   git -C "$FIXTURE" config user.name "fixture"
   # 运行时复制真实 Makefile（活性关键）
   cp -- "$MAKEFILE_SRC" "$FIXTURE/Makefile"
+  # T13（AC-12-g / ADR-031）：Makefile internals 块锚点定位改调唯一解析入口
+  #   flow-kit-bundle/lib/flow-active-query.sh（相对路径）。夹具仓必须补齐该
+  #   依赖件（与 write_baseline() 同模式：Makefile 硬编码相对路径，夹具运行时
+  #   提供同路径副本），否则 R3-22 锚点用例退化走多锚点误报分支（937 的期望
+  #   消息与降级路径同文会掩盖性通过，936 缺「锚点来源」行而红）。
+  mkdir -p "$FIXTURE/flow-kit-bundle/lib"
+  cp -- "$d/flow-kit-bundle/lib/flow-active-query.sh" \
+    "$FIXTURE/flow-kit-bundle/lib/flow-active-query.sh"
   printf '#!/bin/bash\nt=$(mktemp)\n' > "$FIXTURE/seed.sh"
-  git -C "$FIXTURE" add -- Makefile seed.sh
+  # 随基线入库（tracked）：保持「空变更集 ⇒ rc=3」契约——若不入库，该副本成为
+  #   未跟踪新增 .sh，NEWF 面必扫，tests 1/6/16 的 SKIP 语义被破坏。脚本本体
+  #   NFR-clean（真仓 make check-nfr-portability 全绿），全量模式扫描无虞。
+  git -C "$FIXTURE" add -- Makefile seed.sh \
+    flow-kit-bundle/lib/flow-active-query.sh
   git -C "$FIXTURE" commit -q -m base
   BASE_SHA="$(git -C "$FIXTURE" rev-parse HEAD)"
 

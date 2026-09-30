@@ -1,0 +1,463 @@
+# flow-active-inline-whitelist.txt — 状态文件内联解析存量白名单（常设 · 入库基线）
+# change: health-fix-2026-09c / T13 / C14-g / ADR-031 / AC-12-g（DESIGN §9.5 · 附录 A）
+#
+# 作用域：make check-flow-active-inline（附录 A 严格谓词四分支）的存量豁免账。
+# 读序：本常设清单 > 唯一非归档 change 副本（.specs/*/flow-active-inline-whitelist.txt）
+#   > 双缺 fail-closed（ADR-028 三层口径；常设入库不受 change 归档影响）。
+#
+# 条目格式：<路径>:<行号>:<该行完整内容原文>（与谓词 grep -n 输出逐字一致；
+#   本文件行首 # 注释与空行在校验前剥除，不参与匹配）。
+#
+# 纪律（ratchet，只减不增）：
+#   - 新增对状态文件的解析一律改调唯一入口 flow-kit-bundle/lib/flow-active-query.sh
+#     （rc 0/1/2 契约见 DESIGN §9.3），不得新增白名单条目。
+#   - 存量行被删除/改写后，对应条目须同步移除（陈旧条目判 ⚠️ 红）。
+#   - 条目内容须与命中行逐字一致：源行变更（哪怕注释）都会使条目转陈旧——
+#     这是有意的（迫使变更者显式过账）。
+#
+# 初建登记（09c T13 实测回填，非抄 DESIGN 旧数）：谓词命中 427 行 = A 测试夹具
+#   360 + B JS 存量 16 + C hooks 存量 43 + D 根工具/回归演示 8。
+# ── A. 测试夹具（test/ 与 flow-kit-bundle/test/ 镜像）──
+# bats 测试域：夹具构造/断言/双态判据中合法出现的内联形态（测试本就要
+# 驱动状态文件的真实读写，非生产解析点；镜像侧由 make check-test-sync 看守）。
+flow-kit-bundle/test/done-validation.bats:23:  FLOW_ACTIVE="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/test/phase-resolution.bats:22:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+flow-kit-bundle/test/phase-resolution.bats:30:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+flow-kit-bundle/test/phase-resolution.bats:38:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+flow-kit-bundle/test/phase-resolution.bats:46:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+flow-kit-bundle/test/phase-resolution.bats:7:  cp "${BATS_TEST_DIRNAME}/../.flow-active" "$TEST_TMPDIR/.flow-active" 2>/dev/null || true
+flow-kit-bundle/test/test_auto_checkpoint.bats:108:  jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+flow-kit-bundle/test/test_auto_checkpoint.bats:112:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:117:  jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+flow-kit-bundle/test/test_auto_checkpoint.bats:121:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:158:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:159:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:160:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:171:  int_file=$(jq -r '.interrupt.active_file // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:172:  int_action=$(jq -r '.interrupt.last_action // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:173:  int_ts=$(jq -r '.interrupt.checkpoint_at // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:186:  int_action=$(jq -r '.interrupt.last_action // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:187:  int_file=$(jq -r '.interrupt.active_file // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:193:  int_ts=$(jq -r '.interrupt.checkpoint_at // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:194:  failing_check=$(jq -r '.interrupt.failing_check // ""' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:206:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:212:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:224:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:229:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:27:  jq -n '{change_id:"test-change",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+flow-kit-bundle/test/test_auto_checkpoint.bats:44:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:45:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:46:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:47:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:56:  old_ts=$(jq -r '.updated_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:58:  new_ts=$(jq -r '.updated_at' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:71:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:72:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_auto_checkpoint.bats:94:  jq -n '{change_id:null,phase:"4",interrupt:{active_file:"old.sh",last_action:"old",checkpoint_at:"2020-01-01T00:00:00Z"}}' > .flow-active
+flow-kit-bundle/test/test_auto_checkpoint.bats:98:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:102:  f1=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:107:  f2=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:136:  interrupt=$(jq -r '.interrupt' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:146:  before=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:148:  # 制造 jq 写入失败（通过损坏 .flow-active 让后续 jq 解析失败但先恢复）
+flow-kit-bundle/test/test_checkpoint.bats:157:  after=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:18:  jq -n '{change_id:"test",phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+flow-kit-bundle/test/test_checkpoint.bats:33:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:34:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:35:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:44:  jq '.interrupt = {active_file:"old.sh",last_action:"manual",checkpoint_at:"2025-01-01T00:00:00+00:00"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+flow-kit-bundle/test/test_checkpoint.bats:50:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:58:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:72:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:79:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+flow-kit-bundle/test/test_checkpoint.bats:93:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+flow-kit-bundle/test/test_correction_hygiene.bats:111:       {check: "corrupt_json", message: "old-1", field: ".flow-active"},
+flow-kit-bundle/test/test_correction_hygiene.bats:142:  jq -n '{type: "l2-missing", phase: "1", change_id: "ac4-change", violations: [{"check": "corrupt_json", "message": "stale", "field": ".flow-active"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:155:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "v1", "field": ".flow-active"}, {"check": "R1", "message": "keep-me", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:178:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old-1", "field": ".flow-active"}, {"check": "phase_artifact_missing", "message": "old-2", "field": ".flow-active.phase"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:23:  FLOW_ACTIVE="$FIXTURE/.flow-active"
+flow-kit-bundle/test/test_correction_hygiene.bats:24:  CORRECTION="$FIXTURE/.flow-active.correction"
+flow-kit-bundle/test/test_correction_hygiene.bats:266:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:279:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:292:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+flow-kit-bundle/test/test_correction_hygiene.bats:67:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'first' '.flow-active'
+flow-kit-bundle/test/test_correction_hygiene.bats:68:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'second' '.flow-active'
+flow-kit-bundle/test/test_correction_hygiene.bats:69:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'third' '.flow-active'
+flow-kit-bundle/test/test_dual_review_merge.bats:111:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_dual_review_merge.bats:137:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_dual_review_merge.bats:162:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_dual_review_merge.bats:86:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_fail_closed.bats:134:  jq -n '{change_id:"ctl",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > "$TEST_DIR/.flow-active"
+flow-kit-bundle/test/test_fail_closed.bats:141:  jq -n '{change_id:"ctl",phase:"4"}' > .flow-active
+flow-kit-bundle/test/test_fail_closed.bats:147:  jq -n '{change_id:"test-change",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+flow-kit-bundle/test/test_fail_closed.bats:150:  [[ "$(jq -r '.interrupt.active_file' .flow-active)" == "src/main.sh" ]]
+flow-kit-bundle/test/test_fail_closed.bats:86:  echo "not json {" > "$TEST_DIR/.flow-active"
+flow-kit-bundle/test/test_fix_l3_gate.bats:25:  FLOW_FILE="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_fix_l3_gate.bats:341:  # C6 行为化：提取该 prompt 附带的过渡 jq 并对夹具 .flow-active 真跑，
+flow-kit-bundle/test/test_fk_resolve_model.bats:27:    > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_fk_resolve_model.bats:42:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+flow-kit-bundle/test/test_fk_resolve_model.bats:43:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_active_integrity.bats:18:  FLOW_ACTIVE="${TEST_TMP}/.flow-active"
+flow-kit-bundle/test/test_flow_active_integrity.bats:20:  CORRECTION_FILE="${TEST_TMP}/.flow-active.correction"
+flow-kit-bundle/test/test_flow_active_integrity.bats:220:  # Create transcript with jq .flow-active write operations
+flow-kit-bundle/test/test_flow_active_integrity.bats:221:  echo "jq '.phase = \"2\"' .flow-active > .flow-active.tmp" > "$TRANSCRIPT_FILE"
+flow-kit-bundle/test/test_flow_active_integrity.bats:222:  echo "mv .flow-active.tmp .flow-active" >> "$TRANSCRIPT_FILE"
+flow-kit-bundle/test/test_flow_active_integrity.bats:250:@test "NFR: handles corrupt JSON .flow-active" {
+flow-kit-bundle/test/test_flow_active_query.bats:103:  printf '%b' '{"change_id": "broken"\n' > "$FIXTURE/.flow-active"
+flow-kit-bundle/test/test_flow_active_query.bats:121:  printf '%b' 'not json at all\n' > "$FIXTURE/.flow-active"
+flow-kit-bundle/test/test_flow_active_query.bats:34:  write_state() { printf '%b' "$1" > "$FIXTURE/.flow-active"; }
+flow-kit-bundle/test/test_flow_active_query.bats:55:  [[ "$output" == *"/.flow-active" ]]
+flow-kit-bundle/test/test_flow_artifacts.bats:103:@test "fk_validate_flow: returns 0 for valid JSON .flow-active" {
+flow-kit-bundle/test/test_flow_artifacts.bats:105:  jq -n '{change_id: "x", phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:109:@test "fk_validate_flow: returns 1 for missing .flow-active" {
+flow-kit-bundle/test/test_flow_artifacts.bats:114:@test "fk_validate_flow: returns 1 for invalid JSON .flow-active" {
+flow-kit-bundle/test/test_flow_artifacts.bats:116:  echo "{{{ broken json" > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:191:  jq -n '{phase: "3"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:198:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:209:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:228:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:39:  jq -n '{change_id: "test-change", phase: "2"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:47:  jq -n '{goal: {status: "active", turns: 3}}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:55:  jq -n '{change_id: "x"}' > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_artifacts.bats:70:  echo "not valid json {{{" > "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_goal.bats:43:@test "goal set: writes condition + metadata to .flow-active" {
+flow-kit-bundle/test/test_flow_goal.bats:7:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_flow_kit_resume.bats:104:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:117:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:131:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:145:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:159:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:33:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:51:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:63:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:74:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_kit_resume.bats:88:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_flow_model.bats:23:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+flow-kit-bundle/test/test_flow_model.bats:24:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_model.bats:31:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+flow-kit-bundle/test/test_flow_model.bats:32:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_model.bats:37:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "deepseek-v4-flash" ]
+flow-kit-bundle/test/test_flow_model.bats:42:  [ "$(jq -r '.goal.l2_model' "$PROJECT_ROOT/.flow-active")" = "deepseek-v4-pro" ]
+flow-kit-bundle/test/test_flow_model.bats:48:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+flow-kit-bundle/test/test_flow_model.bats:49:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_model.bats:50:  [ "$(jq -r '.goal.l2_model' "$PROJECT_ROOT/.flow-active")" = "model-a" ]
+flow-kit-bundle/test/test_flow_model.bats:51:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "model-b" ]
+flow-kit-bundle/test/test_flow_model.bats:57:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "null" ]
+flow-kit-bundle/test/test_flow_model.bats:62:  [ "$(jq -r '.goal.condition' "$PROJECT_ROOT/.flow-active")" = "x" ]
+flow-kit-bundle/test/test_flow_model.bats:63:  [ "$(jq -r '.goal.gate_config["6-review"]' "$PROJECT_ROOT/.flow-active")" = "both" ]
+flow-kit-bundle/test/test_flow_model.bats:68:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = 'model"; rm -rf / #' ]
+flow-kit-bundle/test/test_flow_model.bats:70:  jq empty "$PROJECT_ROOT/.flow-active"
+flow-kit-bundle/test/test_flow_model.bats:9:  cat > "$PROJECT_ROOT/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_gate_config_presets.bats:11:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_gate_integrity.bats:114:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_gate_integrity.bats:118:    "$TEST_TMPDIR/.flow-active" \
+flow-kit-bundle/test/test_gate_integrity.bats:124:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_gate_integrity.bats:128:    "$TEST_TMPDIR/.flow-active" \
+flow-kit-bundle/test/test_gate_integrity.bats:213:  run _is_dotdone_write "jq .interrupt=x .flow-active"
+flow-kit-bundle/test/test_gate_integrity.bats:222:  local flow_file="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_gate_integrity.bats:231:  local flow_file="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_gate_integrity.bats:245:  cmd='jq ".goal.phases_done += [\"3\"]" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
+flow-kit-bundle/test/test_gate_integrity.bats:252:  cmd='jq ".phase = 5" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
+flow-kit-bundle/test/test_gate_integrity.bats:258:  cmd='jq ".goal.phases_done" .flow-active'
+flow-kit-bundle/test/test_gate_integrity.bats:26:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_gate_integrity.bats:90:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+flow-kit-bundle/test/test_gate_integrity.bats:94:    "$TEST_TMPDIR/.flow-active" \
+flow-kit-bundle/test/test-is-git-commit-structural.bats:190:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test-is-git-commit-structural.bats:207:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test_l2_dispatch_mode.bats:103:  local msg; msg=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+flow-kit-bundle/test/test_l2_dispatch_mode.bats:112:  local msg3; msg3=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+flow-kit-bundle/test/test_l2_dispatch_mode.bats:126:  [ "$(jq -r '.type // ""' "$PROJECT_ROOT/.flow-active.correction")" = "l2-model-missing" ]
+flow-kit-bundle/test/test_l2_dispatch_mode.bats:127:  local msg; msg=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+flow-kit-bundle/test/test-l2-first-correction.bats:32:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test_l2_l3_granular_gate.bats:20:  FLOW_ACTIVE="$TEST_TMP/.flow-active"
+flow-kit-bundle/test/test_l2_pretooluse_dispatch.bats:232:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test_l2_pretooluse_dispatch.bats:242:    "jq '.goal.current_phase = \"1\"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active"
+flow-kit-bundle/test/test_l2_pretooluse_dispatch.bats:271:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test_l2_pretooluse_dispatch.bats:293:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test_l2_pretooluse_dispatch.bats:297:  CMD="jq '.goal.current_phase = \"2\"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active"
+flow-kit-bundle/test/test_l3_backlog_alarm.bats:80:    > "$PROJ/.flow-active"
+flow-kit-bundle/test/test_l3_lifecycle_wiring.bats:317:  cat > "$proj/.flow-active" <<'FLOW'
+flow-kit-bundle/test/test_l3_review_defects_2026_09.bats:1042:    cat > "$proj/.flow-active" <<'FLOW'
+flow-kit-bundle/test/test_l3_review_defects_2026_09.bats:1456:  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
+flow-kit-bundle/test/test_l3_review_defects_2026_09.bats:1461:  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
+flow-kit-bundle/test/test_l3_review_defects_2026_09.bats:1913:    cat > "$proj/.flow-active" <<'FLOW'
+flow-kit-bundle/test/test_l3_review_defects_2026_09.bats:480:  cat > "$proj/.flow-active" <<'FLOW'
+flow-kit-bundle/test/test_model_degradation.bats:43:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction")" = "l3-model-missing" ]
+flow-kit-bundle/test/test_model_degradation.bats:52:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction")" = "l2-model-missing" ]
+flow-kit-bundle/test/test_model_degradation.bats:79:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction" 2>/dev/null)" = "l3-model-missing" ]
+flow-kit-bundle/test/test_nfr_portability_gate.bats:255:  printf '{\n  "change_id": "change-a",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+flow-kit-bundle/test/test_nfr_portability_gate.bats:272:  printf '{\n  "change_id": "change-zzz-nonexist",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+flow-kit-bundle/test/test-phase-gate-key-pure-fn.bats:83:    > "$TMP_DIR/.flow-active"
+flow-kit-bundle/test/test-pipeline-no-g1-autoadvance.bats:44:    > "${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/test/test-pipeline-no-g1-autoadvance.bats:54:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "1" ]]
+flow-kit-bundle/test/test-pipeline-no-g1-autoadvance.bats:63:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "2" ]]
+flow-kit-bundle/test/test-pipeline-no-g1-autoadvance.bats:70:    > "${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/test/test-pipeline-no-g1-autoadvance.bats:73:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "2" ]]
+flow-kit-bundle/test/test_pipeline_rollback.bats:8:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_resume_banner.bats:25:  FLOW_FILE="$TEST_TMPDIR/.flow-active"
+flow-kit-bundle/test/test_resume_banner.bats:88:  run build_resume_banner "/nonexistent/path/.flow-active"
+flow-kit-bundle/test/test_review_gate_validity.bats:143:  rm -f "$SBX/.flow-active"
+flow-kit-bundle/test/test_review_gate_validity.bats:194:    "$CID" > "$SBX/.flow-active"
+flow-kit-bundle/test/test_review_gate_validity.bats:207:    "$CID" > "$SBX/.flow-active"
+flow-kit-bundle/test/test_review_gate_validity.bats:61:    "$CID" "$PHASE" "$PHASE" "$1" > "$SBX/.flow-active"
+test/done-validation.bats:23:  FLOW_ACTIVE="${PROJECT_ROOT}/.flow-active"
+test/phase-resolution.bats:22:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+test/phase-resolution.bats:30:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+test/phase-resolution.bats:38:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+test/phase-resolution.bats:46:  cat > "$TEST_TMPDIR/.flow-active" <<'EOF'
+test/phase-resolution.bats:7:  cp "${BATS_TEST_DIRNAME}/../.flow-active" "$TEST_TMPDIR/.flow-active" 2>/dev/null || true
+test/test_auto_checkpoint.bats:108:  jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+test/test_auto_checkpoint.bats:112:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_auto_checkpoint.bats:117:  jq '.interrupt = {active_file:"before.sh",last_action:"编辑 before.sh",checkpoint_at:"2020-01-01T00:00:00Z"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+test/test_auto_checkpoint.bats:121:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_auto_checkpoint.bats:158:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_auto_checkpoint.bats:159:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_auto_checkpoint.bats:160:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:171:  int_file=$(jq -r '.interrupt.active_file // ""' .flow-active)
+test/test_auto_checkpoint.bats:172:  int_action=$(jq -r '.interrupt.last_action // ""' .flow-active)
+test/test_auto_checkpoint.bats:173:  int_ts=$(jq -r '.interrupt.checkpoint_at // ""' .flow-active)
+test/test_auto_checkpoint.bats:186:  int_action=$(jq -r '.interrupt.last_action // ""' .flow-active)
+test/test_auto_checkpoint.bats:187:  int_file=$(jq -r '.interrupt.active_file // ""' .flow-active)
+test/test_auto_checkpoint.bats:193:  int_ts=$(jq -r '.interrupt.checkpoint_at // ""' .flow-active)
+test/test_auto_checkpoint.bats:194:  failing_check=$(jq -r '.interrupt.failing_check // ""' .flow-active)
+test/test_auto_checkpoint.bats:206:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:212:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:224:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:229:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:27:  jq -n '{change_id:"test-change",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+test/test_auto_checkpoint.bats:44:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_auto_checkpoint.bats:45:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_auto_checkpoint.bats:46:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_auto_checkpoint.bats:47:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+test/test_auto_checkpoint.bats:56:  old_ts=$(jq -r '.updated_at' .flow-active)
+test/test_auto_checkpoint.bats:58:  new_ts=$(jq -r '.updated_at' .flow-active)
+test/test_auto_checkpoint.bats:71:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_auto_checkpoint.bats:72:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_auto_checkpoint.bats:94:  jq -n '{change_id:null,phase:"4",interrupt:{active_file:"old.sh",last_action:"old",checkpoint_at:"2020-01-01T00:00:00Z"}}' > .flow-active
+test/test_auto_checkpoint.bats:98:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_checkpoint.bats:102:  f1=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_checkpoint.bats:107:  f2=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_checkpoint.bats:136:  interrupt=$(jq -r '.interrupt' .flow-active)
+test/test_checkpoint.bats:146:  before=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_checkpoint.bats:148:  # 制造 jq 写入失败（通过损坏 .flow-active 让后续 jq 解析失败但先恢复）
+test/test_checkpoint.bats:157:  after=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_checkpoint.bats:18:  jq -n '{change_id:"test",phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+test/test_checkpoint.bats:33:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_checkpoint.bats:34:  last_action=$(jq -r '.interrupt.last_action' .flow-active)
+test/test_checkpoint.bats:35:  checkpoint_at=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_checkpoint.bats:44:  jq '.interrupt = {active_file:"old.sh",last_action:"manual",checkpoint_at:"2025-01-01T00:00:00+00:00"}' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active
+test/test_checkpoint.bats:50:  active_file=$(jq -r '.interrupt.active_file' .flow-active)
+test/test_checkpoint.bats:58:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+test/test_checkpoint.bats:72:  ts1=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_checkpoint.bats:79:  ts2=$(jq -r '.interrupt.checkpoint_at' .flow-active)
+test/test_checkpoint.bats:93:  failing_check=$(jq -r '.interrupt.failing_check' .flow-active)
+test/test_correction_hygiene.bats:111:       {check: "corrupt_json", message: "old-1", field: ".flow-active"},
+test/test_correction_hygiene.bats:142:  jq -n '{type: "l2-missing", phase: "1", change_id: "ac4-change", violations: [{"check": "corrupt_json", "message": "stale", "field": ".flow-active"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:155:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "v1", "field": ".flow-active"}, {"check": "R1", "message": "keep-me", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:178:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old-1", "field": ".flow-active"}, {"check": "phase_artifact_missing", "message": "old-2", "field": ".flow-active.phase"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:23:  FLOW_ACTIVE="$FIXTURE/.flow-active"
+test/test_correction_hygiene.bats:24:  CORRECTION="$FIXTURE/.flow-active.correction"
+test/test_correction_hygiene.bats:266:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:279:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:292:  jq -n '{type: "l2-missing+state-integrity", violations: [{"check": "corrupt_json", "message": "old", "field": ".flow-active"}, {"check": "R1", "message": "compliance-keep", "field": ".compliance"}], written_at: "2026-08-31T00:00:00+08:00"}' > "$CORRECTION"
+test/test_correction_hygiene.bats:67:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'first' '.flow-active'
+test/test_correction_hygiene.bats:68:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'second' '.flow-active'
+test/test_correction_hygiene.bats:69:    _fai_append_violation '$CORRECTION' 'corrupt_json' 'third' '.flow-active'
+test/test_dual_review_merge.bats:111:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_dual_review_merge.bats:137:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_dual_review_merge.bats:162:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_dual_review_merge.bats:86:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_fail_closed.bats:134:  jq -n '{change_id:"ctl",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > "$TEST_DIR/.flow-active"
+test/test_fail_closed.bats:141:  jq -n '{change_id:"ctl",phase:"4"}' > .flow-active
+test/test_fail_closed.bats:147:  jq -n '{change_id:"test-change",goal:{current_phase:"4"},phase:"4",interrupt:null,updated_at:"2026-01-01T00:00:00+00:00"}' > .flow-active
+test/test_fail_closed.bats:150:  [[ "$(jq -r '.interrupt.active_file' .flow-active)" == "src/main.sh" ]]
+test/test_fail_closed.bats:86:  echo "not json {" > "$TEST_DIR/.flow-active"
+test/test_fix_l3_gate.bats:25:  FLOW_FILE="$TEST_TMPDIR/.flow-active"
+test/test_fix_l3_gate.bats:341:  # C6 行为化：提取该 prompt 附带的过渡 jq 并对夹具 .flow-active 真跑，
+test/test_fk_resolve_model.bats:27:    > "$PROJECT_ROOT/.flow-active"
+test/test_fk_resolve_model.bats:42:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+test/test_fk_resolve_model.bats:43:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+test/test_flow_active_integrity.bats:18:  FLOW_ACTIVE="${TEST_TMP}/.flow-active"
+test/test_flow_active_integrity.bats:20:  CORRECTION_FILE="${TEST_TMP}/.flow-active.correction"
+test/test_flow_active_integrity.bats:220:  # Create transcript with jq .flow-active write operations
+test/test_flow_active_integrity.bats:221:  echo "jq '.phase = \"2\"' .flow-active > .flow-active.tmp" > "$TRANSCRIPT_FILE"
+test/test_flow_active_integrity.bats:222:  echo "mv .flow-active.tmp .flow-active" >> "$TRANSCRIPT_FILE"
+test/test_flow_active_integrity.bats:250:@test "NFR: handles corrupt JSON .flow-active" {
+test/test_flow_active_query.bats:103:  printf '%b' '{"change_id": "broken"\n' > "$FIXTURE/.flow-active"
+test/test_flow_active_query.bats:121:  printf '%b' 'not json at all\n' > "$FIXTURE/.flow-active"
+test/test_flow_active_query.bats:34:  write_state() { printf '%b' "$1" > "$FIXTURE/.flow-active"; }
+test/test_flow_active_query.bats:55:  [[ "$output" == *"/.flow-active" ]]
+test/test_flow_artifacts.bats:103:@test "fk_validate_flow: returns 0 for valid JSON .flow-active" {
+test/test_flow_artifacts.bats:105:  jq -n '{change_id: "x", phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:109:@test "fk_validate_flow: returns 1 for missing .flow-active" {
+test/test_flow_artifacts.bats:114:@test "fk_validate_flow: returns 1 for invalid JSON .flow-active" {
+test/test_flow_artifacts.bats:116:  echo "{{{ broken json" > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:191:  jq -n '{phase: "3"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:198:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:209:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:228:  jq -n '{phase: "4"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:39:  jq -n '{change_id: "test-change", phase: "2"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:47:  jq -n '{goal: {status: "active", turns: 3}}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:55:  jq -n '{change_id: "x"}' > "$PROJECT_ROOT/.flow-active"
+test/test_flow_artifacts.bats:70:  echo "not valid json {{{" > "$PROJECT_ROOT/.flow-active"
+test/test_flow_goal.bats:43:@test "goal set: writes condition + metadata to .flow-active" {
+test/test_flow_goal.bats:7:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+test/test_flow_kit_resume.bats:104:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:117:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:131:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:145:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:159:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:33:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:51:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:63:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:74:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_kit_resume.bats:88:  cat > "${PROJECT_ROOT}/.flow-active" << 'EOF'
+test/test_flow_model.bats:23:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+test/test_flow_model.bats:24:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+test/test_flow_model.bats:31:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+test/test_flow_model.bats:32:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+test/test_flow_model.bats:37:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "deepseek-v4-flash" ]
+test/test_flow_model.bats:42:  [ "$(jq -r '.goal.l2_model' "$PROJECT_ROOT/.flow-active")" = "deepseek-v4-pro" ]
+test/test_flow_model.bats:48:    "$PROJECT_ROOT/.flow-active" > "$PROJECT_ROOT/.flow-active.tmp" \
+test/test_flow_model.bats:49:    && mv "$PROJECT_ROOT/.flow-active.tmp" "$PROJECT_ROOT/.flow-active"
+test/test_flow_model.bats:50:  [ "$(jq -r '.goal.l2_model' "$PROJECT_ROOT/.flow-active")" = "model-a" ]
+test/test_flow_model.bats:51:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "model-b" ]
+test/test_flow_model.bats:57:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = "null" ]
+test/test_flow_model.bats:62:  [ "$(jq -r '.goal.condition' "$PROJECT_ROOT/.flow-active")" = "x" ]
+test/test_flow_model.bats:63:  [ "$(jq -r '.goal.gate_config["6-review"]' "$PROJECT_ROOT/.flow-active")" = "both" ]
+test/test_flow_model.bats:68:  [ "$(jq -r '.goal.l3_model' "$PROJECT_ROOT/.flow-active")" = 'model"; rm -rf / #' ]
+test/test_flow_model.bats:70:  jq empty "$PROJECT_ROOT/.flow-active"
+test/test_flow_model.bats:9:  cat > "$PROJECT_ROOT/.flow-active" << 'EOF'
+test/test_gate_config_presets.bats:11:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+test/test_gate_integrity.bats:114:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_gate_integrity.bats:118:    "$TEST_TMPDIR/.flow-active" \
+test/test_gate_integrity.bats:124:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_gate_integrity.bats:128:    "$TEST_TMPDIR/.flow-active" \
+test/test_gate_integrity.bats:213:  run _is_dotdone_write "jq .interrupt=x .flow-active"
+test/test_gate_integrity.bats:222:  local flow_file="$TEST_TMPDIR/.flow-active"
+test/test_gate_integrity.bats:231:  local flow_file="$TEST_TMPDIR/.flow-active"
+test/test_gate_integrity.bats:245:  cmd='jq ".goal.phases_done += [\"3\"]" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
+test/test_gate_integrity.bats:252:  cmd='jq ".phase = 5" .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active'
+test/test_gate_integrity.bats:258:  cmd='jq ".goal.phases_done" .flow-active'
+test/test_gate_integrity.bats:26:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_gate_integrity.bats:90:  cat > "$TEST_TMPDIR/.flow-active" << 'EOF'
+test/test_gate_integrity.bats:94:    "$TEST_TMPDIR/.flow-active" \
+test/test-is-git-commit-structural.bats:190:    > "$TMP_DIR/.flow-active"
+test/test-is-git-commit-structural.bats:207:    > "$TMP_DIR/.flow-active"
+test/test_l2_dispatch_mode.bats:103:  local msg; msg=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+test/test_l2_dispatch_mode.bats:112:  local msg3; msg3=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+test/test_l2_dispatch_mode.bats:126:  [ "$(jq -r '.type // ""' "$PROJECT_ROOT/.flow-active.correction")" = "l2-model-missing" ]
+test/test_l2_dispatch_mode.bats:127:  local msg; msg=$(jq -r '.message // ""' "$PROJECT_ROOT/.flow-active.correction")
+test/test-l2-first-correction.bats:32:    > "$TMP_DIR/.flow-active"
+test/test_l2_l3_granular_gate.bats:20:  FLOW_ACTIVE="$TEST_TMP/.flow-active"
+test/test_l2_pretooluse_dispatch.bats:232:    > "$TMP_DIR/.flow-active"
+test/test_l2_pretooluse_dispatch.bats:242:    "jq '.goal.current_phase = \"1\"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active"
+test/test_l2_pretooluse_dispatch.bats:271:    > "$TMP_DIR/.flow-active"
+test/test_l2_pretooluse_dispatch.bats:293:    > "$TMP_DIR/.flow-active"
+test/test_l2_pretooluse_dispatch.bats:297:  CMD="jq '.goal.current_phase = \"2\"' .flow-active > .flow-active.tmp && mv .flow-active.tmp .flow-active"
+test/test_l3_backlog_alarm.bats:80:    > "$PROJ/.flow-active"
+test/test_l3_lifecycle_wiring.bats:317:  cat > "$proj/.flow-active" <<'FLOW'
+test/test_l3_review_defects_2026_09.bats:1042:    cat > "$proj/.flow-active" <<'FLOW'
+test/test_l3_review_defects_2026_09.bats:1456:  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
+test/test_l3_review_defects_2026_09.bats:1461:  run --separate-stderr jq -r '.type' "$d/.flow-active.correction"
+test/test_l3_review_defects_2026_09.bats:1913:    cat > "$proj/.flow-active" <<'FLOW'
+test/test_l3_review_defects_2026_09.bats:480:  cat > "$proj/.flow-active" <<'FLOW'
+test/test_model_degradation.bats:43:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction")" = "l3-model-missing" ]
+test/test_model_degradation.bats:52:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction")" = "l2-model-missing" ]
+test/test_model_degradation.bats:79:  [ "$(jq -r '.type' "$PROJECT_ROOT/.flow-active.correction" 2>/dev/null)" = "l3-model-missing" ]
+test/test_nfr_portability_gate.bats:255:  printf '{\n  "change_id": "change-a",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+test/test_nfr_portability_gate.bats:272:  printf '{\n  "change_id": "change-zzz-nonexist",\n  "phase": "4"\n}\n' > "$FIXTURE/.flow-active"
+test/test-phase-gate-key-pure-fn.bats:83:    > "$TMP_DIR/.flow-active"
+test/test-pipeline-no-g1-autoadvance.bats:44:    > "${PROJECT_ROOT}/.flow-active"
+test/test-pipeline-no-g1-autoadvance.bats:54:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "1" ]]
+test/test-pipeline-no-g1-autoadvance.bats:63:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "2" ]]
+test/test-pipeline-no-g1-autoadvance.bats:70:    > "${PROJECT_ROOT}/.flow-active"
+test/test-pipeline-no-g1-autoadvance.bats:73:  [[ "$(jq -r '.phase' "${PROJECT_ROOT}/.flow-active")" == "2" ]]
+test/test_pipeline_rollback.bats:8:  FLOW_ACTIVE="$TEST_TMPDIR/.flow-active"
+test/test_resume_banner.bats:25:  FLOW_FILE="$TEST_TMPDIR/.flow-active"
+test/test_resume_banner.bats:88:  run build_resume_banner "/nonexistent/path/.flow-active"
+test/test_review_gate_validity.bats:143:  rm -f "$SBX/.flow-active"
+test/test_review_gate_validity.bats:194:    "$CID" > "$SBX/.flow-active"
+test/test_review_gate_validity.bats:207:    "$CID" > "$SBX/.flow-active"
+test/test_review_gate_validity.bats:61:    "$CID" "$PHASE" "$PHASE" "$1" > "$SBX/.flow-active"
+
+# ── B. JS 存量（dsh-flow-kit/ 三文件）──
+# ADR-031 决策 4：JS 侧无法直调 bash 入口；替代闸 = §9.3 gate_config 预设名
+# 五载体集合比对（test_gate_config_carriers.bats）。仅此三文件，新 JS 解析禁止。
+dsh-flow-kit/lib/flow-state.js:1:// flow-state.js — flow-kit `.flow-active` state management for the dsh plugin.
+dsh-flow-kit/lib/flow-state.js:380:        if (!state) return { kind: "error", text: "🩺 没有 .flow-active。先 /flow start。" };
+dsh-flow-kit/lib/flow-state.js:382:        lines.push(`✅ .flow-active: 有效 (phase ${state.phase}, change=${state.change_id ?? "none"})`);
+dsh-flow-kit/lib/flow-state.js:393:        // .flow-active.correction 类型与待办规模；去重/FIFO 治理由 33 号 hook 负责。
+dsh-flow-kit/lib/flow-state.js:394:        const correctionPath = join(root, ".flow-active.correction");
+dsh-flow-kit/lib/flow-state.js:405:            lines.push(`⚠️ .flow-active.correction: type=${tag}, violations=${violations.length} (${checks})`);
+dsh-flow-kit/lib/flow-state.js:407:            lines.push(`⚠️ .flow-active.correction: type=${tag} — ${correction.message}`);
+dsh-flow-kit/lib/flow-state.js:409:            lines.push(`⚠️ .flow-active.correction: type=${tag}`);
+dsh-flow-kit/lib/flow-state.js:412:          if (error.code === "ENOENT") lines.push("✅ .flow-active.correction: 无待办纠正（卫生良好）");
+dsh-flow-kit/lib/flow-state.js:413:          else lines.push(`⚠️ .flow-active.correction: 读取失败 — ${error.message}`);
+dsh-flow-kit/lib/flow-state.js:58:const flowPath = (root) => join(root, ".flow-active");
+dsh-flow-kit/lib/flow-state.js:5:// `.flow-active` JSON schema consumed by the shell hook chain, and the exact
+dsh-flow-kit/lib/index.js:40:    description: "flow-kit 状态管理 — start/stop/phase/task/checkpoint/goal/gate-config/model/l2-review/doctor（管理 .flow-active 与 L2 盲审派发）",
+dsh-flow-kit/lib/index.js:5://     or Claude hooks JSON. Project state lives in `.flow-active`; hook config
+dsh-flow-kit/lib/l2-review.js:84:    state = JSON.parse(await readFile(join(root, ".flow-active"), "utf8"));
+dsh-flow-kit/lib/l2-review.js:91:    return { kind: "error", text: ".flow-active.change_id 为空，无法定位审查工件。" };
+
+# ── C. hooks 存量（flow-kit-bundle/hooks/）──
+# 既有 hook 行为腿（会话恢复探针、报表读取等）——非本 change 收敛面（write_files
+# 之外），改动风险大于收益；其行为由 test_fail_closed / test_gate_integrity 等
+# 常设判据看守。后续 change 逐点改调唯一入口后条目只减不增。
+flow-kit-bundle/hooks/pre-tool-use/auto-checkpoint.sh:23:# 返回 0 = 有活跃 change; 1 = 无（合法：无文件/无 change_id）; 2 = 状态不可判（C12: jq 缺失或 .flow-active 非法 JSON）
+flow-kit-bundle/hooks/pre-tool-use/auto-checkpoint.sh:67:  command -v jq >/dev/null 2>&1 || { echo "[auto-checkpoint] jq 不可用，fail-closed：无法解析 hook stdin 与 .flow-active，拒绝放行（安装 jq 或检查 PATH 后重试）" >&2; exit 2; }
+flow-kit-bundle/hooks/pre-tool-use/auto-checkpoint.sh:6:# 拒绝: exit 2（C12 · health-fix-2026-09c D4/AC-8：jq 缺失或 .flow-active 非法 JSON = 依赖失效面，fail-closed）
+flow-kit-bundle/hooks/pre-tool-use/auto-checkpoint.sh:79:  _auto_ck_active_change ".flow-active" || _auto_ck_rc=$?
+flow-kit-bundle/hooks/pre-tool-use/auto-checkpoint.sh:84:    echo "[auto-checkpoint] .flow-active 状态不可判（jq 缺失或非法 JSON），fail-closed：拒绝放行。状态文件可能正在写入，重试一次；持续失败请修复 .flow-active 或安装 jq" >&2
+flow-kit-bundle/hooks/pre-tool-use/gate-checks-basic.sh:129:    local flow_file="${cwd}/.flow-active"
+flow-kit-bundle/hooks/pre-tool-use/gate-checks-basic.sh:43:  local flow_file="${cwd}/.flow-active"
+flow-kit-bundle/hooks/pre-tool-use/gate-helpers-types.sh:36:  local flow_file="${cwd}/.flow-active"
+flow-kit-bundle/hooks/pre-tool-use/gate-helpers-types.sh:59:  # 真实 jq 写命令字段名在前（jq 表达式里）、.flow-active 是文件名在后；旧 regex `\.flow-active.*\.phase=`
+flow-kit-bundle/hooks/session-start/flow-kit-resume.sh:24:  if [[ -f "$PROJECT_ROOT/.flow-active" ]] || [[ -d "$PROJECT_ROOT/.specs" ]]; then
+flow-kit-bundle/hooks/session-start/flow-kit-resume.sh:30:flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/session-start/flow-kit-resume.sh:43:correction_file="${PROJECT_ROOT}/.flow-active.interactive-ui-fix"
+flow-kit-bundle/hooks/session-start/flow-kit-resume.sh:90:compliance_correction_file="${PROJECT_ROOT}/.flow-active.correction"
+flow-kit-bundle/hooks/stop/26-workflow.sh:251:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/26-workflow.sh:43:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/27-interactive-ui-check.sh:26:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/28-weak-model-compliance.sh:22:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/29-independent-review.sh:62:flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/29-independent-review.sh:83:correction_file="${PROJECT_ROOT}/.flow-active.correction"
+flow-kit-bundle/hooks/stop/31-auto-advance.sh:23:flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/32-fallback-guard.sh:25:flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/33-flow-active-integrity.sh:257:  if grep -qE "jq.*'[.].*='.*\.flow-active|jq.*>.*\.flow-active" "$transcript_file" 2>/dev/null; then
+flow-kit-bundle/hooks/stop/34-archive-commit-check.sh:26:flow_file="${PROJECT_ROOT:-}/.flow-active"
+flow-kit-bundle/hooks/stop/34-archive-commit-check.sh:31:correction_path="${PROJECT_ROOT:-}/.flow-active.correction"
+flow-kit-bundle/hooks/stop/99-report.sh:140:_FLOW_ACTIVE="${PROJECT_ROOT:-$(pwd)}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/banner.sh:8:#   build_resume_banner "/path/to/.flow-active"
+flow-kit-bundle/hooks/stop/lib/checkpoint-lib.sh:15:FLOW_ACTIVE="${FLOW_ACTIVE:-.flow-active}"
+flow-kit-bundle/hooks/stop/lib/common.sh:215:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/common.sh:259:    [[ -n "$model" ]] || model=$(jq -r '.goal.l3_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+flow-kit-bundle/hooks/stop/lib/common.sh:261:    [[ -n "$model" ]] || model=$(jq -r '.goal.l3_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+flow-kit-bundle/hooks/stop/lib/common.sh:265:    [[ -n "$model" ]] || model=$(jq -r '.goal.l2_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+flow-kit-bundle/hooks/stop/lib/common.sh:267:    [[ -n "$model" ]] || model=$(jq -r '.goal.l2_default_model // ""' "${PROJECT_ROOT:-}/.flow-active" 2>/dev/null || echo "")
+flow-kit-bundle/hooks/stop/lib/done-validation.sh:114:  local flow_file="${PROJECT_ROOT:-}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/done-validation.sh:41:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:189:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:204:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:22:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:289:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:359:  local flow_file="${PROJECT_ROOT}/.flow-active"
+flow-kit-bundle/hooks/stop/lib/interactive-ui-check.sh:158:  CORRECTION_FILE="${project_root}/.flow-active.interactive-ui-fix"
+flow-kit-bundle/hooks/stop/lib/l3-review.sh:35:# C12（health-fix-2026-09c · DESIGN D4 · ADR-032 纵深）：jq 是 L3 审查链硬依赖（.flow-active 解析、
+flow-kit-bundle/hooks/stop/lib/l3-review.sh:37:command -v jq >/dev/null 2>&1 || { echo "[l3-review] jq 不可用，fail-closed：L3 审查依赖 jq（.flow-active/.done 解析），中止" >&2; exit 1; }
+flow-kit-bundle/hooks/stop/lib/weak-model-compliance.sh:58:  COMPLIANCE_CORRECTION_FILE="${project_root}/.flow-active.correction"
+
+# ── D. 根工具与回归演示存量 ──
+# verify-claims.sh 与 regression-demos 检查脚本中的存量解析/引用（只读探针），
+# 不在 T13 write_files；后续 change 收敛。
+flow-kit-bundle/flow-kit/regression-demos/weak-model-interactive-ui/check.sh:36:  CORRECTION_FILE="${TMPDIR}/.flow-active.interactive-ui-fix"
+flow-kit-bundle/test/regression-demos/gate-config-tamper/check.sh:24:cat > "$TMP/.flow-active" <<'EOF'
+flow-kit-bundle/test/regression-demos/gate-config-tamper/check.sh:31:if fk_check_gate_config_tamper "$TMP/.flow-active" "$TMP/.specs/test-change/.goal-snapshot.json" 2>/dev/null; then
+flow-kit-bundle/test/regression-demos/skipped-subprocess/check.sh:19:cat > "$TMP/.flow-active" <<'EOF'
+test/regression-demos/gate-config-tamper/check.sh:24:cat > "$TMP/.flow-active" <<'EOF'
+test/regression-demos/gate-config-tamper/check.sh:31:if fk_check_gate_config_tamper "$TMP/.flow-active" "$TMP/.specs/test-change/.goal-snapshot.json" 2>/dev/null; then
+test/regression-demos/skipped-subprocess/check.sh:19:cat > "$TMP/.flow-active" <<'EOF'
+verify-claims.sh:41:    TARGET_ID="$(jq -r '.change_id // empty' .flow-active 2>/dev/null || true)"
+

@@ -28,7 +28,10 @@ setup() {
   FIXTURE="$TEST_TMPDIR/repo"
   SUT_REL="flow-kit-bundle/flow-kit/reference/check-path-privacy.sh"
   ALLOW_REL="flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt"
-  ALLOW_CHANGE_REL=".specs/health-fix-2026-09b/path-privacy-allowlist.txt"
+  # T13（C14-f）：change 副本不再硬编码 change-id —— SUT 侧改动态解析
+  # （flow-active-query 活动 id > 唯一非归档 glob）。夹具无 lib/ 查询入口
+  # ⇒ 走 glob 回退，本夹具自选 change-id 即可被唯一枚举到。
+  ALLOW_CHANGE_REL=".specs/fixture-change/path-privacy-allowlist.txt"
   # 拼接构造的真名探针（与既有占位符不同形）；本文件里不出现其字面。
   # T04（health-fix-2026-09c）：探针改**裸形态**（自身不带尾斜杠）——待测形态
   # 由各用例显式拼接：既有用例 `${PROBE}/…` 保持原被测字符串（尾斜杠形态）；
@@ -87,7 +90,7 @@ teardown() {
   [[ "$output" != *"✅ 清单外命中 0 条"* ]]
 }
 
-@test "常设与 change 副本皆缺 ⇒ rc=1 且指名两个缺失路径（不得当空清单放行）" {
+@test "常设与 change 副本皆缺 ⇒ rc=1 且指名两层缺失（不得当空清单放行）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
   stage "docs/notes.md"
 
@@ -95,7 +98,9 @@ teardown() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"允许清单缺失"* ]]
   [[ "$output" == *"$ALLOW_REL"* ]]
-  [[ "$output" == *"$ALLOW_CHANGE_REL"* ]]
+  # T13 动态解析：change 层缺失时报文给 pattern 形态（活动change 占位 + 未解析到
+  # 标记），不再指名硬编码 change-id 路径。
+  [[ "$output" == *"<活动change>/path-privacy-allowlist.txt（未解析到）"* ]]
   [[ "$output" != *"✅"* ]]
 }
 
@@ -643,24 +648,21 @@ run_sut_override() {
 }
 
 # ============================================================================
-# T-FIX-24（R5-5 处置订正 · 豁免面冻结常设腿 · 判别力优先）
-# SELF_EXCLUDE 成员集合精确等于冻结 6 条（= 本脚本 + 两份允许清单 +
-# INDEPENDENT-REVIEW-1/2/3.md）；此后新增的审查档一律不豁免 —— 它们是脱敏
-# 泄漏的第一现场，必须由本门禁就地判红并 de-shape（L-149 / TD-054 / T13 / T17）。
-# 判别力：在 SUT 副本上注入伪条目（形似新增审查档）⇒ 集合膨胀 ⇒ not ok；
+# T-FIX-24（R5-5 处置订正 · 豁免面冻结常设腿 · 判别力优先 · T13 订正版）
+# SELF_EXCLUDE 成员集合精确等于冻结 2 条（= 本脚本 + 常设允许清单）——T13
+# （C14-f / ADR-031）基线常设化后，09b 归档遗留的 4 条死豁免（change 目录
+# 副本 + INDEPENDENT-REVIEW-1/2/3.md）已解除；此后新增的审查档一律不豁免 ——
+# 它们是脱敏泄漏的第一现场，必须由本门禁就地判红并 de-shape（L-149 / TD-054 /
+# T17）。判别力：在 SUT 副本上注入伪条目（形似新增审查档）⇒ 集合膨胀 ⇒ not ok；
 # 去行 ⇒ 复绿。两态同例内完成（注入态断言膨胀、去行态断言复原）。
 # ============================================================================
 
-@test "T-FIX-24：SELF_EXCLUDE 成员集合精确等于冻结 6 条；副本注入伪条目（新增审查档）⇒ 膨胀 not ok，去行复绿（豁免面冻结 · L-149/TD-054）" {
+@test "T-FIX-24：SELF_EXCLUDE 成员集合精确等于冻结 2 条；副本注入伪条目（新增审查档）⇒ 膨胀 not ok，去行复绿（豁免面冻结 · L-149/TD-054）" {
   # 冻结集（顺序无关，按排序后比对）。
   local frozen
   frozen="$(printf '%s\n' \
     'flow-kit-bundle/flow-kit/reference/check-path-privacy.sh' \
     'flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt' \
-    '.specs/health-fix-2026-09b/path-privacy-allowlist.txt' \
-    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md' \
-    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md' \
-    '.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md' \
     | sort)"
 
   # 从 SUT 源码提取 SELF_EXCLUDE 块成员（剥首尾引号行、去空白、排序）。
@@ -672,21 +674,21 @@ run_sut_override() {
       | sort
   }
 
-  # 基线态：原 SUT 的 SELF_EXCLUDE 集合 = 冻结集（精确等于 6 条）。
+  # 基线态：原 SUT 的 SELF_EXCLUDE 集合 = 冻结集（精确等于 2 条）。
   local actual_base
   actual_base="$(extract_self_exclude "$SUT_SRC")"
   [ "$actual_base" = "$frozen" ]
-  # 成员数精确为 6（防膨胀/收窄的标量断言）。
+  # 成员数精确为 2（防膨胀/收窄的标量断言）。
   local n_base
   n_base="$(printf '%s\n' "$actual_base" | wc -l | tr -d ' ')"
-  [ "$n_base" -eq 6 ]
+  [ "$n_base" -eq 2 ]
 
   # —— 判别力实证（在副本上注入伪条目 · L-137 拼接构造，不含可运行整串）——
   local sut_copy="$FIXTURE/sut-copy.sh"
   cp -- "$SUT_SRC" "$sut_copy"
 
   # 伪条目形似新增审查档路径（用变量拼接，仓库文件内不出现可运行整串）。
-  local ir_base=".specs/health-fix-2026-09b/INDEPENDENT-REVIEW"
+  local ir_base=".specs/fixture-change/INDEPENDENT-REVIEW"
   local fake_entry="${ir_base}-4.md"
 
   # 注入伪条目：在 SELF_EXCLUDE 块的结束引号行前插入。
@@ -707,7 +709,7 @@ run_sut_override() {
   local actual_injected n_injected
   actual_injected="$(extract_self_exclude "$sut_copy")"
   n_injected="$(printf '%s\n' "$actual_injected" | wc -l | tr -d ' ')"
-  [ "$n_injected" -eq 7 ]
+  [ "$n_injected" -eq 3 ]
   [ "$actual_injected" != "$frozen" ]
 
   # —— 复原证据：从副本移除伪条目后，集合重新等于冻结集 ⇒ 复绿 ——
@@ -722,7 +724,7 @@ run_sut_override() {
   local actual_restored n_restored
   actual_restored="$(extract_self_exclude "$sut_copy")"
   n_restored="$(printf '%s\n' "$actual_restored" | wc -l | tr -d ' ')"
-  [ "$n_restored" -eq 6 ]
+  [ "$n_restored" -eq 2 ]
   [ "$actual_restored" = "$frozen" ]
 }
 

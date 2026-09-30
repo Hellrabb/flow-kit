@@ -12,7 +12,7 @@
 #   原保护对象 .flow-active.independent-review（握手）已废弃——改为 .done 作为新作者性锚点。
 #
 # fail 策略（D9 · C12/health-fix-2026-09c 修订）：path-guard = fail-open（拦不住不卡 agent 工具流）；review gate 校验 = fail-close。
-# 依赖失效面 fail-closed（C12 · AC-8）：jq 缺失、.flow-active 非法 JSON、子库关键函数缺失 → exit 2 拒绝放行（见 :114/:65 与子库断言块）。
+# 依赖失效面 fail-closed（C12 · AC-8）：jq 缺失、状态档非法 JSON、子库关键函数缺失 → exit 2 拒绝放行（见 :114/:65 与子库断言块）。
 # 其余非管辖面仍 exit 0 放行：非 Bash/Write/Edit、无 .flow-active（= 非 flow-kit 项目）、阶段非 review gate、gate 未开。
 #
 # PreToolUse stdin: {hook_event_name, session_id, cwd, tool_name, tool_input:{command|file_path}, ...}
@@ -75,13 +75,31 @@ is_gh_pr_create() {
 _run_review_gates() {
   local tool_name="$1" file_path="$2" cmd="$3" cwd="$4" content="${5:-}" old_str="${6:-}"
 
-  local flow_file="${cwd}/.flow-active"
-  # 无状态文件 → exit 0 放行是正确语义（C12 保留）：无 .flow-active = 非 flow-kit 管辖项目，
-  # 门禁不得对外部项目的工具调用生效；fail-closed 仅覆盖「有状态文件但依赖失效」注入面（下两行）。
-  [ -f "$flow_file" ] || exit 0
-  # C12/AC-8：jq 缺失或 .flow-active 非法 JSON → exit 2 fail-close（不再静默放行）
-  command -v jq >/dev/null 2>&1 || { echo "[gate] jq 不可用，review gate fail-close：无法校验 .flow-active（${flow_file}），拒绝放行（安装 jq 或检查 PATH 后重试）" >&2; exit 2; }
-  jq empty "$flow_file" 2>/dev/null || { echo "[gate] .flow-active 非法 JSON，review gate fail-close：${flow_file} 解析失败，拒绝放行。状态文件可能正在写入，重试一次；持续失败请修复该文件后重试" >&2; exit 2; }
+  # ── 状态文件唯一解析入口（T13 / ADR-031 / AC-12-g）─────────────────────
+  # 本 hook 禁止内联 jq/while-read 解析状态文件，一律经 flow-active-query.sh。
+  # probe 候选 = ① bundle 内 lib/（源树 flow-kit-bundle/lib/ 与 dist/runtime 的
+  # vendor/flow-kit-bundle/lib/ 同构）；② 插件包布局 vendor 副本（hooks 位于
+  # <pkg>/hooks、lib 位于 <pkg>/vendor/flow-kit-bundle/lib/）；都缺 = 旧式
+  # 安装（安装面尚未携带 lib/flow-active-query.sh）→ stderr 警告 + 放行（与
+  # 「无状态文件 = 非管辖项目」同语义；重装 flow-kit / 源仓同步后启用解析）。
+  local fa_query="" _cand
+  for _cand in "${HOOK_BASE_DIR}/../../lib/flow-active-query.sh" "${HOOK_BASE_DIR}/../../vendor/flow-kit-bundle/lib/flow-active-query.sh"; do
+    if [ -f "$_cand" ]; then fa_query="$_cand"; break; fi
+  done
+  if [ -z "$fa_query" ]; then
+    echo "[gate] flow-active-query.sh 不在场（旧式安装；重装 flow-kit 或源仓 make hooks-sync 后启用状态文件解析）→ 降级放行" >&2
+    exit 0
+  fi
+  # flow-active-query rc 语义：0=在场且合法（stdout=文件路径）；1=不在场（非管辖
+  # 项目 → 放行，C12 保留语义）；2=jq 缺失 / 非法 JSON → exit 2 fail-close
+  # （AC-8：不再静默放行；rc2 时 stderr 已透传 query 的具名报文）。
+  local flow_file="" _fq_rc=0
+  flow_file="$(bash "$fa_query" --root "$cwd" --print-file)" || _fq_rc=$?
+  case "$_fq_rc" in
+    0) ;;
+    1) exit 0 ;;
+    *) echo "[gate] review gate fail-close：.flow-active 非法 JSON 或 jq 不可用（flow-active-query rc=${_fq_rc}），拒绝放行。状态文件可能正在写入，重试一次；持续失败请修复该文件后重试" >&2; exit 2 ;;
+  esac
 
   # Runtime decoupling (dsh-flow-kit): PreToolUse hooks never call init_paths(),
   # so PROJECT_ROOT (used by fk_resolve_phase and the gate libs) must be pinned

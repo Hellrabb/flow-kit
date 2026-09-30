@@ -6,7 +6,7 @@
 # exit: 0=通过（清单外命中 0 条）, 1=失败（fail-closed / 清单外命中 ≠0）
 #       二值，无 SKIP 态（DESIGN §3 / ADR-028 决策 3）
 # ============================================================================
-# 空基线双态自检（T22 · L3 #4 major② fix · health-fix-2026-09b · 2026-09-23）
+# 空基线双态自检（T22 · L3 #4 major② fix · 阶段 09b · 2026-09-23）
 # ----------------------------------------------------------------------------
 # 本门禁在「允许清单基线条目数 = 0」（D10 三态实测 + 排除通用占位符后）的
 # 合法空基线态下，行为由以下两条固化的断言约束（INDEPENDENT-REVIEW-2 末段
@@ -103,29 +103,63 @@ PAT='/home/[a-z_][a-z0-9_-]*([^a-z0-9_-]|$)'
 PLACEHOLDER_NAMES='user username ubuntu acct yourname your-user your_user me myuser testuser example demo foo bar baz someone developer'
 
 # 自排除清单（D8 / D10′② · 强制 · 逐条精确路径，禁宽通配）。
-# 这些文件本身必然含 PAT 字面（脚本自我引用、允许清单格式说明、审查档讨论），
+# 这些文件本身必然含 PAT 字面（脚本自我引用、允许清单格式说明），
 # 必须从扫描面排除 —— 否则门禁会被自己的工件击穿。
 # 禁用 reference/* / skills/* / .specs/* 之类宽通配（D10′② 实测：通配会吞掉
 # 31 处 <acct> 字样含 10+ 处真实账号路径，且永久无界）。
-# 冻结集 = 本脚本 + 两份允许清单 + INDEPENDENT-REVIEW-1/2/3.md（成文早于脱敏
-# 规则、原文含真实账号路径，逐条精确豁免）；此后新增的审查档一律不豁免 ——
-# 它们是脱敏泄漏的第一现场，必须由本门禁就地判红并 de-shape；放宽豁免面须
-# ADR 裁决（L-149 / TD-054 / T13 / T17）。T-FIX-22 曾误把新增审查档追加进本
-# 清单（INDEPENDENT-REVIEW-{5,6}.md），与阶段 5 裁决冲突，T-FIX-24 已移除。
+# T13（C14-f / ADR-031）基线常设化后冻结集 = 本脚本 + 常设允许清单，共 2 条。
+# 历史（阶段 09b）：冻结集曾含 change 目录副本与 INDEPENDENT-REVIEW-1/2/3.md
+# 共 6 条 —— 09b 归档后这四条成为对 GONE 路径的死豁免，T13 已解除；此后新增
+# 审查档一律不豁免（脱敏泄漏第一现场，就地判红）；放宽豁免面须 ADR 裁决
+# （L-149 / TD-054 / T17）。T-FIX-22 曾误把新增审查档追加进本清单
+# （INDEPENDENT-REVIEW-{5,6}.md），与阶段 5 裁决冲突，T-FIX-24 已移除。
 SELF_EXCLUDE='
 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
 flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt
-.specs/health-fix-2026-09b/path-privacy-allowlist.txt
-.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-1.md
-.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-2.md
-.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-3.md
 '
 
 # 允许清单读序（R8 定级裁决 · 强制 · fail-closed）：
 #   常设路径 > change 副本 > 两者皆缺 ⇒ exit 1 并指名缺失路径（不得当空清单放行）。
 # 常设路径不受 change 目录归档影响（ADR-028 决策 1）。
+# T13（C14-f / ADR-031）：change 副本不再硬编码 change-id，按两级动态解析：
+#   ① 经唯一解析入口 flow-active-query.sh 取当前活动 change_id
+#     → .specs/<id>/path-privacy-allowlist.txt（入口不在场 / rc≠0 ⇒ 优雅降级，
+#     本脚本扫描不依赖状态文件在场）；② 唯一非归档 .specs/*/path-privacy-allowlist.txt
+#     副本。多候选且无活动 id ⇒ 视同 change 层缺失（走双缺 fail-closed 报文，
+#     歧义不得静默择一；归档旧 change 或补状态文件可解除）。
 ALLOWLIST_PERSISTENT='flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt'
-ALLOWLIST_CHANGE='.specs/health-fix-2026-09b/path-privacy-allowlist.txt'
+ALLOWLIST_CHANGE=''
+FA_QUERY_SELF="${BASH_SOURCE[0]%/*}/../../lib/flow-active-query.sh"
+FA_QUERY_CWD='flow-kit-bundle/lib/flow-active-query.sh'
+FA_QUERY=''
+if [ -f "$FA_QUERY_SELF" ]; then
+  FA_QUERY="$FA_QUERY_SELF"
+elif [ -f "$FA_QUERY_CWD" ]; then
+  FA_QUERY="$FA_QUERY_CWD"
+fi
+if [ -n "$FA_QUERY" ]; then
+  if _fa_id="$(bash "$FA_QUERY" '.change_id' 2>/dev/null)"; then
+    if [ -n "$_fa_id" ] && [ -f ".specs/$_fa_id/path-privacy-allowlist.txt" ]; then
+      ALLOWLIST_CHANGE=".specs/$_fa_id/path-privacy-allowlist.txt"
+    fi
+  fi
+fi
+if [ -z "$ALLOWLIST_CHANGE" ]; then
+  _ac_n=0
+  _ac_pick=''
+  for _ac_c in .specs/*/path-privacy-allowlist.txt; do
+    [ -f "$_ac_c" ] || continue
+    case "$_ac_c" in
+      .specs/archive/*) continue ;;
+    esac
+    _ac_n=$((_ac_n + 1))
+    _ac_pick="$_ac_c"
+  done
+  if [ "$_ac_n" -eq 1 ]; then
+    ALLOWLIST_CHANGE="$_ac_pick"
+  fi
+fi
+unset _fa_id _ac_n _ac_pick _ac_c FA_QUERY_SELF FA_QUERY_CWD FA_QUERY
 
 # ----------------------------------------------------------------------------
 # 临时文件与清理（F5 · 单一事实源 · DESIGN 0.5.2 原子写范式 · bash 3.2 兼容）
@@ -282,7 +316,7 @@ elif [ -f "$ALLOWLIST_CHANGE" ]; then
 else
   echo "🔴 允许清单缺失（fail-closed，不得当空清单放行）："
   echo "   常设路径: ${ALLOWLIST_PERSISTENT}"
-  echo "   change 副本: ${ALLOWLIST_CHANGE}"
+  echo "   change 副本: ${ALLOWLIST_CHANGE:-.specs/<活动change>/path-privacy-allowlist.txt（未解析到）}"
   echo "   扫描面: ${SCAN_SURFACE}"
   exit 1
 fi

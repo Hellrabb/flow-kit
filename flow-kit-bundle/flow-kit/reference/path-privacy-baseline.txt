@@ -1,0 +1,39 @@
+# 路径隐私判据常设基线（C14-f / T13 / AC-12-f · ADR-031 / ADR-028）
+# 生成日期：2026-09-30（health-fix-2026-09c T13 首建落盘——本目录从未有过种子副本，
+#   DESIGN 附录 A 为唯一规范来源，本文件即首次落盘的常设基线）
+#
+# 语义（与 nfr-portability-baseline.txt 同族的 ratchet 基线，但对象是「判据形态」）：
+#   - 本文件 = 路径隐私门禁（flow-kit-bundle/flow-kit/reference/check-path-privacy.sh）
+#     的判据形态基线；**不是允许清单**（允许清单 = path-privacy-allowlist.txt，
+#     读序 常设 > 唯一非归档 change 副本 > 双缺 fail-closed，ADR-028 三层口径）。
+#   - 只存三类内容：通用 PAT / 占位形态 / 本机字面量 sha256 对账行。
+#     **真名明文零 tracked**（sha256 不可逆，不构成泄漏面）。
+#   - 对账（供 T16「历史重写」与波末审计）：在同一台机器上按下方派生规则重算
+#     sha256，与本文件逐行比对——hash 一致 ⇒ 口径未漂移；hash 不一致 ⇒ 机器路径
+#     或远端已变，须重算更新本文件并在 change 档过账。历史重写侧可用候选字面量
+#     的 sha256 反查本基线，确认清理目标与基线口径一致。
+#   - PAT / 占位表只在门禁源码演进时随动更新本文件（对账行同时重算）。
+#
+# ══ 一、通用 PAT（与 check-path-privacy.sh 中 PAT= 逐字对齐）══
+# 路径段边界形态：名字后为非路径段字符（行尾/引号/空白/斜杠等）即命中；
+# 裸形态（无尾斜杠）与尾斜杠形态同受管辖（09c T04 放宽后口径）。
+PAT: /home/[a-z_][a-z0-9_-]*([^a-z0-9_-]|$)
+#
+# ══ 二、占位形态排除表（与 PLACEHOLDER_NAMES= 逐字对齐）══
+# 按「被匹配到的用户名成分」排除，不按整行排除（同行真名+占位并存时保真名检出）。
+PLACEHOLDER_NAMES: user username ubuntu acct yourname your-user your_user me myuser testuser example demo foo bar baz someone developer
+# 刻意**不加**：test（09b INDEPENDENT-REVIEW-3 裁决：夹具字面改不命中形态）与
+#   alice 等人名示例（09b INDEPENDENT-REVIEW-2 以其作真名漏报样例，入表即反向）。
+#
+# ══ 三、本机字面量 sha256 对账行（真名零明文 · T16 对账锚）══
+# 派生规则（对账时在同一机器、同一仓根执行）：
+#   L_home       = sha256( "$HOME"                 )   # 用户主目录绝对路径，无尾斜杠
+#   L_home_slash = sha256( "$HOME/"                )   # 主目录尾斜杠形态
+#   L_pwd        = sha256( 仓根绝对路径（无尾斜杠） )   # 即门禁运行的仓库根
+#   L_pwd_slash  = sha256( 仓根绝对路径 + "/"       )
+#   L_remote     = sha256( git remote get-url origin ) # 远端 URL（未配置时记 ABSENT）
+L_home: c84a3ef8f9aafa29ce6e77029d20e8d8636bd5f716faded9813a558e91c092d7
+L_home_slash: cd2db604e6c828247b448b812eafb5cfe3fa66533d892eb509fb0a99e41db78e
+L_pwd: 54e4f06298f3ae8ad0db67b0725bcacad1ceed747feed94f25c1063bd5fe0be1
+L_pwd_slash: cb2e822b076ebc3246221763c7712ec8601b4d2e8b04b6e818c8d9f6dc781f8f
+L_remote: 94735b87a7c6449e3340c6f6af2bf9bd113e864b2c7bd24a93266388e94dadab

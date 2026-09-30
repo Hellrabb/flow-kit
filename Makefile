@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-skills-sync check-path-privacy check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-skills-sync check-path-privacy check-flow-active-inline check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
 
 # ── test: 跑全量 bats 测试（单跑 + flock 并发闸）──
 # C1 并发闸 + C7 单跑合并（health-fix-2026-09c · T08 · AC-10）：
@@ -153,7 +153,7 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-skills-sync check-path-privacy check-nfr-portability
+check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-skills-sync check-path-privacy check-flow-active-inline check-nfr-portability
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
@@ -187,6 +187,71 @@ check-skills-sync:
 check-path-privacy:
 	@echo "🔍 make check-path-privacy: 路径隐私（允许清单外命中 / fail-closed）检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
+
+# ── check-flow-active-inline（T13 / AC-12-g / ADR-031 / DESIGN §9.3·附录 A）──
+# 状态文件内联解析存量白名单门禁（谓词与白名单条目格式见 DESIGN 附录 A）：
+#   ① 严格谓词四分支：shell/Makefile/bats 三 include（jq 直读 / while-read /
+#      重定向读 / 引号字面）+ JS 字面 + 变量间接赋值；
+#   ② flow-active-query 唯一解析入口自排除（行内含该名即整行豁免——附录 A 原文）；
+#   ③ 白名单读序：常设 > 唯一非归档 change 副本 > 双缺 fail-closed（ADR-028 口径）；
+#   ④ 逐条对账：未登记命中 🔴 / 白名单缺失或空 🔴（附录 A） / 陈旧条目 ⚠️
+#      （ratchet 只减不增，先例 = check-nfr-portability 基线陈旧判红）。
+# 自排除边界：recipe 内状态文件名以 FA 变量拼接构造（本 target 对谓词恒零命中，
+# 同上块 check-nfr-portability 的 D8 F2 Makefile 自排除逻辑）。
+check-flow-active-inline:
+	@bash -euo pipefail -c ' \
+		FA="flow-ac""tive"; \
+		WLP="flow-kit-bundle/flow-kit/reference/flow-active-inline-whitelist.txt"; \
+		WL=""; \
+		if [ -f "$$WLP" ]; then \
+			WL="$$WLP"; \
+		else \
+			_cn=0; _cp=""; \
+			for _cc in .specs/*/flow-active-inline-whitelist.txt; do \
+				[ -f "$$_cc" ] || continue; \
+				case "$$_cc" in .specs/archive/*) continue ;; esac; \
+				_cn=$$((_cn + 1)); _cp="$$_cc"; \
+			done; \
+			if [ "$$_cn" -eq 1 ]; then WL="$$_cp"; fi; \
+		fi; \
+		if [ -z "$$WL" ]; then \
+			echo "🔴 check-flow-active-inline: 内联解析白名单缺失（常设 $$WLP 与 change 副本 .specs/*/flow-active-inline-whitelist.txt 皆不在盘）——附录 A 规定双缺 fail-closed"; \
+			exit 1; \
+		fi; \
+		ALLOW=$$(mktemp) || { echo "🔴 mktemp 失败" >&2; exit 1; }; \
+		HITSF=$$(mktemp) || { echo "🔴 mktemp 失败" >&2; exit 1; }; \
+		STALEF=$$(mktemp) || { echo "🔴 mktemp 失败" >&2; exit 1; }; \
+		trap "rm -f \"$$ALLOW\" \"$$HITSF\" \"$$STALEF\"" EXIT; \
+		grep -vE "^[[:space:]]*#|^[[:space:]]*$$" "$$WL" > "$$ALLOW" || true; \
+		if [ ! -s "$$ALLOW" ]; then \
+			echo "🔴 check-flow-active-inline: 白名单为空（$$WL 无有效条目）——附录 A 规定空清单同样转红"; \
+			exit 1; \
+		fi; \
+		{ \
+			grep -rnE "(jq[[:space:]]+[^|]*\.$$FA|while .*read.*\.$$FA|<[^>]*\.$$FA|\.$$FA[\"'"'"'])" --include="*.sh" --include="Makefile" --include="*.bats" flow-kit-bundle/ Makefile test/ .claude/ *.sh 2>/dev/null || true; \
+			grep -rnE "\.$$FA" --include="*.js" dsh-flow-kit/ 2>/dev/null || true; \
+			grep -rnE "^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=\"[^\"]*\.$$FA" --include="*.sh" --include="*.bats" --include="*.js" flow-kit-bundle/ test/ .claude/ dsh-flow-kit/ *.sh 2>/dev/null || true; \
+		} | grep -v "flow-active-query" | grep -v "flow-active-inline-whitelist.txt:" | sort -u > "$$HITSF" || true; \
+		_vi=""; \
+		if [ -s "$$HITSF" ]; then _vi=$$(grep -vF -f "$$ALLOW" "$$HITSF" || true); fi; \
+		if [ -n "$$_vi" ]; then \
+			echo "🔴 check-flow-active-inline: 发现未登记的状态文件内联解析（附录 A 严格谓词命中）："; \
+			printf "%s\n" "$$_vi"; \
+			echo "   → 新增解析一律改调 flow-kit-bundle/lib/flow-active-query.sh（ADR-031）；存量行变更须同步更新白名单 $$WL（只减不增）"; \
+			exit 1; \
+		fi; \
+		while IFS= read -r _e; do \
+			[ -n "$$_e" ] || continue; \
+			grep -qxF "$$_e" "$$HITSF" || printf "%s\n" "$$_e" >> "$$STALEF"; \
+		done < "$$ALLOW"; \
+		if [ -s "$$STALEF" ]; then \
+			echo "⚠️ check-flow-active-inline: 白名单存在陈旧条目（ratchet 只减不增；对应谓词命中已消失，请从 $$WL 移除）："; \
+			cat "$$STALEF"; \
+			exit 1; \
+		fi; \
+		_nh=$$(grep -c . "$$HITSF" || true); _na=$$(grep -c . "$$ALLOW" || true); \
+		echo "✅ check-flow-active-inline: 内联解析存量豁免 $$_na 条 / 谓词命中 $$_nh 行，全部登记在案（唯一解析入口 = flow-kit-bundle/lib/flow-active-query.sh）"; \
+	'
 
 # ── check-nfr-portability: NFR 兼容性判据（AC-8 NFR 侧 · T28）──
 # 设计依据：DESIGN §1 D8 F2（落点裁决）、§3 退出码模型、§9.3 包装契约；REQUIREMENT NFR 兼容性判据；
@@ -308,9 +373,13 @@ check-nfr-portability-internals:
 		}; \
 		BASE="$${FLOW_KIT_CHANGE_BASE:-}"; \
 		if [ -z "$$BASE" ]; then \
-			_active_id=""; \
-			if [ -f .flow-active ]; then \
-				while IFS= read -r _line; do case "$$_line" in *\"change_id\"*) _v=$${_line#*\"change_id\"}; _v=$${_v#*:}; _v=$${_v#*\"}; _v=$${_v%%\"*}; _active_id="$$_v"; break;; esac; done < .flow-active 2>/dev/null || true; \
+			_active_id=""; _aq_rc=0; \
+			_active_id="$$(bash flow-kit-bundle/lib/flow-active-query.sh '.change_id' 2>/dev/null)" || _aq_rc=$$?; \
+			if [ "$$_aq_rc" -eq 2 ]; then \
+				echo "🔴 check-nfr-portability: flow-active-query 报状态文件非法 JSON 或 jq 不可用（rc=2），锚点定位失败（fail-closed）"; \
+				_write_rc 1; exit 0; \
+			elif [ "$$_aq_rc" -ne 0 ]; then \
+				_active_id=""; \
 			fi; \
 			_cb_pick=""; \
 			if [ -n "$$_active_id" ] && [ -f ".specs/$$_active_id/.change-base" ]; then \
