@@ -186,15 +186,6 @@ module_output() {
 # Count lines in file, 0 if missing
 line_count() { wc -l < "$1" 2>/dev/null || echo "0"; }
 
-# Atomically apply a jq filter to a JSON file (write to .tmp then mv).
-# Usage: jq_atomic_write '<jq filter>' <target_file>
-# Returns: 0 on success, 1 on failure (file unchanged)
-jq_atomic_write() {
-  local filter="$1" target="$2"
-  if [[ ! -f "$target" ]]; then return 1; fi
-  jq "$filter" "$target" > "${target}.tmp" 2>/dev/null && mv "${target}.tmp" "$target" || return 1
-}
-
 # ── Git helpers ─────────────────────────────────────────────────────
 # Run git command if in a git repo
 git_safe() {

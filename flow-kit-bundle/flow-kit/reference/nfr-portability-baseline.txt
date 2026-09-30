@@ -7,7 +7,7 @@
 #   基线只在全量模式（BASE=FULL）生效；变更集模式保持「新增行命中即红」。
 #   注意：基线条目对应的行号会随源文件编辑而漂移；行号漂移即「基线陈旧」⇒ 须更新本清单。
 # 格式：路径:行号:标记（每行一条；表头注释行以 # 开头，不计入条目数）
-flow-kit-bundle/hooks/stop/lib/common.sh:432:declare -A
+flow-kit-bundle/hooks/stop/lib/common.sh:423:declare -A
 flow-kit-bundle/hooks/stop/lib/flow-kit-artifacts.sh:51:declare -A
 flow-kit-bundle/hooks/stop/lib/l3-truncate.sh:100:declare -A
 flow-kit-bundle/hooks/stop/lib/l3-truncate.sh:167:map[f]ile

@@ -52,3 +52,8 @@
 - **位置**: REQUIREMENT.md AC-6 散文 vs DESIGN.md D6 + flow-kit-bundle/hooks/stop/lib/common.sh:177-182
 - **观察**: T02 已按 D6 钦定通道（module_output → 写 $HOOK_TMP_DIR/independent-review.txt）断言文件内容，测试 4/4 绿；但 REQUIREMENT 散文写「stderr 含告警」，5-test 若按字面 stderr 断言会对不上。
 - **处置**: 以 D6 为准（L2 阶段 2 多轮收敛钦定通道；REQUIREMENT 措辞为早期散文遗留）。5-test/L2 审查按 module_output 文件面判 AC-6；7-integration 反哺批在 REQUIREMENT 下一版对齐措辞（阶段 4 内不改 REQUIREMENT——R3.2）。
+
+### M21 · 健康报告 D-3 勘误：validate_staging_coverage 非死代码（T14 执行发现）
+- **位置**: .specs/health/2026-09-29-HEALTH.md D-3 名单；仓库根 package-flow-kit.sh:16（source）+:18（生产调用）
+- **观察**: D-3 将 validate_staging_coverage 列为死代码候选，但健康扫描漏查仓库根脚本——package-flow-kit.sh（打包完整性门禁）生产调用它。T14 判定「留」正确；报告 D-3 该项失实。
+- **处置**: T14 已在 CHANGE.md 14c 段登记判定；本条勘误归 7-integration 反哺批（HEALTH.md 为已交付报告不改写，勘误记录于此 + TD 侧评估是否更新 TD-138 名单口径——TD-138「死代码 7 处」计数随本勘误与 T14 判定实际收敛为 1 删 6 留）。

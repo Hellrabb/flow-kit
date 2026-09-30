@@ -415,6 +415,16 @@ grep -q '_l3_escape_payload "\$content"' "$L2_LIB"
 14. **C9** — `29-independent-review.sh` 抽 `main()`；`_l3_build_prompt()` 按阶段拆；`Makefile:162-365` 的 203 行 bash 落成 `tools/check-nfr-portability.sh`；`check-path-privacy.sh` 的 6 个计数器收敛为 1 个 struct 式输出
 14b. **C13 载体分叉**（**需 DESIGN 决策，勿走快路径**）— 定单一权威载体（建议 prompts，回归面最大）；skills 降级为生成物或「分叉必须登记」白名单；**把「覆盖率 3/14」从打印信息升级为失败条件**（覆盖率低于阈值即 rc≠0）。反例提示：C2 修好后 `check-path-privacy` 会**由绿转红**，同样地 C13 修好后 `check-gate-sync` 会因覆盖不足而红 —— **是预期行为不是回归**
 14c. **C14-a 死代码** — 直接删 `jq_atomic_write`（`common.sh:192`，**唯一彻底死代码**，自 2026-07-21 登记至今未收口）；其余 6 个先**判定「测试专用」是否为设计意图**再决定删或登记。⚠️ **连带**：`smart_truncate()`（146 行）与 `validate_staging_coverage()`（138 行）是 R1 复杂度 Top10 却生产零调用 ⇒ **判复杂度前须先剔死代码**
+    - **T14 落地（2026-09-29）**：`jq_atomic_write` 已删（`common.sh` 原 :189-196，3 行注释 + 5 行函数体；删后 hooks/ 域 grep=0，`make lint` ✅ + `make hooks-sync`（4 副本同步 1 文件）+ `make check-hooks-sync` ✅ 漂移 0）。test/ 域零引用（`grep -rl jq_atomic_write test/` 无命中）⇒ 无测试连动。`.specs` 文档面 ~14 处历史引用按 AC-12-a R6 豁免（2026-09-29 对账），dist/ 镜像随打包/hooks-sync 再生不计。
+    - **T14 判定表（6 候选 · 全部「留」· 零追加删除）**：
+      | 候选 | 位置（体量） | 生产调用 | 测试触点 | 判定 | 一句理由 |
+      |---|---|---|---|---|---|
+      | `checkpoint_clear` | hooks/stop/lib/checkpoint-lib.sh:70（7 行） | 0（同库 `checkpoint_write` 被 auto-checkpoint.sh:112 生产调用） | test_checkpoint.bats（T14/T15 域外） | 留 | 库自标 DESIGN D6 禁动清单，删须连动域外测试，挂后续 change |
+      | `correction_file_read` | hooks/stop/lib/correction-file.sh:25（22 行） | 0（同库 write/clear/exists 生产在用：34-archive-commit-check.sh:75 等） | test_correction_file.bats（域外） | 留 | 读路径从未接线（非设计意图），但单删收益小且测试域外，挂后续 change |
+      | `fk_validate_flow` | hooks/stop/lib/flow-kit-artifacts.sh:188（15 行） | 0（同库 3 个 fk_* 被 26-workflow.sh:67/84/130 生产调用） | test_flow_artifacts.bats（域外） | 留 | 校验函数从未接线（非设计意图），测试域外，挂后续 change |
+      | `l3_review_with_timeout` | hooks/stop/lib/l3-review.sh:200 | 0（生产直调 `l3_review_run`：29-independent-review.sh:211/337 + `$L3_BG_FLAG`，超时降级 wrapper 从未接线） | test_hook_integration.bats:55 · test_l3_review_defects_2026_09.bats:463/1016/1893（**T15 边界内→只登记不代改**）· test_l3_lifecycle_wiring.bats:312（域外 stub） | 留 | 非设计意图死代码，但 stub 面在 T15 手里，删除须 T15 协同收口 |
+      | `smart_truncate` | hooks/stop/lib/l3-truncate.sh:69（146 行） | 0（截断走 `_l3_build_prompt`+`max_bytes`/`head -c`：l3-review.sh:121/144，不经此函数） | test_l3_pipeline_fix.bats:63-80（AC-3 · **T15 边界**）· test_hook_integration.bats:55（T15）· l3-truncation.bats:31/37 · test_lib_split_metrics.bats:46-52（位置断言，域外） | 留 | 复杂度 Top10 最佳删除标的，但断言面横跨 T15 边界内外，须专门 change 统一收口（删函数 + 迁/删 AC-3 + 修位置断言） |
+      | `validate_staging_coverage` | lib/validate_staging.sh:17（138 行） | **1（D-3 勘误：非零）**——根目录 package-flow-kit.sh:10 source + :18 调用 | test_archive_commit_gate.bats:136 · test_lessons_cleanup.bats:155 · test_package_flow_kit.bats:33（域外） | 留 | **不是死代码**：打包完整性门禁，生产接线；D-3 名单漏查根目录打包脚本，登记勘误 |
 14d. **C14-f/g** — `check-path-privacy.sh:102` 与 `:90-96` 去掉对**本仓已归档战役目录** `.specs/health-fix-2026-09b/` 的硬编码（该脚本会被 `install_hooks.sh:291-301` 装进**用户项目**）；`.flow-active` 解析收敛到单点，消除 `Makefile:251` 的手搓解析与 28 个文件的格式知识泄漏
 14e. **C14-h/i** — 7 处降级 skip 改显式 skip；`test_l3_review_defects_2026_09.bats:88` 的硬编码 SHA `be138c0` 改为从 git 动态取或删断言；清理仓根 2 份陈旧 tarball（27.6 MB + 25.7 MB）
 14f. **C14-b `gate_config` 4 载体** — 抽机器可读的单一事实源（平台差异只在派发机制上是正当权衡）；在 `check-gate-sync.sh` 增加 **SKILL ↔ bats ↔ `flow-state.js` 三重预设名比对**
