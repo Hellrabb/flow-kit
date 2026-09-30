@@ -155,7 +155,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T06" parallel="true" status="pending" model-tier="standard">
+<task id="T06" parallel="true" status="done" model-tier="standard">
   <name>C3 短期脱敏 tracked 30 行（AC-4 · 必须在 T04 后）</name>
   <read_files>
     .specs/health/2026-09-22-FULL-SWEEP.md
@@ -187,7 +187,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T04</depends_on>
 </task>
 
-<task id="T07" parallel="true" status="pending" model-tier="top">
+<task id="T07" parallel="true" status="done" model-tier="top">
   <name>C5+C11 跨层闭环（AC-7 · 与 T03 同文件故串行）</name>
   <read_files>
     flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
@@ -212,7 +212,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T03</depends_on>
 </task>
 
-<task id="T08" parallel="true" status="pending" model-tier="standard">
+<task id="T08" parallel="true" status="done" model-tier="standard">
   <name>Makefile 门禁口径统一（AC-10 + AC-12-d/e + C1 加固）</name>
   <read_files>
     Makefile
@@ -240,7 +240,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T09" parallel="true" status="pending" model-tier="standard">
+<task id="T09" parallel="true" status="done" model-tier="standard">
   <name>AC-17 pre-push 并发闸 + 换装</name>
   <read_files>
     flow-kit-bundle/hooks/pre-push/pre-push.sh
