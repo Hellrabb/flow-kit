@@ -60,7 +60,7 @@
 |---|---|---|---|
 | 1 | 🔴 | **任意代码执行**（`eval` 注入，**已独立复现**） | `hooks/pre-tool-use/runtime-edit-guard.sh:46` |
 | 2 | 🔴 | **`settings.json` 被截断为 0 字节**（jq 缺失 + 重定向先截断，**已复现**） | `lib/install_hooks.sh:238-253` |
-| 3 | 🔴 | 本地 `main` 分支仍携带 `/home/<redacted>` 历史（8 处） | git ref `main` |
+| 3 | 🔴 | 本地 `main` 分支仍携带 `/home/<acct>` 历史（8 处） | git ref `main` |
 | 4 | 🔴 | pre-tool-use 子库 fail-open（守卫不完整修复） | `hooks/pre-tool-use/independent-review-gate.sh:42-46` |
 | 5 | 🔴 | **390 行「mock 自证」测试**（**已独立复现**：离仓仍 34/34 全绿） | `test/test_gate_config_presets.bats:28` |
 | 6 | 🔴 | 同步守卫只比**名字**不比**值** → 值漂移结构性失明 | `flow-kit/reference/check-gate-sync.sh:106-124` |
@@ -94,9 +94,9 @@
 
 | 扫描面 | 结果 |
 |---|---|
-| **tracked 文件内容** | `/home/<redacted>` = **0** ✅ · 真实凭证 = **0** ✅ |
-| `develop` / `origin/develop` / `origin/main` 全历史 | `/home/<redacted>` = **0** ✅ |
-| **本地 `main` 分支全历史** | `/home/<redacted>` = **8** ❌ |
+| **tracked 文件内容** | `/home/<acct>` = **0** ✅ · 真实凭证 = **0** ✅ |
+| `develop` / `origin/develop` / `origin/main` 全历史 | `/home/<acct>` = **0** ✅ |
+| **本地 `main` 分支全历史** | `/home/<acct>` = **8** ❌ |
 | `unisoc`（雇主线索） | **88 行 / 34 文件**（HEAD 存活）❌ |
 | `chisel` / `chisel_env` / `chisel-skill`（内部项目名） | **78 行 / 25 文件**，**随分发件出厂** ❌ |
 | 私网 IP（192.168./10./172.16-31） | 0 ✅（仅 `127.0.0.1:9` 测试桩） |
@@ -110,7 +110,7 @@
 **症状**：`privacy-path-scrub-2026-09` 声称"develop 全历史重写（含已推送）"，实测**只对 `develop` 生效**：
 
 ```
-ref                        commits   /home/<redacted>   unisoc
+ref                        commits   /home/<acct>   unisoc
 develop                      331            0  ✅        208
 origin/develop               331            0  ✅        208
 origin/main                   12            0  ✅          0
@@ -122,7 +122,7 @@ v0.3.0-gate-integrity        110            0  ✅         59
 - `git merge-base main develop` → **rc=1**（无共同祖先）；本地 `main` 是**孤儿分支**
 - `e008255`（泄漏引入 commit）`merge-base --is-ancestor main` → **YES**（仍是 main 祖先）
 - `main` tip `47d80f6` ≠ `origin/main` tip `9b5dda7`；`main` **未配置 upstream**
-- `git grep -nI '/home/<redacted>' main` 在 **tip 树**即命中 6 文件：
+- `git grep -nI '/home/<acct>' main` 在 **tip 树**即命中 6 文件：
   - `main:.specs/CONTEXT.md:156` → `<repo>/`
   - `main:.specs/archive/2026-06-09-user-scope-install/TASK.md:167,170,177,180,183` → 5 处绝对路径命令
 
@@ -140,7 +140,7 @@ git cat-file --batch-all-objects --batch-check='%(objectname) %(objecttype)' \
 
 **本报告逐字执行该命令，实测返回 `8`（期望 `0`）**：
 
-| 范围 | 对象库 `/home/<redacted>` 命中 |
+| 范围 | 对象库 `/home/<acct>` 命中 |
 |---|---|
 | `develop` 可达对象 | **0** ✅ |
 | 本地 `main` 可达对象 | **8** ❌ |
@@ -242,7 +242,7 @@ gc / 删 PR ref —— **不在本机可控范围**。旧 fork / 他人克隆里
 | 该 hook 的部署方式 | **符号链接指向仓库外** `$HOME/.claude/hooks/pre-commit/pre-commit.sh` → **不随 clone 传播**，新克隆**完全没有**门禁 |
 
 - 当前唯一防线是 `.gitignore`（覆盖已知临时产物），**无法阻止**有人把绝对路径粘进 `.md`
-- 事实印证：工作区现存 **9 个** 含 `/home/<redacted>` 的**未跟踪**文件（`.codegraph/daemon.log`、
+- 事实印证：工作区现存 **9 个** 含 `/home/<acct>` 的**未跟踪**文件（`.codegraph/daemon.log`、
   `.specs/health/tmp/bats-run2.log`、`.specs/archive/*/.l2-dispatch-*.log`、`dist/.l3run*.sh`）——
   全部被 `.gitignore` 挡住 ✅，但说明该模式**在持续再生**
 - **建议修法（本次最高性价比动作，约 20 行）**：新增 `make check-path-privacy`
@@ -791,7 +791,7 @@ graph TD
    ```bash
    git branch -D main && git fetch origin && git branch main origin/main
    ```
-   消除 8 处 `/home/<redacted>` 的重新发布路径。**在此之前请勿执行 `git push --all` / `--mirror`。**
+   消除 8 处 `/home/<acct>` 的重新发布路径。**在此之前请勿执行 `git push --all` / `--mirror`。**
 
 4. **AR2 · 修 `check-gate-sync.sh` 判据 + 接线 + 收紧测试**
    - `:39/:43` 正则改 `^[[:space:]]*\| [0-9] \|`（当前只匹配顶格行 → 永久假红）
@@ -864,7 +864,7 @@ graph TD
 - shellcheck error 级：0 ✅（与 09-20 持平）
 - 副本漂移：`test/` ↔ bundle、`hooks/` 跨 6 位置、`dist/` —— **全部 0 漂移** ✅
 - 凭证卫生：无 tracked 凭证、模板仅占位符、真实凭证 `600` 且仓库外 ✅
-- **`develop` / `origin/*` 前向脱敏成功**：`/home/<redacted>` = 0（上周期为泄漏态）✅ ← **本周期最大成果**
+- **`develop` / `origin/*` 前向脱敏成功**：`/home/<acct>` = 0（上周期为泄漏态）✅ ← **本周期最大成果**
 
 **退化了** ⚠️
 - **无代码级退化、无新增 🔴 代码缺陷、无功能性回归**
@@ -938,7 +938,7 @@ graph TD
 
 - **建议日期**：**2026-10-22**（1 个月后），或 **PC1/PC2 修复后立即复扫**（安全项不等周期）
 - **复扫必查**：
-  1. `main` 分支 `/home/<redacted>` 计数是否归零（P1）
+  1. `main` 分支 `/home/<acct>` 计数是否归零（P1）
   2. `runtime-edit-guard.sh` 是否已无 `eval`（PC1）—— 全仓 `grep -c eval` 应为 0
   3. `install_hooks.sh` 是否已加 jq 前置校验 + mktemp 写盘（PC2）
   4. `check-gate-sync.sh` 是否 `exit 0` 且已入 `make check`（AR2）

@@ -18,7 +18,7 @@ change-id: health-fix-2026-09c · task: T04 · phase: 4-DEV
 | 用户名提取 sed（原 :497） | `s#^/home/([a-z_][a-z0-9_-]*)/$#\1#p` | `s#^/home/([a-z_][a-z0-9_-]*).*$#\1#p`（首组贪婪吃满路径段=用户名，`.*` 吃边界字符；不改则裸 `/home/user` 抠空 uname → 占位名误判真名 ⇒ 假红） |
 | 头部（:9 `set -uo pipefail` 前） | 无 | T04 块：行为变化说明 + 【下游误报处置入口】grep 锚点（`grep -n '下游误报处置入口' 本文件` 命中 :70）+ 三步处置（①占位写法→补 PLACEHOLDER_NAMES ②真泄漏→修内容、禁白名单掩盖 ③审查/基线字面→allowlist 按 `file:line 理由` 登记） |
 
-边界字符类取广义 `[^a-z0-9_-]`（非任务原文列举的仅 `/"' ` ）：点号、大写等同样构成边界，隐私门禁宁严勿松；实测 `/home/fooBar` → 提取 `foo`、`/home/alice-doc/x` → 整段消费 `alice-doc` 不截断、不误伤更长真实目录名。
+边界字符类取广义 `[^a-z0-9_-]`（非任务原文列举的仅 `/"' ` ）：点号、大写等同样构成边界，隐私门禁宁严勿松；实测 `/home/fooBar` → 提取 `foo`、`/home/⟨alice-doc⟩/x` → 整段消费 `alice-doc` 不截断、不误伤更长真实目录名。
 
 **未动**：白名单读序三层逻辑（:98-102 常设>change>双缺 fail-closed）、SELF_EXCLUDE 6 条冻结、行粒度归因（同行多命中记 1 条）。
 

@@ -137,7 +137,7 @@ done
 
 ### 🟢 R12 · CHANGE.md 的 P1 暴露面计数错误（"6 文件"实为 2 文件 / 6 行）
 **Severity**：🟢 Minor
-**Symptom（症状）**：`CHANGE.md:43`：「`main` **tip 树**即命中 **6 文件**（`.specs/CONTEXT.md:156` + `archive/2026-06-09-.../TASK.md` ×5）」。实测 `git grep -l '/home/<redacted>' main` = **2 个文件**（`.specs/CONTEXT.md` 1 处 + `.specs/archive/2026-06-09-user-scope-install/TASK.md` 5 处），合计 **6 行**；"×5"是行数不是文件数。（其余 P1 数字复核一致 ✅：main 可达泄漏 blob **8**、develop **0**、`merge-base` rc=1、main **20** commits。）
+**Symptom（症状）**：`CHANGE.md:43`：「`main` **tip 树**即命中 **6 文件**（`.specs/CONTEXT.md:156` + `archive/2026-06-09-.../TASK.md` ×5）」。实测 `git grep -l '/home/<acct>' main` = **2 个文件**（`.specs/CONTEXT.md` 1 处 + `.specs/archive/2026-06-09-user-scope-install/TASK.md` 5 处），合计 **6 行**；"×5"是行数不是文件数。（其余 P1 数字复核一致 ✅：main 可达泄漏 blob **8**、develop **0**、`merge-base` rc=1、main **20** commits。）
 **Source（源头）**：与 L-090 同源的"数字必须可复算"。
 **Consequence（后果）**：暴露面被高估 3 倍；若 DESIGN/AC 以"6 文件"为处置范围，核对时会出现与 R1 同类的口径不一致。
 **Remedy（修补）**：改写为"tip 树命中 **2 文件 / 6 行**；main 可达泄漏 blob **8**"。
@@ -156,7 +156,7 @@ done
 | `chisel` | `test/` 2 文件 6 处 · `flow-kit-bundle/test/` 2 文件 6 处 · `dist/dsh-flow-kit/vendor/flow-kit-bundle/test/` 2 文件 6 处 · tgz(0.2.0) 6 · tgz(0.1.0) 0 · `.specs/**` 多份（文档） | AC-5（tgz 判据见 **R2**；`dist/vendor` 树由 `make check-dist` 兜底） |
 | `pipeline-gates` `@see` | 7 个载体（`4-dev.md`、`flow-dev/SKILL.md`、`phase-prompt-template.md`、`goal-parsing.md`、`L2-blind-review.md`、`.opencode/agent/…`、源本身） | AC-4（比较对见 **R3**；依据见 **R7**） |
 | PCSC 表行（`^\s*\| [0-9] \|`） | 17 个文件，逐 phase 内容**各不相同**（1-req 7 / 2-design 9 / 3-task 9 / 4-dev 8 / 5-test 7 / 6-review 9 / 7-integration 9 / pipeline-gates 7 / tdd-workflow 8 / 用户指南 21 …） | 说明"单一源"只对 **toll-gate 协议**成立，对 PCSC 表不成立 → **R7** |
-| `main` / leak blob | 对象库 `/home/<redacted>` blob **8**（全部经 `main` 可达；develop 0；`fsck --unreachable` 0） | AC-3 ✅（数字正确） |
+| `main` / leak blob | 对象库 `/home/<acct>` blob **8**（全部经 `main` 可达；develop 0；`fsck --unreachable` 0） | AC-3 ✅（数字正确） |
 
 ---
 
@@ -244,9 +244,9 @@ done
 | 17 | `test_check_gate_sync.bats:30` | `-ne 2`（容忍 exit 1） | **`:30` `[ "$status" -ne 2 ]`**（`:25` 的 `-eq 0` 是 `test -x` 存在性断言） | ✅（属 DEV 目标，未修符合预期） |
 | 18 | `bash package-flow-kit.sh --validate`（R8 依据，`timeout 120`） | exit=0、"覆盖 314 项" | **rc=0**；漏配 ERROR=**0** / 源缺失 WARNING=**0** / **期望覆盖 308 · 实际文件 314** | ✅ 结论对；表述见 N5 |
 | 19 | `test/test_lessons_cleanup.bats` AC-3/AC-4 方向 | AC-4 skip 称"已通过 AC-3 验证" | AC-3（`:75-83`/`:85-91`）注入 `TEST_GAP_DO_NOT_PACKAGE` → 断言 **`-ne 0`** + 输出含 `ERROR`；AC-4（`:97` 标题 "exit = 0 when clean"）却 `skip`（`:135-137`，注释称"已知 gap，exit=1 是正确的"） | ✅ 方向相反；skip 前提已被 #18 证伪 |
-| 20 | `git grep -l '/home/<redacted>' main`（R12） | 2 文件 / 6 行 | **2 文件**（`CONTEXT.md`×1 + `archive/2026-06-09-…/TASK.md`×5 = 6 行）；对象库命中 **8**；`merge-base main develop` rc=1 | ✅ |
+| 20 | `git grep -l '/home/<acct>' main`（R12） | 2 文件 / 6 行 | **2 文件**（`CONTEXT.md`×1 + `archive/2026-06-09-…/TASK.md`×5 = 6 行）；对象库命中 **8**；`merge-base main develop` rc=1 | ✅ |
 | 21 | 假设 5 依据 | 巡检 🔴 vs TD 🟡 | `FULL-SWEEP.md:65-66` = 🔴 #5/#6；`CONTEXT.md:571-572` TD-033/034 = 🟡 | ✅ 冲突属实 |
-| 22 | AC-6 残留 `CONTEXT.md:561` / `STATE.md:65,69` | 3 行 | 字面 `/home/<redacted>` 现位于 **`CONTEXT.md:569`**（第 561 行已因本 change 自己插入撤回块而漂移）；`STATE.md:65,69` ✓；两文件 `HEAD` 版本命中 **0** ✓ | ⚠️ 行号失效 → N5 |
+| 22 | AC-6 残留 `CONTEXT.md:561` / `STATE.md:65,69` | 3 行 | 字面 `/home/<acct>` 现位于 **`CONTEXT.md:569`**（第 561 行已因本 change 自己插入撤回块而漂移）；`STATE.md:65,69` ✓；两文件 `HEAD` 版本命中 **0** ✓ | ⚠️ 行号失效 → N5 |
 | 23 | prompt↔skill 载体同一性（供 N2） | `CHANGE.md:131`"0 对逐字相同"；`CONTEXT.md:559`"3 对（仅差 front-matter）" | 14×17=238 组合，skill 去 YAML front-matter + 忽略空行/行尾空白 → **恰好 3 对内容完全相同**：`A-evolve.md`↔`flow-evolve/SKILL.md`（各 247 行，`diff`=0）、`I-intel-scan.md`↔`flow-intel/SKILL.md`（182）、`L-restyle.md`↔`flow-restyle/SKILL.md`（142） | ✅ TD-025 数字对；`CHANGE.md:131` 的"0 对"缺 3 对（0+11≠14） |
 
 ---
@@ -1062,7 +1062,7 @@ printf '%s' "$out" | grep -qE '(PROMPT|SKILL|prompts|skills)[^ ]*:[0-9]+' \
 
 #### 🟢 R7 · AC-3 ④ `git push --tags` 的"被拦截"半边在真实仓无可满足的 fixture（唯一 tag 干净）
 **Severity**：🟢 Minor
-**Symptom（症状）**：`:108-109` When 的四种形态含 ④ `git push --tags`，`:110` Then 要求"推送**被拦截**并给出可读原因"；实测仓内唯一 tag = `v0.3.0-gate-integrity`（@`2312a5f`），内容**零泄漏**（`git grep -c -- '/home/<redacted>' v0.3.0-gate-integrity` rc=**1**）⇒ 该形态在真实仓只能验证"不误拦"半边，"被拦截"需另造含泄漏的 tag，而 `:111-112` 只写"隔离环境（临时 bare remote）"、未给该夹具。（附带复核：AC 的旁注"`--dry-run` 三种形态均会调用 `pre-push` 且 stdin 收到 ref"**成立且更强** —— 本轮在 `/tmp` 独立实测四种形态全部调用 pre-push，stdin ref 行数分别 1/1/**2**/1。）
+**Symptom（症状）**：`:108-109` When 的四种形态含 ④ `git push --tags`，`:110` Then 要求"推送**被拦截**并给出可读原因"；实测仓内唯一 tag = `v0.3.0-gate-integrity`（@`2312a5f`），内容**零泄漏**（`git grep -c -- '/home/<acct>' v0.3.0-gate-integrity` rc=**1**）⇒ 该形态在真实仓只能验证"不误拦"半边，"被拦截"需另造含泄漏的 tag，而 `:111-112` 只写"隔离环境（临时 bare remote）"、未给该夹具。（附带复核：AC 的旁注"`--dry-run` 三种形态均会调用 `pre-push` 且 stdin 收到 ref"**成立且更强** —— 本轮在 `/tmp` 独立实测四种形态全部调用 pre-push，stdin ref 行数分别 1/1/**2**/1。）
 **Source（源头）**：`:110` Then 与 `:111` 验证方式的落差；L-090 / L-120 ①。
 **Consequence（后果）**：5-test 执行 ④ 时只能产出"未拦截"（对干净 tag 而言是正确行为），拿不到"泄漏 ref 被拒"的证据 ⇒ "四种形态"的证据强度不均，6-review 会追问 ④ 到底验了什么。
 **Remedy（修补）**：在验证方式写明 ④ 的夹具（例："在隔离仓内 `git tag leak-tag <含泄漏提交>` 后 `git push --tags` → 断言该 tag 被拒、干净 tag 放行"），或把 ④ 显式降级为"仅验不误拦"。
@@ -1434,7 +1434,7 @@ L-119 治"没跑"、L-120 治"没双态"、L-121 治"没失败分支" —— 本
 | R4 | 🟡 | **Partially resolved** | binding（`printed` vs `filed`）+ `[ "${printed:-0}" -ge 1 ]` 在位。夹具（`/tmp/l2r6/ds/r4`，硬编码门禁 stub）：3 行清单 → **rc=0**；**清单换成另 3 条路径**（同条数；诚实门禁应报「清单外命中 1 条」）→ **仍 rc=0**；清单只剩注释（0 行）→ `🔴 自报条数(3) ≠ 落档行数(0)` **rc=1**。⇒ 条数漂移可拦、**「门禁不读清单 / 硬编码同数」仍不可区分** → **F4**。 |
 | R5 | 🟡 | **Resolved** | `:219-230` 逐字提取四态：glob 无匹配（归档改名）→ `🔴 未匹配到任何归档（glob 失效，判据不可信）` **rc=1**；损坏归档 → `🔴 归档不可解析` **rc=1**；干净归档 → **rc=0**；含构造 → `eval-echo=1` + **rc=1**（修复前无匹配/损坏两态均 `eval-echo=0`、rc=0）⇒ 假绿通道关闭。 |
 | R6 | 🟡 | **Resolved** | ①覆盖度判据 `grep -q '校验对 3/14'` 逐字 → **rc=1**（当前输出仅「✅ 所有校验对一致。」）⇒ 修复前不成立、有区分力；②位置判据收紧后 `(prompts\|skills)/[^ :]+:[0-9]+`：对当前输出**不命中**、对真 `prompts/4-dev.md:42` **命中**、对 `⏱ 耗时 0:01` / `https://127.0.0.1:8080/x` / `DRIFT 于 18:04` / 头部 `prompt: …/prompts/4-dev.md` **全部不误命中**（旧 pattern `[^ ]+:[0-9]+` 对前两者命中 ⇒ 收紧有效）。残余（同节另两条）→ **F3**。 |
-| R7 | 🟢 | **Resolved（deferred 口径）** | `MINOR-DEFERRED.md:17` 已登记（理由：造含泄漏 tag 会在仓内写入泄漏对象，与 P1 冲突）⇒ 符合 Severity Gating 的 🟢 路径。复核：`git tag -l` 唯一 `v0.3.0-gate-integrity`，`git grep -c '/home/<redacted>' <tag>` = 0 ⇒ 「④ 被拦截」半边仓内确无可满足对象（原判定成立）。 |
+| R7 | 🟢 | **Resolved（deferred 口径）** | `MINOR-DEFERRED.md:17` 已登记（理由：造含泄漏 tag 会在仓内写入泄漏对象，与 P1 冲突）⇒ 符合 Severity Gating 的 🟢 路径。复核：`git tag -l` 唯一 `v0.3.0-gate-integrity`，`git grep -c '/home/<acct>' <tag>` = 0 ⇒ 「④ 被拦截」半边仓内确无可满足对象（原判定成立）。 |
 | R8 | 🟢 | **Resolved** | (i) `:261` rc=2 分支已中性化（「目标不存在**或依赖缺失**」）；`prereq` fixture（目标已实现、依赖缺失）实测 rc=2 ⇒ 标签与事实一致。(ii) `LESSONS.md:784`（L-119②）已改写为 locale 锚定口径并标「**已被 L-120 ① 取代（D1 证伪…）**」（实测交叉引用命中）；`L-122` 已落 `:781`。 |
 | R9 | 🟢 | **Not resolved（范围大于所声称）** | 所声称修的两格已核 ✅：`:506` 为实命令（源树 1 + 枚举 6 面）、`:521` 为全路径（实测 0）。**但**预检表仍有 **8 格「判据命令」列不可逐字执行**（`:507/:508/:510/:512/:513/:517/:522/:523`），且 `:514` 的逐字命令给出**与所记数值不同**的结果 → **F5**。 |
 | R10 | 🟢 | **Resolved** | `:510` 已加〔R10 口径：`CHANGE.md` 的 113 B 与本案 122 B 系**不同夹具**的同机制复现，两值均有效〕。 |

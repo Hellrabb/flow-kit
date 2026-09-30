@@ -185,7 +185,7 @@
 
 **Severity**：🟡 Important
 **Symptom（症状）**：第 1 轮 🟡 R4 要求在 `TEST.md:82` 与 `:104-107` 就地补注「`printf 'x\n'` 探针不含路径字面 ⇒ 不进隐私分支」。主 agent 声称「`Fixed in: TEST.md` §1.2」。本审查员亲验：① `TEST.md:82`（§1.2 UAT ② 描述行）**未就地订正**——仍写「`bash .git/hooks/pre-commit` 两次探针 ⇒ **rc=1** 并指名 `.zz-probe1.txt:1`、`README.md:151`」，无任何订正注释（`sed -n '82p' TEST.md | grep -cE '就地订正|历史形态|现态|不进隐私|不含路径'` = 0）；② `TEST.md:104-108`（可复现序列 ② 块）**已就地订正**（含「就地订正 · 主 agent 2026-09-28」注释 + L-137 拼接构造具名形态）。即 R4 Remedy 的两个落点只改了一半（:104-107 已改，:82 未改）。
-② **处置暴露新隐私命中**（照报）：本审查员实跑自建探针（写 `/tmp/l2p7r2/`，`git add -f` 仓库内探针后跑 `bash .git/hooks/pre-commit`），两种形态均得 **rc=1 · 清单外命中 1 条**，但命中归因**不是探针内容本身**，而是 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md:147`——主 agent 第 1 轮响应段的「附带自伤披露」行仍含真实路径字面 `/home/<acct>/leak.txt`（`grep -n '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` ⇒ `:147` 命中）。主 agent 声称「已就地脱敏为 `/home/<acct>/leak.txt` 并 `git add`」，但该脱敏只落在 `.specs/LESSONS.md:781`（亲验 `grep '/home/zz-uat-probe' LESSONS.md` = 0 命中——LESSONS 确已脱敏），**`INDEPENDENT-REVIEW-7.md:147` 自身的真实路径字面未被脱敏**——主 agent 修了 LESSONS 却在同一文件的响应段里留下了相同的真实路径。该命中使 `make check-path-privacy` 在当前工作树**判红 rc=1**，阻塞任何归档 commit。
+② **处置暴露新隐私命中**（照报）：本审查员实跑自建探针（写 `/tmp/l2p7r2/`，`git add -f` 仓库内探针后跑 `bash .git/hooks/pre-commit`），两种形态均得 **rc=1 · 清单外命中 1 条**，但命中归因**不是探针内容本身**，而是 `.specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md:147`——主 agent 第 1 轮响应段的「附带自伤披露」行仍含真实路径字面 `/home/<acct>/leak.txt`（`grep -n '/home/⟨zz-uat-probe⟩' INDEPENDENT-REVIEW-7.md` ⇒ `:147` 命中）。主 agent 声称「已就地脱敏为 `/home/<acct>/leak.txt` 并 `git add`」，但该脱敏只落在 `.specs/LESSONS.md:781`（亲验 `grep '/home/⟨zz-uat-probe⟩' LESSONS.md` = 0 命中——LESSONS 确已脱敏），**`INDEPENDENT-REVIEW-7.md:147` 自身的真实路径字面未被脱敏**——主 agent 修了 LESSONS 却在同一文件的响应段里留下了相同的真实路径。该命中使 `make check-path-privacy` 在当前工作树**判红 rc=1**，阻塞任何归档 commit。
 **Source（源头）**：第 1 轮 R4 Remedy「在 `TEST.md:82` 与 `:104-107` 就地补注」——`:82` 未执行；`LESSONS.md` **L-183** 定式④「主 agent 自撰工件里出现的任何绝对路径字面（含探针）一律按 `<acct>` 形态书写，不要先写真实形态再指望后续脱敏」——`INDEPENDENT-REVIEW-7.md:147` 正是主 agent 自撰工件含真实路径字面。
 **Consequence（后果）**：① `TEST.md:82` 未订正 ⇒ 第 1 轮 R4 的「登记不闭环」只修了一半——描述层仍以「`printf 'x\n'` ⇒ rc=1」为既成事实陈述，读者只读 :82 仍误判裸探针能判红；② `INDEPENDENT-REVIEW-7.md:147` 的真实路径命中使隐私门禁当前 rc=1——归档执行时的 `git commit` 会被 pre-commit 门禁硬拦（`[archive-commit-gate] path-privacy check failed`），归档无法完成。
 **Remedy（修补）**：① 在 `TEST.md:82` 补注「该命令为**历史形态**——现态 `printf 'x\n'` 不含路径字面 ⇒ 不进隐私分支（清单外命中 0 条），hook 进入 `make test`；复现 rc=1 须用 L-137 拼接构造形态（见 `:104`）」；② 把 `INDEPENDENT-REVIEW-7.md:147` 的真实路径 `/home/<acct>/leak.txt` 脱敏为 `/home/<acct>/leak.txt`（与 LESSONS.md:781 同口径），并 `git add` 后复跑 `make check-path-privacy` 确认 rc=0 · 清单外命中 0。
@@ -236,8 +236,8 @@
 | `sed -n '104,108p' .specs/health-fix-2026-09b/TEST.md \| grep -cE '就地订正\|历史形态\|不进隐私\|不含路径'` | 0（1 命中） | :104-108 已订正（R4） |
 | `printf 'x\n' > .zz-probe1-r2.txt && git add -f .zz-probe1-r2.txt && bash .git/hooks/pre-commit` | 0（pre-commit rc=1 · 命中 INDEPENDENT-REVIEW-7.md:147） | R4 探针①（裸 printf） |
 | `P='/home/'"'zz-uat-probe'"'/leak.txt'; printf 'see %s here\n' "$P" > .zz-uat-probe-r2.txt && git add -f .zz-uat-probe-r2.txt && bash .git/hooks/pre-commit` | 0（pre-commit rc=1 · 命中 INDEPENDENT-REVIEW-7.md:147） | R4 探针②（L-137 拼接） |
-| `grep -n '/home/zz-uat-probe' .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md` | 0（:147 命中） | 主 agent 响应段含真实路径（R4 新发现） |
-| `grep -n '/home/zz-uat-probe' .specs/LESSONS.md` | 1（0 命中） | LESSONS 已脱敏（对照） |
+| `grep -n '/home/⟨zz-uat-probe⟩' .specs/health-fix-2026-09b/INDEPENDENT-REVIEW-7.md` | 0（:147 命中） | 主 agent 响应段含真实路径（R4 新发现） |
+| `grep -n '/home/⟨zz-uat-probe⟩' .specs/LESSONS.md` | 1（0 命中） | LESSONS 已脱敏（对照） |
 | `git rm -q --cached .zz-probe1-r2.txt && rm -f .zz-probe1-r2.txt` | 0 | 清理探针① |
 | `git rm -q --cached .zz-uat-probe-r2.txt && rm -f .zz-uat-probe-r2.txt` | 0 | 清理探针② |
 | `sed -n '44p' .specs/health-fix-2026-09b/INTEGRATION.md` | 0 | 读 §3 第 10 行「会实际触发 + 预演实测」（R5） |
@@ -275,7 +275,7 @@
 |---|---|---|---|
 | 🟡 R3 | Important | §2 已改「已裁决」但 §5 标题/正文 + §4:8 仍「待裁决/须先裁决」⇒ 跨段口径分裂 | **`Fixed in: INTEGRATION.md`** —— §5 标题改「`TD-114` **已裁决项**（策略① · 2026-09-28）」；§5 末段改为「**裁决结果（2026-09-28 · 用户）**：选策略①…映射随 manifest 披露」；§4 第 8 项改「⏳ 待执行（策略已裁决 · 执行随归档 commit）+ 依据 = 用户裁决策略①」。复算：`grep -c '待裁决' INTEGRATION.md` = **0**。 |
 | 🟡 R4① | Important | `TEST.md:82`（§1.2 UAT ② 描述行）未就地订正 | **`Fixed in: TEST.md`** —— 该行追加「**【就地订正 · 阶段 7 L2 🟡 R4】**：本行『两次探针 ⇒ rc=1 并指名 `.zz-probe1.txt:1`』是**历史形态**——裸 `printf 'x'` 不含路径字面 ⇒ 现态不进隐私分支；可复现的具名形态见下方复现序列 ② 的订正段」。复算：`sed -n '82p' TEST.md \| grep -c '就地订正'` = **1**。 |
-| 🟡 R4② | Important | `INDEPENDENT-REVIEW-7.md:147`（主 agent 第 1 轮响应段）仍含真实路径 ⇒ 隐私门禁 rc≠0、归档 commit 会被 pre-commit 硬拦 | **`Fixed in: INDEPENDENT-REVIEW-7.md`** —— 该段（及同档另 2 处）的探针字面统一脱敏为 `/home/<acct>/leak.txt` 并 `git add`。复算：`make check-path-privacy` = **rc=0 · 命中合计 0 · 清单外命中 0**；`grep -c '/home/zz-uat-probe' INDEPENDENT-REVIEW-7.md` = **0**。 |
+| 🟡 R4② | Important | `INDEPENDENT-REVIEW-7.md:147`（主 agent 第 1 轮响应段）仍含真实路径 ⇒ 隐私门禁 rc≠0、归档 commit 会被 pre-commit 硬拦 | **`Fixed in: INDEPENDENT-REVIEW-7.md`** —— 该段（及同档另 2 处）的探针字面统一脱敏为 `/home/<acct>/leak.txt` 并 `git add`。复算：`make check-path-privacy` = **rc=0 · 命中合计 0 · 清单外命中 0**；`grep -c '/home/⟨zz-uat-probe⟩' INDEPENDENT-REVIEW-7.md` = **0**。 |
 
 **关于「是否再开第 3 轮 L2」的处置说明（诚实登记）**：本轮残留项均为**机械文本订正**（4 处字符串 + 1 处段标题），已给出逐条可复算命令与实测值；主 agent **未再开第 3 轮 L2**，直接进入 **L3（阶段 7 · 外部模型）**——若 L3 或用户认为需要，可随时补开一轮 L2（届时只审这 4 处）。
 >

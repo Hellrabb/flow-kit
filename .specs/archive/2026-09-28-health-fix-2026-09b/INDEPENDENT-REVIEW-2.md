@@ -105,7 +105,7 @@
 
 ### 🟡 R12 · ADR-028 自称 ADR-027 的"具体化"，实则把判据从"机械判定无害"放宽为"已声明并接受"（未声明的口径变更）
 **Severity**：🟡 Important（Major）
-**Symptom（症状）**：`ADR-028:43-44`/`:54-57`："这是 `ADR-027 ②③` 的直接应用…**不**是对它的放宽或替代"；但其边界①要求的是"该残留**可被机械论证为已声明并接受**（拿不出论证的一律阻塞）"，而 `ADR-027:30` 的 ② 判据是"该项是否**可被机械判定为无害**"。允许清单接受的恰是**有害但被接受**的真实泄漏（例：`.specs/CONTEXT.md` 的 `/home/<redacted>` 行），不是 SC1090 那类无害告警。另：`ADR-028:50-52` 的"棘轮只降不升"只有流程缓解（REVIEW 说明 + MINOR-DEFERRED 登记），**无机器判据**。
+**Symptom（症状）**：`ADR-028:43-44`/`:54-57`："这是 `ADR-027 ②③` 的直接应用…**不**是对它的放宽或替代"；但其边界①要求的是"该残留**可被机械论证为已声明并接受**（拿不出论证的一律阻塞）"，而 `ADR-027:30` 的 ② 判据是"该项是否**可被机械判定为无害**"。允许清单接受的恰是**有害但被接受**的真实泄漏（例：`.specs/CONTEXT.md` 的 `/home/<acct>` 行），不是 SC1090 那类无害告警。另：`ADR-028:50-52` 的"棘轮只降不升"只有流程缓解（REVIEW 说明 + MINOR-DEFERRED 登记），**无机器判据**。
 **Source（源头）**：`ADR-027:30`（②的判据）与 `ADR-027:41`（"只有当'该判据可被机械论证为无害 + 升级会导致长期红/误红'时才适用"）；`ADR-028:29-31` 把 TD-023（无害类先例）引为"known-acceptable 判定先例"。
 **Consequence（后果）**：ADR-028 的自我描述掩盖了口径变更——真正被放宽的是**准入判据**（无害 → 已接受），而 ADR-027 的反滥用条款针对的正是这种"援引 ADR 让真缺陷不阻塞"。此外"只降不升"若无可执行判据，即本 change 自己 R2 所指的"文本正确但语义不可用"。
 **Remedy（修补）**：在 ADR-028 Decision 里显式写成**扩展**而非"具体化"："本 ADR 在 ADR-027 ② 之外新增第二准入判据 —— 允许清单条目须给出**有界危害论证**（为何该残留的危害被封顶/可接受），仅'已声明并接受'不予准入"；并给棘轮加机器判据（如 AC-6 已有差分数断言的同型手法：`grep -cvE '^[[:space:]]*(#|$)' allowlist` 不得超过上次提交值）。
@@ -381,7 +381,7 @@ AC-6 门禁恢复二值（0=通过 / 1=失败），从而：
 | **R13** | **Resolved** | 实跑与 DESIGN `:100-102` 三档一致：3 对 `diff` 原始输出**恒 6 行**（342/347、250/255、192/197，去 front-matter 后为空）；近似 2 对实测原始差 **9 行 / 11 行**，减去 SKILL 独有 5 行 front-matter = **4 / 6 行**（与设计数值一致）；`6-review` 实测原始差 398 行、**非空行交集 28**（`sort -u` 含空行 29，非空 28）⇒「仅 28 行交集」按非空口径成立。 |
 | **R14** | **Partially resolved**（残留 🟢 → N11） | ✅ §0.5.2 `:70` 已由"三种不一致表达"改为计数口径。❌ 新数字仍不准：实测固定名 `.tmp` **写入点 18 处**（`flow-kit-bundle/` 直接 `> ${v}.tmp` **12** + 经 `tmp_xxx=` 间接 **5**（`l3-done.sh:63,195`、`32-fallback-guard.sh:70`、`31-auto-advance.sh:91`、`29-independent-review.sh:248`）+ `dsh-flow-kit/lib/flow-state.js:72`），分布 **12 个文件**；`mktemp` 站点 **11 处**（"11"属实）。且 §6 `:253` 仍写「原子写**三处**统一」、§5 R6 `:240` 仍写「**三种**原子写并存」⇒ 同一工件内 3 / 12 / 实测 18 三值并存。 |
 | **R15** | **Resolved** | 实跑 `sed -n '265,382p' REQUIREMENT.md \| grep -c mktemp` = **0** ⇒「AC-6 内无 mktemp」属实；DESIGN `:238` 已订正为「**不实**：AC-6 内无该文本」，并把义务降为 DESIGN 级 + 显式标注"若不回写 AC 则无追溯、属已知缺口"。 |
-| **R16** | **Partially resolved**（残留 🟢 → N10） | ✅ D6 `:106-108` 已订正并补处置。实跑复核：`bash -c 'v="~alice/x.sh"; echo "${v/#\~/$HOME}"'` → **`/home/<acct>/x.sh`**（`~root` → `/home/<redacted>root`；裸 `~` → `/home/<redacted>`）⇒「错误展开」属实、初版"不展开"不实。❌ §2.2 `:164` 图注**仍写**「`~user` 形态**不展开**（本就不应放行）」—— 同一文件内旧表述残留。 |
+| **R16** | **Partially resolved**（残留 🟢 → N10） | ✅ D6 `:106-108` 已订正并补处置。实跑复核：`bash -c 'v="~alice/x.sh"; echo "${v/#\~/$HOME}"'` → **`/home/<acct>/x.sh`**（`~root` → `/home/<acct>root`；裸 `~` → `/home/<acct>`）⇒「错误展开」属实、初版"不展开"不实。❌ §2.2 `:164` 图注**仍写**「`~user` 形态**不展开**（本就不应放行）」—— 同一文件内旧表述残留。 |
 | **R17** | **Resolved** | 实测 `INDEPENDENT-REVIEW-1.md` = **251,278 B**（245.4 KiB）；`l3-api.sh:155` 的 `-gt 51200` 告警必触发。R7 缓解 `:241` 已改为「只允许在 `archive/` 落地一份**指向原档的摘要 + 行号索引**，**不移动/不复制原档正文**；真正拆分需阶段 7 用户确认」⇒ 不再与 §0.5.1 禁动清单冲突，且已删除"本 change 的 TASK 应含该归档动作"。 |
 | **R18** | **Resolved** | `MINOR-DEFERRED.md:13` 已把理由改为「**R18 订正：该理由不成立** —— 沙箱 `HOME` + 临时 bare remote 中 `git tag probe main` 即可造 fixture」，并把不做的理由改为**决策口径**（"属 5-test 工作量而非 v1 需求"）+ 旁注四形态 stdin ref 数实测。不再以"不可能"为名。 |
 | **R19** | **Resolved** | §0.5.1 `:30` 已补「**R19：仅作守卫范式引用（`:32-37`），本 change 不改其逻辑** —— PC3 属 v2，见 §6」；实测行数 130L（`independent-review-gate.sh`）/95L（`gate-checks-review.sh`）与清单一致。 |
@@ -394,7 +394,7 @@ AC-6 门禁恢复二值（0=通过 / 1=失败），从而：
 | 「既有 pre-push **373 B**，内容即 `make check`」 | `stat` = 373 B、普通文件、`echo …` + `make check`；**另实测含 `flow-kit` 1 处、`make check` 3 处** | ✅ 属实（该 `flow-kit` 命中使 D3 落"覆盖"分支 → N3） |
 | 「固定名 `.tmp` 实测 **12 处**（另 11 处 mktemp）」 | 写入点 **18**（12 直接 + 5 间接 + `flow-state.js:72`）、12 文件；mktemp **11** | ❌ **12 与实测不符**（低估约 1/3；"11 处 mktemp" 属实）→ N11 |
 | 「审查档 251,278 B」 | `stat -c %s` = 251278；阈值 `51200` 实测在 `l3-api.sh:155` | ✅ 属实 |
-| 「`~alice` 被**错误展开**（非"不展开"）」 | `/home/<acct>/x.sh`（含 `~root` → `/home/<redacted>root`） | ✅ 属实 |
+| 「`~alice` 被**错误展开**（非"不展开"）」 | `/home/<acct>/x.sh`（含 `~root` → `/home/<acct>root`） | ✅ 属实 |
 | 「双 ADR 索引冲突」 | `ARCHITECTURE.md:174/:204` vs `.specs/adr/005-…:1`/`008-…:1` 两套系列；TD-041 已登记 `CONTEXT.md:579`（🔴） | ✅ 属实 |
 | 「`chisel` 实际在 **4 文件**」 | 全仓 grep 分发面恰为 4 文件（每树 5+1 处） | ✅ 属实 |
 | 「`install_hooks.sh`/`install.sh`/`package-dsh-plugin.sh` 对 `pre-push` **0 命中**」 | 0 / 0 / 0 | ✅ 属实 |
@@ -459,7 +459,7 @@ AC-6 门禁恢复二值（0=通过 / 1=失败），从而：
 
 #### 🟡 N8 · AC-6 的检测判据（pattern）在 DESIGN 中未定义，而其三条断言对 pattern 提出相反要求
 **Severity**：🟡 Important
-**Symptom（症状）**：`DESIGN.md:266`（§9.1）与 D1/D8 均只写"扫描 tracked 文件内容的**本机绝对路径前缀**"，全文无检测 pattern；而 AC-6 的判据把三种字符串同时摆在判据面前：① 探针 `REQUIREMENT.md:268` `/home/<acct>/` **必须被抓住**（否则 AC-6① 失败）；② 实测 **9 个 tracked 文件**使用 `/home/<user>` 占位符（`git grep -l '/home/<user>'` = 9：`.claude/l3.env.example`、`.specs/{CHANGELOG,CONTEXT,LESSONS}.md`、`.specs/archive/2026-09-22-privacy-path-scrub-2026-09/*`×4、`.specs/archive/l2-l3-granular-gate/INDEPENDENT-REVIEW-3.md`）——`REQUIREMENT.md:372-374` 自己要求"永久红/永不变红"二选一必须避免；③ 冻结基线必须 `≥1` 条（`REQUIREMENT.md:316`），而当前 tracked 命中只有 `.specs/CONTEXT.md:569`、`.specs/STATE.md:65,69` 三行（`git grep -n '/home/<redacted>'`），三者由**同一个 pattern** 决定。
+**Symptom（症状）**：`DESIGN.md:266`（§9.1）与 D1/D8 均只写"扫描 tracked 文件内容的**本机绝对路径前缀**"，全文无检测 pattern；而 AC-6 的判据把三种字符串同时摆在判据面前：① 探针 `REQUIREMENT.md:268` `/home/<acct>/` **必须被抓住**（否则 AC-6① 失败）；② 实测 **9 个 tracked 文件**使用 `/home/<user>` 占位符（`git grep -l '/home/<user>'` = 9：`.claude/l3.env.example`、`.specs/{CHANGELOG,CONTEXT,LESSONS}.md`、`.specs/archive/2026-09-22-privacy-path-scrub-2026-09/*`×4、`.specs/archive/l2-l3-granular-gate/INDEPENDENT-REVIEW-3.md`）——`REQUIREMENT.md:372-374` 自己要求"永久红/永不变红"二选一必须避免；③ 冻结基线必须 `≥1` 条（`REQUIREMENT.md:316`），而当前 tracked 命中只有 `.specs/CONTEXT.md:569`、`.specs/STATE.md:65,69` 三行（`git grep -n '/home/<acct>'`），三者由**同一个 pattern** 决定。
 **Source（源头）**：`REQUIREMENT.md:268`（探针）· `:307-316`（基线必须落档且 ≥1）· `:372-374`（占位符冲突禁令）· `:381-382`（v1 只收第 1 类）；`DESIGN.md:266`（无 pattern）。
 **Consequence（后果）**：若 4-dev 取最直白的实现（匹配 `$HOME` 字面 `/home/<实际用户名>`），探针 `/home/<acct>/` **不被命中** ⇒ AC-6① 红，实现者此时最可能的动作是"放宽 pattern"，而放宽到 `/home/[^/]+/` 会把 9 个占位符文件全部拉进 allowlist（棘轮首日腐化，撞本 change 的 R3 风险与 ADR-028 第 5 条）；反之若取窄 pattern 又可能使基线为空 ⇒ `REQUIREMENT.md:316` 的 `-ge 1` 断言失败。**同一判据的三种约束在 DESIGN 层面无解**，只能靠实现期试错。
 **Remedy（修补）**：在 D1 增一行"检测判据（v1）"并写成可机械复核的形式，例如 `LC_ALL=C grep -nE '(^|[^[:alnum:]_])/(home|Users)/[A-Za-z0-9][A-Za-z0-9._-]*/'`（该式对 `/home/<acct>/` 命中、对 `/home/<user>` 不命中），并显式声明"基线必须 ≥1 条"的证据（当前 = `.specs/CONTEXT.md:569` + `.specs/STATE.md:65,69`）；若无法同时满足，须把冲突写成 AC-6 的显式边界（并在 MINOR-DEFERRED 登记）。
@@ -633,7 +633,7 @@ REQUIREMENT.md 的 `rc=3/exit 3/SKIP` 命中全在 AC-8（`:421-428`）与 NFR�
 | 真实账号路径（`DESIGN.md:140` 形态） | **1** | 须命中 | ✅ |
 | `/home/user/` | **1** | 须**被排除表**排除 | ✅（D10 已识别） |
 | `/home/ubuntu/` | **1** | 须**被排除表**排除 | ✅ |
-| 追加边界：无尾斜杠 `/home/alice`（行尾）· 引号内 `/home/alice"` · 大写 `/home/Alice/` · 数字开头 `/home/7alice/` | **0 / 0 / 0 / 0** | 未声明 | ⚠️ 漏报面（不构成本轮 finding，见「仅供 4-dev」注） |
+| 追加边界：无尾斜杠 `/home/⟨alice⟩`（行尾）· 引号内 `/home/⟨alice⟩"` · 大写 `/home/Alice/` · 数字开头 `/home/7alice/` | **0 / 0 / 0 / 0** | 未声明 | ⚠️ 漏报面（不构成本轮 finding，见「仅供 4-dev」注） |
 
 **断言组自洽性（沙箱模拟 AC-6② 的 4 条断言 + 空清单文件）**：`printed=0 / filed=0`（绑定断言 **PASS**）· 追加 1 行后 `n2=1 > printed=0`（差分数断言 **PASS**）· 最终 `清单外命中 0 条`（**PASS**）；并复算量词：`0` 对 `[1-9][0-9]*` **不匹配**、对 `[0-9]+` **匹配** ⇒ N8 的 `[0-9]+` 改动**必要且正确**，`test -s`→`test -f` 改动**自洽**。
 
@@ -730,7 +730,7 @@ REQUIREMENT.md 的 `rc=3/exit 3/SKIP` 命中全在 AC-8（`:421-428`）与 NFR�
 | 备份文件不影响其它断言 | orphan 扫描仅 4 子目录（`:283`）· `DEST_ROOTS` 不含 `.git/hooks`（`:56-63`）· bats 中仅 `test_archive_commit_gate.bats`（临时仓）触及 `.git/hooks` | ✅ |
 | 「本 change 工件未入库」 | `git check-ignore .specs/health-fix-2026-09b/DESIGN.md` rc=1（未忽略，属 untracked 待入库） | ✅（⇒ R2） |
 
-> 仅供 4-dev（非本轮 finding，🟢 以下，不计入 verdict）：pattern 的漏报面 —— 无尾斜杠（`/home/alice` 行尾 / 引号内）、大写用户名（`/home/Alice/`）、数字开头用户名（`/home/7alice/`）均 **不命中**；若 v1 的语义声称是"本机绝对路径前缀"，建议在 D10 显式记录该边界（或把尾斜杠改为 `(/|$|["'\'' ])` 形态），以免"命中 1"被读成"覆盖完整"。
+> 仅供 4-dev（非本轮 finding，🟢 以下，不计入 verdict）：pattern 的漏报面 —— 无尾斜杠（`/home/⟨alice⟩` 行尾 / 引号内）、大写用户名（`/home/Alice/`）、数字开头用户名（`/home/7alice/`）均 **不命中**；若 v1 的语义声称是"本机绝对路径前缀"，建议在 D10 显式记录该边界（或把尾斜杠改为 `(/|$|["'\'' ])` 形态），以免"命中 1"被读成"覆盖完整"。
 
 ---
 
@@ -863,10 +863,10 @@ is_flowkit_symlink() {   # 与 D3 同语义，零 GNU 依赖
 **Remedy（修补 · 最小集，四步，缺一不可）**：
 1. **探针字面脱形**（否则可命中的字面永远非 0）：AC 正文改为**运行时拼接**，命令仍逐字可执行，但 tracked 文本不含可命中的字面：
    ```bash
-   P='/home/zz-path-'"probe/"                     # 工件文本不含 /home/<acct>/
+   P='/home/⟨zz⟩-path-'"probe/"                     # 工件文本不含 /home/<acct>/
    printf '\n<!-- probe: %s -->\n' "$P" >> .specs/CONTEXT.md
    ```
-   同步改 `REQUIREMENT.md:268`/`:298`/`:382`、`CHANGE.md:150`、`DESIGN.md:168`（D10 的"三态实测"行改写成不命中形态，如 `/home/zz-path-pro⟨be⟩/`，并在该行注明"本行刻意不写成可命中字面"）。
+   同步改 `REQUIREMENT.md:268`/`:298`/`:382`、`CHANGE.md:150`、`DESIGN.md:168`（D10 的"三态实测"行改写成不命中形态，如 `/home/⟨zz-path-probe⟩/`，并在该行注明"本行刻意不写成可命中字面"）。
 2. **把 D10′③ 从三步改成四步，并把"空"从假设升格为断言**：`工件脱敏+探针脱形 → git add 全部入库件 → 【新增】复扫并断言「非排除命中 = 0」，非 0 即中止且禁止冻结 → 冻结基线 → 入 make check`。没有这一步，冻结会把"本该红"静默转成一条绿色棘轮。
 3. **脱敏批次必须纳入同批入库的 `.specs/health/*.md`**：`DESIGN:167①` 的口径是"本 change 自己的工件"，覆盖不到 `.specs/health/2026-09-22-FULL-SWEEP.md`（3 处真实账号路径）；而 `.specs/health/` 27/28 份已入库、该文件 `git check-ignore` **rc=1（未忽略）** ⇒ 同批入库是常规动作。请把它显式写进脱敏清单，或写明"该文件不在本次入库范围"并给出依据（二者必居其一，现状是**两者都没写**）。
 4. **`file:line` 冻结格式必须配"漂移即重冻"条款**：`ADR-028` 只定了格式未定比较键。要么写明"任何一次编辑导致行号位移 ⇒ 必须重新冻结"（并在 TASK 里给步骤），要么把比较键改成 `file` + 命中的**成分 token**（不受行号影响）。第 3 轮 remedy 提过该点，本修订**仍无对应文本**。
@@ -907,12 +907,12 @@ expected="$(cd "$hook_dst/pre-push" 2>/dev/null && pwd -P)/pre-push.sh"
 **Consequence（后果）**：最小改动式实现（照抄手边唯一前例）= 既有 373 B 普通文件命中 `-e && ! -L` ⇒ **skip**（或非交互环境下 `read -p` 读到 EOF）⇒ `.git/hooks/pre-push` 保留旧 `make check` ⇒ **AC-3 拦截不存在**，而 `test -x` / `grep "make check"` / `sync-hooks.sh --check` / `make check` 全绿 —— 即 `DESIGN:112` 自己列为必须消除的假绿。第 3 轮判它 🔴 是因为"判据不存在"；判据现已补上，故本轮降为 🟡，但**触发路径依旧敞开**。
 **Remedy（修补）**：① §0.5.1 的 `install_hooks.sh` 行补注"**新增 `deploy_pre_push()`（`:41-63` 为镜像前例，其 `-e && ! -L ⇒ skip` 语义与本设计相反，禁止照抄）**"；② D3 item 4 的"新增产物"段补一行"`install_hooks.sh: deploy_pre_push()`"；③ 在 AC-3 的验证方式里加一条**带失败分支**的部署断言（第 3 轮已给过形态，仍未落地）：`[ -L .git/hooks/pre-push ] && readlink .git/hooks/pre-push | grep -q 'pre-push/pre-push.sh' || { echo "🔴 pre-push 载体未部署（旧 hook 仍在）"; exit 1; }`。
 
-### 🟡 R6 · 脱敏是"**pattern 形状**"的：真实账号名 `/home/<redacted>`（无尾斜杠）仍有 3 处留在工件中，而 D10′ 把"脱敏完成"定义成"不匹配 pattern"
+### 🟡 R6 · 脱敏是"**pattern 形状**"的：真实账号名 `/home/<acct>`（无尾斜杠）仍有 3 处留在工件中，而 D10′ 把"脱敏完成"定义成"不匹配 pattern"
 **Severity**：🟡 Important
-**Symptom（症状）**：问的是"四份工件是否确已无真实账号路径命中"——按 `PAT` 计 **0 处**（实测 DESIGN 0 / REQUIREMENT 0 / CHANGE 0 / MINOR-DEFERRED 0，`/home/<acct>/` 全为 0）；但**按字面**仍有 **3 处真实账号路径**（无尾斜杠 ⇒ pattern 结构性看不见）：`REQUIREMENT.md:550`「对象库仍含 8 处 `/home/<redacted>`」· `CHANGE.md:37`「ref commits /home/<redacted>」· `CHANGE.md:51`「对象库 `/home/<redacted>` 命中」。而 `DESIGN:167①` 把完成判据写成"已脱敏为 `/home/<acct>/`，**脱敏后不匹配 pattern**"、`REQUIREMENT.md:309` 写成"该'空'须由「工件已脱敏」保证" ⇒ **"已脱敏"被定义为"判据看不见它"**。第 3 轮已把 pattern 的漏报面（无尾斜杠 / 大写 / 数字开头）记为"仅供 4-dev"建议记入 D10，本修订**未记录**（`DESIGN:168` 无该边界文本）。
+**Symptom（症状）**：问的是"四份工件是否确已无真实账号路径命中"——按 `PAT` 计 **0 处**（实测 DESIGN 0 / REQUIREMENT 0 / CHANGE 0 / MINOR-DEFERRED 0，`/home/<acct>/` 全为 0）；但**按字面**仍有 **3 处真实账号路径**（无尾斜杠 ⇒ pattern 结构性看不见）：`REQUIREMENT.md:550`「对象库仍含 8 处 `/home/<acct>`」· `CHANGE.md:37`「ref commits /home/<acct>」· `CHANGE.md:51`「对象库 `/home/<acct>` 命中」。而 `DESIGN:167①` 把完成判据写成"已脱敏为 `/home/<acct>/`，**脱敏后不匹配 pattern**"、`REQUIREMENT.md:309` 写成"该'空'须由「工件已脱敏」保证" ⇒ **"已脱敏"被定义为"判据看不见它"**。第 3 轮已把 pattern 的漏报面（无尾斜杠 / 大写 / 数字开头）记为"仅供 4-dev"建议记入 D10，本修订**未记录**（`DESIGN:168` 无该边界文本）。
 **Source（源头）**：`DESIGN:167①`（完成判据 = 不匹配 pattern）· `REQUIREMENT.md:309`（脱敏换空基线）· `REQUIREMENT.md:377-382`（pattern 定义与探针形态）· L-122「实现/判据必须覆盖缺陷的精确形态」· `DESIGN:326`（§9.1 自称扫描"本机绝对路径前缀"第 1 类 —— 无尾斜杠形态**同属该类**却检不出）。
 **Consequence（后果）**：① 门禁的"绿"与"账号名已从工件中消失"**不是同一件事**：同一份工件在 `git log`/归档/分发后仍带真实账号名，而门禁（AC-6）永远绿 ⇒ 假绿通道，且这次是"判据定义自己造的"；② `ADR-028` 的棘轮以"不匹配 pattern"为基线边界，边界即盲区。
-**Remedy（修补）**：① 三处 `/home/<redacted>` 改为 `/home/<acct>`（与已有脱敏同形，零成本）；② `DESIGN:168`（D10）显式记录 pattern 的边界（尾斜杠必需 / `[a-z_]` 首字符 / 小写），并写明"v1 的语义是『带尾斜杠的 `/home/<user>/` 前缀』，**不是**『本机绝对路径前缀』"，同时取消 `DESIGN:326`/`:93` 里"本机绝对路径前缀类"这一**过宽**的自称；③ 若要把无尾斜杠纳入 v1，把 `PAT` 的尾部 `/` 改为 `(/|["'\''[:space:]]|$)` 并**先跑双态 fixture**（探针必中 / `/home/<user>` 必不中）。
+**Remedy（修补）**：① 三处 `/home/<acct>` 改为 `/home/<acct>`（与已有脱敏同形，零成本）；② `DESIGN:168`（D10）显式记录 pattern 的边界（尾斜杠必需 / `[a-z_]` 首字符 / 小写），并写明"v1 的语义是『带尾斜杠的 `/home/<user>/` 前缀』，**不是**『本机绝对路径前缀』"，同时取消 `DESIGN:326`/`:93` 里"本机绝对路径前缀类"这一**过宽**的自称；③ 若要把无尾斜杠纳入 v1，把 `PAT` 的尾部 `/` 改为 `(/|["'\''[:space:]]|$)` 并**先跑双态 fixture**（探针必中 / `/home/<user>` 必不中）。
 
 ### 🟡 R7 · 排除表用**宽通配** `.specs/<id>/INDEPENDENT-REVIEW-*.md`，违反 D8③「只允许逐条精确路径」；且该豁免永久无界
 **Severity**：🟡 Important
@@ -1031,7 +1031,7 @@ expected="$(cd "$hook_dst/pre-push" 2>/dev/null && pwd -P)/pre-push.sh"
 | ⑥ | **悬空 symlink 态**：`cp` 对其**不可执行**（你实测备份 rc=1 无 `.bak` / 覆盖 rc=1 / `cp -f` rc=1；`rm -f` 或 `--remove-destination` rc=0）⇒ 先 `rm -f` 再 `cp`，或用 `--remove-destination` | R3 |
 | ⑦ | **收窄判据**：只认「指向**已安装** hooks 目录」的 symlink；排除指向**源树**（`ADR-022` 明确否决过的形态）与 `dist/` 镜像 | R4 |
 | ⑧ | **补落地触点**：`install_hooks.sh` 对 pre-push 0 命中，须显式新增部署分支；**并警告禁止照抄 `deploy_pre_commit:51-61`**（其对 `-e && ! -L` 的语义是 **skip/交互确认，与本设计相反**） | R5 |
-| ⑨ | **脱敏口径补齐**：`/home/<redacted>`（**无尾斜杠**）仍有 **3 处**（`REQUIREMENT:550`、`CHANGE:37`、`CHANGE:51`）—— D10′① 把「脱敏完成」定义成「不匹配 pattern」**等于把判据盲区写成验收标准**，须改为「无真实账号字样（含无尾斜杠形态）」 | R6 |
+| ⑨ | **脱敏口径补齐**：`/home/<acct>`（**无尾斜杠**）仍有 **3 处**（`REQUIREMENT:550`、`CHANGE:37`、`CHANGE:51`）—— D10′① 把「脱敏完成」定义成「不匹配 pattern」**等于把判据盲区写成验收标准**，须改为「无真实账号字样（含无尾斜杠形态）」 | R6 |
 | ⑩ | **排除表去宽通配**：`.specs/<id>/INDEPENDENT-REVIEW-*.md` 违反 `DESIGN:172③`「只允许逐条精确路径（强制）」，当前吞掉 44 处（含 10 处真实账号路径）**永久无界** ⇒ 逐条枚举，或改为「审查档在归档时脱敏」 | R7 |
 | ⑪ | **闭合第 3 轮 R6①/R6②/R3②**：`:31` 的 `:34-37` 引用、`:260` 的「路径/组织线索」、§0.5.1 补 `test_quality_baseline.bats` —— **三处我上一轮都声称改了，实际只改了 `:76`** | R8 |
 
@@ -1250,7 +1250,7 @@ chmod +x "$DST"; [ -x "$DST" ] || { echo "🔴 pre-push 部署后不可执行"; 
 | ⑥ | **2** | `DESIGN:151`（`--remove-destination`/`rm -f`）+ `:153`（`.linktarget`） | ✅ 计数属实，**顺序使备份失效** → 🟡 R4 |
 | ⑦ | **2** | `DESIGN:138`（源树 → return 1）+ `:139`（`dist` → return 1）；五态实测 (d)(e) 确为 1 | ✅ 属实 |
 | ⑧ | **1 / 1** | `DESIGN:183-185`（禁止照抄警告）+ `§0.5.1:29`（`PC2 · settings.json 截断 ＋ AC-3/⑧ · pre-push 部署触点`） | ✅ 计数属实；**可执行性缺陷** → 🟡 R5 · 🟢 R9 |
-| ⑨ | 无尾斜杠形态 **0** | 四份工件 `/home/<redacted>` = 0 / 0 / 0 / 0；`hellrabbit`（不分大小写）= 0 | ✅ 属实（"核验曾抓到 1 处漏网"为过程声称，不可复核，不判） |
+| ⑨ | 无尾斜杠形态 **0** | 四份工件 `/home/<acct>` = 0 / 0 / 0 / 0；`hellrabbit`（不分大小写）= 0 | ✅ 属实（"核验曾抓到 1 处漏网"为过程声称，不可复核，不判） |
 | ⑩ | 在用态宽通配 **0** | 唯一命中 `DESIGN:201` 的**订正引文**（"初版写作宽通配…"）；`REQUIREMENT`/`CHANGE` 0 | ✅ 属实；注记数字不可复算 → 🟢 R8 |
 | ⑪ | 三处在用态 **0 / 0**；bats 入 §0.5.1 | `:31` 已改为"本文件不含 `common.sh` 守卫 + R8 订正"（`gate-checks-review.sh` 的 `common.sh` 实测 **0**、真守卫在 `independent-review-gate.sh:32-37` ✅）；`组织线索` 口径已在 `:310-311` 限定 v1 只收第 1 类；`§0.5.1:47-49` 已含 `test_quality_baseline.bats` + 镜像 | ✅ 三项属实；同类悬空行号仍在 → 🟡 R7（残留 `gate-checks-review.sh:34-37` 字样 **2** 处，均在订正/终检句内，属引文） |
 
@@ -1886,7 +1886,7 @@ DESIGN R7 写「`l3-api.sh:155` 的 51200 B 阈值**必被触发**」—— 该�
 两条都要求"在 **TASK 工件**中显式列出 task / 验收命令"，而 **TASK 工件尚不存在**（阶段 3 才产出）。DESIGN 已完成它的职责：R8 已在**本 DESIGN 内定级**（不再外推）+ 带双态 verify；ADR-022 已进 §0.5.1 触碰清单 + §9.2。⇒ 作为**阶段 3 强制 handoff** 登记（与 L2 第 7 轮 handoff 合并）。
 
 ### 🟡 major④ 「D6 只有一句『必须校验』，缺伪代码与边界表」→ **Fixed in（并纠正一处会拒绝合法路径的设计错误）**
-D6 行补 **7 态 fixture（已实跑，`HOME=/home/test`）**：`~` ⇒ `/home/test` 继续 ｜ `~/x.sh` ⇒ `/home/<acct>/x.sh` 继续 ｜ **`~alice/x.sh` ⇒ 原样不展开、`exit 2`** ｜ `/abs/x.sh` ⇒ 原样继续 ｜ `rel/x.sh` ⇒ exit 2 ｜ 空串 ⇒ exit 2 ｜ `/a b/x.sh` ⇒ 原样继续。
+D6 行补 **7 态 fixture（已实跑，`HOME=/home/⟨test⟩`）**：`~` ⇒ `/home/⟨test⟩` 继续 ｜ `~/x.sh` ⇒ `/home/<acct>/x.sh` 继续 ｜ **`~alice/x.sh` ⇒ 原样不展开、`exit 2`** ｜ `/abs/x.sh` ⇒ 原样继续 ｜ `rel/x.sh` ⇒ exit 2 ｜ 空串 ⇒ exit 2 ｜ `/a b/x.sh` ⇒ 原样继续。
 **订正**：原文要求「结果须以 `$HOME/` 开头」⇒ 会**误拒** `/tmp/x` 等合法绝对路径；改为「**以 `/` 开头**」（绝对值校验）。
 
 ### 🟡 major⑤ 「§9.3 的 `rc=3` 包装形式仍推到 TASK」→ **Fixed in**

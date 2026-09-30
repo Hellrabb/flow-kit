@@ -74,7 +74,7 @@
 
 4. **T11 `pre-push.sh` exec 权限验证**：T11 verify（`TASK.md:403-410`）含 `[ -f ]` + `[ -x ]` + `stat -c '%a'`（Linux）/ `stat -f '%Lp'`（BSD）跨平台权限断言 + `grep 'make check'` + `bash -n` + bash3.2/GNU 兼容原语排除（`mapfile|declare -A|readlink -[fe]|sed -i` 不得命中）。DESIGN D3「源文件 100755 入仓」要求在 verify 中**显式编码**。✅ 无 exec 权限 gap。
 
-5. **T13 工件脱敏 verify 实测**：当前 pre-dev 状态跑 T13 verify（`PAT='/home/[a-z_][a-z0-9_-]*/'` + `git ls-files -z | xargs -0 grep -nE` + 排除 `INDEPENDENT-REVIEW-[12].md` + 排除 `/home/(user|ubuntu|…)/`）⇒ `n=1`，命中 = `DESIGN.md:246` `HOME=/home/test`（fixture 自造字面）。T13 action ② 显式针对此（改不命中形态 `$HOME/x.sh`，禁把 `test` 加排除表）。✅ verify 正确标记 must-fix，sound 且 machine-executable。
+5. **T13 工件脱敏 verify 实测**：当前 pre-dev 状态跑 T13 verify（`PAT='/home/[a-z_][a-z0-9_-]*/'` + `git ls-files -z | xargs -0 grep -nE` + 排除 `INDEPENDENT-REVIEW-[12].md` + 排除 `/home/(user|ubuntu|…)/`）⇒ `n=1`，命中 = `DESIGN.md:246` `HOME=/home/⟨test⟩`（fixture 自造字面）。T13 action ② 显式针对此（改不命中形态 `$HOME/x.sh`，禁把 `test` 加排除表）。✅ verify 正确标记 must-fix，sound 且 machine-executable。
 
 ### Verdict
 

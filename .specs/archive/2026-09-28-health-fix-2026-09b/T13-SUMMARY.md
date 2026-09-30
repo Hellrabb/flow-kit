@@ -5,7 +5,7 @@
 
 ## 一、任务理解
 
-本 task 是 AC-6 基线冻结的前置步骤（D10′ 排序①「工件脱敏必须先于基线冻结」）：把本 change 工件与同批健康档中**真实账号绝对路径**（本机 `/home/hellrab*it/…` 形态，此处已 de-shape）替换为不命中 AC-6 检测 pattern 的脱敏占位（`/home/<acct>/` / `$HOME` / `<repo>` 形态）。判定口径（排除表 + `$FACE` 授权面）来自 T13 verify，权威副本仅存在于工件一处。
+本 task 是 AC-6 基线冻结的前置步骤（D10′ 排序①「工件脱敏必须先于基线冻结」）：把本 change 工件与同批健康档中**真实账号绝对路径**（本机 `/home/<acct>/…` 形态，此处已 de-shape）替换为不命中 AC-6 检测 pattern 的脱敏占位（`/home/<acct>/` / `$HOME` / `<repo>` 形态）。判定口径（排除表 + `$FACE` 授权面）来自 T13 verify，权威副本仅存在于工件一处。
 
 ## 二、边界复述
 
@@ -72,9 +72,9 @@ rc=0
 1. **tracked 面独立复算**：`LC_ALL=C git grep -HnE "$PAT"`（指定 4 个目标文件）→ **0 命中**；全仓 `git ls-files -z | xargs -0 grep -HnE "$PAT"`，剔除 IR 排除面与通用占位符后 → **0 命中**。仅剩的两条非排除命中为：
    - `DESIGN.md:242`：行内含 PAT 定义字面与 `/home/<user>` 占位符 → 被判据 `grep -vE '/home/(user|ubuntu|\.\.\.)/'` 排除（良性，非真实账号）。
    - `.specs/archive/…/INDEPENDENT-REVIEW-1.md:630`：行内含 `/home/user/.dsh/…` 占位符 → 同一排除规则滤除。
-   - 即时核对：**无 `/home/hellrab*` 真实账号残留**（独立 grep，见下）。
+   - 即时核对：**无 `/home/<acct>*` 真实账号残留**（独立 grep，见下）。
 2. **未 tracked 面独立复算**：`git ls-files -o --exclude-standard -z | xargs -0 -r grep -HnE "$PAT"`，剔除 IR 排除面与通用占位符后 → 仅 `.specs/health-fix-2026-09b/REQUIREMENT.md:390` 一项，其行内为 `/home/user/` 占位符（排除表吸收），**非真实账号**。
-3. **真实账号字面直接验证**：`grep -nE '/home/hellrab…it/'` 于 4 个目标文件 → **0 处**（rc=1）。
+3. **真实账号字面直接验证**：`grep -nE '/home/<acct>/'` 于 4 个目标文件 → **0 处**（rc=1）。
 
 **结论**：判据 rc=0 非「扫不到」假绿 —— 独立复算在脱敏前能抓到全部 14 处（与本判据一致），脱敏后均不可命中，且全仓无真实账号路径残留。
 
