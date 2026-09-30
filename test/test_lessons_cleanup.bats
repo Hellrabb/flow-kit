@@ -222,14 +222,19 @@ teardown() {
 }
 
 @test "AC-6: 4-dev prompt §1.8.4 含 L2 自检 gate" {
+  # health-fix-2026-09c T11(AC-15①)：PCSC 内联表迁出 4-dev.md → @see 单一源
+  # reference/pipeline-gates.md（行 7 = 1.8 触发时 bats 已跑且 0 fail）
   local prompt_file="flow-kit-bundle/flow-kit/prompts/4-dev.md"
+  local gates_file="flow-kit-bundle/flow-kit/reference/pipeline-gates.md"
 
-  # 验证 PCSC 表中包含 bats 检查项
-  run grep -q "1\.8.*触发.*bats.*已跑\|bats.*已跑.*0.*fail" "$prompt_file"
+  # 4-dev 侧：@see 引单一源
+  run grep -q '@see flow-kit/reference/pipeline-gates.md' "$prompt_file"
   [ "$status" -eq 0 ]
 
-  # 验证 L2 自检 gate 填空
-  run grep -q "bats 已执行\|bats.*已跑" "$prompt_file"
+  # 单一源侧：PCSC 表含 bats 检查项（1.8 行）与 L2 自检 gate 填空
+  run grep -q "1\.8 触发时 bats 已跑且 0 fail" "$gates_file"
+  [ "$status" -eq 0 ]
+  run grep -q "bats.*已跑\|bats 已执行" "$gates_file"
   [ "$status" -eq 0 ]
 }
 

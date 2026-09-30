@@ -145,38 +145,20 @@ collect_rel_paths() {
 # 镜像范围：<pkgroot>/flow-kit/prompts/** ↔ 源的 flow-kit-bundle/flow-kit/prompts/**
 PROMPT_SRC="$SCRIPT_DIR/flow-kit-bundle/flow-kit/prompts"
 
-# ── L2 reviewer agent（复合载体：头部 + L2 固化指令**全文拷贝**）──
-# `flow-kit/.opencode/agent/flow-kit-l2-reviewer.md` 自声明「本段是 L2-blind-review.md 的
-# 全文拷贝，必须与源文件保持一致（L-031 锚点）」。它是**复合**文件（yaml 头 + 角色 + 拷贝段），
-# 故不能用通用镜像 —— 这里按「保留头部、重放拷贝段」重新生成，保同步为机械动作。
+# ── L2 reviewer agent（薄壳载体 · D7/L-031 废止）──
+# `flow-kit/.opencode/agent/flow-kit-l2-reviewer.md` 曾是**复合**文件（yaml 头 + 角色 +
+# L2-blind-review.md 全文拷贝段，L-031 锚点），故曾有 regen_l2_agent 按「保留头部、重放
+# 拷贝段」再生成。health-fix-2026-09c T11（AC-15/D7）将其薄壳化：prompt 为唯一权威，
+# agent 文件只留 yaml 头 + 角色 + @see 引用，opencode 差异化装配说明保留。
+# 复合重放器随之废止 —— 本文件自此走通用 prompts 树镜像（collect_prompt_paths 已收录
+# AGENT_REL，逐字节 cmp/cp），无任何特例再生逻辑。
 AGENT_REL=".opencode/agent/flow-kit-l2-reviewer.md"
 AGENT_SRC="$SCRIPT_DIR/flow-kit-bundle/flow-kit/$AGENT_REL"
-AGENT_MARK='# L2 独立盲审员 · 固化指令'
-
-regen_l2_agent() {
-  local head_tmp new_tmp
-  [ -f "$AGENT_SRC" ] || return 0
-  [ -f "$PROMPT_SRC/independent/L2-blind-review.md" ] || return 0
-  head_tmp="$(mktemp)" || return 0
-  # 头部 = 到拷贝段起点之前（含来源/同步要求说明）
-  awk -v m="$AGENT_MARK" 'index($0,m)==1{exit} {print}' "$AGENT_SRC" > "$head_tmp"
-  new_tmp="$(mktemp)" || { rm -f "$head_tmp"; return 0; }
-  cat "$head_tmp" "$PROMPT_SRC/independent/L2-blind-review.md" > "$new_tmp"
-  # **只读语义**（七审 R3）：--check/--list 绝不落盘。早先版本在脚本加载时无条件重放拷贝段，
-  # 导致"只读检查"改写仓库文件，且使复合载体的漂移**永远无法被报告**（先修好再比对，自然一致）。
-  if ! cmp -s "$new_tmp" "$AGENT_SRC" 2>/dev/null; then
-    AGENT_REGEN_NEEDED=1
-    [ "${MODE:-}" = "sync" ] && { cp "$new_tmp" "$AGENT_SRC"; AGENT_REGEN_NEEDED=0; }
-  fi
-  rm -f "$head_tmp" "$new_tmp"
-}
-AGENT_REGEN_NEEDED=0
-regen_l2_agent
 collect_prompt_paths() {
   local rel
   [ -d "$PROMPT_SRC" ] || return 0
   (cd "$PROMPT_SRC" && find . -type f | sed 's|^\./||' | sort)
-  # 复合载体：L2 reviewer agent（其拷贝段由 regen_l2_agent 保证与源一致）
+  # 薄壳载体：L2 reviewer agent（与 prompts 树同一镜像门禁，逐字节一致）
   [ -f "$SCRIPT_DIR/flow-kit-bundle/flow-kit/$AGENT_REL" ] && printf '%s\n' "$AGENT_REL"
 }
 # 便携读循环（bash 3.2 / macOS 兼容 · 禁 map[f]ile/readarr[a]y · T-FIX-23）
@@ -252,8 +234,8 @@ for root in "${DEST_ROOTS[@]}"; do
   prompt_dst="$pkgroot/flow-kit/prompts"
   if [ -d "$prompt_dst" ] && [ "${#PROMPT_PATHS[@]}" -gt 0 ]; then
     for rel in "${PROMPT_PATHS[@]}"; do
-      # 复合载体（L2 reviewer agent）不在 prompts/ 下，而在 <pkgroot>/flow-kit/<AGENT_REL>
-      # 复合载体：源在 <pkgroot>/flow-kit/<AGENT_REL>，目的同构（**不在 prompts/ 之下**）
+      # 薄壳载体（L2 reviewer agent）不在 prompts/ 下，而在 <pkgroot>/flow-kit/<AGENT_REL>
+      # 薄壳载体：源在 <pkgroot>/flow-kit/<AGENT_REL>，目的同构（**不在 prompts/ 之下**）
       if [ "$rel" = "$AGENT_REL" ]; then
         src_f="$AGENT_SRC"; dst_f="$pkgroot/flow-kit/$rel"
       else
@@ -349,14 +331,6 @@ unset _agent_dst
 
 [ "$nonexec_total" -gt 0 ] && \
   echo "⚠️  ${nonexec_total} 个 hook 入口缺可执行位（本工具不改权限；跑 install.sh 修）"
-
-if [ "${AGENT_REGEN_NEEDED:-0}" = "1" ]; then
-  drift_total=$((drift_total + 1))
-  case "$MODE" in
-    check) printf '  ❌ 复合载体拷贝段与源不一致（需重放）: %s\n' "$AGENT_SRC"; root_fail=1 ;;
-    list)  printf '  ⚠️  复合载体拷贝段需重放: %s\n' "$AGENT_SRC" ;;
-  esac
-fi
 
 echo
 case "$MODE" in

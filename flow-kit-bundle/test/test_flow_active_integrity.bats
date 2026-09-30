@@ -58,6 +58,9 @@ teardown() {
 # ── AC-1: L2 PCSC self-check anchor text ─────────────────────────────
 
 @test "AC-1: all user-scope prompts contain PCSC anchor text" {
+  # health-fix-2026-09c T11(AC-15①)：4-dev.md §6.0 内联 PCSC 表 → @see reference/pipeline-gates.md
+  # （单一源）；行 8（.flow-active 字段自检）由本文件所在族 + 33-flow-active-integrity hook 承载。
+  # 故锚文本计数 9→8（4-dev 合法失去锚文本，检查力未丢）。
   local anchor='.flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘'
   local count=0
   local f=""
@@ -66,10 +69,13 @@ teardown() {
       count=$((count + 1))
     fi
   done
-  [[ $count -eq 9 ]]
+  [[ $count -eq 8 ]]
+  # 4-dev 侧证明检查面迁移而非丢失：@see 指向单一源
+  grep -q '@see flow-kit/reference/pipeline-gates.md' ~/.claude/flow-kit/prompts/4-dev.md 2>/dev/null
 }
 
 @test "AC-1: all bundle prompts contain PCSC anchor text" {
+  # 同上（T11 AC-15①）：9→8，4-dev 经 @see 单一源承载 PCSC 自检表
   local anchor='.flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘'
   local count=0
   local f=""
@@ -78,7 +84,8 @@ teardown() {
       count=$((count + 1))
     fi
   done
-  [[ $count -eq 9 ]]
+  [[ $count -eq 8 ]]
+  grep -q '@see flow-kit/reference/pipeline-gates.md' flow-kit-bundle/flow-kit/prompts/4-dev.md
 }
 
 # ── AC-2: phase-artifact alignment ──────────────────────────────────
