@@ -29,8 +29,12 @@ setup() {
   SUT_REL="flow-kit-bundle/flow-kit/reference/check-path-privacy.sh"
   ALLOW_REL="flow-kit-bundle/flow-kit/reference/path-privacy-allowlist.txt"
   ALLOW_CHANGE_REL=".specs/health-fix-2026-09b/path-privacy-allowlist.txt"
-  # 拼接构造的真名探针（与既有占位符不同形）；本文件里不出现其字面
-  PROBE="/home/""zz-path-pr""obe/"
+  # 拼接构造的真名探针（与既有占位符不同形）；本文件里不出现其字面。
+  # T04（health-fix-2026-09c）：探针改**裸形态**（自身不带尾斜杠）——待测形态
+  # 由各用例显式拼接：既有用例 `${PROBE}/…` 保持原被测字符串（尾斜杠形态）；
+  # T04 新用例直接用 `${PROBE}` 钉裸形态。探针不再把「必须尾斜杠」这一旧 PAT
+  # 假设烧进夹具（原 `:33` 自带尾斜杠问题的修正）。
+  PROBE="/home/""zz-path-pr""obe"
 
   # 仓根：从 test/ 向上找含 flow-kit-bundle/hooks 的目录（兼容 test/ 与 bundle 内镜像）
   local d
@@ -72,7 +76,7 @@ teardown() {
 
 @test "真名探针（拼接构造）⇒ rc=1 且归因到 file:line" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -108,7 +112,7 @@ teardown() {
 
 @test "空清单 + 真名探针 ⇒ rc=1（空清单不得静默跳过扫描 · 反假绿）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 空基线：仅注释\n\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -120,7 +124,7 @@ teardown() {
 }
 
 @test "命中落在允许清单内 ⇒ rc=0（只暴露不阻塞）" {
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "probe.txt:1 # 夹具登记\n"
   stage "probe.txt" "$ALLOW_REL"
 
@@ -142,7 +146,7 @@ teardown() {
 }
 
 @test "常设缺、change 副本在 ⇒ 读 change 副本（读序回退）" {
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_CHANGE_REL" "probe.txt:1 # 夹具登记\n"
   stage "probe.txt" "$ALLOW_CHANGE_REL"
 
@@ -153,7 +157,7 @@ teardown() {
 }
 
 @test "常设与 change 副本皆在 ⇒ 常设优先（读序不回退）" {
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "probe.txt:1 # 常设登记\n"
   mkfile "$ALLOW_CHANGE_REL" "# 空基线（若被误读 ⇒ rc=1）\n"
   stage "probe.txt" "$ALLOW_REL" "$ALLOW_CHANGE_REL"
@@ -175,7 +179,7 @@ teardown() {
 
 @test "F1 坏态：TMPDIR 不可用 + 真泄漏 ⇒ rc≠0 且不得打印「清单外命中 0 条」" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -188,7 +192,7 @@ teardown() {
 
 @test "F1 好态：TMPDIR 可用 + 真泄漏 ⇒ 正常归因（rc=1 + leak file:line），故障态未旁路正常流程" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -202,7 +206,7 @@ teardown() {
 
 @test "F2 坏态①：非 git 目录 + 真泄漏 ⇒ rc≠0（0 候选面与干净不得同形）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
   # 拆掉夹具的 .git ⇒ 非 git 目录（候选枚举失败 ⇒ 0 候选面）
@@ -214,7 +218,7 @@ teardown() {
 
 @test "F2 坏态②：git 仓但 index 为空（未 add）+ 真泄漏 ⇒ rc≠0" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   # 注意：此处不 stage ⇒ git ls-files rc=0 但输出 0 行（空 index 变体）
   # （setup 已 git init；未 add ⇒ index 为空）
@@ -245,7 +249,7 @@ teardown() {
 
 @test "F3 坏态：tracked 二进制含探针 ⇒ 工作树模式必须非 0 且归因可解析（line 为数字）" {
   mkfile "docs/notes.md" "clean\n"
-  printf 'BIN\x00%s\x00\n' "${PROBE}" > "$FIXTURE/bin.dat"
+  printf 'BIN\x00%s/\x00\n' "${PROBE}" > "$FIXTURE/bin.dat"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "bin.dat" "$ALLOW_REL"
 
@@ -277,7 +281,7 @@ teardown() {
 
 @test "F4 好态：清单含有效 file:line + # 注释 ⇒ 计数正确（口径一致）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\nprobe.txt:1 # 夹具登记\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -354,7 +358,7 @@ teardown() {
 
 @test "F20 坏态：TMPDIR 不可用 ⇒ rc≠0 且「mktemp 失败」报文恰 1 次（立即终止、无冗余）" {
   mkfile "docs/notes.md" "纯文本，无本机路径\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL"
 
@@ -393,7 +397,7 @@ run_sut_override() {
   # 常设清单登记 probe（若被误读 ⇒ rc=0 假绿）；覆盖清单为空（若被读 ⇒ rc=1 真红）。
   # 预期：覆盖生效 ⇒ 读空清单 ⇒ 真泄漏 rc=1（覆盖优先级高于常设）。
   mkfile "docs/notes.md" "纯文本\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "probe.txt:1 # 常设登记（若被读 ⇒ rc=0 假绿）\n"
   mkfile "$ALLOW_CHANGE_REL" "probe.txt:1 # change 登记\n"
   stage "docs/notes.md" "probe.txt" "$ALLOW_REL" "$ALLOW_CHANGE_REL"
@@ -429,7 +433,7 @@ run_sut_override() {
 
 @test "T-FIX-08 未设置读序不变：FLOW_KIT_PRIVACY_ALLOWLIST 未设 ⇒ 读序逐字不变（常设 > change > 缺失）" {
   # 未设置覆盖旋钮 ⇒ 现有读序逐字不变：常设在位 ⇒ 读常设（即使 change 也在位）。
-  mkfile "probe.txt" "泄漏点: ${PROBE}host\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/host\n"
   mkfile "$ALLOW_REL" "probe.txt:1 # 常设登记\n"
   mkfile "$ALLOW_CHANGE_REL" "# 空基线（若被误读 ⇒ rc=1）\n"
   stage "probe.txt" "$ALLOW_REL" "$ALLOW_CHANGE_REL"
@@ -466,7 +470,7 @@ run_sut_override() {
 }
 
 @test "T-FIX-11②：同删除态但 index 版本含泄漏 ⇒ rc≠0 且「清单外命中 [1-9]」（内容面未被跳过）" {
-  mkfile "sub/leak.sh" "echo ${PROBE}leak.txt\n"
+  mkfile "sub/leak.sh" "echo ${PROBE}/leak.txt\n"
   mkfile "$ALLOW_REL" "# 夹具允许清单（空，泄漏须判红）\n"
   stage "sub/leak.sh" "$ALLOW_REL"
   git -C "$FIXTURE" commit -qm base
@@ -511,14 +515,14 @@ run_sut_override() {
 @test "T-FIX-17①：候选名 -q 且 index + 工作树各一处泄漏 ⇒ rc=1 且两处均被归因（fail-open 修复）" {
   # 前提：候选含名为 -q 的文件，且其内容含真泄漏探针（index 与工作树同内容）。
   mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
-  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/-q"
-  mkfile "zz_control.txt" "泄漏点: ${PROBE}secret.txt\n"
+  printf '泄漏点: %s/secret.txt\n' "$PROBE" > "$FIXTURE/-q"
+  mkfile "zz_control.txt" "泄漏点: ${PROBE}/secret.txt\n"
   # git add -- ./-q：文件名以 - 开头时必须用 -- 终止
   git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
 
   # 前提断言：候选含 -q 且其内容含探针
   git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
-  [ "$(git -C "$FIXTURE" show :'-q')" = "泄漏点: ${PROBE}secret.txt" ]
+  [ "$(git -C "$FIXTURE" show :'-q')" = "泄漏点: ${PROBE}/secret.txt" ]
 
   run --separate-stderr run_sut
   [ "$status" -eq 1 ]
@@ -541,13 +545,13 @@ run_sut_override() {
   git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
   git -C "$FIXTURE" commit -qm base
   # 磁盘侧改 zz_control 加泄漏（不 add ⇒ index 仍干净，只有磁盘侧有泄漏）
-  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
+  printf '泄漏点: %s/secret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
 
   # 前提断言：候选含 -q（干净）；zz_control 磁盘含探针但 index 不含
   git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
   [ "$(git -C "$FIXTURE" show :'-q')" = "clean line no probe" ]
   [ "$(git -C "$FIXTURE" show :'zz_control.txt')" = "clean control" ]
-  grep -qFe "${PROBE}" "$FIXTURE/zz_control.txt"
+  grep -qFe "${PROBE}/" "$FIXTURE/zz_control.txt"
 
   local override="$FIXTURE/empty-allowlist.txt"
   printf '# 空覆盖清单\n' > "$override"
@@ -569,7 +573,7 @@ run_sut_override() {
 @test "T-FIX-17③：rev 形态计时 5 次 CHECK_REV=HEAD 实测均 ≤5 s（R5-16 批量化回到预算内）" {
   # 最小夹具仓：3 个候选（SUT + allowlist + 一个含探针的 blob），避免受本仓规模影响。
   mkfile "$ALLOW_REL" "# 夹具允许清单（空）\n"
-  mkfile "probe.txt" "泄漏点: ${PROBE}secret.txt\n"
+  mkfile "probe.txt" "泄漏点: ${PROBE}/secret.txt\n"
   stage "$ALLOW_REL" "probe.txt"
   git -C "$FIXTURE" commit -qm base
   local head
@@ -607,13 +611,13 @@ run_sut_override() {
   git -C "$FIXTURE" add -- "./-q" "./zz_control.txt" "$ALLOW_REL"
   git -C "$FIXTURE" commit -qm base
   # 磁盘侧改 zz_control 加泄漏（不 add ⇒ index 仍干净，只有磁盘侧有泄漏）
-  printf '泄漏点: %ssecret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
+  printf '泄漏点: %s/secret.txt\n' "$PROBE" > "$FIXTURE/zz_control.txt"
 
   # 前提断言：候选含 -q（干净）；zz_control 磁盘含探针但 index 不含
   git -C "$FIXTURE" ls-files -z | grep -qzxFe '-q'
   [ "$(git -C "$FIXTURE" show :'-q')" = "clean line no probe" ]
   [ "$(git -C "$FIXTURE" show :'zz_control.txt')" = "clean control" ]
-  grep -qFe "${PROBE}" "$FIXTURE/zz_control.txt"
+  grep -qFe "${PROBE}/" "$FIXTURE/zz_control.txt"
 
   local override="$FIXTURE/empty-allowlist.txt"
   printf '# 空覆盖清单\n' > "$override"
@@ -720,4 +724,63 @@ run_sut_override() {
   n_restored="$(printf '%s\n' "$actual_restored" | wc -l | tr -d ' ')"
   [ "$n_restored" -eq 6 ]
   [ "$actual_restored" = "$frozen" ]
+}
+
+# ============================================================================
+# T04（health-fix-2026-09c · AC-3）：PAT 路径段边界放宽回归
+# PAT 由「必须尾斜杠」放宽为路径段边界形态 —— 裸 /home/<name>（无尾斜杠）在
+# 名后为非路径段字符（行尾/引号/空白/斜杠等）时必须命中；占位名（含裸形态）
+# 不得误报。PROBE 自本节起为裸形态（见 setup :33 修正说明）——既有用例已改为
+# `${PROBE}/…` 显式拼尾斜杠，保持原被测字符串不变。
+# 用例名统一带 `T04:` 前缀（verify 计数锚：`grep -c '@test .*T04:'` 今日 0→≥1）。
+# ============================================================================
+
+@test "T04: 裸 /home/<realname>（无尾斜杠 · 行尾）⇒ 命中 rc=1 且归因 file:line" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe_bare.txt" "泄漏点: ${PROBE}\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe_bare.txt" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"清单外命中 1 条"* ]]
+  [[ "$output" == *"probe_bare.txt:1"* ]]
+  [[ "$output" != *"✅"* ]]
+}
+
+@test "T04: 裸 /home/<realname> 双引号/反引号包裹（非行尾边界）⇒ 同样命中 rc=1" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  printf 'doc "%s" and `%s` two forms\n' "$PROBE" "$PROBE" > "$FIXTURE/probe_quote.txt"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe_quote.txt" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 1 ]
+  # 同行两个命中按 file:line 记 1 条（行粒度归因）
+  [[ "$output" == *"清单外命中 1 条"* ]]
+  [[ "$output" == *"probe_quote.txt:1"* ]]
+}
+
+@test "T04: 裸占位名不误报（user/me/username/your-user 行尾 + <user> 尖括号形态）⇒ rc=0" {
+  mkfile "docs/notes.md" "copy to /home/user\n占位: /home/<user>/proj\nhome 目录: /home/me\n教程写法 /home/username 与 /home/your-user\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"命中合计 0 条"* ]]
+  [[ "$output" == *"清单外命中 0 条"* ]]
+}
+
+@test "T04: 路径段边界形态：同前缀长段名（-doc）整段消费、点号后缀截断边界 ⇒ 均命中 rc=1" {
+  mkfile "docs/notes.md" "纯文本，无本机路径\n"
+  mkfile "probe_edge.txt" "长段名: ${PROBE}-doc 旁\n点号边界: ${PROBE}.txt 尾\n"
+  mkfile "$ALLOW_REL" "# 夹具允许清单\n"
+  stage "docs/notes.md" "probe_edge.txt" "$ALLOW_REL"
+
+  run --separate-stderr run_sut
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"清单外命中 2 条"* ]]
+  [[ "$output" == *"probe_edge.txt:1"* ]]
+  [[ "$output" == *"probe_edge.txt:2"* ]]
 }

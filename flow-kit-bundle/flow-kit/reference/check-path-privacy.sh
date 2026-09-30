@@ -61,20 +61,46 @@
 #   拦截面 = 被拦截对象 ADR-027）。fix：措辞精确化为「工作树（git index：已 add /
 #   已提交）」，5 处打印共用单变量 ⇒ 单点改动，不给 git ls-files 加 --others。
 # ============================================================================
+# ============================================================================
+# T04 · health-fix-2026-09c · AC-3（PAT 路径段边界放宽 · 2026-09-29）
+# ----------------------------------------------------------------------------
+# 行为变化（对本门禁的所有下游项目生效）：PAT 从「必须尾斜杠 /home/<name>/」
+# 放宽为路径段边界形态 —— 裸 /home/<name>（无尾斜杠）只要 <name> 后跟非路径段
+# 字符（行尾/引号/空白/斜杠等一切不在 [a-z0-9_-] 内的字符）即命中。
+# 【下游误报处置入口】（grep 锚点：`grep -n '下游误报处置入口' 本文件` 即到本节）
+#   下游项目若在 T04 放宽后被本门禁判红，按序处置：
+#   ① 命中行是教程/示例占位写法（如 /home/username、/home/me）⇒ 把该占位名
+#      补进本文件 PLACEHOLDER_NAMES（占位符排除表）后重跑本门禁；
+#   ② 命中行是真实本机路径泄漏 ⇒ 修正文件内容 —— 判红是正确行为，禁止加白
+#      清单掩盖（fail-closed 纪律）；
+#   ③ 确属审查/基线必需的固定字面 ⇒ 在 path-privacy-allowlist.txt 按
+#      `file:line 理由` 格式登记（允许清单只放行已归因的个别行，不放宽 PAT）。
+# ============================================================================
 set -uo pipefail
 
 # ----------------------------------------------------------------------------
 # 常量
 # ----------------------------------------------------------------------------
-# PAT（D10 定稿）：本机绝对路径前缀 `/home/<username>/`。
-# `<username>` = 首字符 [a-z_]，后续 [a-z0-9_-]，末尾必须含 `/`。
-# 通用占位符 `/home/user/` 会命中本 PAT ⇒ 必须叠加占位符排除表（D10 实测）。
-PAT='/home/[a-z_][a-z0-9_-]*/'
+# PAT（D10 定稿 → health-fix-2026-09c T04 / AC-3 放宽）：本机绝对路径前缀
+# `/home/<username>`；`<username>` = 首字符 [a-z_]，后续 [a-z0-9_-]。
+# 名后必须是**路径段边界**：任一不在 [a-z0-9_-] 内的字符（`/`、引号、空白、
+# `.` 等）或行尾（$，零宽）—— 裸 `/home/<name>`（无尾斜杠）也命中；
+# 同前缀更长段名（如 `/home/<name>-doc`）由贪婪 `*` 整段消费为更长用户名成分，
+# 不截断误取前缀。占位名不设新正则（DESIGN D9-C2a：维持既有机制，由下方
+# 排除表承接）。通用占位符 `/home/user`（裸）与 `/home/user/`（尾斜杠）都会
+# 命中本 PAT ⇒ 必须叠加占位符排除表（D10 实测；T04 放宽后裸形态同样依赖）。
+PAT='/home/[a-z_][a-z0-9_-]*([^a-z0-9_-]|$)'
 
-# 通用占位符排除表（D10）：按「被匹配到的用户名成分」排除，不按整行排除。
+# 通用占位符排除表（D10 → health-fix-2026-09c T04 扩全 · NFR-安全「覆盖下游
+# 项目常见占位形态」）：按「被匹配到的用户名成分」排除，不按整行排除。
 # 同一行同时含占位符与真实路径时，按行排除会漏报真实路径。
-# 列出可能作为占位符出现的用户名成分；命中则跳过该条 PAT 匹配。
-PLACEHOLDER_NAMES='user ubuntu acct yourname foo bar someone'
+# 扩全依据 = 下游教程/示例文档常见写法（user / username / yourname /
+# your-user / your_user / me / myuser / testuser / example / demo / foo /
+# bar / baz / someone / developer）+ 运维惯用名（ubuntu / acct）。
+# 刻意**不加** `test`（09b INDEPENDENT-REVIEW-3 裁决：夹具字面改不命中形态，
+# 禁入排除表）与 `alice` 等人名示例（09b INDEPENDENT-REVIEW-2 以其作真名
+# 漏报样例，入表即与该审查结论反向）。
+PLACEHOLDER_NAMES='user username ubuntu acct yourname your-user your_user me myuser testuser example demo foo bar baz someone developer'
 
 # 自排除清单（D8 / D10′② · 强制 · 逐条精确路径，禁宽通配）。
 # 这些文件本身必然含 PAT 字面（脚本自我引用、允许清单格式说明、审查档讨论），
@@ -487,14 +513,18 @@ UNREADABLE_DETAILS=''
 line_all_hits_placeholder() {
   local content="$1"
   local hits any_real=0
-  # grep -oE 输出每个 `/home/<name>/` 命中，每行一个（bash 3.2 的 grep -oE 支持）
+  # grep -oE 输出每个 `/home/<name>…` 命中，每行一个（bash 3.2 的 grep -oE 支持）。
+  # T04 放宽后命中串形态 = `/home/<name>` + 单个边界字符（`/`、引号、空白等）；
+  # 行尾 `$` 为零宽锚 ⇒ 该形态命中串无尾随边界字符。
   hits=$(printf '%s\n' "$content" | grep -oE "$PAT" 2>/dev/null || true)
   [ -z "$hits" ] && return 1   # 无命中（不应发生，调用方已筛选）⇒ 不跳过
   local h uname
   while IFS= read -r h; do
     [ -z "$h" ] && continue
-    # 从单个命中 `/home/<name>/` 抠 <name>
-    uname=$(printf '%s\n' "$h" | sed -nE 's#^/home/([a-z_][a-z0-9_-]*)/$#\1#p')
+    # 从单个命中抠 <name>：首组贪婪吃满全部路径段字符 [a-z0-9_-] 即用户名
+    # 成分；`.*` 吃掉尾随的单个边界字符（或行尾形态的零个字符）。旧式
+    # `([a-z0-9_-]*)/$` 强制尾斜杠 —— T04 放宽后裸命中串会抠空 ⇒ 误判真名。
+    uname=$(printf '%s\n' "$h" | sed -nE 's#^/home/([a-z_][a-z0-9_-]*).*$#\1#p')
     if [ -z "$uname" ] || ! is_placeholder_name "$uname"; then
       any_real=1
       break
