@@ -336,7 +336,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T02</depends_on>
 </task>
 
-<task id="T12a" parallel="true" status="pending" model-tier="top">
+<task id="T12a" parallel="true" status="done" model-tier="top">
   <name>C13 SKILL 薄壳化 16 载体 + skill 独有条款并入（AC-11 · T11 定范式后批量）（L2 R9 拆分 / R1 修订 2026-09-29）</name>
   <read_files>
     flow-kit-bundle/flow-kit/prompts/*.md
