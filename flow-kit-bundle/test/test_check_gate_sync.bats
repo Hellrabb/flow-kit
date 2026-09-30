@@ -10,17 +10,31 @@
 # 断言收紧为 -eq 0 后：任何内容漂移（含 gate-config 预设名漂移）都会让门禁非 0 ⇒ 本用例必红。
 # T-FIX-04（F6 收敛）：新增缺对双态判据 —— 复制真实生产件进 mktemp -d 夹具，
 # 隐藏一对 skill 文件 ⇒ rc≠0 且汇总不打印「✅ … 一致」；完整夹具仍 rc=0。
+# T03（health-fix-2026-09c · C1 · AC-1/AC-2）：漂移腿沙箱化 —— 三个 T02 漂移用例不再
+# 直写 tracked SKILL.md（sed 注入落到 F6 mktemp 夹具内副本，见 LESSONS 2026-09-29 🔴
+# 并发固化破坏事故）；setup/teardown 备份改 mktemp 唯一路径（防并发双跑互踩）、还原去
+# || true（失败必须报警）；新增 AC-2 kill 注入腿（L2 r2 R10 修订 2026-09-29）：夹具
+# 运行中注入 SIGTERM/SIGKILL ⇒ rc≠0 且 tracked skills/ 零改动（防「沙箱化被回退」回归）。
 
 SCRIPT="flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
-SKILL="flow-kit-bundle/skills/flow/SKILL.md"
+SKILL_REL="flow-kit-bundle/skills/flow/SKILL.md"   # 相对路径常量：沙箱内拼 $SBX/fk/$SKILL_REL
 
 setup() {
-  # 漂移测试会改 SKILL.md，备份保证还原（避免污染其他测试套 + L-015 源完整性）
-  cp "$SKILL" "$SKILL.t02-bak"
+  # T03 后漂移用例已沙箱化、不再直写 tracked SKILL.md；此备份降级为回归安全网：
+  # 若未来某腿重新直写 tracked 文件，teardown 仍能还原。
+  # 备份路径 mktemp 唯一：旧版固定后缀 .t02-bak 在并发双跑下互踩
+  # （p1 改写 SKILL.md 后 p2 才 setup ⇒ p2 备份并还原的是漂移内容 ⇒ 破坏被固化）。
+  T02_BAK=$(mktemp "${TMPDIR:-/tmp}/t02-skill-bak.XXXXXX")
+  cp "$SKILL_REL" "$T02_BAK"
 }
 
 teardown() {
-  [[ -f "$SKILL.t02-bak" ]] && mv -f "$SKILL.t02-bak" "$SKILL" || true
+  # T03：去掉 || true —— 备份存在则必须成功还原，还原失败 = teardown 判红报警（不静默吞；
+  # 旧版 || true 正是并发事故里「破坏固化后静默跳过还原」的帮凶）。备份不存在说明 setup
+  # 未建立（如该测试被过滤跳过），正常返回。
+  if [[ -f "$T02_BAK" ]]; then
+    mv -f "$T02_BAK" "$SKILL_REL"
+  fi
 }
 
 @test "T02: check-gate-sync.sh 存在且可执行" {
@@ -35,24 +49,47 @@ teardown() {
   [[ "$output" != *"gate-config 预设名集合不一致"* ]]  # 无 gate-config 漂移
 }
 
+# ── T03（C1 · AC-1）T02 漂移腿沙箱化：sed 注入从 tracked SKILL.md 改落到 F6 夹具副本 ──
+# 旧形态（sed -i 直写 tracked 文件 + setup/teardown 还原）两宗罪：
+#   ① 并发双跑互踩：共享 .t02-bak 备份 + 同时 sed 同一 tracked 文件 ⇒ 破坏被「正式固化」
+#     （LESSONS 2026-09-29 🔴：3 个并发 make check 后 tracked SKILL.md 实际丢行）；
+#   ② kill 中断（CI 超时 / 手动 ^C / OOM）跳过 teardown ⇒ tracked 文件留脏。
+# 新形态照搬同文件 T-FIX-04 F6 双态腿的现成写法（mktemp -d 唯一夹具 + cd 夹具运行 +
+# rm -rf 收尾），不新造沙箱框架。
+FXC1() {
+  SBX=$(mktemp -d "${TMPDIR:-/tmp}/tc1-XXXXXX")
+  mkdir -p "$SBX/fk/flow-kit-bundle/flow-kit/reference" "$SBX/fk/flow-kit-bundle/flow-kit/prompts" "$SBX/fk/flow-kit-bundle/skills" "$SBX/fk/flow-kit-bundle/test"
+  cp "$SCRIPT" "$SBX/fk/flow-kit-bundle/flow-kit/reference/"
+  cp -r flow-kit-bundle/flow-kit/prompts/. "$SBX/fk/flow-kit-bundle/flow-kit/prompts/"
+  cp -r flow-kit-bundle/skills/. "$SBX/fk/flow-kit-bundle/skills/"
+  cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/"
+  echo "[fixture] $SBX/fk (pid $$)"   # 夹具路径留痕（--show-output-of-passing-tests 可见）
+}
+
 @test "T02: SKILL.md 注入假预设（有 →）→ gate-config 段报漂移 + 列出 fake-preset" {
-  sed -i '/# review[[:space:]]*→/a\     # fake-preset         → {"6-review":"independent"}' "$SKILL"
-  run bash "$SCRIPT"
+  FXC1
+  sed -i '/# review[[:space:]]*→/a\     # fake-preset         → {"6-review":"independent"}' "$SBX/fk/$SKILL_REL"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
   [[ "$output" == *"gate-config 预设名集合不一致"* ]]
   [[ "$output" == *"fake-preset"* ]]
+  rm -rf "$SBX"
 }
 
 @test "T02: SKILL.md 删除真预设 design → gate-config 段报漂移" {
-  sed -i '/# design[[:space:]]*→.*2-design/d' "$SKILL"
-  run bash "$SCRIPT"
+  FXC1
+  sed -i '/# design[[:space:]]*→.*2-design/d' "$SBX/fk/$SKILL_REL"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
   [[ "$output" == *"gate-config 预设名集合不一致"* ]]
+  rm -rf "$SBX"
 }
 
 @test "T02: 不依赖文本段 marker — 注入英文注释（无 →）不误报漂移" {
-  sed -i '/预设名映射表（PRESET_MAP）/a\     # note: explanatory comment without arrow' "$SKILL"
-  run bash "$SCRIPT"
+  FXC1
+  sed -i '/预设名映射表（PRESET_MAP）/a\     # note: explanatory comment without arrow' "$SBX/fk/$SKILL_REL"
+  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
   [[ "$output" == *"预设名集合一致"* ]]
   [[ "$output" != *"gate-config 预设名集合不一致"* ]]
+  rm -rf "$SBX"
 }
 
 # ── T-FIX-04 F6 双态判据：缺对不得报全绿 ──
@@ -262,5 +299,35 @@ FXB18() {
   [ "$status" -eq 0 ]                                    # 完整树必须 rc=0
   [[ "$output" == *"✅"* ]]
   [[ "$output" != *"🔴 MISSING"* ]]
+  rm -rf "$SBX"
+}
+
+# ── T03（C1 · AC-2）kill 注入腿（L2 r2 R10 修订 2026-09-29）──
+# 防回退回归：若沙箱化被回退（用例重新直写 tracked SKILL.md），夹具运行中被 kill 会跳过
+# 还原逻辑 ⇒ tracked 文件留脏。本腿在夹具运行中注入 SIGTERM/SIGKILL ⇒ 断言 rc≠0 且
+# 沙箱外 tracked skills/ 未被改动。断言用 `git diff --stat -- flow-kit-bundle/skills/`
+# （只查 skills/ —— 同波次有其他并行任务的未提交改动，全树断言会假红；全树留给编排者波末跑）。
+# 运行窗口确定性：影子 diff 先 sleep 3 再放行真 diff（沿用 R3-20/T-FIX-25 的 PATH 影子手法），
+# 保证注入时 SUT 必在运行中（非竞速抢时间片）。
+@test "T03 AC-2: 夹具运行中注入 SIGTERM/SIGKILL → rc≠0 + tracked skills/ 零改动（沙箱防回退）" {
+  FXC1
+  mkdir -p "$SBX/fk/shadows"
+  REAL_DIFF=$(command -v diff)
+  printf '#!/bin/sh\nsleep 3\nexec "%s" "$@"\n' "$REAL_DIFF" > "$SBX/fk/shadows/diff"
+  chmod +x "$SBX/fk/shadows/diff"
+  for sig in TERM KILL; do
+    echo "[kill-inject] sig=$sig fixture=$SBX/fk"
+    ( cd "$SBX/fk" && PATH="$SBX/fk/shadows:$PATH" bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh ) >"$SBX/out.$sig" 2>&1 &
+    sut=$!
+    sleep 1                                       # 影子 diff sleep 3 ⇒ 此时 SUT 必在运行
+    pkill -"$sig" -P "$sut" -f check-gate-sync 2>/dev/null || true   # 先杀内层 SUT（父未死时 -P 才找得到子）
+    kill -"$sig" "$sut" 2>/dev/null || true                          # 再杀外层包装（尽力而为，rc 断言兜底）
+    sut_rc=0
+    wait "$sut" || sut_rc=$?
+    [ "$sut_rc" -ne 0 ]                           # ① kill 注入必须 rc≠0（TERM=143 / KILL=137）
+    run git diff --stat -- flow-kit-bundle/skills/
+    [ "$status" -eq 0 ]                           # ② git 本身不出错
+    [ -z "$output" ]                              # ③ tracked skills/ 零改动（空输出）
+  done
   rm -rf "$SBX"
 }
