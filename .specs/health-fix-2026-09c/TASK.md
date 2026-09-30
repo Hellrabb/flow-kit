@@ -426,7 +426,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T08, T12b</depends_on>
 </task>
 
-<task id="T13" parallel="true" status="pending" model-tier="top">
+<task id="T13" parallel="true" status="done" model-tier="top">
   <name>C14-f/g 基线常设化 + flow-active-query（AC-12-f/g · Makefile 故 ←T12）</name>
   <read_files>
     flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
