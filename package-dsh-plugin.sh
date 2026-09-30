@@ -48,9 +48,11 @@ COPY_OPTIONAL=(
 )
 
 # ── 参数分流（必须在下面 `node -p` 之前）─────────────────────────────
-# 为什么在这里：`--check` 是**只读新鲜度检查**，必须满足 NFR「不调用 npm/node」且
-# **零副作用**（不重建、不改工作区）。若放在 `VERSION="$(node -p ...)"` 之后就一定会
-# 调 node；若放任意位置之后又漏了提前 return，就会退化成"检查时重建被检查对象"。
+# 为什么在这里：`--check` 不重建、不改工作区（新鲜度比对不受自身污染）。分流必须在
+# 下方 `VERSION="$(node -p ...)"` 之前——否则 --check 也会走到打包期的 node -p/重建；
+# 若放任意位置之后又漏了提前 return，就会退化成"检查时重建被检查对象"。
+# （09c C14-e 起 --check 退出前会跑 JS 单测——只读源、不动 dist、不重建，见
+#  js_unit_tests；与"不重建被检查对象"的契约不冲突。）
 # 未知参数一律 fail-closed —— 静默忽略未知选项会让 `--check` 这类"只读"契约
 # 变成"照常重建并 exit 0"的假成功 —— **这就是 health-fix-2026-09 设 T01 的理由**。
 usage_check() {
@@ -59,9 +61,28 @@ usage_check() {
 
   无参数    打包 dsh-flow-kit 到 dist/（重建，有副作用）
   --check   只读新鲜度检查：按 COPY_DIRS/COPY_FILES/COPY_OPTIONAL 比对 dist 与源；
-            **不重建、不改工作区、不调 node/npm**
-            退出码：0 = 一致（dist 不存在时提示后放行）；1 = 陈旧 / 反向残留 / 必需源缺失（逐条指名）
+            **不重建、不改工作区**；退出前先跑 JS 单测（09c C14-e · D8：经本入口
+            挂进 make check，防止改完源忘重建时 JS 回归漏检；node 缺失 fail-closed）
+            退出码：0 = 一致且单测过；1 = 陈旧 / 反向残留 / 必需源缺失 / JS 单测失败（逐条指名）
 USAGE
+}
+
+# ── JS 单测单一入口（C14-e · D8：--check 与打包路径同调本函数，判据只写一份）──
+# 为什么 --check 也要跑：JS 单测经本入口间接挂进 make check（check-dist → --check），
+#   否则 dsh-flow-kit 的 JS 回归只在打包时才被发现（改完源忘重建 = 检查盲区）。
+# fail-closed（DESIGN R8）：node 不在场 ⇒ rc≠0 + 显式提示，不静默跳过——静默跳过
+#   会让 make check 在离线/精简环境退化为部分绿。
+# rc 透传：node --test 失败经 pipefail + 兜底 return 1（L-098 管道吞 rc 反模式）。
+js_unit_tests() {
+  if ! command -v node >/dev/null 2>&1; then
+    echo "❌ node 不在场：JS 单测未跑（fail-closed）——安装 node（v18+）后重试" >&2
+    return 1
+  fi
+  echo "==> unit tests (node)"
+  node --test "$SRC_DIR/test"/*.test.mjs 2>&1 | grep -E "^# (tests|pass|fail)" || {
+    echo "ERROR: node unit tests failed" >&2
+    return 1
+  }
 }
 
 check_dist() {
@@ -180,7 +201,7 @@ check_dist() {
 }
 
 case "${1:-}" in
-  --check) check_dist; exit $? ;;
+  --check) js_unit_tests || exit 1; check_dist || exit 1; exit 0 ;;
   "")      ;;                                   # 正常打包路径
   -h|--help) usage_check; exit 0 ;;
   *)       echo "❌ 未知参数: $1" >&2; usage_check; exit 2 ;;
@@ -229,11 +250,8 @@ chmod +x "$PKG_DIR"/hooks/pre-commit/*.sh 2>/dev/null || true
 find "$PKG_DIR" -name '.DS_Store' -delete 2>/dev/null || true
 
 # ── 5) 单元测试 + 语法校验 ─────────────────────────────────────────
-echo "==> unit tests (node)"
-node --test "$SRC_DIR/test"/*.test.mjs 2>&1 | grep -E "^# (tests|pass|fail)" || {
-  echo "ERROR: node unit tests failed" >&2
-  exit 1
-}
+# C14-e（09c T08）：与 --check 共用 js_unit_tests（单一入口，判据只写一份）。
+js_unit_tests || exit 1
 
 echo "==> syntax checks"
 fail=0

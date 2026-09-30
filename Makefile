@@ -4,11 +4,54 @@
 # ============================================================================
 .PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
 
-# ── test: 跑全量 bats 测试 ──
+# ── test: 跑全量 bats 测试（单跑 + flock 并发闸）──
+# C1 并发闸 + C7 单跑合并（health-fix-2026-09c · T08 · AC-10）：
+#   并发闸（F6 范式：锁文件 + mktemp 唯一路径；与 pre-push.sh T09 同款语义）：
+#     - 锁文件 = ${TMPDIR:-/tmp}/flow-kit-make-test-$(id -u).lock——确定性共享路径，
+#       同用户跨终端互斥；FLOW_KIT_TEST_LOCK 可覆盖（沙箱内嵌套跑 make test 时须指向
+#       沙箱私有锁，否则与外层已持锁的 make test 自死锁）。
+#     - 持锁范围 = bats 执行全程：fd 9 随 bash -c 退出自动释放，无清理路径
+#       （kill -9 不留死锁；锁文件残留无害——内容恒空）。
+#     - flock -w 600（FLOW_KIT_TEST_LOCK_WAIT 可覆盖）；超时 fail-closed 转红：
+#       2026-09-29 实测 3 个并发 make check 互踩把 tracked 文件损坏固化
+#       （LESSONS 09-29 🔴），串行化拿不到就不得继续裸跑。
+#     - flock 不可得 / 锁不可写 ⇒ ⚠️ 后继续（闸是 best-effort 基础设施，
+#       缺席不改内容判定——与 pre-push.sh 同层降级语义）。
+#   单跑合并：原实现跑两遍 bats（tap|tail 展示 + >/dev/null 重跑取 rc）——全量用例
+#     白烧一遍且两遍结论可能漂移。现单次执行，tap 全量 tee 到 mktemp 唯一日志，
+#     ${PIPESTATUS[0]} 取 bats 真实 rc（防 tee/tail 吃 rc；判定直接来自 bats 本体
+#     退出码——L-098 管道吞 rc 反模式；bash -c 承载因 PIPESTATUS 是 bash 扩展，
+#     make 默认 SHELL=/bin/sh 不支持，与 check-nfr-portability 的处理同款）。
+#     失败时保留完整 TAP 日志并指名路径，成功即清理。
 test:
 	@echo "🧪 make test: running bats..."
-	@npx bats test/ --formatter tap 2>&1 | tail -3
-	@npx bats test/ > /dev/null 2>&1 && echo "✅ bats: all tests passed" || { echo "❌ bats: some tests failed"; exit 1; }
+	@bash -c ' \
+		LOG=$$(mktemp "$${TMPDIR:-/tmp}/flow-kit-bats.XXXXXX") || { echo "❌ mktemp 失败"; exit 1; }; \
+		if ! command -v flock >/dev/null 2>&1; then \
+			echo "⚠️  flock 不可用：跳过并发闸（本次未串行化）"; \
+		else \
+			LOCK="$${FLOW_KIT_TEST_LOCK:-$${TMPDIR:-/tmp}/flow-kit-make-test-$$(id -u).lock}"; \
+			if ! : >>"$$LOCK" 2>/dev/null; then \
+				echo "⚠️  锁文件不可写（$$LOCK）：跳过并发闸（本次未串行化）"; \
+			else \
+				exec 9>>"$$LOCK"; \
+				WAIT_S="$${FLOW_KIT_TEST_LOCK_WAIT:-600}"; \
+				if ! flock -w "$$WAIT_S" 9; then \
+					echo "❌ 并发闸超时（$${WAIT_S}s）：另一 make test 仍在进行，锁=$$LOCK"; \
+					rm -f "$$LOG"; \
+					exit 1; \
+				fi; \
+			fi; \
+		fi; \
+		npx bats test/ --formatter tap 2>&1 | tee "$$LOG" | tail -3; \
+		rc=$${PIPESTATUS[0]}; \
+		if [ "$$rc" -eq 0 ]; then \
+			rm -f "$$LOG"; \
+			echo "✅ bats: all tests passed"; \
+		else \
+			echo "❌ bats: some tests failed（完整 TAP 日志保留: $$LOG）"; \
+			exit 1; \
+		fi'
 
 # ── lint: shellcheck 静态分析（仅 error 级别）──
 # 检测改为 recipe 内 command -v（原 $(shell which) 在 RTK proxy 等环境下不稳定，会误报 not installed）
@@ -17,10 +60,14 @@ test:
 #   改为 `find` 全量枚举，排除集见下方 SCAN_EXCLUDES（该列表是**契约**，
 #   定义在 REQUIREMENT AC-4b；AC-4c 会检测「静默扩张排除项」）。
 #   **为什么用 find 而不是补 glob**：补 glob 是打补丁，下次再加目录仍会漏 —— 判据过窄的复发模式。
-# 门禁语义（ADR-010 · DESIGN D8）：**保持 error 级**，扩面只让 warning 可见，不升级为 fail。
-#   理由：warning 池含 **22 处** SC1090（shellcheck 无法跟踪动态 `source`；本 change 扩面前为 21 处，
-#   扩面 +1 属新增扫描文件的既有告警暴露，非新引入）等 known-acceptable，
-#   升级会让门禁长期红 → 被绕过 → 可信度归零，比没有更糟。
+# 门禁语义（ADR-010 · DESIGN D8 原则 + 09c T08 C10 订正）：**保持 error 级**判红，
+#   但判据从「输出文本 grep -ci error」改为 **shellcheck 自身 rc（-S error）**：
+#   文本近似在路径含 "error" 字样时假红（LESSONS 2026-09-29 🟢 实测，只假红不假绿），
+#   -S error 由工具判定 severity，就地关闭「文本近似与工具结论脱钩」的复发面。
+#   warning 池（22 处 SC1090 等 known-acceptable）维持只可见不判红——升级会让
+#   门禁长期红 → 被绕过 → 可信度归零，比没有更糟（ADR-010 原判不动）。
+#   缺 shellcheck ⇒ **fail-closed 转红**（C10）：静默跳过会让 make check 在
+#   精简/离线环境退化为部分绿——门禁在场性本身就是判据的一部分。
 # SCANNED_FILES 出口（REQUIREMENT AC-4 输出契约）：正常运行固定输出一行
 #   `SCANNED_FILES: <n>` + 逐行 `./` 前缀路径 + 空行结束。验收脚本只解析该出口，
 #   不复制枚举逻辑（否则等于把实现当判据）。**不得**改成 `--list-files` 形式
@@ -31,23 +78,24 @@ SCAN_EXCLUDES = -not -path './.git/*' -not -path '*/node_modules/*' \
                 -not -path '*/.claude/*' -not -path '*/.specs/*' -not -path '*/test/*'
 
 lint:
-	@echo "🔍 make lint: shellcheck (error level only)..."
+	@echo "🔍 make lint: shellcheck (error level only, rc-based)..."
 	@SCAN_TMP=$$(mktemp); find . -name '*.sh' $(SCAN_EXCLUDES) | sort > $$SCAN_TMP; \
 	printf 'SCANNED_FILES: %s\n' "$$(wc -l < $$SCAN_TMP)"; \
 	cat $$SCAN_TMP; echo ""; \
 	if ! command -v shellcheck >/dev/null 2>&1; then \
-		echo "⚠️  WARNING: shellcheck not installed. Run: sudo apt-get install -y shellcheck"; \
-		echo "   Skipping lint (non-blocking)."; \
+		echo "❌ shellcheck 不在场：lint fail-closed 转红（C10）——门禁不得静默跳过"; \
+		echo "   安装后重试: sudo apt-get install -y shellcheck"; \
 		rm -f $$SCAN_TMP; \
+		exit 1; \
 	else \
 		ERR=0; \
 		while IFS= read -r f; do \
 			[ -f "$$f" ] || continue; \
-			OUT=$$(shellcheck -e SC1091 "$$f" 2>&1) || true; \
-			ERRS=$$(echo "$$OUT" | grep -ci "error" || true); \
-			if [ "$$ERRS" -gt 0 ]; then \
-				echo "❌ $$f: $$ERRS error(s)"; \
-				echo "$$OUT" | grep -i "error"; \
+			if OUT=$$(shellcheck -S error -e SC1091 "$$f" 2>&1); then \
+				:; \
+			else \
+				echo "❌ $$f: shellcheck rc=$$?（error 级）"; \
+				printf '%s\n' "$$OUT"; \
 				ERR=1; \
 			fi; \
 		done < $$SCAN_TMP; \
@@ -68,12 +116,14 @@ check-validate:
 	@bash package-flow-kit.sh --validate > /dev/null 2>&1 && echo "✅ validate: staging coverage OK" || { echo "❌ validate: coverage check failed"; exit 1; }
 
 # ── test-sync: 同步 test/ → flow-kit-bundle/test/ ──
+# C14-d（09c T08）：cp 必须递归——test/ 含 fixtures/ 等子目录，check-test-sync 的
+#   `diff -rq` 是递归比对；非递归 cp 漏同步子目录 ⇒ 同步后 diff 仍红（口径错位）。
 test-sync:
 	@echo "🔄 make test-sync: test/ → flow-kit-bundle/test/ ..."
 	@if [ ! -d flow-kit-bundle/test ]; then \
 		echo "❌ flow-kit-bundle/test/ 不存在"; exit 1; \
 	fi
-	@cp test/*.bats flow-kit-bundle/test/ && echo "✅ test 双源已同步" || { echo "❌ 同步失败"; exit 1; }
+	@cp -R test/. flow-kit-bundle/test/ && echo "✅ test 双源已同步" || { echo "❌ 同步失败"; exit 1; }
 
 # ── check-test-sync: test 双源一致性 ──
 check-test-sync:
@@ -412,7 +462,8 @@ check-nfr-portability-full:
 #   （用户按 60000 "字符" 配置，实得 60000 字节 ≈ 2 万汉字，与预期差 3 倍）。
 # 为什么放在 package-dsh-plugin.sh 里而不是新建脚本：比对映射必须与打包步骤**同源**，
 #   另写一份会漂移（DESIGN D2 / R2 风险）。本 target 只是薄壳。
-# 只读契约：`--check` 不重建、不改工作区、不调 node/npm。
+# 只读契约：`--check` 不重建、不改工作区（09c C14-e 起退出前先跑 JS 单测——调 node
+#   但只读源、不动 dist，缺 node fail-closed；详见 package-dsh-plugin.sh js_unit_tests）。
 # NFR 性能 ≤2s —— **实测 0.61s**（中位数 ×3，逐文件 cmp 遍历 534 文件）。
 #   注：设计期曾据 4 条 `diff -rq` 估为 13ms，**低估了逐文件遍历开销**（差 47×）；
 #   以实测 0.61s 为准（见 TEST.md §2 第 2 轮）。
