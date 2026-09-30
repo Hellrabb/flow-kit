@@ -3,6 +3,7 @@
 # pre-push.sh — flow-kit 推送门禁（AC-3 推送拦截器）
 #
 # 变更：health-fix-2026-09b · T11（AC-3(a)） · T-FIX-08（R3-14/R3-23/R3-17 配套）
+# 变更：health-fix-2026-09c · T09（AC-17①） · 新增 flock 并发闸（只串行化，放行语义不变）
 #
 # 行为（次序是硬契约，IR-3 C2 定稿，T19 端到端依赖）：
 #   1. 逐行读取 stdin 的「<local ref> <local sha> <remote ref> <remote sha>」；
@@ -26,6 +27,49 @@
 # 部署：install_hooks.sh deploy_pre_push() 以 symlink 使 .git/hooks/pre-push 指向本文件。
 
 set -euo pipefail
+
+# ── flock 并发闸（health-fix-2026-09c · T09 · AC-17①）──
+# 目的：同一仓库并发 push 时，多个 pre-push 实例并跑内容扫描 / make check 互踩
+# （C1 类污染经 push 通路放大——AC-17 要关闭的窗口）。闸只做**串行化**，
+# 不改变推送判定：放行/拒绝仍由下方隐私扫描与 make check 决定。
+# 锁设计（F6 范式：锁文件 + mktemp 唯一路径）：
+#   - 锁文件 = <git-dir>/flow-kit-pre-push.lock——**确定性路径**、每仓一把，
+#     是并发 push 共享的唯一互斥点；除此之外本 hook 不落任何共享临时产物
+#     （测试/夹具侧一律 mktemp 唯一路径，同 test_check_gate_sync.bats F6 教训）。
+#   - 持锁范围 = 整个 hook 生命周期：fd 9 随脚本退出自动关闭 ⇒ 锁自动释放，
+#     无清理路径（kill -9 也不留死锁；锁文件残留无害——内容恒空）。
+# 超时语义：flock -w 600（FLOW_KIT_PRE_PUSH_LOCK_WAIT 可覆盖，测试注入用）。
+#   超时 **fail-closed** exit 1 并指名锁路径：放行等于无声重开互踩窗口；
+#   600s 远大于任何合理 make check，超时即环境异常（挂死推送），应人工排查。
+# 降级语义：flock 不可得（非 Linux/极简环境）、git-dir 不可定位或锁不可写 ⇒
+#   打印 ⚠️ 后**放行（本次不串行化）**：闸是 best-effort 基础设施，其缺席
+#   不得改变推送判定（与隐私扫描的 fail-closed 不同层——那是内容判定）。
+_pre_push_gate() {
+  local lock_dir lock_file wait_s
+  command -v flock >/dev/null 2>&1 || {
+    echo "⚠️ [pre-push] flock 不可用：跳过并发闸（本次未串行化）" >&2
+    return 0
+  }
+  lock_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+  if [ -z "$lock_dir" ]; then
+    echo "⚠️ [pre-push] 无法定位 git-dir：跳过并发闸（本次未串行化）" >&2
+    return 0
+  fi
+  lock_file="$lock_dir/flow-kit-pre-push.lock"
+  # 先探可写性再 exec 开 fd：exec 重定向失败在 bash 3.2 会直接终止 shell，
+  # 预创建（: >>）把失败面收敛到可警告的分支。
+  if ! : >>"$lock_file" 2>/dev/null; then
+    echo "⚠️ [pre-push] 锁文件不可写（$lock_file）：跳过并发闸（本次未串行化）" >&2
+    return 0
+  fi
+  exec 9>>"$lock_file"
+  wait_s="${FLOW_KIT_PRE_PUSH_LOCK_WAIT:-600}"
+  if ! flock -w "$wait_s" 9; then
+    echo "🔴 [pre-push] 并发闸超时（${wait_s}s）：另一 push 仍在进行，锁=$lock_file。排查挂死推送后重试" >&2
+    return 1
+  fi
+}
+_pre_push_gate || exit 1
 
 # hook 自身位置推导随包 reference 目录（不写死绝对路径）。
 #
