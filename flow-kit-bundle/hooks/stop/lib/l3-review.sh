@@ -32,6 +32,10 @@
 
 set -euo pipefail
 
+# C12（health-fix-2026-09c · DESIGN D4 · ADR-032 纵深）：jq 是 L3 审查链硬依赖（.flow-active 解析、
+# .done 载荷构造），缺失 → fail-closed exit 1（Stop 检查器语义；对齐 common.sh:226 断言范式）
+command -v jq >/dev/null 2>&1 || { echo "[l3-review] jq 不可用，fail-closed：L3 审查依赖 jq（.flow-active/.done 解析），中止" >&2; exit 1; }
+
 # ── 子模块 source ──
 _l3r_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

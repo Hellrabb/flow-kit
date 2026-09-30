@@ -10,6 +10,12 @@
 #   _l3_inject_context  — Step 0: 前次审查上下文注入
 #   _l3_build_prompt    — Step 1: 按阶段收集工件 + 构造审查 prompt
 
+# C12（health-fix-2026-09c · DESIGN D4 · ADR-032 纵深）：jq 是 L3 审查链硬依赖（本库于
+# _l3_build_prompt/_l3_escape 等处直接调用），缺失 → fail-closed exit 1（Stop 检查器语义；
+# 对齐 common.sh:226 断言范式。直接 source 本库的场景由本断言兜底；经 l3-review.sh 链路
+# 进来的已在链头被同一断言拦截）
+command -v jq >/dev/null 2>&1 || { echo "[l3-prompt] jq 不可用，fail-closed：L3 prompt 构造依赖 jq，中止" >&2; exit 1; }
+
 # ── _l3_format_result() · L3 反馈统一格式化 ──
 # 用法: _l3_format_result <verdict> <summary> <report_relative_path>
 # 输出: 单行 L3_RESULT: 格式，供 F1(PreToolUse stdout) 和 F2(SessionStart banner) 共用

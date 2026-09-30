@@ -11,8 +11,9 @@
 #   l3_review_run 写 .done 不被拦截——在 Stop hook 进程运行不经过 PreToolUse（架构天然隔离）。
 #   原保护对象 .flow-active.independent-review（握手）已废弃——改为 .done 作为新作者性锚点。
 #
-# fail 策略（D9）：path-guard = fail-open（拦不住不卡 agent 工具流）；review gate 校验 = fail-close。
-# 其余不确定（非 Bash/Write/Edit、无 .flow-active、阶段非 review gate、gate 未开、lib 失败、jq 不可用）→ exit 0 放行。
+# fail 策略（D9 · C12/health-fix-2026-09c 修订）：path-guard = fail-open（拦不住不卡 agent 工具流）；review gate 校验 = fail-close。
+# 依赖失效面 fail-closed（C12 · AC-8）：jq 缺失、.flow-active 非法 JSON、子库关键函数缺失 → exit 2 拒绝放行（见 :114/:65 与子库断言块）。
+# 其余非管辖面仍 exit 0 放行：非 Bash/Write/Edit、无 .flow-active（= 非 flow-kit 项目）、阶段非 review gate、gate 未开。
 #
 # PreToolUse stdin: {hook_event_name, session_id, cwd, tool_name, tool_input:{command|file_path}, ...}
 #
@@ -45,6 +46,20 @@ source "${SCRIPT_DIR}/gate-checks-basic.sh"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/gate-checks-review.sh"
 
+# C12（health-fix-2026-09c · AC-8 第三注入面）：三子库 source 后按 :34-37 既有 declare -f 范式
+# 断言关键函数在场；半安装/漂移（子库文件缺失、函数被删/改名）→ fail-close exit 2。
+# 「函数被遮蔽/重定义为空体」不在断言范围——declare -f 只证存在不证行为（DESIGN D4）。
+for _gate_fn in _gate_path_guard _gate_phase_filter _gate_active_check _gate_done_validation \
+                _gate_tamper_detect fk_check_gate_config_tamper is_phase_write is_git_commit \
+                _gate_check_l2 _gate_check_l3 \
+                _gate_phase_transition _gate_do_transition _gate_deny_reason; do
+  if ! declare -f "$_gate_fn" >/dev/null 2>&1; then
+    echo "[gate] 子库加载失败（SCRIPT_DIR=${SCRIPT_DIR}），review gate fail-close：${_gate_fn} 未定义，拒绝放行" >&2
+    exit 2
+  fi
+done
+unset _gate_fn
+
 # is_gh_pr_create — 结构判定（ADR-008 D2·H）：同 is_git_commit，token0=gh ∧ token1=pr ∧ token2=create
 is_gh_pr_create() {
   _command_has_write_context "$1" && return 1
@@ -61,8 +76,12 @@ _run_review_gates() {
   local tool_name="$1" file_path="$2" cmd="$3" cwd="$4" content="${5:-}" old_str="${6:-}"
 
   local flow_file="${cwd}/.flow-active"
+  # 无状态文件 → exit 0 放行是正确语义（C12 保留）：无 .flow-active = 非 flow-kit 管辖项目，
+  # 门禁不得对外部项目的工具调用生效；fail-closed 仅覆盖「有状态文件但依赖失效」注入面（下两行）。
   [ -f "$flow_file" ] || exit 0
-  jq empty "$flow_file" 2>/dev/null || exit 0
+  # C12/AC-8：jq 缺失或 .flow-active 非法 JSON → exit 2 fail-close（不再静默放行）
+  command -v jq >/dev/null 2>&1 || { echo "[gate] jq 不可用，review gate fail-close：无法校验 .flow-active（${flow_file}），拒绝放行（安装 jq 或检查 PATH 后重试）" >&2; exit 2; }
+  jq empty "$flow_file" 2>/dev/null || { echo "[gate] .flow-active 非法 JSON，review gate fail-close：${flow_file} 解析失败，拒绝放行。状态文件可能正在写入，重试一次；持续失败请修复该文件后重试" >&2; exit 2; }
 
   # Runtime decoupling (dsh-flow-kit): PreToolUse hooks never call init_paths(),
   # so PROJECT_ROOT (used by fk_resolve_phase and the gate libs) must be pinned
@@ -111,7 +130,8 @@ _run_review_gates() {
 
 # ══ 入口（精简为 stdin 解析 + 调用 _run_review_gates · DESIGN D2）════
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  command -v jq >/dev/null 2>&1 || exit 0
+  # C12/AC-8：jq 缺失 → exit 2 fail-close（原 exit 0 静默放行 = C12 对照表实证的 fail-open 漏洞）
+  command -v jq >/dev/null 2>&1 || { echo "[gate] jq 不可用，review gate fail-close：无法解析 hook stdin JSON，拒绝放行（安装 jq 或检查 PATH 后重试）" >&2; exit 2; }
   INPUT=$(cat)
 
   tool_name=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")

@@ -123,29 +123,28 @@ teardown() {
 }
 
 # ════════════════════════════════════════════════════════════════
-# AC-5: Fail-open — hook 异常不阻断工具调用
+# AC-5（C12/AC-8 修订）: corrupt .flow-active = 依赖失效面 → fail-closed
+# （health-fix-2026-09c T01 反转旧 fail-open 契约，D4/ADR-032）
 # ════════════════════════════════════════════════════════════════
 
-@test "AC-5: corrupt .flow-active JSON → exit 0, Write tool-side not blocked (Write path)" {
+@test "AC-5/T01: corrupt .flow-active JSON → exit 2 fail-closed, named error (Write path)" {
   echo "not json" > .flow-active
-  # 模拟 Write 工具：先写入一个目标文件，hook 不阻断
+  # 模拟 Write 工具：依赖失效面拒绝放行（exit 2 = PreToolUse block）
   echo "content" > write_target.sh
-  echo '{"tool_name":"Write","tool_input":{"file_path":"write_target.sh"}}' | bash ./auto-checkpoint.sh
-  hook_rc=$?
-  [[ "$hook_rc" -eq 0 ]]  # fail-open: hook 不阻断
-  [[ -f write_target.sh ]]  # AC-5 (a): 目标文件仍存在（Write 未被阻断）
+  hook_rc=0
+  echo '{"tool_name":"Write","tool_input":{"file_path":"write_target.sh"}}' | bash ./auto-checkpoint.sh 2>stderr_write.txt || hook_rc=$?
+  [[ "$hook_rc" -eq 2 ]]  # fail-closed: 状态不可判 → 拒绝放行
+  grep -q '\[auto-checkpoint\] .flow-active 状态不可判' stderr_write.txt  # 具名报文
 }
 
-@test "AC-5: corrupt JSON → exit 0, Edit tool-side not blocked (Edit path)" {
+@test "AC-5/T01: corrupt JSON → exit 2 fail-closed, named error (Edit path)" {
   echo "not json" > .flow-active
-  # 模拟 Edit 工具：先写入初始内容，hook 不阻断后续修改
+  # 模拟 Edit 工具：依赖失效面拒绝放行（exit 2 = PreToolUse block）
   echo "original" > edit_target.sh
-  echo '{"tool_name":"Edit","tool_input":{"file_path":"edit_target.sh"}}' | bash ./auto-checkpoint.sh
-  hook_rc=$?
-  [[ "$hook_rc" -eq 0 ]]  # fail-open: hook 不阻断
-  [[ -f edit_target.sh ]]  # AC-5 (b): 目标文件仍存在（Edit 未被阻断）
-  content=$(cat edit_target.sh)
-  [[ "$content" == "original" ]]  # AC-5 (b): 内容未被 hook 意外修改
+  hook_rc=0
+  echo '{"tool_name":"Edit","tool_input":{"file_path":"edit_target.sh"}}' | bash ./auto-checkpoint.sh 2>stderr_edit.txt || hook_rc=$?
+  [[ "$hook_rc" -eq 2 ]]  # fail-closed: 状态不可判 → 拒绝放行
+  grep -q '\[auto-checkpoint\] .flow-active 状态不可判' stderr_edit.txt  # 具名报文
 }
 
 # ════════════════════════════════════════════════════════════════

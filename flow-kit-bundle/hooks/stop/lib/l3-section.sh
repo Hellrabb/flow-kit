@@ -43,6 +43,11 @@ L3_SECTION_END_MARKER='<!-- /L3-SECTION -->'
 # 读侧**只有见到签名才解码** —— 历史工件（未经编码）原样保留，避免被误吃一个反斜杠。
 L3_PAYLOAD_ENCODED_MARK='<!-- L2-PAYLOAD-ENCODED -->'
 
+# C12（health-fix-2026-09c · DESIGN D4 · ADR-032 纵深）：本库自身为纯 awk/sed/grep 零 jq 调用，
+# 但作为 L3 审查链成员按 D4 补链级 jq 断言（链路任一入口缺 jq 应整链 fail-closed，而非
+# 静默半工作）；缺失 → exit 1（Stop 检查器语义；对齐 common.sh:226 断言范式）
+command -v jq >/dev/null 2>&1 || { echo "[l3-section] jq 不可用，fail-closed：L3 审查链依赖 jq，中止（本库自身零 jq 调用，此为链级纵深断言）" >&2; exit 1; }
+
 # ── _l3_l3_marker() · 取标记字面量 ──
 # 输出: 标记字符串
 # 说明: 写入方统一走本函数，避免把字面量散到多个文件；本文件被 source 时
