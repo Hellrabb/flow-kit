@@ -364,7 +364,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T11</depends_on>
 </task>
 
-<task id="T12b" parallel="false" status="pending" model-tier="top">
+<task id="T12b" parallel="false" status="done" model-tier="top">
   <name>C13 check-skills-sync 覆盖门禁（AC-11）（L2 R9 拆分）</name>
   <read_files>
     flow-kit-bundle/flow-kit/reference/check-gate-sync.sh（同类参照）
@@ -509,7 +509,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T05, T10</depends_on>
 </task>
 
-<task id="T16" parallel="false" status="pending" model-tier="top">
+<task id="T16" parallel="false" status="done" model-tier="top">
   <name>C3 历史重写（AC-5 · 不可逆 · 必须最后）</name>
   <read_files>
     .specs/health-fix-2026-09c/REQUIREMENT.md（AC-5 五步序列）
