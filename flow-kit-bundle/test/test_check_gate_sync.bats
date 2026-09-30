@@ -3,13 +3,14 @@
 # T02 (gate-integrity): 语义 set-diff 校验 SKILL.md PRESET_MAP ↔ bats 镜像
 # 对应 G4 ADR · AC-4
 #
-# 注：check-gate-sync.sh 同时跑 PCSC 校验对（3/PAIRS_TOTAL）+ gate-config 校验。
-# 实测健康态（T15/AC-4 修复后）：整脚本 rc=0，汇总行「✅ 校验对 3/PAIRS_TOTAL 一致」，
-# gate-config 段「✅ 预设名集合一致 (17 个预设)」⇒ 本用例在健康态断言 exit 0
-# （旧注释声称 toll-gate 段有 pre-existing 漂移、故只断言 -ne 2，已失真）。
-# 断言收紧为 -eq 0 后：任何内容漂移（含 gate-config 预设名漂移）都会让门禁非 0 ⇒ 本用例必红。
-# T-FIX-04（F6 收敛）：新增缺对双态判据 —— 复制真实生产件进 mktemp -d 夹具，
-# 隐藏一对 skill 文件 ⇒ rc≠0 且汇总不打印「✅ … 一致」；完整夹具仍 rc=0。
+# 注：check-gate-sync.sh 自 T12b（health-fix-2026-09c · C13/AC-11）起只跑 gate-config
+# 校验（PCSC 3 对内容比对判据整体迁出至 reference/check-skills-sync.sh，对应反向
+# 用例迁 test/test_skills_sync.bats；T12a 薄壳化后 skill 不再复制 prompt 正文，
+# 旧判据必红且语义失效）。健康态：整脚本 rc=0，gate-config 段「✅ 预设名集合一致
+# (17 个预设)」，汇总「✅ 校验对 1/1 一致（gate-config 键值对集合比对通过；仅覆盖
+# 本校验面）」。任何 gate-config 键/值漂移都让门禁非 0 ⇒ 基线腿必红。
+# T-FIX-04（F6 收敛）双态判据保留 gate-config 侧（缺 bats/skills-flow ⇒ rc≠0 +
+# 🔴 MISSING 具名）；原「隐藏一对 skill 文件」腿随 PCSC 迁移删除（T12b）。
 # T03（health-fix-2026-09c · C1 · AC-1/AC-2）：漂移腿沙箱化 —— 三个 T02 漂移用例不再
 # 直写 tracked SKILL.md（sed 注入落到 F6 mktemp 夹具内副本，见 LESSONS 2026-09-29 🔴
 # 并发固化破坏事故）；setup/teardown 备份改 mktemp 唯一路径（防并发双跑互踩）、还原去
@@ -98,10 +99,11 @@ FXC1() {
   rm -rf "$SBX"
 }
 
-# ── T-FIX-04 F6 双态判据：缺对不得报全绿 ──
-# 判别式：复制真实生产件进 mktemp -d 夹具（禁止抄正文进 bats），隐藏一对 skill 文件
-# ⇒ 坏态 rc≠0 且汇总不打印「✅ … 一致」；好态（完整夹具）仍 rc=0。
-# 修复前（裸 return + ERRORS 不增 + 静态分母）：坏态 rc=0 且打印「✅ 校验对 3/14 一致」⇒ 本双态转红。
+# ── T-FIX-04 F6 双态判据：缺件不得报全绿 ──
+# 判别式：复制真实生产件进 mktemp -d 夹具（禁止抄正文进 bats），隐藏 gate-config 侧
+# 文件 ⇒ 坏态 rc≠0 且汇总不打印「✅ … 一致」；好态（完整夹具）仍 rc=0。
+# T12b：原「隐藏一对 skill 文件」腿随 PCSC 迁出删除（skill 缺件语义由
+# check-skills-sync ①覆盖判据承接）；gate-config 缺件双态见 T-FIX-18 R5-14 ①②。
 @test "T02 F6: 完整夹具（所有对文件齐全）→ rc=0 + 汇总打印一致" {
   SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix04-ok-XXXXXX")
   mkdir -p "$SBX/fk/flow-kit-bundle/flow-kit/reference" "$SBX/fk/flow-kit-bundle/flow-kit/prompts" "$SBX/fk/flow-kit-bundle/skills"
@@ -117,26 +119,9 @@ FXC1() {
   rm -rf "$SBX"
 }
 
-@test "T02 F6: 缺一对 skill 文件 → rc≠0 + 汇总不打印「✅ … 一致」" {
-  SBX=$(mktemp -d "${TMPDIR:-/tmp}/tfix04-miss-XXXXXX")
-  mkdir -p "$SBX/fk/flow-kit-bundle/flow-kit/reference" "$SBX/fk/flow-kit-bundle/flow-kit/prompts" "$SBX/fk/flow-kit-bundle/skills"
-  cp "$SCRIPT" "$SBX/fk/flow-kit-bundle/flow-kit/reference/"
-  cp -r flow-kit-bundle/flow-kit/prompts/. "$SBX/fk/flow-kit-bundle/flow-kit/prompts/"
-  cp -r flow-kit-bundle/skills/. "$SBX/fk/flow-kit-bundle/skills/"
-  mkdir -p "$SBX/fk/flow-kit-bundle/test"
-  cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/" 2>/dev/null || true
-  # 坏态：隐藏一对中的 skill 文件（flow-evolve/SKILL.md）
-  mv "$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md" "$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md.hidden"
-  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
-  [ "$status" -ne 0 ]                                    # 坏态必须非 0（F6 收敛）
-  [[ "$output" != *"✅ 校验对"*"一致"* ]]               # 坏态：汇总不得打印「✅ … 一致」
-  [[ "$output" == *"MISSING"* ]]                        # 坏态：必须指名缺失文件
-  rm -rf "$SBX"
-}
-
-# ── T-FIX-10 R3-18/R3-19/R3-20 判别式 ──
-# 复制真实生产件进 mktemp -d 夹具（3 对 PCSC + gate-config 两侧），构造三类坏态：
-#   R3-18 双向：仅 prompt/skill 侧加一行 ⇒ 必须逐侧具名（不得张冠李戴）
+# ── T-FIX-10 R3-19/R3-20 判别式 ──
+# 复制真实生产件进 mktemp -d 夹具（gate-config 两侧），构造坏态：
+#   R3-18 双向腿已随 PCSC 判据迁移删除（T12b；单侧漂移语义由 check-skills-sync ②comm=0 承接）
 #   R3-19：两侧预设集合同时清空 ⇒ 不得静默中止（须有汇总行或具名 🔴）
 #   R3-20：PATH 影子 diff（恒 rc=2）⇒ 机械故障不得折算为「一致」（rc≠0 + 具名 🔴）
 # 好态（完整夹具）仍 rc=0（T02 F6 好态已覆盖，此处不重复）。
@@ -150,26 +135,6 @@ FXB10() {
     cp "flow-kit-bundle/skills/$sk/SKILL.md" "$SBX/fk/flow-kit-bundle/skills/$sk/"
   done
   cp flow-kit-bundle/test/test_gate_config_presets.bats "$SBX/fk/flow-kit-bundle/test/"
-}
-
-@test "T-FIX-10 R3-18A: 仅 skill 侧加一行 → 具名 skill 侧，不误报 prompt 侧" {
-  FXB10
-  printf '\nX-DRIFT-SKILL-ONLY\n' >> "$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md"
-  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"skill 侧内容不一致"* ]]
-  [[ "$output" != *"prompt 侧内容不一致"* ]]
-  rm -rf "$SBX"
-}
-
-@test "T-FIX-10 R3-18B: 仅 prompt 侧加一行 → 具名 prompt 侧，不误报 skill 侧" {
-  FXB10
-  printf '\nX-DRIFT-PROMPT-ONLY\n' >> "$SBX/fk/flow-kit-bundle/flow-kit/prompts/A-evolve.md"
-  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"prompt 侧内容不一致"* ]]
-  [[ "$output" != *"skill 侧内容不一致"* ]]
-  rm -rf "$SBX"
 }
 
 @test "T-FIX-10 R3-19: 两侧预设集合同时清空 → 不静默中止（有汇总行或具名 🔴）" {
@@ -239,7 +204,7 @@ FXB25() {
 # 复制真实生产件进 mktemp -d 夹具（3 对 PCSC + gate-config 两侧），构造缺件态：
 #   R5-14：缺 test_gate_config_presets.bats 或缺 skills/flow/SKILL.md ⇒ 必须 rc≠0 + 🔴 MISSING + 具名路径
 #          （修复前为 ⚠️ WARNING + 裸 return + rc=0 + ✅ 一致 = 缺件仍报绿）
-#   R5-10：判别形态（仅改内容、行数不变）⇒ 必须判红（check_pair 已是内容比对，本腿钉住该形态不退化）
+#   R5-10 ③（仅改内容、行数不变 ⇒ 判红）已随 PCSC 判据迁移删除（T12b；check-skills-sync ②comm=0 承接）
 #   反向控制：完整树 ⇒ rc=0 + ✅（证明判据有牙，非恒红）
 # 每例都断言 $status（R5-13 同族弱点：不得只 grep 报文）。
 # 去标识化（L-137）：夹具用 mktemp，断言用 BUNDLE_ROOT 相对后缀串，不得出现真实家目录整串字面。
@@ -277,22 +242,6 @@ FXB18() {
   [[ "$output" == *"🔴 MISSING"* ]]
   [[ "$output" == *"skills/flow/SKILL.md"* ]]            # 具名路径
   [[ "$output" != *"✅ 校验对"*"一致"* ]]
-  rm -rf "$SBX"
-}
-
-@test "T-FIX-18 R5-10 ③: 仅改一行内容（行数不变）→ 判红（内容比对，非行数短路）" {
-  FXB18
-  # 两侧行数相同、内容不同：把 SKILL.md 末行改一个字符（不增不减行）
-  # 钉住 check_pair 的判定必须是内容比对，不得退化为行数计数
-  local f="$SBX/fk/flow-kit-bundle/skills/flow-evolve/SKILL.md"
-  local nlines
-  nlines=$(wc -l < "$f")
-  sed '${s/.*/X-CONTENT-DRIFT-SAME-LINE-COUNT/}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  # 前提断言：行数不变但内容已改
-  [ "$(wc -l < "$f")" -eq "$nlines" ]
-  run bash -c "cd '$SBX/fk' && bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh"
-  [ "$status" -ne 0 ]                                    # 行数相同但内容不同 ⇒ 必须判红
-  [[ "$output" == *"漂移"* ]]
   rm -rf "$SBX"
 }
 

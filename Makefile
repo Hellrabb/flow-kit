@@ -2,7 +2,7 @@
 # flow-kit 质量检查 Makefile
 # 用法: make test | make lint | make check | make all
 # ============================================================================
-.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-path-privacy check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
+.PHONY: test lint check check-validate check-test-sync test-sync dup all hooks-sync check-hooks-sync verify-claims check-dist check-gate-sync check-skills-sync check-path-privacy check-nfr-portability check-nfr-portability-internals check-nfr-portability-full dsh-sync
 
 # ── test: 跑全量 bats 测试（单跑 + flock 并发闸）──
 # C1 并发闸 + C7 单跑合并（health-fix-2026-09c · T08 · AC-10）：
@@ -153,19 +153,31 @@ verify-claims:
 	@bash verify-claims.sh
 
 # ── check: 全量质量门禁 ──
-check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-path-privacy check-nfr-portability
+check: test lint check-validate check-test-sync check-hooks-sync check-dist check-gate-sync check-skills-sync check-path-privacy check-nfr-portability
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════╗"
 	@echo "║  ✅ make check: 全部通过                           ║"
 	@echo "╚════════════════════════════════════════════════════╝"
 
-# ── check-gate-sync: prompt↔skill toll-gate 协议一致性门禁（health-fix-2026-09 · AC-4）──
-# 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-gate-sync.sh（T08 定稿）承载，
+# ── check-gate-sync: gate-config 预设键值对同步门禁（health-fix-2026-09c · T07/T12b）──
+# 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-gate-sync.sh（T08 定稿 · T12b 修订）承载，
 #   target 只负责接线进 check: 先决条件并暴露失败 rc。
 # 边界（T14 / DESIGN D5）：只接线、不新建聚合目标；check-path-privacy 接线属 T18，不在此。
+# T12b（C13/AC-11）：原 PCSC「prompt↔skill 内容比对」判据已迁 reference/check-skills-sync.sh
+#   （挂链见 check-skills-sync），本 target 只保留 gate-config 键值对同步判据。
 check-gate-sync:
-	@echo "🔍 make check-gate-sync: prompt↔skill 协议一致性检查 ..."
+	@echo "🔍 make check-gate-sync: gate-config 预设键值对同步检查 ..."
 	@bash flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
+
+# ── check-skills-sync: skill 薄壳 ↔ prompt 权威载体同步门禁（health-fix-2026-09c · C13/AC-11 · T12b）──
+# 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-skills-sync.sh（T12b 新建）承载，
+#   target 只负责接线进 check: 先决条件并暴露失败 rc（范式同 check-gate-sync）。
+# 判据面：①覆盖（14 受辖对 + 白名单 flow-go→GO.md，阈值 100%；清单外 flow-* 必红）
+#   ②不复制（D7 归一化行集 comm=0；flow-dev 部分骨架豁免）③@see 锚可解析
+#   （目标文件存在 + § 小节标题命中）。
+check-skills-sync:
+	@echo "🔍 make check-skills-sync: skill 薄壳 ↔ prompt 权威载体同步检查 ..."
+	@bash flow-kit-bundle/flow-kit/reference/check-skills-sync.sh
 
 # ── check-path-privacy: 路径隐私门禁（AC-6）──
 # 薄壳：判据由 flow-kit-bundle/flow-kit/reference/check-path-privacy.sh（T17 定稿）承载，
