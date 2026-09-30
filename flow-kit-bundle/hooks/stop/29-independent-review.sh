@@ -8,7 +8,8 @@
 # 与 30-ai-analyze.sh 的区别：
 #   - 不走频率门控（独立质量门不能被随机跳过），用幂等（本阶段已成功跑过则跳过）防重复。
 #   - 工件是代码/设计文档，含反引号/$，必须用 jq --arg 构造 prompt（不能用 heredoc 插值）。
-# 任何路径都 exit 0，不断 Stop 链。
+# 不断 Stop 链：00-gate.sh:71 run_module … || true 兜底（模块 rc 非致命）。
+# 模型缺失 exit 3；backlog L3 失败 rc 透传退出（C4/D6 · health-fix-2026-09c）——非 0 仅作信号，不阻断链。
 
 set -euo pipefail
 
@@ -192,19 +193,28 @@ _l3_scan_backlog() {
     backlog+=("$pn")
   done <<< "$phases_done"
 
-  local count=0
+  local count=0 bl_fail_rc=0   # bl_fail_rc：首个 backlog 失败 rc（C4/D6 透传载体）
   for pn in "${backlog[@]}"; do
     [ "$count" -ge 3 ] && { echo "[backlog] ${#backlog[@]} phases total, $(( ${#backlog[@]} - 3 )) deferred to next Stop hook" >&2; break; }
     echo "[backlog] running L3 for phase ${pn} (backlog scan)" >&2
     if [ -f "$l3_lib" ] && type l3_review_run >/dev/null 2>&1; then
-      l3_review_run "$pn" "$change_id" "$spec_dir" "skipped" "both" $L3_BG_FLAG || true
-      local bl_rc=$?
+      # C4/D6（health-fix-2026-09c · AC-6）前置捕获：原 `… || true` 把 rc 吞成 0，
+      # 下方 warning 恒不触发（静默缺陷）；裸删 || true 又会撞 :13 set -euo pipefail
+      # 在此终止脚本、warning 永不打印（L2 r4 R5 修订）。失败先告警
+      # （module_output "warning"，TD-023 级别纪律），rc 不吞：首个失败 rc 经函数
+      # return 透传到脚本退出码路径（Stop 链兜底 = 00-gate.sh:71 run_module … || true）。
+      local bl_rc=0
+      l3_review_run "$pn" "$change_id" "$spec_dir" "skipped" "both" $L3_BG_FLAG || bl_rc=$?
       if [ "$bl_rc" != "0" ]; then
         module_output "warning" "IR" "backlog L3 failed for phase ${pn} (rc=${bl_rc})——see hooks.log"
+        if [ "$bl_fail_rc" -eq 0 ]; then bl_fail_rc="$bl_rc"; fi
       fi
     fi
     count=$((count + 1))
   done
+  # rc 透传（C4/D6）：非 0 经主流程顶层未防护调用（_l3_scan_backlog）+ set -e
+  #  转为脚本退出码——warning 已先行打印，区别于裸删 || true（失败即终止、告警不达）。
+  return "$bl_fail_rc"
 }
 
 # ── Gate 5: done 标志已写（主 agent 收齐了）→ 跳过（方案 A：握手文件废弃，不再清理 state_file）──
