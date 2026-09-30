@@ -31,13 +31,19 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "AC-1: 7-integration skill 同步含归档清理指令" {
+@test "AC-1: 7-integration skill 薄壳指向权威 prompt（归档清理指令 · 09c C13 重锚）" {
+  # health-fix-2026-09c T12a C13：skill 薄壳化，正文权威 = prompts/7-integration.md；
+  # 原「skill 同步含指令」重锚为「prompt 权威含指令 + skill @see 指向」。
   local skill_file="flow-kit-bundle/skills/flow-integration/SKILL.md"
+  local prompt_file="flow-kit-bundle/flow-kit/prompts/7-integration.md"
 
-  run grep -q "rm -rf.*\.specs.*change-id" "$skill_file"
+  run grep -q "rm -rf.*\.specs.*change-id" "$prompt_file"
   [ "$status" -eq 0 ]
 
-  run grep -q "PROGRESS.md.*存在" "$skill_file"
+  run grep -q "PROGRESS.md.*存在" "$prompt_file"
+  [ "$status" -eq 0 ]
+
+  run grep -q "@see flow-kit/prompts/7-integration.md" "$skill_file"
   [ "$status" -eq 0 ]
 }
 
@@ -61,10 +67,15 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "AC-2: 7-integration skill 同步含孤儿扫描指令" {
+@test "AC-2: 7-integration skill 薄壳指向权威 prompt（孤儿扫描指令 · 09c C13 重锚）" {
+  # 同 AC-1：孤儿扫描语义权威在 prompt 5.0.2（skill 已薄壳化，TASK.md C13 处置清单）。
   local skill_file="flow-kit-bundle/skills/flow-integration/SKILL.md"
+  local prompt_file="flow-kit-bundle/flow-kit/prompts/7-integration.md"
 
-  run grep -q "未归档\|orphan\|5\.0\.2" "$skill_file"
+  run grep -q "未归档\|orphan\|5\.0\.2" "$prompt_file"
+  [ "$status" -eq 0 ]
+
+  run grep -q "@see flow-kit/prompts/7-integration.md" "$skill_file"
   [ "$status" -eq 0 ]
 }
 

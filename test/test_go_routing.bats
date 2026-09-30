@@ -12,9 +12,12 @@ setup() {
   GO_MD=flow-kit-bundle/flow-kit/GO.md
 }
 
-@test "GO.md line count ≤ 350 (AC-H1)" {
+@test "GO.md line count ≤ 430 (AC-H1 上限随 C13 权威并入调整)" {
+  # superpowers-v6-absorb AC-H1 原上限 350（473→345 瘦身）；health-fix-2026-09c T12a C13
+  # 薄壳化将 flow-go skill-独有条款 5 条并入 GO.md（权威载体，TASK.md C13 处置清单），
+  # 上限随之 350→430（实测 422）。上限仍约束体积回归。
   lines=$(wc -l < "$GO_MD")
-  [ "$lines" -le 350 ]
+  [ "$lines" -le 430 ]
 }
 
 @test "GO.md retains Artifact Preflight Gate" {
@@ -53,14 +56,17 @@ setup() {
   grep -q "loading-artifacts.md" "$GO_MD"
 }
 
-@test "GO.md deleted sections are gone: 真实成本影响因子" {
-  ! grep -q "真实成本影响因子" "$GO_MD"
+@test "GO.md authority sections retained: 真实成本影响因子（09c C13 并入）" {
+  # health-fix-2026-09c T12a C13 处置：flow-go 独有条款并入 GO.md 权威载体，
+  # 原「deleted sections are gone」钉死方向反转（TASK.md C13 处置清单）。
+  grep -q "真实成本影响因子" "$GO_MD"
 }
 
 @test "GO.md deleted sections are gone: 用户视角的取舍" {
   ! grep -q "用户视角的取舍" "$GO_MD"
 }
 
-@test "GO.md deleted sections are gone: 可选 runtime adapter 检测" {
-  ! grep -q "可选 runtime adapter" "$GO_MD"
+@test "GO.md authority sections retained: 可选 runtime adapter 检测（09c C13 并入）" {
+  # 同上：Forge adapter 检测条款并入 GO.md（09c T12a C13 处置清单）。
+  grep -q "可选 runtime adapter" "$GO_MD"
 }
