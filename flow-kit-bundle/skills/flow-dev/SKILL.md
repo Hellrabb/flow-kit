@@ -3,6 +3,8 @@ name: flow-dev
 description: flow-kit 阶段4：执行开发任务，TDD 驱动，含既有抽象检查 + 破坏性变更门槛 + diff 边界验证
 ---
 
+> **薄壳声明（thin shell · C8-① 引用化范式）**：本 skill 是 `flow-kit/prompts/4-dev.md` 的**触发入口薄壳**——仅保留 frontmatter / 触发描述与段落骨架，阶段语义正文以 prompt 为权威源（`@flow-kit/prompts/4-dev.md`），不在本文件复制；凡与 prompt 冲突，以 prompt 为准。协议细节沿 prompt 的 @see 链引用 reference 文件（pipeline-gates / tdd-workflow / commit-protocol / checkpoint-protocol）。
+
 > @see flow-kit/reference/pipeline-gates.md — toll-gate 协议单一源（PCSC 自检 + auto_advance 分支 + Pipeline Toll-Gate）
 
 # 阶段 4 · DEV — 在 fresh context 中执行单个任务
@@ -372,114 +374,19 @@ npx bats test/ --formatter tap 2>&1
 
 ### 4. 提交前 self-review（书本驱动 6 维 · 装了 brooks-lint 优先）
 
-> 这是把 6-review 阶段的代码质量轮**前置一部分**到 dev 自查，避免 review 阶段才发现明显问题。
-
-**触发条件**：本任务有任何**生产代码改动**（非纯文档 / 纯配置 / 纯测试）。
-
-##### 路径 A · 装了 brooks-lint（首选）
-
-提交前调用：
-
-```
-/brooks-review            # 基于本次未提交 diff 跑诊断
-```
-
-如果发现：
-- 🔴 Critical → **必须修后再提交**，不允许带病提交
-- 🟡 Major → 修或在 SUMMARY.md 写明「已知接受 + 理由」
-- 🟢 Minor → 记入 SUMMARY.md 的「已知小问题」段，可不修
-
-把 brooks-review 输出贴入 `<task-id>-SUMMARY.md` 的「6 维自查」段。
-
-##### 路径 B · 未装 brooks-lint（内置快查）
-
-按 6 维快速过一遍自己的 diff（每条 ≤ 30 秒）：
-
-- **R1 认知过载**：单个函数 > 50 行 / 嵌套 > 3 层 → 拆
-- **R2 变更传播**：本次任务无关的文件 / 模块被改动 → 越界，回退
-- **R3 知识重复**：粘贴同一段逻辑到 2+ 处 → 抽函数
-- **R4 偶然复杂**：抽象层级 > 业务实际所需 / 写了"以后可能用到"的扩展点 → 删
-- **R5 依赖混乱**：`from xxx import yyy` 反向（业务层 import 基础设施实现） → 倒置
-- **R6 领域扭曲**：变量名是技术词（data / info / item）而非领域词（order / driver） → 重命名
-
-发现问题先修，**不允许提交时心想"review 阶段再说"**。
+> @see `flow-kit/prompts/4-dev.md` §「4. 提交前 self-review」——权威正文（触发条件 · brooks-review 路径 A · 内置 6 维快查路径 B · Minor 入 MINOR-DEFERRED.md）。本段不复制正文。
 
 ### 5. 提交前 diff 边界 verify（强制 · 对应 R6.5 / B3 老项目护栏）
 
-> 防"AI 顺手改了别的"。提交前必须验证 diff 范围 ⊆ TASK 的 `write_files`。
-
-#### 5.1 跑 diff 检查
-
-```bash
-# 列出实际 diff 涉及的文件
-git diff --name-only HEAD
-git diff --cached --name-only       # 含 staged
-git status --short                  # 含 untracked
-```
-
-#### 5.2 比对 TASK 的 write_files
-
-把上面输出与 `TASK.md` 当前 task 的 `<write_files>` 字段比对：
-
-```
-✅ TASK 声明的 write_files：
-  - src/features/notifications/NotificationCenter.tsx
-  - src/features/notifications/useNotifications.ts
-  - src/features/notifications/__tests__/*
-
-✅ 实际 diff 涉及：
-  - src/features/notifications/NotificationCenter.tsx
-  - src/features/notifications/useNotifications.ts
-  - src/features/notifications/__tests__/NotificationCenter.test.tsx
-
-→ 0 越界 ✅
-```
-
-或者：
-
-```
-⚠️ 越界检测：
-
-✅ TASK 声明的 write_files：
-  - src/features/notifications/*
-
-❌ 实际 diff 越界文件：
-  - src/components/Layout.tsx（DESIGN 0.5.1 「禁动清单」中的文件）
-  - src/api/admin/users/route.ts（不在 write_files 范围内）
-
-→ 必须停下来：
-  选项 1. 撤销越界改动（git checkout -- <files>）
-  选项 2. 更新 TASK 的 write_files（须人工同意，相当于扩范围）
-  选项 3. 把越界改动拆成新 task / 新 CHANGE
-```
-
-#### 5.3 验证结果写入 SUMMARY「越界检查」段
-
-即使 0 越界也要写：
-
-```
-✅ 越界检查（R6.5）：
-  - TASK write_files：3 项
-  - 实际 diff 涉及：3 项
-  - 越界：0
-```
-
-**禁止**："顺手修了个 bug" / "看到这里很丑就改了"——必须开新 task 或新 CHANGE。
+> @see `flow-kit/reference/commit-protocol.md`——与 prompt `flow-kit/prompts/4-dev.md` §「5. 提交协议」同源引用：diff 范围 ⊆ TASK `write_files`（5.1 diff 清单 → 5.2 比对 → 5.3 结果写入 SUMMARY「越界检查」段）；越界必须回滚或人工扩范围。
 
 ### 5.5 原子提交（R4.1）
 
-提交格式：
-```
-<type>(<change-id>): <task-id> <subject>
-```
-例：`feat(add-dark-mode): T03 add ThemeContext provider`
-
-代码 + 测试同次提交（或紧邻的下次提交）。
+> @see `flow-kit/reference/commit-protocol.md`——提交格式 `<type>(<change-id>): <task-id> <subject>`；代码 + 测试同次提交（或紧邻的下次提交）。
 
 ### 6. 写 SUMMARY
 
-使用 `@flow-kit/templates/SUMMARY.md` 模板，填到 `.specs/<change-id>/<task-id>-SUMMARY.md`。
-内容：做了什么 / 改了哪些文件 / verify 输出 / **6 维自查输出**（步骤 4 的 brooks-review 或内置回退结果）/ 是否触发新 fix-plan。
+> @see `flow-kit/reference/commit-protocol.md`（SUMMARY · 标记完成 · task_progress）——与 prompt `flow-kit/prompts/4-dev.md` §「6. task 完成提交」同源；模板 `@flow-kit/templates/SUMMARY.md`，内容含真实 verify 输出 + 6 维自查。
 
 ### 7. 标记完成
 

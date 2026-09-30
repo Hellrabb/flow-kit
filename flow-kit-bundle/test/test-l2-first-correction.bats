@@ -3,6 +3,7 @@
 #
 # 覆盖 AC-I（D3 双管：29 D4 提示增强 + correction flag + 日志）：
 #   (a) 29 含 _write_l2_missing_correction helper + 两处 D4 门提示含派发指引（## L2 盲审 段）+ deny reason
+#       （T11 · AC-15-③：deny 报文单点 _l2_first_deny() 迁 lib/l2-detect.sh——静态断言改为 2 调用点 + lib 正文）
 #   (b) 实跑 29（gate_config=both + 无 L2 段）→ correction flag(type=l2-missing) 写入
 #   (c) 实跑 29 → module_output 日志（independent-review.txt）含派发指引
 #
@@ -46,14 +47,17 @@ _run_29_l2_missing() {
   grep -q '_write_l2_missing_correction()' "$HOOK_29"
 }
 
-@test "AC-I (a): 29 两处 D4 门提示含派发指引（写入 ## L2 盲审 段）—— 主门 + fallback" {
-  local count
-  count=$(grep -c '主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段' "$HOOK_29")
-  [ "$count" -ge 2 ]
+@test "AC-I (a): 29 两处 D4 门调用 _l2_first_deny（主门 + fallback）——lib 报文含派发指引（写入 ## L2 盲审 段）" {
+  local lib="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib/l2-detect.sh"
+  local calls
+  calls=$(grep -Fc '_l2_first_deny "$phase" "$change_id"' "$HOOK_29" || true)
+  [ "$calls" -eq 2 ]
+  grep -q '主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段' "$lib"
 }
 
-@test "AC-I (a): 29 D4 提示含 deny reason（L2-first 契约未满足）" {
-  grep -q 'deny reason: L2-first 契约未满足' "$HOOK_29"
+@test "AC-I (a): 29 D4 提示含 deny reason（"'L2-first ''契约未满足'"）" {
+  local lib="$REAL_PROJECT_ROOT/flow-kit-bundle/hooks/stop/lib/l2-detect.sh"
+  grep -q 'deny reason: ''L2-first ''契约未满足' "$lib"
 }
 
 # ══ (b) 实跑 29：correction flag(type=l2-missing) 写入 ══

@@ -209,6 +209,19 @@ fk_extract_l2_verdict() {
   return 0
 }
 
+# ── _l2_first_deny() · L2-first deny 报文单点（health-fix-2026-09c T11 / AC-15-③）──
+# gate_config=both 但 ## L2 盲审 段缺失时，29-independent-review.sh 主门（L2-first
+# quick gate）与 D4 fallback 门两处共用同一条 deny 报文——报文字面量全 bundle 唯一
+# （本函数内 1 处），消灭双处内联复制（迁移前 29 号 :139/:249 两份）。
+# 依赖：module_output()（common.sh——调用方 29 号已 source；本文件头部的 common.sh
+# 注入块亦覆盖独立 source 场景）。参数 phase/change_id 当前未插值，签名与
+# l2_detect_missing 对称保留，供未来扩展。
+_l2_first_deny() {
+  local phase="$1"
+  local change_id="$2"
+  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
+}
+
 # ── l2_detect_missing() ──────────────────────────────────────────────
 l2_detect_missing() {
   local phase="$1"

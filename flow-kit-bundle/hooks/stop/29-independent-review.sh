@@ -136,7 +136,11 @@ gate_val="$(fk_normalize_gate_val "$gate_val")"
 
 if [[ "$gate_val" == "both" ]] && { [ ! -f "$review_md" ] || ! grep -q "^## L2 盲审" "$review_md" 2>/dev/null; }; then
   _write_l2_missing_correction "$phase" "$change_id"
-  module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
+  # T11（health-fix-2026-09c · AC-15-③）：deny 报文单点迁至 lib/l2-detect.sh::_l2_first_deny()
+  # （主门 + 下方 D4 fallback 两处共用；生产报文字面量 2→1，全 bundle 唯一在 lib 内）。
+  l2_lib="${HOOK_BASE_DIR}/lib/l2-detect.sh"
+  [ -f "$l2_lib" ] && source "$l2_lib" 2>/dev/null || true
+  type _l2_first_deny >/dev/null 2>&1 && _l2_first_deny "$phase" "$change_id" || true
   exit 0
 fi
 
@@ -246,7 +250,7 @@ if [[ "$gate_val" == "both" ]]; then
       else
         l2_dispatch_prompt "$phase" "$change_id" "$spec_dir" 2>/dev/null || true
         _write_l2_missing_correction "$phase" "$change_id"
-        module_output "warning" "IR" "L3 跳过（L2 not yet complete, gate_config=both · deny reason: L2-first 契约未满足）——主 agent 请派 L2 子 agent 并写入 ## L2 盲审 段后重试（见 .flow-active.correction）"
+        type _l2_first_deny >/dev/null 2>&1 && _l2_first_deny "$phase" "$change_id" || true
         exit 0
       fi
     fi

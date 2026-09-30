@@ -89,21 +89,7 @@
 
    #### 6.0 阶段完成自检（Phase Completion Self-Check）
 
-   > @see flow-kit/reference/pipeline-gates.md — toll-gate 协议单一源。
-
-   > ⚠️ **强制**：在进入 Phase Transition 之前，必须逐项完成以下自检。
-   > 任一 ❌ → **禁止进入 toll-gate**。先完成缺失项，然后重新自检。
-
-   | # | 产物/检查项 | 验证方式 | 状态 |
-   |---|---|---|---|
-   | 1 | `TASK.md` 中所有 task 状态 = "done" | `grep -c 'status="done"' TASK.md` | ✅ / ❌ |
-   | 2 | 每个 task 的 `*-SUMMARY.md` 已写入 | `test -f .specs/<change-id>/T*-SUMMARY.md` | ✅ / ❌ |
-   | 3 | 所有 verify 通过 + 6 维 self-review 已完成（brooks-review 或内置 6 维快查） | 检查 SUMMARY 中 verify + self-review 结果 | ✅ / ❌ |
-   | 4 | diff 边界 verify 已通过（提交前 diff 不越界） | `git diff --stat` 与 write_files 对照 | ✅ / ❌ |
-   | 5 | 沿用既有抽象 grep 已跑（1.4 段），结果在 SUMMARY 中 | 人工确认 | ✅ / ❌ |
-   | 6 | Sub-goal 自检（若 `phase_sub_goals["4"]` 非空） | 逐项对照 sub-goal 条件 | ✅ / ❌ |
-| 7 | **1.8 触发时 bats 已跑且 0 fail**（L-010） | `grep "0 failures"` 1.8.4 输出 | ✅ / ❌ |
-| 8 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
+   > @see flow-kit/reference/pipeline-gates.md — toll-gate 协议单一源（PCSC 自检表 · auto_advance 分支 · Pipeline Toll-Gate）。进入 Phase Transition 前必须逐项完成 PCSC 自检表，任一 ❌ 禁止进入 toll-gate。
 
    ### auto_advance 分支
 
