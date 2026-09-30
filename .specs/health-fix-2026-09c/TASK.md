@@ -268,7 +268,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T10" parallel="true" status="pending" model-tier="standard">
+<task id="T10" parallel="true" status="done" model-tier="standard">
   <name>C6 行为断言替换 32 处（AC-9）</name>
   <read_files>
     test/test_l3_review_defects_2026_09.bats
@@ -303,7 +303,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T11" parallel="true" status="pending" model-tier="standard">
+<task id="T11" parallel="true" status="done" model-tier="standard">
   <name>C8 载体收敛三件（AC-15 · 29-independent-review.sh 故 ←T02）</name>
   <read_files>
     flow-kit-bundle/flow-kit/prompts/4-dev.md
