@@ -401,7 +401,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T08, T12a</depends_on>
 </task>
 
-<task id="T12c" parallel="true" status="pending" model-tier="standard">
+<task id="T12c" parallel="true" status="done" model-tier="standard">
   <name>C13 更名触点收敛（AC-11 配套）（L2 R9 拆分）</name>
   <read_files>
     test/test_quality_baseline.bats
@@ -457,7 +457,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T04, T12b</depends_on>
 </task>
 
-<task id="T14" parallel="true" status="pending" model-tier="cheap">
+<task id="T14" parallel="true" status="done" model-tier="cheap">
   <name>C14-a 死代码清除（AC-12-a）</name>
   <read_files>
     flow-kit-bundle/hooks/stop/lib/common.sh
@@ -476,7 +476,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T15" parallel="true" status="pending" model-tier="standard">
+<task id="T15" parallel="true" status="done" model-tier="standard">
   <name>C14-c/h/i 测试态修复（AC-12-c/h/i · 名单文件故 ←T05, T10）</name>
   <read_files>
     test/test_l3_pipeline_fix.bats
@@ -541,7 +541,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on>T06, T12b, T13, T15, T17</depends_on>
 </task>
 
-<task id="T17" parallel="true" status="pending" model-tier="top">
+<task id="T17" parallel="true" status="done" model-tier="top">
   <name>C14-b gate_config 五载体集合比对（AC-12-b）（L2 R2 新增 2026-09-29）</name>
   <read_files>
     flow-kit-bundle/flow-kit/reference/check-gate-sync.sh
