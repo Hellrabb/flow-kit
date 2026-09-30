@@ -26,7 +26,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
 ## 任务清单
 
 ```xml
-<task id="T01" parallel="true" status="pending" model-tier="standard">
+<task id="T01" parallel="true" status="done" model-tier="standard">
   <name>C12 门禁运行期 fail-closed（AC-8）</name>
   <read_files>
     flow-kit-bundle/hooks/pre-tool-use/independent-review-gate.sh
@@ -65,7 +65,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T02" parallel="true" status="pending" model-tier="cheap">
+<task id="T02" parallel="true" status="done" model-tier="cheap">
   <name>C4 恢复积压 L3 失败告警（AC-6）</name>
   <read_files>
     flow-kit-bundle/hooks/stop/29-independent-review.sh
@@ -88,7 +88,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T03" parallel="true" status="pending" model-tier="standard">
+<task id="T03" parallel="true" status="done" model-tier="standard">
   <name>C1 测试沙箱化（AC-1 + AC-2）</name>
   <read_files>
     test/test_check_gate_sync.bats
@@ -110,7 +110,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T04" parallel="true" status="pending" model-tier="standard">
+<task id="T04" parallel="true" status="done" model-tier="standard">
   <name>C2 隐私正则收紧（AC-3）</name>
   <read_files>
     flow-kit-bundle/flow-kit/reference/check-path-privacy.sh
@@ -131,7 +131,7 @@ Wave 7:            T16[C3 历史重写](←T06, T12b, T13, T15, T17)
   <depends_on></depends_on>
 </task>
 
-<task id="T05" parallel="true" status="pending" model-tier="cheap">
+<task id="T05" parallel="true" status="done" model-tier="cheap">
   <name>C14-c 软跳过名单重核固化（AC-12-c 前置）</name>
   <read_files>
     test/*.bats
