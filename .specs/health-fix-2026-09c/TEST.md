@@ -119,6 +119,35 @@
 - **F-1（AC-9）**：机检锚首跑 = 2 ≠ 0——`test/test_l3_review_defects_2026_09.bats:756/:758`（B2-R8 契约钉）缺 `# 行为断言` 行内标记。根因：T10 提交 b5d7587 自述落标但从未写入；TASK 版锚（过滤 hooks/lib/.sh）与 REQUIREMENT 版锚（全 test/*.bats）锚面不同未捕。修复：双份补标 + cmp 一致 + 锚复跑 0 + B2-R8 1/1 ok。**教训：跨载体锚面差异要在 TEST 阶段以最宽锚复跑全量。**
 - **F-2（AC-5 补充）**：T16 重写后本地对象库存留 46 行真名（10 个预脱敏对象）——`git grep $(git rev-list --all)` 与远端全净但 `cat-file --batch-all-objects` 命中。根因：09b 时代调试链接工作树 `/tmp/p6d/v23base`（detached 2c0412a）锚定——`rev-list --indexed-objects` 遍历所有工作树索引、fsck/gc 视工作树 HEAD 为根，故 gc 不回收。修复：worktree remove --force + reflog expire + gc --prune=now → 全对象面 0。**教训：历史重写后必查 `git worktree list`（filter-repo 只重写 refs，不动工作树）。**
 
+### 1.7 证据可复现性补遗（L3 重审 C2/C3 应答 · 2026-10-09 · 基准 HEAD=254d053）
+
+> 重审判据：关键结论不得只以自述形式出现——逐条挂**命令原文 + 实测 rc + 计数**。下表命令均可逐字复跑；rc 记录用当日实测。
+
+| AC | 命令（原文） | 实测 |
+|---|---|---|
+| AC-1 | `npx bats test/test_check_gate_sync.bats` | 18/18 ok（T03 交付 17 腿 + 波间 +1，rc=0） |
+| AC-2 | `npx bats test/test_makefile_gates.bats`（并发双跑） | 两轮 rc=0；`grep -c flock Makefile` = 1 |
+| AC-3 | `grep -c '@test .*T04:' test/test_path_privacy_gate.bats`；`npx bats test/test_path_privacy_gate.bats` | = 4；39/39 ok |
+| AC-4 | `git grep -lF '/home/<真名>' -- .` | rc=1（0 命中，tracked 面；真名以本机字面量执行，占位记法） |
+| AC-5 | 四层：①前行 ②`git grep -lF '/home/<真名>' $(git rev-list --all)` ③`git cat-file --batch-all-objects --batch-check` 逐 blob grep ④全新 clone 后 ② | ①rc=1 ②rc=1 ③0 LEAK ④0 命中（2026-10-09 热修复后复扫；旧 tip 36fc664 已 amend→254d053 + gc 不可解析） |
+| AC-6 | `npx bats test/test_l3_backlog_alarm.bats`；`npx bats test/test_ir_done_verdict_alarm.bats` | 4/4 ok；5/5 ok（后者 = 阶段 6 修复批新增 R2-③ 告警） |
+| AC-8 | `npx bats test/test_fail_closed.bats` | 8/8 ok（jq 缺失/非法 JSON exit 2） |
+| AC-9 | `grep -n '# 行为断言' test/test_l3_review_defects_2026_09.bats \| grep -c 'B2-R8\|:75[68]'` | B2-R8 :756/:758 双源带标（F-1 修复后锚 0 残留） |
+| AC-10 | 假 npx 计数（test_makefile_gates.bats 内建实验）；最小 bin 目录遮蔽 shellcheck 后 `make lint` | 计数恰 1 行；rc=2 + 具名报文「shellcheck 不在场：lint fail-closed 转红（C10）」 |
+| AC-11 | `git show df98ddb --stat -- 'flow-kit-bundle/skills/**'`（薄壳化可复现） | 14 薄壳文件 3275→112 行；skills/ 16 文件合计 3842→679 |
+| AC-12-a/b/c | `npx bats test/test_gate_config_carriers.bats test/test_skills_sync.bats test/test_gate_config_presets.bats` | 15/12/34 全 ok；PRESET_MAP 17 键（`awk` 数 `flow-state.js:20` 起） |
+| AC-13 | `make check`（阶段 4 收口 + 阶段 6 修复批复跑） | rc=0；bats 由基线 1116 → 1179+ |
+| AC-15 | `comm -3 <(sort a) <(sort b)`（prompts↔薄壳 @see 对账） | 空输出（0 差异） |
+
+**声明与排除（C3「mock 屏蔽」系统排除法）**：
+
+- **函数覆写面**：B2-R8 契约钉（两写入方必须走 `_l3_escape_payload`，反向 `grep -c 's~^(## '` 两处 = 0 禁内联 sed）——不是「存在即证」，而是行为+反向双锚。
+- **PATH shim 面**：计数 shim 必须拦 `npx`（recipe 形态 `npx bats`，npx 自行解析包）——假 npx + 假 bats 双写计数恰 1；遮蔽实验用最小 bin 目录（软链 make/bash/find、无 shellcheck）→ `make lint` rc=2 具名报文，证 shellcheck 真在场被依赖。
+- **declare -f 面**：test_hook_integration.bats 断言生产函数真被 source（非仅存在）。
+- **凭据类扫描**：`git grep -cE 'AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- .` → 唯一命中 = IR-5 :111（重审文本自引模式名，非凭据）。本 change 泄漏面仅路径真名（AC-4/AC-5 辖），凭据类不适用但已补扫为证。
+- **性能基线**：make check 双跑 4m55s / 3m07s（flock 串行化，双 rc=0）。
+- **UAT 命名对账**：全部 UAT 以 1.2 三脚本为准（历史重写 / 残留收口 / lint 遮蔽），本表 AC 行与之同名对账。
+
 ---
 
 ## 第 2 轮 · 性能测试

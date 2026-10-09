@@ -784,6 +784,15 @@
 
 <!-- M-health 2026-09-29 ↓ -->
 
+### L-185 · 🔴 hooks「文件在位」≠「hooks 生效」：`.git/config` 一行 `core.hookspath=`（空串）静默架空全部 git hooks——存在性测试与真实 push 路径测试之间隔着一层配置
+
+**症状**（2026-10-09 · health-fix-2026-09c 阶段 6 L2 R1）：36fc664 带真名直推远端**零拦截**；同一工作树上 bats 直跑 pre-push 脚本对同 SHA `rc=1` 拒绝——「脚本逻辑正确」与「git 实际没调它」同时为真且互不矛盾。
+
+- **根因**：`core.hookspath=`（**空字符串**也算设置）使 git 跳过 `.git/hooks/` 全部钩子。取证三件：`git config --show-origin -l | grep hook` 唯一命中 `file:.git/config core.hookspath=`；`GIT_TRACE=1` 探针推送 trace 无 hook 执行行；`.git/flow-kit-pre-push.lock` mtime 停在上次真实触发。`.git/config` 不入 git、bundle 内零写者 → 来源不可追溯（外部工具/手误）。
+- **测试盲区**：bats 直跑 hook 脚本（`bats test/xx.bats` 内 `bash pre-push.sh` 形态）**不经真实 `git push`**——配置级架空对直跑不可见；测试全绿与生产裸奔并存。
+- **修复**：`git config --unset core.hookspath` + 探针推送（`HEAD:refs/heads/tmp-hook-probe2`）端到端实证 hook 真跑（🔒flock → 🔍scan → 🧪bats → lint）后删探针支；sync-hooks.sh 新增 `hookspath_guard`（check 模式命中即 rc=1 + 修复指引，test_hookspath_guard.bats 4 用例）；6-review.md PCSC 增第 10 项（push 后核对 hook 输出行确实出现）。
+- **教训**：门禁的「存在性测试」与「生效性验证」必须分开——存在性测**脚本**，生效性测**调用路径**（配置/挂载/注册表/PATH）。凡「被系统调用」型守护（git hooks、crontab、systemd drop-in、PATH 前置 shim），验收判据必须含**至少一次真实触发证据**（probe push 造临时分支再删），不能只 bats 直跑。取证时注意 `cmd | tail; echo $?` 取到的是 tail 的 rc——用 PIPESTATUS 或直跑（L 系 :310 pipefail 条同族）。
+
 ### L-184 · 🔴 「工具不存在」的断言必须检验**该工具的真实形态** —— 把工具贴成 CLI 再去 PATH 上找不到它：`L-100` 的第二次复发，且复发于**引用 `L-100` 的同一段**
 
 **症状**：2026-09-29 全量巡检报告 `:40` 原稿写「**brooks-lint CLI 不可用 → 走 skill 步骤 3 内置回退**」，并据此声明生产/测试 6+6 维为「内置回退评分」。复核发现**三重错误**：

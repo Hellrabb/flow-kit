@@ -164,6 +164,7 @@ PCSC 追加项：所有 review 发现已处理（`Fixed in:` / `Tech-debt:` / `N
 | 7 | 技术债已同步到 CONTEXT.md（若 4.1 触发且有 🟡 Scheduled 产出，确认已写入 `.specs/CONTEXT.md` 技术债段） | 人工确认（检查 4.1 是否触发；若触发则 `grep` CONTEXT.md 技术债段确认新条目已追加） | ✅ / ❌ / N/A |
 | 8 | TEST.md 5 轮金字塔完整性已验证（2.0 段：功能/性能/安全/兼容/可观测） | 人工确认 | ✅ / ❌ |
 | 9 | .flow-active 关键字段（phase/task_id/change_id/updated_at）已通过 jq 写入磁盘 | test -s .flow-active && jq -e '.updated_at' .flow-active >/dev/null | ✅ / ❌ |
+| 10 | 审查基准 = 最终 HEAD：review-package 生成后若有任何 commit/amend（fix loop 响应、热修复等），已对最终 HEAD 复跑全量门禁并在 REVIEW.md 增补 HEAD 复验节；推送时核对 pre-push hook 输出确实执行（flock/scan/bats 行）——hook 静默缺失 = `core.hookspath` 架空，须 `git config --show-origin -l \| grep hookspath` 排查 | 人工确认（git log 对账 review-package 基准 SHA；无新 commit 则 N/A） | ✅ / ❌ / N/A |
 
 ### auto_advance 分支
 

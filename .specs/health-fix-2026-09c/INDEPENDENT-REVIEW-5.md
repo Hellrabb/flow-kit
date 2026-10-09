@@ -157,3 +157,44 @@ M1 + m1 + m2 全部 **Fixed in**：
 L3_artifact_hash: 09669dd66e5246fea9976c053f5e25000b32a590dd083255812b35ff62139add
 
 <!-- /L3-SECTION -->
+
+---
+
+## 主 agent 响应（阶段 5 · 对 L3 重审 · 2026-10-09）
+
+背景：上方重审段（verdict=fail，3 critical + 4 major + 4 minor）由用户环境 Stop hook 于 2026-10-01 23:30 自动写入，此后 8 天无主 agent 应答——直到阶段 6 L2 盲审（R2）以「.done 已写且硬编码 L3_verdict=pass、阶段已推进至 6」点名闭环完整性缺口。本段为补答；治理面（漏答机制 + 防复发）见文末。
+
+### critical 逐条应答
+
+**C1「AC-5 UAT 不可复现，仅自述结论」** — Fixed（2026-10-09 热修复后四层复扫，HEAD=254d053，命令可逐字复跑）：
+
+- tracked：`git grep -lF '/home/<真名>' -- .` → 0 命中（rc=1；命令以本机真名字面量执行，此处占位记法——实测 rc 已录）
+- reachable：`git grep -lF '/home/<真名>' $(git rev-list --all)` → 0 命中（rc=1）
+- 全对象面：`git cat-file --batch-all-objects --batch-check` 逐 blob `grep -lF '/home/<真名>'` → 0 LEAK
+- 远端：全新 clone `git@github.com:Hellrabb/flow-kit.git` 后全历史 grep → 0 命中（带毒旧 tip 36fc664 经 amend→force-with-lease→reflog expire→`gc --prune=now` 后本地不可解析）
+
+**C2「TEST 1.1/1.3 证据为结论性自述，缺命令原文与退出码」** — Fixed：TEST.md 新增「1.7 证据可复现性补遗（L3 重审 C2）」，逐 AC 挂 命令原文 + 实测 rc + 计数。
+
+**C3「mock 屏蔽真实失败未系统排除（函数覆写/PATH shim/declare -f 只证存在）」** — Fixed with method：AC-10 方法论（TEST.md 五轮）——计数 shim 必须拦 `npx`（recipe 形态 `npx bats`，npx 自行解析包），test_makefile_gates.bats 假 npx 计数恰 1 行；遮蔽实验用最小 bin 目录（软链 make/bash/find、无 shellcheck）→ `make lint` rc=2 + 具名报文「shellcheck 不在场：lint fail-closed 转红」。函数覆写面由 B2-R8 契约钉（两写入方必须走 `_l3_escape_payload` + 反向禁内联 sed）；1.7 表把上述各法逐条挂回对应 AC。
+
+### major 逐条应答
+
+- **性能单跑无可比基线** — Fixed：make check 双跑 4m55s / 3m07s（flock 串行化双绿，rc=0）；全量 bats 由基线 1116 → 1133（阶段 5）→ 1179+（阶段 6 修复批新增守卫/告警测试），NFR 表已记。
+- **安全轮未声明凭据类不适用且未扫** — Fixed：本轮补扫 `git grep -cE 'AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- .` → 唯一命中 = 本文件 :111（重审文本自引模式名，非真实凭据）；TEST.md 1.7 声明本 change 泄漏面仅路径真名（AC-4/AC-5 辖）。
+- **回滚仅 bundle verify 无恢复演练** — Fixed：2026-10-09 热修复即实战恢复演练——amend + `git push --force-with-lease` 回推干净 tip + 全新 clone 四层复扫（命令见 C1），bundle `../backup-pre-scrub-20260929.bundle` verify 仍绿。
+- **UAT 命名矛盾** — Fixed：统一按 TEST.md 1.2 三 UAT（历史重写 / 残留收口 / lint 遮蔽）命名，1.7 表对账。
+
+### minor 逐条应答
+
+- AC-6 RED 载体口径 → 1.7 注明 RED 证明系 T02 执行日操作（对前置提交 `git show HEAD` 旧脚本恰红），套件内 4 用例均绿侧。
+- 首败告警无用例钉 → 本修复批新增 test/test_ir_done_verdict_alarm.bats（5 用例：fail 未应答告警 / 已应答不告警 / 末段 pass 辖权 / 无 IR 不虚构 / 末轮 fail 覆盖早轮应答）。
+- 251KB-294KB 转义载荷无 @test 名 → 行为回归保护 = test_l3_review_defects_2026_09.bats **B2-R8**（转义契约：两写入方必须走 `_l3_escape_payload`，反向禁内联 sed）、**B2-R9**（经转义载荷无法伪造 L3 段起点）、**B2-R10**（围栏行也被转义，围栏配对不可破坏）；251-294KB 为本 change 期间实产 IR 文件观测尺寸（IR-3 收口 ~251KB），尺寸非用例输入而是产物统计。
+- T3 夹具即时风险 → 同族夹具 6 处横跨 3 文件当前全量同步（本轮全量 bats 绿，无假绿迹象）；收敛 defer = M22（MINOR-DEFERRED）。
+
+### 治理面（漏答机制 + 防复发）
+
+- 漏答机制：用户环境 Stop hook 自动写入重审段，DSH 侧无宿主 Stop 写者对接告警面——重审 fail 后无任何机件提醒主 agent 应答（TD-139 背景事实）。用户 10-09 手写 .done-5 时（write-done-5.sh 模板硬编码 L3_verdict=pass）亦未察觉 10-01 已有 fail 重审段。
+- 防复发（阶段 6 修复批落地）：
+  1. `flow-kit-bundle/hooks/stop/29-independent-review.sh` Gate 4 新增 **R2-③ 告警**——done 已写但 IR 末段 L3 verdict=fail 且无后续「主 agent 响应」段 → `module_output warning` + exit 1（每次 Stop 持续可见直至应答）；test_ir_done_verdict_alarm.bats 5 用例钉行为。
+  2. STATE.md 按 C9 先例登记本窗口裁决：阶段 5 判定维持（L2/L3 首审双 pass 事实不变），重审发现全部并入阶段 6 修复批销账。
+  3. gate-checks-review.sh hotfix 提示修正（touch 空文件已被 fk_validate_done_marker 拒 → 改合法 KVP 标记引导）。

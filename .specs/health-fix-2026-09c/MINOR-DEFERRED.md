@@ -62,3 +62,8 @@
 - **位置**: test/test_check_gate_sync.bats（FXC1:66 / FXB10:128 / FXB25:170 / FXB18:211）+ test/test_skills_sync.bats:32（FXS · T12b）+ test/test_gate_config_carriers.bats:63（FXC5 · T17）——全仓同族 6 处横跨 3 文件（mktemp -d + $SBX/fk 树 + cp 生产件形态）。
 - **观察**: T03 执行时点 FXC1 为该文件第 4 个同构生成器（自报 defer 属实）；后续波次 T12b/T17 又各增 1 处，TEST.md 六维自检 T3 行「命中文件数 1」按文件内口径成立但低估现状（L3 阶段 5 m1 实测扩面）。
 - **处置**: defer 到 v2——收敛为共享 helper（reference/ 下 fixtures.sh 或 bats load 机制）；六维 T3 严重度维持 🟡（无判据力损失，纯维护性债务）；镜像侧 flow-kit-bundle/test/ 同步收敛。
+
+### M23 · check-gate-sync.sh 双判据域单文件增长（阶段 6 主审 R4 发现）
+- **位置**: flow-kit-bundle/flow-kit/reference/check-gate-sync.sh——T07 键值对同步判据（34 对）与 T17 五载体集合判据 + 指南折算表同住一文件（本 change +618 行级改动）。
+- **观察**: 两域各自成节、共享文件级头注释与 rc 汇总；当前规模仍自洽（check-gate-sync rc=0 + carriers 15 用例绿），但任一域再增长时头注释/rc 汇总/测试锚三处耦合面放大。
+- **处置**: defer——下次任一判据域增长时拆分 check-gate-sync-pairs / -carriers 两入口（make target 不变，薄壳转发）；REVIEW.md 2.2 R4 条目为权威记录。

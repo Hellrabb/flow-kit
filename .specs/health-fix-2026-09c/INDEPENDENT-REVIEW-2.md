@@ -472,3 +472,22 @@
 L3_artifact_hash: 76b3e30435d3a90db139ec6029da3e9aa2ad3c01ebf45af08e5566f5f6244cea
 
 <!-- /L3-SECTION -->
+
+---
+
+## 主 agent 响应（阶段 2 · 对 L3 重审 2026-09-30 00:01 · 后补于 2026-10-09）
+
+> **背景**：该重审段由用户环境 Stop hook 于 2026-09-30 00:01 写入——彼时阶段 2 已过门（L2 三审 pass + L3 首审 pass + `.independent-review-2.done` + transition 2→3 均完成于 2026-09-29），DSH 会话侧无告警面（TD-139 同款模式）→ 重审 fail 9 天无应答，至阶段 6 L2 R2 点名后补答。**裁决（C9 先例同款）：阶段 2 判定维持**——首审双 pass 事实不变；下列 1 critical + 4 major + 5 minor 经阶段 3-5 设计演化与 Wave 1-7 实现逐项对账如下（处置状态以本段落盘日 git 为准）。
+
+- **Critical（D9(b)「哈希对账行基线」与真名零 tracked 判据数学上不可同时满足）— 判定不成立（机制误读），且判据已按建议方向加固**：哈希行**不参与门禁拦截**——check-path-privacy 拦截面 = 通用 PAT（T04 · 863c82a：PAT 放宽 `/home/[a-z_][a-z0-9_-]*([^a-z0-9_-]|$)` + `PLACEHOLDER_NAMES` 7→18）；真名精确字面量集仅用于**脱敏面**且运行时仓外组装（`git remote get-url origin` + `$HOME`/`pwd` 派生 → `../scrub-literals.tmp` → filter-repo 用毕删除，DESIGN.md:69/:128）；基线内 sha256 行职责 = **基线自漂移对账**（防基线被静默改写），非 grep 匹配面——重审建议中「删除无法机检的哈希对账行或明确定义哈希行的验证用途」的后者即现状。实现面：AC-5 四层复扫（tracked / rev-list 全历史 / cat-file 全对象 / 全新 clone）2026-10-09 于 HEAD=254d053 全 0，两判据同时满足。
+- **Major-1（D4 `:64` exit 0 与「统一 fail-closed」自相矛盾）— 已采纳建议侧（显式 skip 语义 + 删绝对化表述）**：T01（89b091f）保留无 `.flow-active` 放行为显式「非管辖 skip」并固化注释；fail-closed 范围钉死为三子库 source 后 **13 函数 declare -f 断言**（independent-review-gate.sh:49-62）+ **jq 缺失/非法 JSON exit 2 具名报文**（:65 拆两行）；「函数遮蔽不在断言范围——declare -f 只证存在不证行为（DESIGN D4）」显式写入代码注释 = 「删除 fail-closed 绝对化表述」的实现形态。test_fail_closed.bats 8/8。
+- **Major-2（附录 A 分支④ 变量间接赋值漏检）— 已采纳（谓词补变量间接形态）**：T05（1809a34）严格谓词重算纳入赋值 `X="$HOME/…"` 下游同辖形态（REQUIREMENT.md:108 权威源修订「变量间接形态……下游同辖」；探针 C `grep -rlF '="$HOME' test/*.bats` 入 T05 verify 终态锚）；旗舰 hook 自实例（flow_file 赋值 + jq 使用行）由 check-flow-active-inline 白名单辖（ADR-031，flow-active-inline-whitelist.txt 纯路径可 tracked）；计数以 T05 重算 5 文件权威名单为准（TASK「C14-c 权威名单」节）。
+- **Major-3（D7 整文件 comm 判据不可稳定机检）— 已采纳建议侧 B（放弃整文件 comm 判据）**：阶段 3 L2/L3 fix loop 定稿——AC-11 Then 改「载体映射完整 + 权威正文不双写」；AC-15-① 改 @see 锚 + 删表锚（0=0 空真防回归锚显式标注，判据力由删表锚与 ②③ 承载）。
+- **Major-4（D8 node 环节聚合语义未钉死）— 已钉死（fail-closed 聚合）**：package-dsh-plugin.sh `--check` 分支重排使 `node --test` 在退出前执行（阶段 3 M1 修复：`ck=183 < nt=233` 位置序断言入 T08 verify）；无 node → `make check` 红（fail-closed，不引入 SKIP 态）；测试 = test_makefile_gates.bats 假 npx + 假 bats 双写计数恰 1。
+- **Minor-1（0.5.3 基线落点两说矛盾）— 已修**：统一「常设 reference/ 落点，change 种子副本取消」（R8 修订）；读序三层 **常设 > change 目录 > 双缺 fail-closed**（DESIGN.md:69，L3 r2 m5 订正）。
+- **Minor-2（R6 ADR-030 豁免与门禁上线时序未提）— 已修**：R6③ 改「T12a W4 → T12b W5 紧邻跨 wave，偏序有界」（阶段 3 m8）。
+- **Minor-3（白名单条目 `path:line` 精确匹配脆弱）— 已被更强机制取代**：C14-c 终局 = **文件级**权威名单（5 文件，逐文件严格谓词 + 理由，TASK 节内 while-read grep 验证）；C13 处置清单同款文件级机制——行级内容精确匹配的脆弱性不再存在。
+- **Minor-4（D1 提取失败输出/锚点命名规范未定义）— 部分采纳**：比对对象缺失 → 具名输出（skill:/bats: 行，check-gate-sync.sh:172-178）+ rc≠0；未引入统一 `# contract:` 前缀——C11 解析上提（mock → 生产 .sh）后锚点漂移主风险已消解，test_check_gate_sync.bats 18/18 钉。
+- **Minor-5（D4 遮蔽面无 mitigation）— 已缓解（强于建议的安装期方案）**：非安装期而是**每注入运行时** 13 函数 declare -f 断言（半安装/子库缺失/函数删除改名 → exit 2）；「declare -f 只证存在不证行为」残余面在代码注释与 DESIGN D4 显式登记（未单开 TD——断言范围与局限同时成文）。
+
+> **防复发**：R2-③ 告警（29-independent-review.sh Gate 4：done + IR 末段 L3 verdict=fail 且无后续响应段 → module_output warning + exit 1，test_ir_done_verdict_alarm.bats 5 用例）上线后，此类「末段 fail 无应答」状态在下次 Stop hook 运行即暴露，不再依赖人工发现；TD-139（DSH 宿主写者缺口）已登记 CONTEXT.md。
