@@ -753,9 +753,9 @@ EOF
   # 唯一入口存在
   grep -q '^_l3_escape_payload() {' "$sec"
   # 写入方①：L3 载荷（l3-api.sh）
-  grep -q '_l3_escape_payload "\$content"' "$L3_API_LIB"
+  grep -q '_l3_escape_payload "\$content"' "$L3_API_LIB"  # 行为断言（契约钉：写入方①必须走唯一转义入口；行为孪生见落盘段断言）
   # 写入方②：L2 载荷（l2-detect.sh::l2_dispatch_agent，PreToolUse 生产路径）
-  grep -q '_l3_escape_payload "\$content"' "$L2_LIB"
+  grep -q '_l3_escape_payload "\$content"' "$L2_LIB"  # 行为断言（契约钉：写入方②必须走唯一转义入口）
   # 反向：两处都不得再内联 sed 转义（否则又是一份实现）
   [ "$(grep -c 's~^(## ' "$L3_API_LIB")" -eq 0 ]
   [ "$(grep -c 's~^(## ' "$L2_LIB")" -eq 0 ]

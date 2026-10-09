@@ -64,11 +64,12 @@
 
 ## 活跃变更（2026-09-29 更新）
 
-- **当前活跃**：`health-fix-2026-09c`（phase 4 · 2026-09-29 开 · pipeline 1→7 `gate_config=all` 自动推进）
+- **当前活跃**：`health-fix-2026-09c`（phase 5 · 2026-09-29 开 · pipeline 1→7 `gate_config=all` 自动推进）
   - **目标**：修复 2026-09-29 Full Sweep 报告（`.specs/health/2026-09-29-HEALTH.md` · 55/100 · 4 新 🔴）全部 14 条发现（C1–C14）：C1 make check 并发互踩 / C2 隐私正则 / C3 tracked 30 行 + 历史重写 / C4 `|| true` 吞错 / C5+C11 跨层闭环 / C6 行为断言 / C7 单跑 / C8 载体 / C9 结构化 / C10 lint / C12 fail-closed / C13 权威载体 / C14 杂项
   - **阶段 1 已过门**：REQUIREMENT.md v2（AC-1…AC-17）· L2 盲审 pass（0🔴/6🟡/3🟢，全处置）· L3 盲审 pass（0 critical/2 major/4 minor，全 Fixed in）· `.independent-review-1.done` 用户手写（DSH 无宿主写入者·代行）
   - **阶段 2 已过门**：DESIGN.md（§0.5.1 触碰清单含更名触点 + 附录 A 白名单严格谓词 · D1–D9 决策）+ ADR-030/031/032 + REQUIREMENT v3 对齐 · **L2 三轮收敛 pass**（轮1 fail 🔴×2→修复；轮2 fail 🔴×1 真名基线入 tracked→修复；轮3 pass 0🔴/5🟡 全 Fixed）· **L3 盲审 pass**（7 major + 5 minor 全 Fixed：白名单常设化 ADR-028 读序 / 真名零 tracked sha256 对账 / 谓词四分支含 JS 与变量间接 / comm 归一化 / @see 可解析）· `.independent-review-2.done` 用户手写 · M1–M10 入 MINOR-DEFERRED.md
   - **阶段 3 已过门**：TASK.md（T01–T17 · 17 任务 7 波次 DAG · AC-1…17 全承接 · 写权例外清单六类显式授权）· **L2 五轮收敛 pass**（r1 fail 2🔴/8🟡→修复；r2 fail 2🔴/9🟡→修复；r3 fail 2🔴/4🟡→修复；r4 fail 1🔴/4🟡→修复；r5 pass 0🔴/5🟡/5🟢）· **L3 三轮 pass**（r1 fail 2major/8minor→修复；r2 fail 2major/6minor（两恒真锚）→修复；r3 pass 0critical/0major/6minor 全 Fixed in）· verify 锚 20+ 条今日实测红→执行后绿 · `.independent-review-3.done` 用户手写 · M11–M19 入 MINOR-DEFERRED.md
+  - **阶段 4 已过门**：T01–T17 全部 done（19 任务含 T12a/T12b/T12c 拆分 · 7 波次 DAG 执行）· task_progress 19 条（ADR-015）· 串行提交 33 个（Wave 1–7 各含收口提交）· T16 历史重写完成（554 commits filter-repo · 远端 develop=d6ca423→6c25724 / main=4c81c66 强推 · 全新 clone 逐 blob 真名=0 · 备份 bundle verify rc=0）· bats **1116→1179**（+63）· `make check` 全横幅绿 · PCSC 八项 ✅ · `.independent-review-4.done` 通道 = gate_config both（L2/L3 按 5-test 阶段统一走 IR-5）· M20/M21 入 MINOR-DEFERRED.md
   - **C9 降级登记（AC-16 判据）**：C9 四项结构改造（`main()` 抽取 / `_l3_build_prompt` 201 行拆分 / Makefile 内嵌 bash 外迁 / `check-path-privacy.sh` 计数器收敛）**显式降级挂 v2**——理由：改造面大，与本 change 在同一批文件上的 C4/C6 修复叠加 churn，回归风险不成比例（CHANGE 风险表 :505 自认「须分期」）；承接去向 = v2（见 REQUIREMENT.md v2 表）
   - **提案**：`.specs/health-fix-2026-09c/CHANGE.md`
 

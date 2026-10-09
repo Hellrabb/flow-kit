@@ -57,3 +57,8 @@
 - **位置**: .specs/health/2026-09-29-HEALTH.md D-3 名单；仓库根 package-flow-kit.sh:16（source）+:18（生产调用）
 - **观察**: D-3 将 validate_staging_coverage 列为死代码候选，但健康扫描漏查仓库根脚本——package-flow-kit.sh（打包完整性门禁）生产调用它。T14 判定「留」正确；报告 D-3 该项失实。
 - **处置**: T14 已在 CHANGE.md 14c 段登记判定；本条勘误归 7-integration 反哺批（HEALTH.md 为已交付报告不改写，勘误记录于此 + TD 侧评估是否更新 TD-138 名单口径——TD-138「死代码 7 处」计数随本勘误与 T14 判定实际收敛为 1 删 6 留）。
+
+### M22 · 同构夹具生成器收敛（T03 自报 + L3 阶段 5 m1 扩面）
+- **位置**: test/test_check_gate_sync.bats（FXC1:66 / FXB10:128 / FXB25:170 / FXB18:211）+ test/test_skills_sync.bats:32（FXS · T12b）+ test/test_gate_config_carriers.bats:63（FXC5 · T17）——全仓同族 6 处横跨 3 文件（mktemp -d + $SBX/fk 树 + cp 生产件形态）。
+- **观察**: T03 执行时点 FXC1 为该文件第 4 个同构生成器（自报 defer 属实）；后续波次 T12b/T17 又各增 1 处，TEST.md 六维自检 T3 行「命中文件数 1」按文件内口径成立但低估现状（L3 阶段 5 m1 实测扩面）。
+- **处置**: defer 到 v2——收敛为共享 helper（reference/ 下 fixtures.sh 或 bats load 机制）；六维 T3 严重度维持 🟡（无判据力损失，纯维护性债务）；镜像侧 flow-kit-bundle/test/ 同步收敛。
