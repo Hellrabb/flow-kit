@@ -87,7 +87,11 @@ _gate_deny_reason() {
 ⛔ 独立 review gate：阶段 ${phase} (${phase_name}) 独立 review 未完成，禁止 ${deny_reason}。
    需先完成 L2（盲审子 agent → INDEPENDENT-REVIEW-${phase}.md）+ L3（Stop hook 调外部模型），
    再由主 agent 写 ${done_marker} 后重试。
-   如确需绕过（hotfix）：touch ${done_marker}，或 /flow gate-config ${phase_name}=off 关闭。
+   如确需绕过（hotfix）：向 ${done_marker} 写入合法 KVP 标记（≥6 行：phase/change_id/
+   written_by/L2_verdict/L3_verdict/artifacts——审查未跑 verdict 填 skipped；审查已跑
+   则 L2_verdict 须与 INDEPENDENT-REVIEW-${phase}.md 末轮结论一致（Tier-2 T4 比对，
+   fail 须如实填 fail）；空文件会被 fk_validate_done_marker 的 [[ -s ]] 拒绝，touch 已失效），
+   或 /flow gate-config ${phase_name}=off 关闭。
 EOF
     return 2
   fi

@@ -22,6 +22,7 @@
 #   ./sync-hooks.sh --check    # 只比对不写盘；有漂移 exit 1（CI / make check 用）
 #   ./sync-hooks.sh --check --strict-orphans   # 反向残留（源已删、副本仍在）也计为失败
 #   ./sync-hooks.sh --list     # 列出会被处理的副本及其状态
+#   ./sync-hooks.sh --hookspath-guard  # 自检：core.hookspath 架空检测（exit 1 = hooks 被架空）
 
 set -euo pipefail
 
@@ -36,6 +37,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --check) MODE="check" ;;
     --list)  MODE="list" ;;
+    --hookspath-guard) MODE="guard" ;;
     --strict-orphans) STRICT_ORPHANS=1 ;;
     --entry-class)
       # 判据自检出口（brooks-review 2026-09-21 · 🟡2 的修复）：**无副作用**地打印某个相对路径的
@@ -47,6 +49,31 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# ── hookspath 架空守卫（health-fix-2026-09c 阶段 6 L2 R1-④ 根因 · 2026-10-09 事故）──
+# .git/config 出现 `core.hookspath=`（空字符串）时，git 静默不执行本仓任何 hooks——
+# pre-push 隐私门禁对带毒推送零拦截，而本脚本的镜像判据全绿（副本逐字节一致）：
+# 「副本一致」≠「git 会调用」。守卫属一致性门禁的邻接面：该配置存在（含空串）即红，
+# unset = git 用默认 .git/hooks（= install_hooks.sh 的安装位）。未安装 hooks 只提示不红。
+# 自检出口（置于源目录检查前——守卫是配置级判据，不依赖镜像源树）：
+#   bash sync-hooks.sh --hookspath-guard（exit 0 = 干净 / 1 = 被架空）。
+hookspath_guard() {
+  local gval
+  if gval="$(git -C "$SCRIPT_DIR" config --get core.hookspath 2>/dev/null)"; then
+    printf '❌ core.hookspath=%q —— 本仓 hooks 被 git 架空（不会执行 .git/hooks/*）；修复: git config --unset core.hookspath\n' "$gval"
+    return 1
+  fi
+  printf '✅ core.hookspath 未设置（git 使用默认 .git/hooks 安装位）\n'
+  [ -x "$SCRIPT_DIR/.git/hooks/pre-push" ] || \
+    printf 'ℹ️  .git/hooks/pre-push 不在位 —— hooks 未安装（install_hooks.sh），pre-push 门禁不生效\n'
+  return 0
+}
+
+# 守卫自检出口（--hookspath-guard）：只跑守卫即退（不进镜像主流程）。
+if [ "$MODE" = "guard" ]; then
+  hookspath_guard
+  exit $?
+fi
 
 [ -d "$SRC" ] || { echo "ERROR: 源目录不存在: $SRC" >&2; exit 2; }
 
@@ -187,6 +214,14 @@ orphan_total=0
 synced_total=0
 root_fail=0
 nonexec_total=0
+
+# hookspath 守卫进主流程（check/sync 都跑）：check 违规 fail-closed 即退（具名报文先行）；
+# sync 违规只告警不中断——镜像同步本身仍是有效修复动作。
+if [ "$MODE" = "check" ]; then
+  hookspath_guard || exit 1
+elif [ "$MODE" = "sync" ]; then
+  hookspath_guard || true
+fi
 
 printf '源: %s\n' "$SRC"
 printf '镜像文件数: %d（stop 模块与 install_hooks.sh 同源计数）\n' "${#REL_PATHS[@]}"

@@ -155,6 +155,30 @@ write_model_missing_clear "L3"   # 正常路径：清残留 model-missing（AC-6
 # ── Gate 4: 幂等——本阶段 L3 已成功就跳过（方案 A：改用 .done 文件存在性，替代废弃的 state_file 握手）──
 done_marker="${PROJECT_ROOT}/.specs/${change_id}/.independent-review-${phase}.done"
 if [ -f "$done_marker" ]; then
+  module_output "info" "IR" "skipped: ${done_marker} — L3 already completed for phase ${phase}"
+  # R2-③（health-fix-2026-09c 阶段 6 L2 R2）：done 已写但 IR 末段 L3 verdict=fail 且
+  # 无后续「主 agent 响应」段 → 阶段闭环存疑，持续告警。exit 1 经 00-gate run_module
+  # … || true 不阻断 Stop 链，但模块失败态进 99-report 可见（与 C4/AC-6 同一纪律）。
+  # 前科：IR-5 :72 外部重审 fail 8 天无响应、.done 却硬编码 pass，阶段照样推进。
+  # 谓词（顶层禁 local；set -e 下 grep 无命中 rc=1，一律 || true）：
+  #   最后 `## L3` 段行号 vs 最后 `## 主 agent 响应` 段行号（响应在 L3 段后 = 已应答）
+  #   + 最后 `"verdict":` JSON 行（l3-review.sh :131 写入形态）值 = fail。
+  # 本门是 done 标志的第一（也是唯一）生效检查点——原 Gate 5 同判据分支在本门之后，
+  # 恒不可达（死码），R2-③ 告警并入此门后 Gate 5 分支删除。
+  ir_md_r23="${PROJECT_ROOT}/.specs/${change_id}/INDEPENDENT-REVIEW-${phase}.md"
+  if [ -f "$ir_md_r23" ]; then
+    l3_sec_ln_r23="$(grep -n '^## L3' "$ir_md_r23" 2>/dev/null | tail -1 | cut -d: -f1)" || true
+    resp_sec_ln_r23="$(grep -n '^## 主 agent 响应' "$ir_md_r23" 2>/dev/null | tail -1 | cut -d: -f1)" || true
+    last_l3v_r23="$(grep -oE '"verdict":[[:space:]]*"(pass|fail)"' "$ir_md_r23" 2>/dev/null | tail -1 | grep -oE '(pass|fail)' | tail -1)" || true
+    l3_answered_r23=0
+    if [ -n "$resp_sec_ln_r23" ] && { [ -z "$l3_sec_ln_r23" ] || [ "$resp_sec_ln_r23" -gt "$l3_sec_ln_r23" ]; }; then
+      l3_answered_r23=1
+    fi
+    if [ "$last_l3v_r23" = "fail" ] && [ "$l3_answered_r23" -eq 0 ]; then
+      module_output "warning" "IR" "done 阶段 ${phase}: IR 末段 L3 verdict=fail 且无后续主 agent 响应段——阶段闭环存疑，须人工核查/补响应后消除（R2-③）"
+      exit 1
+    fi
+  fi
   exit 0
 fi
 
@@ -221,13 +245,8 @@ _l3_scan_backlog() {
   return "$bl_fail_rc"
 }
 
-# ── Gate 5: done 标志已写（主 agent 收齐了）→ 跳过（方案 A：握手文件废弃，不再清理 state_file）──
-done_marker="${spec_dir}/.independent-review-${phase}.done"
-if [ -f "$done_marker" ]; then
-  module_output "info" "IR" "skipped: ${done_marker} — L3 already completed for phase ${phase}"
-  declare -f fk_perf_timing_end >/dev/null 2>&1 && fk_perf_timing_end "29" || true
-  exit 0
-fi
+# ── （原 Gate 5 done 分支已删除：Gate 4 在前提前退出，此处恒不可达死码；info 输出与
+#     R2-③ 告警已并入 Gate 4 —— health-fix-2026-09c 阶段 6 L2 R2。）──
 
 # ── 积压扫描：在审查当前 phase 前补齐历史缺失的 L3 ──
 l3_lib="${HOOK_BASE_DIR}/lib/l3-review.sh"
